@@ -1,0 +1,164 @@
+{
+  "_comment": "==================================================================",
+  "_comment_2": "5&half System - JSON 샘플 템플릿",
+  "_comment_3": "작성일: 2025-12-04",
+  "_comment_4": "용도: GPT와 작업하던 형식 유지",
+  "_comment_5": "==================================================================",
+  
+  "sample_id": "H001_XX",
+  "_sample_id_help": "샘플 고유 ID (예: H001_01, H001_02, ...)",
+  
+  "system_id": "5_half_system",
+  "_system_id_help": "시스템 이름 (고정값)",
+  
+  "track": "B2T_L",
+  "_track_help": "트랙 이름: B2T_L, B2T_R, T2B_L, T2B_R",
+  
+  "last_cushion": "4C",
+  "_last_cushion_help": "최종 쿠션: 4C, 5C, 6C 중 하나 (세컨드볼 선분 결정)",
+  
+  "ui": {
+    "balls": {
+      "cue": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "_cue_help": "내 공 (큐볼) 위치 (Rg 좌표, 0.5~79.5)",
+      
+      "target_center": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "_target_center_help": "앞 공 중심 (Rg 좌표)",
+      
+      "impact": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "_impact_help": "앞 공 임팩트 지점 (실제 맞는 곳)",
+      
+      "second": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "_second_help": "뒤 공 (세컨드볼) 위치 - [직전쿠션]→[최종쿠션] 선분상!"
+    },
+    
+    "anchors": {
+      "CO": {
+        "x": 0.0,
+        "y": -2.25
+      },
+      "_CO_help": "큐볼 출발 (Fg 좌표, y는 보통 -2.25 또는 42.25)",
+      
+      "1C": {
+        "x": 0.0,
+        "y": 42.25
+      },
+      "_1C_help": "1쿠션 (Fg 좌표)",
+      
+      "2C": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "_2C_help": "2쿠션 (Rg 좌표, 0~80, 0~40)",
+      
+      "3C": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "_3C_help": "3쿠션 (Rg 좌표)",
+      
+      "4C": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "_4C_help": "4쿠션 (Fg 좌표)",
+      
+      "5C": null,
+      "_5C_help": "5쿠션 (있으면 Fg 좌표, 없으면 null)",
+      
+      "6C": null,
+      "_6C_help": "6쿠션 (있으면 Fg 좌표, 없으면 null)",
+      
+      "target_center": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "_target_center_help": "앞 공 중심 (balls.target_center와 동일)"
+    },
+    
+    "system": {
+      "values": {
+        "CO": 0,
+        "1C": 0,
+        "2C": null,
+        "3C": 0,
+        "4C": 0,
+        "5C": null,
+        "6C": null
+      },
+      "_values_help": "각 쿠션의 시스템 값 (sys), 2C는 항상 null",
+      
+      "human_readable": {
+        "1C_calc": "CO_XX - 3C_XX = 1C_XX",
+        "3C_calc": "CO_XX + (보정_XX) - 1C_XX = 3C_XX 사용",
+        "4C_calc": "3C_XX + (레일보정_XX) = 4C_XX"
+      },
+      "_human_readable_help": "사용자가 읽기 쉬운 계산식 설명"
+    },
+    
+    "display_options": {
+      "thickness": "1/2",
+      "_thickness_help": "두께 (예: 1/8, 1/4, 3/8, 1/2, 5/8, 3/4, 7/8)",
+      
+      "hitpoint_clock": "09:00",
+      "_hitpoint_clock_help": "타점 시계 (예: 09:00, 10:30, 01:50)",
+      
+      "english_tips": "상단 3팁",
+      "_english_tips_help": "큐 팁 위치 설명 (예: 상단 2.5팁, 하단 1팁)",
+      
+      "speed_rail": 3.0,
+      "_speed_rail_help": "레일 속도 (1.0~5.0, 3.0이 보통)",
+      
+      "penetration_ball": 2.0,
+      "_penetration_ball_help": "공 관통력 (1.0~5.0)",
+      
+      "curving_hint": "dynamic"
+      "_curving_hint_help": "구름 힌트 (static, dynamic, curve_left, curve_right)"
+    },
+    
+    "strategy": [
+      "이 샘플의 코칭 전략 1번째 줄",
+      "이 샘플의 코칭 전략 2번째 줄",
+      "이 샘플의 코칭 전략 3번째 줄"
+    ],
+    "_strategy_help": "송설님의 40년 경험이 담긴 코칭 내용 (여러 줄 가능)"
+  },
+  
+  "debug": {
+    "base_values": {
+      "CO_base_sys": 0,
+      "3C_eff_sys": 0
+    },
+    "_base_values_help": "기본 시스템 값 (보정 전)",
+    
+    "corrections": {
+      "sliding_sys": 0,
+      "thickness_sys": 0,
+      "distance_sys": 0,
+      "slope_sys": 0,
+      "rail_sys": 0
+    },
+    "_corrections_help": "각종 보정값 (밀림, 두께, 거리, 기울기, 레일)"
+  },
+  
+  "_instructions": {
+    "1": "이 템플릿을 복사해서 새 샘플을 작성하세요",
+    "2": "모든 _help, _comment 필드는 자동으로 무시됩니다",
+    "3": "좌표계 주의: CO,1C,4C,5C,6C는 Fg / 2C,3C는 Rg",
+    "4": "세컨드볼은 [직전쿠션]→[최종쿠션] 선분상에 위치해야 함",
+    "5": "strategy 배열에 송설님의 코칭 내용을 자유롭게 추가하세요",
+    "6": "저장 후 json_symmetry_generator.py로 4개 트랙 자동 생성"
+  }
+}
