@@ -1,16 +1,29 @@
-# React + Vite
+# 🎱 3Cushion AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+AI 기반 3쿠션 당구 코칭 웹 앱
 
-Currently, two official plugins are available:
+## 📱 앱 설치 방법
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 스마트폰 (Android/iOS)
+1. **Chrome 브라우저**로 접속
+2. 사이트 주소 입력 후 이동
+3. **"Visit Site"** 버튼 클릭 (표시되는 경우)
+4. 당구대 화면이 나타나면 정상입니다
+5. 우측 상단 **메뉴(⋮)** → **"홈 화면에 추가"**
+6. 홈 화면에 아이콘이 생성됩니다 ✅
 
-## React Compiler
+### PC (Windows/Mac)
+- Chrome 브라우저에서 바로 사용 가능
+- 주소창 우측의 **설치(⊕)** 버튼으로 데스크톱 앱처럼 설치 가능
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## ✨ 주요 기능
+- 🎯 AI 기반 샷 분석 및 코칭
+- 📐 실시간 당구대 시뮬레이션
+- 🎨 직관적인 UI/UX
 
-## Expanding the ESLint configuration
+## 🔗 배포
+Vercel로 자동 배포 및 호스팅
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+Made with ❤️ by DaeseopChoe
