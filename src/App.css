@@ -1,8 +1,28 @@
+/* ============================================
+   모바일 풀스크린 설정
+   ============================================ */
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* PC 기본 레이아웃 */
 #root {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+}
+
+/* 모바일 전용 override */
+body.mobile-root #root {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .logo {
