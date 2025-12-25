@@ -617,6 +617,7 @@ export default function App() {
   const [view, setView] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [overlayContent, setOverlayContent] = useState(null);
 
   useEffect(() => {
     const shot = SHOTS.find((s) => s.id === currentId);
@@ -759,6 +760,11 @@ export default function App() {
   };
   const railGroups = groupSystemValuesByRail(anchors, system.values || {}, view.last_cushion);
 
+  // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
+  const handleInfoClick = (type) => {
+    setOverlayContent(prev => prev === type ? null : type);
+  };
+
   // ✅ tableSVG 정의 (READ-ONLY)
   const tableSVG = (
     <svg width={TABLE_W + 2 * PADDING} height={TABLE_H + 2 * PADDING} className="bg-slate-900/80 rounded-2xl shadow-xl">
@@ -807,26 +813,42 @@ export default function App() {
 
           <div className="h-px bg-slate-600 my-1" />
 
-          {/* 정보 버튼 (임시) */}
+          {/* 정보 버튼 */}
           <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleInfoClick('SYS');
+            }}
             className="bg-amber-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
             style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             SYS
           </button>
           <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleInfoClick('HPT');
+            }}
             className="bg-amber-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
             style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             HP/T
           </button>
           <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleInfoClick('STR');
+            }}
             className="bg-amber-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
             style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             STR
           </button>
           <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleInfoClick('AI');
+            }}
             className="bg-orange-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
             style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
@@ -835,11 +857,52 @@ export default function App() {
         </div>
       </div>
 
-      {/* ✅ Stage 영역: 자연 크기, scale 없음 */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      {/* ✅ Stage 영역: 클릭 시 오버레이 닫힘 */}
+      <div 
+        className="flex-1 flex items-center justify-center p-8 relative"
+        onClick={() => overlayContent && setOverlayContent(null)}
+      >
         <div style={{ maxWidth: '1200px' }}>
           {tableSVG}
         </div>
+
+        {/* ✅ 정보 카드 (Stage 위에 배치) */}
+        {overlayContent && (
+          <div 
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            style={{ zIndex: 50 }}
+          >
+            <div
+              className="pointer-events-auto rounded-2xl shadow-xl px-10 py-6"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.70)',
+                minWidth: '320px'
+              }}
+              onClick={() => setOverlayContent(null)}
+            >
+              {/* 헤더 */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-slate-900">
+                  {overlayContent}
+                </h2>
+                <button
+                  onClick={() => setOverlayContent(null)}
+                  className="text-slate-400 hover:text-slate-900 text-2xl leading-none w-8 h-8 flex items-center justify-center"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* 내용 */}
+              <div className="text-slate-700">
+                {overlayContent === 'SYS' && <p>시스템 정보 (준비중)</p>}
+                {overlayContent === 'HPT' && <p>타법 정보 (준비중)</p>}
+                {overlayContent === 'STR' && <p>전략 정보 (준비중)</p>}
+                {overlayContent === 'AI' && <p>AI 코칭 (준비중)</p>}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
