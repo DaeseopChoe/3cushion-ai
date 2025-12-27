@@ -10,16 +10,16 @@
         "y": 28.5
       },
       "target_center": {
-        "x": 51.5,
+        "x": 50.3,
         "y": 30.0
       },
       "impact": {
-        "x": 50.0,
+        "x": 49.0,
         "y": 31.0
       },
       "second": {
-        "x": 44.4,
-        "y": 7.4
+        "x": 41.5,
+        "y": 13
       }
     },
     "anchors": {
@@ -28,7 +28,7 @@
         "y": -2.25
       },
       "1C": {
-        "x": 62.0,
+        "x": 60.0,
         "y": 42.25
       },
       "2C": {
@@ -36,66 +36,67 @@
         "y": 27.0
       },
       "3C": {
-        "x": 55.5,
+        "x": 60,
         "y": 0.0
       },
       "4C": {
-        "x": 0.0,
-        "y": 37.0
+        "x": 2.5,
+        "y": 40.0
       },
       "5C": null,
       "6C": null,
       "target_center": {
-        "x": 51.5,
+        "x": 50.3,
         "y": 30.0
       }
     },
     "system": {
       "values": {
-        "CO": 43,
-        "1C": 18,
+        "CO": 40,
+        "1C": 20,
         "2C": null,
-        "3C": 25,
-        "4C": 21.5,
+        "3C": 20,
+        "4C": 15,
         "5C": null,
         "6C": null
       },
       "human_readable": {
-        "1C_calc": "CO_43 - 3C_25 = 1C_18",
-        "3C_calc": "CO_40 + (밀림값 보정_3) - 1C_18 = 3C_25 사용",
-        "4C_calc": "3C_25 + (레일 보정_-3.5) = 4C_21.5"
+        "1C_calc": "CO_40 - 3C_20 = 1C_20",
+        "3C_calc": "CO_40 - 1C_20 = 3C_20",
+        "4C_calc": "3C_20 + (레일 보정_-5) = 4C_15"
       }
     },
     "display_options": {
       "thickness": "3/8",
-      "hitpoint_clock": "01:50",
-      "english_tips": "상단 2.5팁",
-      "speed_rail": 3.0,
-      "penetration_ball": 2.0,
+      "hitpoint_clock": "01:30",
+      "english_tips": "상단 2팁",
+      "speed_rail": 2.5,
+      "penetration_ball": 1.5,
       "curving_hint": "dynamic"
     },
     "strategy": [
-      "5&half 시스템을 적용, 기본 계산 40-18=22.",
-      "보정 : 밀림값 3을 더하고, 큐 볼 출발값 43에 대한 짧아지는 보정값 -3.5하면 4쿠션 도착은 21.5입니다..",
-      "앞 공과의 거리가 3포인트 이상 멀어지면 구름 관성에 따른 밀림 값을 추가해야 합니다."
+      "5&half 시스템을 적용, 기본 계산 40-20=20.",
+      "보정 : 40에 대한 짧아지는 보정값 -5하면 4쿠션 도착은 15입니다..",
+      "앞 공과의 거리가 3포인트 이상 멀어지면 구름 관성에 따른 밀림 값을 3~5 정도 추가해야 합니다.",
+      "밀림값을 적용하면 3쿠션 도착값은 23~25가 되므로 이때는 회전을 반팁 줄여야 득점할 수 있습니다."
     ]
   },
   "debug": {
     "base_values": {
       "CO_base_sys": 40,
-      "3C_eff_sys": 25
+      "3C_eff_sys": 20
     },
     "corrections": {
-      "sliding_sys": 3,
+      "sliding_sys": 0,
       "thickness_sys": 0,
       "distance_sys": 0,
       "slope_sys": 0,
-      "rail_sys": -3.5
+      "rail_sys": -5
     }
   },
   "second_ball_meta": {
-    "division": 1,
-    "percentage": 20.0,
+    "division": null,
+    "percentage": null,
     "segment": "3C→4C"
   }
 }

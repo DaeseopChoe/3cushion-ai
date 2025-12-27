@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import canonical from "./canonical.json";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
 
 // ============================================
@@ -13,16 +12,13 @@ function isMobileDevice() {
 const IS_MOBILE = isMobileDevice();
 
 const SHOTS = [
-  { id: "H001_05", label: "H001 – B2T_R / 4C", file: "B2T_R_canonical.json" },
+  { id: "H001_05", label: "H001 – B2T_R / 4C", file: "canonical.json" },
   { id: "H001_05_SB1", label: "H001 – B2T_R / 4C - SB1", file: "B2T_R/H001_05_SB1.json" },
   { id: "H001_05_SB2", label: "H001 – B2T_R / 4C - SB2", file: "B2T_R/H001_05_SB2.json" },
   { id: "H001_05_SB3", label: "H001 – B2T_R / 4C - SB3", file: "B2T_R/H001_05_SB3.json" },
   { id: "H001_05_SB4", label: "H001 – B2T_R / 4C - SB4", file: "B2T_R/H001_05_SB4.json" },
   { id: "H001_05_SB5", label: "H001 – B2T_R / 4C - SB5", file: "B2T_R/H001_05_SB5.json" },
-  { id: "H001_05_B2T_L", label: "H001 – B2T_L / 4C", file: "B2T_L_generated.json" },
-  { id: "H001_05_T2B_L", label: "H001 – T2B_L / 4C", file: "T2B_L_generated.json" },
-  { id: "H001_05_T2B_R", label: "H001 – T2B_R / 4C", file: "T2B_R_generated.json" },
-];
+ ];
 
 const SCALE = 10;
 const TABLE_W_UNITS = 80;
@@ -630,7 +626,14 @@ export default function App() {
     setLoading(true);
     setError(null);
 
-    fetch(`/samples/5_half_system/${shot.file}`)
+    const basePath = "/samples/5_half_system";
+
+    const url = shot.file === "canonical.json"
+      ? `${basePath}/B2T_R/canonical.json`
+      : `${basePath}/${shot.file}`;
+    
+    fetch(url)
+    
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -876,14 +879,20 @@ export default function App() {
               className="pointer-events-auto rounded-2xl shadow-xl px-10 py-6"
               style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.70)',
-                minWidth: '320px'
+                minWidth: '320px',
+                maxWidth: '70%',
+                maxHeight: '60%',
+                overflowY: 'auto'
               }}
               onClick={() => setOverlayContent(null)}
             >
               {/* 헤더 */}
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-slate-900">
-                  {overlayContent}
+                  {overlayContent === 'SYS' && 'SYS'}
+                  {overlayContent === 'HPT' && 'HP/T'}
+                  {overlayContent === 'STR' && 'STR'}
+                  {overlayContent === 'AI' && 'AI'}
                 </h2>
                 <button
                   onClick={() => setOverlayContent(null)}
@@ -895,10 +904,71 @@ export default function App() {
 
               {/* 내용 */}
               <div className="text-slate-700">
-                {overlayContent === 'SYS' && <p>시스템 정보 (준비중)</p>}
-                {overlayContent === 'HPT' && <p>타법 정보 (준비중)</p>}
-                {overlayContent === 'STR' && <p>전략 정보 (준비중)</p>}
-                {overlayContent === 'AI' && <p>AI 코칭 (준비중)</p>}
+                {/* SYS: 시스템 계산식 */}
+                {overlayContent === 'SYS' && (
+                  <div className="space-y-2">
+                    {system.human_readable && Object.keys(system.human_readable).length > 0 ? (
+                      Object.entries(system.human_readable).map(([key, formula]) => (
+                        <div key={key} className="font-mono text-sm">
+                          {formula}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500">시스템 정보 없음</p>
+                    )}
+                  </div>
+                )}
+                
+                {/* HP/T: 타법 정보 */}
+                {overlayContent === 'HPT' && (
+                  <div className="space-y-3">
+                    {/* 타점 시각화 */}
+                    <div>
+                      <div className="text-xs text-slate-500 mb-2">타점 (Hit Point)</div>
+                      <HitpointVisualizer hitpoint={opts.hitpoint_clock} />
+                    </div>
+                    
+                    {/* 두께 */}
+                    <div className="text-sm">
+                      <span className="font-semibold">두께:</span> {opts.thickness || '-'}
+                    </div>
+                    
+                    {/* 회전 */}
+                    <div className="text-sm">
+                      <span className="font-semibold">회전:</span> {opts.english_tips || '-'}
+                    </div>
+                  </div>
+                )}
+                
+                {/* STR: 전략 디테일 */}
+                {overlayContent === 'STR' && (
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-semibold">스피드:</span> {opts.speed_rail ? `${opts.speed_rail} 레일` : '-'}
+                    </div>
+                    <div>
+                      <span className="font-semibold">관통:</span> {opts.penetration_ball ? `${opts.penetration_ball} 볼` : '-'}
+                    </div>
+                  </div>
+                )}
+                
+                {/* AI: 코칭 전략 */}
+                {overlayContent === 'AI' && (
+                  <div>
+                    {strategy && strategy.length > 0 ? (
+                      <ul className="space-y-2 text-sm">
+                        {strategy.map((line, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-emerald-400 mt-1">•</span>
+                            <span>{line}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-slate-500">AI 전략 정보 없음</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
