@@ -632,6 +632,7 @@ export default function App() {
       ? `${basePath}/B2T_R/canonical.json`
       : `${basePath}/${shot.file}`;
     
+       
     fetch(url)
     
       .then((res) => {
@@ -661,11 +662,36 @@ export default function App() {
   const opts = ui.display_options || {};
   const strategy = ui.strategy || [];
 
+  // canonical 처리 (안전하게)
+  let canonical = view.track || null;
+  if (!canonical) {
+    const shot = SHOTS.find((s) => s.id === currentId);
+    if (shot && shot.file && shot.file.includes("/")) {
+      canonical = shot.file.split("/")[0];
+    }
+  }
+
   let anchors = rawAnchors;
-  try {
-    anchors = convertCanonicalAnchors(rawAnchors, canonical);
-  } catch (e) {
-    console.error("변환 오류:", e);
+  
+  // 변환 필수 데이터 확인
+  const hasConversionData = 
+    canonical && 
+    canonical !== "canonical" &&
+    system.values &&
+    typeof system.values.offset_fg2rg === "number";
+  
+  if (hasConversionData) {
+    try {
+      anchors = convertCanonicalAnchors(rawAnchors, canonical);
+    } catch (e) {
+      console.warn("좌표 변환 실패, 원본 사용:", e);
+    }
+  } else {
+    if (!canonical) {
+      console.warn("canonical 정보 없음, 좌표 변환 스킵");
+    } else if (!system.values || typeof system.values.offset_fg2rg !== "number") {
+      console.warn("system.values.offset_fg2rg 없음, 좌표 변환 스킵");
+    }
   }
 
   // ⚠️ convertCanonicalAnchors가 이미 Fg → Rg 변환을 함!

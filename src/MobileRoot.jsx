@@ -29,16 +29,13 @@ const POINT_OFFSET_RG = POINT_OFFSET_MM / RG_UNIT_MM;
 // 샷 데이터 (App.jsx와 동일)
 // ============================================
 const SHOTS = [
-  { id: "H001_05", label: "H001 – B2T_R / 4C", file: "B2T_R_canonical.json" },
-  { id: "H001_05_SB1", label: "H001 – B2T_R / 4C - SB1", file: "B2T_R/H001_05_SB1.json" },
-  { id: "H001_05_SB2", label: "H001 – B2T_R / 4C - SB2", file: "B2T_R/H001_05_SB2.json" },
-  { id: "H001_05_SB3", label: "H001 – B2T_R / 4C - SB3", file: "B2T_R/H001_05_SB3.json" },
-  { id: "H001_05_SB4", label: "H001 – B2T_R / 4C - SB4", file: "B2T_R/H001_05_SB4.json" },
-  { id: "H001_05_SB5", label: "H001 – B2T_R / 4C - SB5", file: "B2T_R/H001_05_SB5.json" },
-  { id: "H001_05_B2T_L", label: "H001 – B2T_L / 4C", file: "B2T_L_generated.json" },
-  { id: "H001_05_T2B_L", label: "H001 – T2B_L / 4C", file: "T2B_L_generated.json" },
-  { id: "H001_05_T2B_R", label: "H001 – T2B_R / 4C", file: "T2B_R_generated.json" },
-];
+    { id: "H001_05", label: "H001 | B2T_R / 4C", file: "B2T_R/canonical.json" },
+    { id: "H001_05_SB1", label: "H001 | B2T_R / 4C - SB1", file: "B2T_R/H001_05_SB1.json" },
+    { id: "H001_05_SB2", label: "H001 | B2T_R / 4C - SB2", file: "B2T_R/H001_05_SB2.json" },
+    { id: "H001_05_SB3", label: "H001 | B2T_R / 4C - SB3", file: "B2T_R/H001_05_SB3.json" },
+    { id: "H001_05_SB4", label: "H001 | B2T_R / 4C - SB4", file: "B2T_R/H001_05_SB4.json" },
+    { id: "H001_05_SB5", label: "H001 | B2T_R / 4C - SB5", file: "B2T_R/H001_05_SB5.json" },
+  ];  
 
 // ============================================
 // 헬퍼 함수들 (App.jsx에서 복사)
