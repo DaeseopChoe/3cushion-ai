@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
+import { createMobileContract } from "./createMobileContract";
+import MobileRoot from "./MobileRoot";
 
 // ============================================
 // Phase B-1 Step 1: 모바일 감지 (임시)
@@ -1003,8 +1005,53 @@ export default function App() {
     </div>
   );
 
-  // Phase B-1 Step 1: wrapper 조건부 적용
-  return IS_MOBILE 
-    ? <MobileWrapper>{content}</MobileWrapper> 
-    : content;
+  // ========================================
+  // computationResult 생성 (PC/Mobile 공통 데이터)
+  // ========================================
+  const computationResult = {
+    balls,
+    anchors: {
+      CO: CO_rail,
+      "1C": C1_rail,
+      "2C": C2,
+      "3C": C3,
+      "4C": C4,
+      "5C": C5,
+      "6C": C6
+    },
+    system,
+    opts,
+    strategy,
+    view,
+    impact,
+    CO_rail,
+    C1_rail,
+    CO_line,
+    C1_line,
+    allAnchors,
+    railGroups,
+    cushionPath,
+    lastAnchor
+  };
+
+  // ========================================
+  // Phase F: PC/Mobile 렌더 통합
+  // - Mobile에서도 PC 렌더링 사용
+  // - MobileRoot / MobileContract 사용 중단
+  // ========================================
+  
+  // Mobile Contract 생성 로직 비활성화 (Phase F)
+  // let mobileContract = null;
+  // if (IS_MOBILE) {
+  //   try {
+  //     mobileContract = createMobileContract(computationResult);
+  //   } catch (e) {
+  //     console.error("❌ createMobileContract 실패:", e);
+  //   }
+  // }
+
+  // ========================================
+  // 렌더링: PC/Mobile 동일 (Phase F)
+  // ========================================
+  return content;
 }
