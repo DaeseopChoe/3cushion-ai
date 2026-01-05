@@ -1,22 +1,40 @@
 /* ============================================
-   모바일 풀스크린 설정
+   Phase G-2 정리: 전역 스타일
    ============================================ */
+
+/* HTML/Body 기본 설정 */
 html, body {
   width: 100%;
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;  /* 스크롤 방지 */
 }
 
-/* PC 기본 레이아웃 */
+/* ============================================
+   Phase 1.5: #root 수정 (핵심)
+   - Stage가 화면 전체를 제어
+   - max-width, padding 제거
+   - 배경 제거 (Stage가 유일한 배경)
+   ============================================ */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  
+  /* 배경 제거: Stage가 담당 */
+  background: transparent;
+  
+  /* 정렬 제거: Stage가 담당 */
+  /* text-align: center; ← 제거 */
+  /* max-width: 1280px; ← 제거 */
 }
 
-/* 모바일 전용 override */
+/* ============================================
+   모바일 전용 override (Phase 2에서 재검토)
+   ============================================ */
 body.mobile-root #root {
   max-width: none;
   padding: 0;
@@ -25,6 +43,9 @@ body.mobile-root #root {
   height: 100%;
 }
 
+/* ============================================
+   기타 스타일 (Vite 기본값, 사용 안 함)
+   ============================================ */
 .logo {
   height: 6em;
   padding: 1.5em;

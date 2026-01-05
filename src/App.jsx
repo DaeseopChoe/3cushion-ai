@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
-import { createMobileContract } from "./createMobileContract";
-import MobileRoot from "./MobileRoot";
-
-// ============================================
-// Phase B-1 Step 1: 모바일 감지 (임시)
-// ============================================
-function isMobileDevice() {
-  const ua = navigator.userAgent || navigator.vendor || window.opera;
-  return /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-}
-
-const IS_MOBILE = isMobileDevice();
 
 const SHOTS = [
   { id: "H001_05", label: "H001 – B2T_R / 4C", file: "canonical.json" },
@@ -27,7 +15,7 @@ const TABLE_W_UNITS = 80;
 const TABLE_H_UNITS = 40;
 const TABLE_W = TABLE_W_UNITS * SCALE;
 const TABLE_H = TABLE_H_UNITS * SCALE;
-const PADDING = 100;
+const PADDING = 30;  // 100 → 30 (여백 축소)
 
 const BALL_DIAMETER_MM = 61.5;
 const RG_UNIT_MM = 35.55;
@@ -225,45 +213,6 @@ function AnchorPoint({ x, y, label, isFg = false }) {
   );
 }
 
-function HitpointVisualizer({ hitpoint }) {
-  if (!hitpoint) return <div className="text-gray-400 text-sm">정보 없음</div>;
-  const parts = hitpoint.split(":");
-  if (parts.length !== 2) return <div className="text-gray-400 text-sm">형식 오류</div>;
-
-  const hour = parseInt(parts[0], 10);
-  const minute = parseInt(parts[1], 10);
-  
-  // 시계 방향 각도 계산
-  // 12시 = 0°, 3시 = 90°, 6시 = 180°, 9시 = 270°
-  const totalMinutes = (hour * 60 + minute) % 720;  // 12시간 = 720분
-  const angle = (totalMinutes / 720) * 360;  // 0~360도
-  
-  // SVG 좌표계로 변환 (12시가 위쪽)
-  const angleRad = ((angle - 90) * Math.PI) / 180;
-  
-  // 중심에서 바깥쪽 3/5 = 0.6
-  const radiusScale = 0.6;
-  const radius = 24;
-  
-  const dotX = 25 + radiusScale * radius * Math.cos(angleRad);
-  const dotY = 25 + radiusScale * radius * Math.sin(angleRad);
-
-  return (
-    <div className="flex items-center space-x-4">
-      <svg width="50" height="50">
-        {/* 공 외곽 */}
-        <circle cx="25" cy="25" r="24" fill="#111827" stroke="#6b7280" strokeWidth="1.5" />
-        {/* 중심점 */}
-        <circle cx="25" cy="25" r="1.5" fill="#9ca3af" />
-        {/* 당점 */}
-        <circle cx={dotX} cy={dotY} r={3.5} fill="#f97316" stroke="#fff" strokeWidth="1.5" />
-        {/* 12시 표시 (참고용) */}
-        <line x1="25" y1="5" x2="25" y2="10" stroke="#6b7280" strokeWidth="1" />
-      </svg>
-      <span className="text-base font-semibold text-gray-100">{hitpoint}</span>
-    </div>
-  );
-}
 
 function TableGrid() {
   const lines = [];
@@ -393,229 +342,21 @@ function SystemValueLabels({ railGroups }) {
 // Phase B-1 Step 1: MobileWrapper (완전 투명)
 // ============================================
 
-// 전략 버튼
-const STRATEGY_BUTTONS = [
-  { id: "S1", label: "S-1", color: "bg-emerald-500" },
-  { id: "S2", label: "S-2", color: "bg-emerald-500" },
-  { id: "S3", label: "S-3", color: "bg-emerald-500" },
-];
-
-// 정보 버튼
-const INFO_BUTTONS = [
-  { id: "SYS", label: "SYS", color: "bg-amber-500" },
-  { id: "HPT", label: "HP/T", color: "bg-amber-500" },
-  { id: "STR", label: "STR", color: "bg-amber-500" },
-  { id: "AI", label: "AI", color: "bg-orange-500" },
-];
-
-function MobileWrapper({ children }) {
-  const [activeStrategy, setActiveStrategy] = useState("S1");
-  const [overlayContent, setOverlayContent] = useState(null);
-  
-  // Step 2: 레이아웃 계산 (모바일 가로 기준)
-  const [dimensions, setDimensions] = useState(null);
-  
-  useEffect(() => {
-    const calculateLayout = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      
-      // 좌측 버튼 영역 제외
-      const buttonWidth = 60;
-      const availableW = vw - buttonWidth;
-      const availableH = vh;
-      
-      // 짧은 변 기준 (2:1 비율 유지)
-      const shortSide = Math.min(availableW / 2, availableH);
-      
-      // 당구대 크기 (90% 점유)
-      const tableH = shortSide * 0.9;
-      const tableW = tableH * 2;
-      
-      // 원본 크기 기준 scale 계산
-      const originalTableW = 800;
-      const originalTableH = 400;
-      const scale = tableW / originalTableW;
-      
-      setDimensions({
-        tableW,
-        tableH,
-        scale,
-        buttonWidth
-      });
-      
-      console.log("📐 Mobile Layout:", {
-        viewport: { vw, vh },
-        available: { w: availableW, h: availableH },
-        shortSide,
-        table: { w: tableW, h: tableH },
-        scale: scale.toFixed(3)
-      });
-    };
-    
-    calculateLayout();
-    window.addEventListener('resize', calculateLayout);
-    window.addEventListener('orientationchange', calculateLayout);
-    
-    return () => {
-      window.removeEventListener('resize', calculateLayout);
-      window.removeEventListener('orientationchange', calculateLayout);
-    };
-  }, []);
-  
-  // 더미 전략 데이터 (Step 1 하드코딩)
-  const [strategyBundle] = useState({
-    S1: {
-      info: {
-        SYS: "S1 시스템 정보\n\nCO: 13\n1C: 10\n3C: 3\n\n기본 전략 (더미 데이터)",
-        HPT: "S1 당점/두께\n\n당점: 12시\n두께: 1/2\n속도: 중간",
-        STR: "S1 전략 설명\n\n뒤돌리기 기본 패턴\n안정적인 진입 각도",
-        AI: "S1 AI 코칭\n\n추천: 중간 속도\n주의: 1C 정확도 중요",
-      },
-    },
-    S2: {
-      info: {
-        SYS: "S2 시스템 정보\n\nCO: 25\n1C: 20\n3C: 10\n\n대안 전략 (더미 데이터)",
-        HPT: "S2 당점/두께\n\n당점: 1시\n두께: 2/3\n속도: 빠름",
-        STR: "S2 전략 설명\n\n옆돌리기 변형\n공격적인 각도",
-        AI: "S2 AI 코칭\n\n추천: 빠른 속도\n주의: 2C 조정 필요",
-      },
-    },
-    S3: {
-      info: {
-        SYS: "S3 시스템 정보\n\nCO: 35\n1C: 30\n3C: 20\n\n보수적 전략 (더미 데이터)",
-        HPT: "S3 당점/두께\n\n당점: 11시\n두께: 1/3\n속도: 느림",
-        STR: "S3 전략 설명\n\n안전 패턴\n확실한 득점 우선",
-        AI: "S3 AI 코칭\n\n추천: 느린 속도\n주의: 정확도 최우선",
-      },
-    },
-  });
-
-  const handleStrategyClick = (strategy) => {
-    if (activeStrategy === strategy) return; // no-op
-    setActiveStrategy(strategy);
-    setOverlayContent(null);
-    console.log(`🎯 전략 변경: ${strategy}`);
-  };
-
-  const handleInfoClick = (infoType) => {
-    setOverlayContent(overlayContent === infoType ? null : infoType);
-    console.log(`📊 정보 표시: ${infoType} (전략: ${activeStrategy})`);
-  };
-
-  const closeOverlay = () => {
-    setOverlayContent(null);
-  };
-
-  const currentOverlayContent = overlayContent
-    ? strategyBundle[activeStrategy]?.info[overlayContent]
-    : null;
-
-  // Step 2: dimensions 계산 중 로딩 표시
-  if (!dimensions) {
-    return (
-      <div className="fixed inset-0 bg-slate-900 flex items-center justify-center">
-        <div className="text-white text-lg">⏳ 레이아웃 계산 중...</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 bg-slate-900 flex">
-      {/* 좌측 버튼 영역 (고정) */}
-      <div className="flex-shrink-0 bg-slate-800/50 flex flex-col justify-center gap-2 p-2" style={{ width: `${dimensions.buttonWidth}px` }}>
-        {STRATEGY_BUTTONS.map((btn) => (
-          <button
-            key={btn.id}
-            onClick={() => handleStrategyClick(btn.id)}
-            className={`
-              ${btn.color} 
-              text-white font-bold text-xs rounded-lg px-2 py-3 shadow-lg 
-              active:scale-95 transition-all
-              ${activeStrategy === btn.id ? "ring-2 ring-white ring-offset-2 ring-offset-slate-900" : "opacity-60"}
-            `}
-          >
-            {btn.label}
-          </button>
-        ))}
-        <div className="h-px bg-slate-600 my-1" />
-        {INFO_BUTTONS.map((btn) => (
-          <button
-            key={btn.id}
-            onClick={() => handleInfoClick(btn.id)}
-            className={`
-              ${btn.color} 
-              text-white font-bold text-xs rounded-lg px-2 py-3 shadow-lg 
-              active:scale-95 transition-all
-              ${overlayContent === btn.id ? "ring-2 ring-white" : ""}
-            `}
-          >
-            {btn.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Step 2: 당구대 영역 (scale 적용) */}
-      <div className="flex-1 flex items-center justify-center overflow-hidden bg-slate-900">
-        <div
-          style={{
-            transform: `scale(${dimensions.scale})`,
-            transformOrigin: 'center center',
-            width: '800px',
-            height: '400px'
-          }}
-        >
-          {children}
-        </div>
-      </div>
-
-      {/* 오버레이 */}
-      {overlayContent && currentOverlayContent && (
-        <div
-          className="absolute inset-0 flex items-center justify-center bg-black/50 z-50"
-          onClick={closeOverlay}
-        >
-          <div
-            className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 shadow-2xl max-w-md mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-200">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">
-                  {INFO_BUTTONS.find((b) => b.id === overlayContent)?.label || "정보"}
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  전략: {STRATEGY_BUTTONS.find((b) => b.id === activeStrategy)?.label}
-                </p>
-              </div>
-              <button
-                onClick={closeOverlay}
-                className="text-slate-400 hover:text-slate-900 text-3xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-            <div className="text-slate-700 whitespace-pre-line leading-relaxed">
-              {currentOverlayContent}
-            </div>
-            <div className="mt-4 pt-3 border-t border-slate-200">
-              <p className="text-xs text-slate-400">
-                Phase B-1 Step 1 - 더미 데이터
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function App() {
+export default function App({ currentButtonId }) {
   const [currentId, setCurrentId] = useState(SHOTS[0].id);
   const [view, setView] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [overlayContent, setOverlayContent] = useState(null);
+
+  useEffect(() => {
+    if (currentButtonId === 'S1') setCurrentId(SHOTS[0].id);
+    else if (currentButtonId === 'S2') setCurrentId(SHOTS[1].id);
+    else if (currentButtonId === 'S3') setCurrentId(SHOTS[2].id);
+    else if (['SYS', 'HP/T', 'STR', 'AI'].includes(currentButtonId)) {
+      setOverlayContent(currentButtonId === 'HP/T' ? 'HPT' : currentButtonId);
+    }
+  }, [currentButtonId]);
 
   useEffect(() => {
     const shot = SHOTS.find((s) => s.id === currentId);
@@ -653,9 +394,7 @@ export default function App() {
       });
   }, [currentId]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100"><div className="text-lg">로딩 중...</div></div>;
-  if (error) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100 p-8"><div className="text-red-400">오류: {error}</div></div>;
-  if (!view || !view.ui) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100"><div className="text-red-400">데이터 오류</div></div>;
+  if (loading || error || !view || !view.ui) return null;
 
   const ui = view.ui;
   const balls = ui.balls || {};
@@ -792,13 +531,14 @@ export default function App() {
   const railGroups = groupSystemValuesByRail(anchors, system.values || {}, view.last_cushion);
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
-  const handleInfoClick = (type) => {
-    setOverlayContent(prev => prev === type ? null : type);
-  };
 
-  // ✅ tableSVG 정의 (READ-ONLY)
   const tableSVG = (
-    <svg width={TABLE_W + 2 * PADDING} height={TABLE_H + 2 * PADDING} className="bg-slate-900/80 rounded-2xl shadow-xl">
+    <svg
+      viewBox={`0 0 ${TABLE_W + 2 * PADDING} ${TABLE_H + 2 * PADDING}`}
+      width="100%"
+      height="100%"
+      preserveAspectRatio="xMidYMid meet"
+    >
       <RailFrame />
       <TableGrid />
       {Object.entries(allAnchors).map(([label, data]) => data.coord && <AnchorPoint key={label} label={label} x={data.coord.x} y={data.coord.y} isFg={data.isFg} />)}
@@ -813,245 +553,109 @@ export default function App() {
     </svg>
   );
 
-  // ✅ PC 레이아웃: 버튼 컬럼 + Stage 중앙
-  const content = (
-    <div className="min-h-screen bg-slate-900 flex">
-      {/* 좌측 버튼 컬럼 */}
-      <div className="flex items-center justify-center" style={{ width: '120px' }}>
-        <div className="flex flex-col gap-2.5">
-          {/* 전략 버튼 (S-1, S-2, S-3) */}
-          <button
-            onClick={() => setCurrentId(SHOTS[0].id)}
-            className="bg-emerald-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
-            style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            S-1
-          </button>
-          <button
-            onClick={() => setCurrentId(SHOTS[1].id)}
-            className="bg-emerald-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
-            style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            S-2
-          </button>
-          <button
-            onClick={() => setCurrentId(SHOTS[2].id)}
-            className="bg-emerald-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
-            style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            S-3
-          </button>
-
-          <div className="h-px bg-slate-600 my-1" />
-
-          {/* 정보 버튼 */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleInfoClick('SYS');
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {tableSVG}
+      
+      {overlayContent && (
+        <div
+          onClick={() => setOverlayContent(null)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              borderRadius: '16px',
+              padding: '24px',
+              minWidth: '320px',
+              maxWidth: '70%',
+              maxHeight: '60%',
+              overflowY: 'auto',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
             }}
-            className="bg-amber-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
-            style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            SYS
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleInfoClick('HPT');
-            }}
-            className="bg-amber-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
-            style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            HP/T
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleInfoClick('STR');
-            }}
-            className="bg-amber-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
-            style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            STR
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleInfoClick('AI');
-            }}
-            className="bg-orange-600 text-white font-bold text-xs rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all opacity-70 hover:opacity-100"
-            style={{ width: '48px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            AI
-          </button>
-        </div>
-      </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>
+                {overlayContent === 'SYS' && 'SYS'}
+                {overlayContent === 'HPT' && 'HP/T'}
+                {overlayContent === 'STR' && 'STR'}
+                {overlayContent === 'AI' && 'AI'}
+              </h2>
+              <button
+                onClick={() => setOverlayContent(null)}
+                style={{
+                  fontSize: '28px',
+                  color: '#94a3b8',
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
 
-      {/* ✅ Stage 영역: 클릭 시 오버레이 닫힘 */}
-      <div 
-        className="flex-1 flex items-center justify-center p-8 relative"
-        onClick={() => overlayContent && setOverlayContent(null)}
-      >
-        <div style={{ maxWidth: '1200px' }}>
-          {tableSVG}
-        </div>
-
-        {/* ✅ 정보 카드 (Stage 위에 배치) */}
-        {overlayContent && (
-          <div 
-            className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            style={{ zIndex: 50 }}
-          >
-            <div
-              className="pointer-events-auto rounded-2xl shadow-xl px-10 py-6"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.70)',
-                minWidth: '320px',
-                maxWidth: '70%',
-                maxHeight: '60%',
-                overflowY: 'auto'
-              }}
-              onClick={() => setOverlayContent(null)}
-            >
-              {/* 헤더 */}
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-slate-900">
-                  {overlayContent === 'SYS' && 'SYS'}
-                  {overlayContent === 'HPT' && 'HP/T'}
-                  {overlayContent === 'STR' && 'STR'}
-                  {overlayContent === 'AI' && 'AI'}
-                </h2>
-                <button
-                  onClick={() => setOverlayContent(null)}
-                  className="text-slate-400 hover:text-slate-900 text-2xl leading-none w-8 h-8 flex items-center justify-center"
-                >
-                  ×
-                </button>
-              </div>
-
-              {/* 내용 */}
-              <div className="text-slate-700">
-                {/* SYS: 시스템 계산식 */}
-                {overlayContent === 'SYS' && (
-                  <div className="space-y-2">
-                    {system.human_readable && Object.keys(system.human_readable).length > 0 ? (
-                      Object.entries(system.human_readable).map(([key, formula]) => (
-                        <div key={key} className="font-mono text-sm">
-                          {formula}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-slate-500">시스템 정보 없음</p>
-                    )}
+            <div style={{ color: '#334155', fontSize: '14px' }}>
+              {overlayContent === 'SYS' && (
+                <div>
+                  {system.human_readable && Object.keys(system.human_readable).length > 0 ? (
+                    Object.entries(system.human_readable).map(([key, formula]) => (
+                      <div key={key} style={{ fontFamily: 'monospace', marginBottom: '8px' }}>
+                        {formula}
+                      </div>
+                    ))
+                  ) : (
+                    <p style={{ color: '#64748b' }}>시스템 정보 없음</p>
+                  )}
+                </div>
+              )}
+              
+              {overlayContent === 'HPT' && (
+                <div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>타점 (Hit Point)</div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{opts.hitpoint_clock || '-'}</div>
                   </div>
-                )}
-                
-                {/* HP/T: 타법 정보 */}
-                {overlayContent === 'HPT' && (
-                  <div className="space-y-3">
-                    {/* 타점 시각화 */}
-                    <div>
-                      <div className="text-xs text-slate-500 mb-2">타점 (Hit Point)</div>
-                      <HitpointVisualizer hitpoint={opts.hitpoint_clock} />
-                    </div>
-                    
-                    {/* 두께 */}
-                    <div className="text-sm">
-                      <span className="font-semibold">두께:</span> {opts.thickness || '-'}
-                    </div>
-                    
-                    {/* 회전 */}
-                    <div className="text-sm">
-                      <span className="font-semibold">회전:</span> {opts.english_tips || '-'}
-                    </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <span style={{ fontWeight: '600' }}>두께:</span> {opts.thickness || '-'}
                   </div>
-                )}
-                
-                {/* STR: 전략 디테일 */}
-                {overlayContent === 'STR' && (
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="font-semibold">스피드:</span> {opts.speed_rail ? `${opts.speed_rail} 레일` : '-'}
-                    </div>
-                    <div>
-                      <span className="font-semibold">관통:</span> {opts.penetration_ball ? `${opts.penetration_ball} 볼` : '-'}
-                    </div>
-                  </div>
-                )}
-                
-                {/* AI: 코칭 전략 */}
-                {overlayContent === 'AI' && (
                   <div>
-                    {strategy && strategy.length > 0 ? (
-                      <ul className="space-y-2 text-sm">
-                        {strategy.map((line, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-emerald-400 mt-1">•</span>
-                            <span>{line}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-slate-500">AI 전략 정보 없음</p>
-                    )}
+                    <span style={{ fontWeight: '600' }}>회전:</span> {opts.english_tips || '-'}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+              
+              {overlayContent === 'STR' && (
+                <div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <span style={{ fontWeight: '600' }}>속도:</span> {opts.speed || '-'}
+                  </div>
+                  <div>
+                    <span style={{ fontWeight: '600' }}>전략:</span> {view.pattern || '-'}
+                  </div>
+                </div>
+              )}
+              
+              {overlayContent === 'AI' && (
+                <div>
+                  <p style={{ lineHeight: 1.6 }}>
+                    AI 추천 기능은 추후 구현 예정입니다.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
-
-  // ========================================
-  // computationResult 생성 (PC/Mobile 공통 데이터)
-  // ========================================
-  const computationResult = {
-    balls,
-    anchors: {
-      CO: CO_rail,
-      "1C": C1_rail,
-      "2C": C2,
-      "3C": C3,
-      "4C": C4,
-      "5C": C5,
-      "6C": C6
-    },
-    system,
-    opts,
-    strategy,
-    view,
-    impact,
-    CO_rail,
-    C1_rail,
-    CO_line,
-    C1_line,
-    allAnchors,
-    railGroups,
-    cushionPath,
-    lastAnchor
-  };
-
-  // ========================================
-  // Phase F: PC/Mobile 렌더 통합
-  // - Mobile에서도 PC 렌더링 사용
-  // - MobileRoot / MobileContract 사용 중단
-  // ========================================
-  
-  // Mobile Contract 생성 로직 비활성화 (Phase F)
-  // let mobileContract = null;
-  // if (IS_MOBILE) {
-  //   try {
-  //     mobileContract = createMobileContract(computationResult);
-  //   } catch (e) {
-  //     console.error("❌ createMobileContract 실패:", e);
-  //   }
-  // }
-
-  // ========================================
-  // 렌더링: PC/Mobile 동일 (Phase F)
-  // ========================================
-  return content;
 }
