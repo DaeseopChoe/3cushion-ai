@@ -22,6 +22,10 @@ const RG_UNIT_MM = 35.55;
 const BALL_DIAMETER_RG = BALL_DIAMETER_MM / RG_UNIT_MM;
 const BALL_RADIUS_RG = BALL_DIAMETER_RG / 2;
 
+// Anti-aliasing compensation (렌더링 전용)
+const AA_EPSILON = 0.08; // rg 단위
+const RENDER_RADIUS_RG = BALL_RADIUS_RG - AA_EPSILON;
+
 // 송설님 치수
 const CUSHION_MM = 45;
 const FRAME_MM = 80;
@@ -159,9 +163,18 @@ function groupSystemValuesByRail(anchors, systemValues, lastCushion) {
   return groups;
 }
 
-function Ball({ x, y, color, stroke = "#111827" }) {
+function Ball({ x, y, color, opacity = 1 }) {
   const p = toPx({ x, y });
-  return <circle cx={p.x + PADDING} cy={p.y + PADDING} r={7} fill={color} stroke={stroke} strokeWidth={1.5} />;
+  return (
+    <circle
+      cx={p.x + PADDING}
+      cy={p.y + PADDING}
+      r={RENDER_RADIUS_RG * SCALE}
+      fill={color}
+      opacity={opacity}
+      shapeRendering="geometricPrecision"
+    />
+  );
 }
 
 function AnchorPoint({ x, y, label, isFg = false }) {
@@ -548,7 +561,7 @@ export default function App({ currentButtonId }) {
       {balls.cue && <Ball {...balls.cue} color="#ffffff" />}
       {balls.target_center && <Ball {...balls.target_center} color="#fde047" />}
       {balls.second && <Ball {...balls.second} color="#f87171" />}
-      {impact && <circle cx={impactPx.x + PADDING} cy={impactPx.y + PADDING} r={7} fill="none" stroke="#facc15" strokeWidth={2} />}
+      {impact && <Ball x={impact.x} y={impact.y} color="#ffffff" opacity={0.55} />}
       <SystemValueLabels railGroups={railGroups} />
     </svg>
   );
