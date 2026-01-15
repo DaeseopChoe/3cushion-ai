@@ -1,0 +1,177 @@
+{
+  "meta": {
+    "system_id": "reverse_system",
+    "system_name": "Reverse System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "continuous_reverse",
+    "notes": [
+      "Reverse System is a continuous calculation system.",
+      "All calculations are performed strictly in sys domain.",
+      "Fg/Rg coordinates are used only for anchor lookup and track selection.",
+      "v1.0: Domain constraints added, validation logic enhanced"
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "2C"],
+    "optional": [],
+    "mark_schema": {
+      "type": "object",
+      "required": ["space", "rail", "axis", "value"],
+      "properties": {
+        "space": { "enum": ["Fg", "Rg"] },
+        "rail": { "enum": ["TOP", "BOTTOM", "LEFT", "RIGHT"] },
+        "axis": { "enum": ["long", "short"] },
+        "value": { "type": "number" }
+      }
+    },
+    "validation": {
+      "track_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "principle": {
+    "description": "Infer 1C_sys from CO_sys and 2C_sys using reverse formula.",
+    "calculation_domain": "sys_only",
+    "coordinates_in_formula": false
+  },
+
+  "formula": {
+    "expression": "(CO_sys + C2_sys - 20) * (2 / 3)",
+    "outputs": ["1C_sys"],
+    "note": "Frame-only reverse formula",
+    "domain_constraints": {
+      "input": {
+        "sum_min": 20,
+        "note": "CO_sys + C2_sys must be >= 20"
+      },
+      "output": {
+        "1C_sys_min": 0
+      }
+    },
+    "on_negative_result": {
+      "action": "error",
+      "message": "1C_sys cannot be negative. Check CO_sys and C2_sys."
+    }
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_inputs",
+      "description": "Resolve CO_sys and C2_sys from anchors based on selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "method": "exact_match_then_linear_interpolation",
+        "coordinate_snap": {
+          "tolerance": 0.02,
+          "note": "Used only for coordinate-to-anchor matching"
+        },
+        "interpolation": "linear",
+        "clamp": true,
+        "no_extrapolation": true
+      },
+      "outputs": ["CO_sys", "C2_sys"]
+    },
+    {
+      "step": 2,
+      "name": "compute_reverse_formula",
+      "description": "Compute predicted 1C_sys using reverse formula.",
+      "rules": {
+        "expression": "(CO_sys + C2_sys - 20) * (2 / 3)",
+        "domain_check": {
+          "pre_compute": [
+            "1. Check if CO_sys + C2_sys >= 20",
+            "2. If not, raise error per formula.on_negative_result"
+          ]
+        }
+      },
+      "outputs": ["1C_sys"]
+    },
+    {
+      "step": 3,
+      "name": "validate_sys_result",
+      "description": "Validate computed 1C_sys against nearest anchor-based reference.",
+      "rules": {
+        "reference_source": "anchors.trajectories[track].anchors where label='1C'",
+        "validation_method": "nearest_anchor_comparison",
+        "procedure": [
+          "1. Compute 1C_sys using reverse formula",
+          "2. Find nearest 1C anchor sys value",
+          "3. error = abs(1C_sys - nearest_1C_sys)",
+          "4. If 1C_sys < 0 → error",
+          "5. If error > allowed_error_sys → warn"
+        ],
+        "allowed_error_sys": {
+          "value": 0.5,
+          "description": "Maximum acceptable deviation from nearest anchor-based 1C_sys",
+          "rationale": "Empirically determined tolerance for reverse formula approximation"
+        },
+        "on_exceed": {
+          "action": "warn",
+          "ui_feedback": true,
+          "log_for_audit": true,
+          "message": "Computed 1C_sys deviates more than allowed tolerance from anchor reference."
+        }
+      },
+      "outputs": ["validation_result", "error_magnitude"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C2_sys", "1C_sys"],
+    "marks": [
+      {
+        "id": "1C",
+        "source": "computed_sys_then_anchor_projection",
+        "note": "1C mark is derived from computed sys value"
+      }
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "coordinates_not_used_in_formula": true,
+    "anchors_are_reference_only": true
+  },
+
+  "failure_policy": {
+    "on_anchor_not_found": {
+      "action": "error",
+      "message": "No anchor found for given coordinate within tolerance."
+    },
+    "on_sys_out_of_range": {
+      "action": "warn",
+      "message": "Computed 1C_sys is outside typical range."
+    },
+    "on_domain_violation": {
+      "action": "error",
+      "message": "Input values violate formula domain constraints (CO_sys + C2_sys < 20)."
+    }
+  },
+
+  "validation_rules": {
+    "anchor_integrity": {
+      "require_labels": ["CO", "1C", "2C"],
+      "require_sys_values": true
+    },
+    "sys_domain_consistency": {
+      "description": "CO_sys and C2_sys must be resolved before formula evaluation."
+    },
+    "formula_domain": {
+      "description": "CO_sys + C2_sys >= 20 must hold to avoid negative 1C_sys."
+    }
+  },
+
+  "notes": {
+    "ko": [
+      "Reverse System은 연속 계산 시스템입니다.",
+      "모든 계산은 sys 도메인에서만 수행됩니다.",
+      "좌표는 트랙 판정과 앵커 조회에만 사용됩니다.",
+      "보간은 허용되지만 외삽은 금지됩니다.",
+      "CO_sys + C2_sys < 20인 경우 에러를 반환합니다 (음수 방지)."
+    ]
+  }
+}

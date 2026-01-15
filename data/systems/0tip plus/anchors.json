@@ -1,0 +1,48 @@
+{
+  "system": "otip_plus",
+  "canonical": "B2T_L",
+
+  "anchors": [
+    /* =========================
+       RIGHT_TOP path
+       ========================= */
+
+    { "id": "RT_COrg5_y20", "space": "Rg", "rail": "TOP", "axis": "long", "value": 5.0, "path": "RIGHT_TOP", "COrg": 5, "y1": 20 },
+    { "id": "RT_COrg5_y25", "space": "Rg", "rail": "TOP", "axis": "long", "value": 35.0, "path": "RIGHT_TOP", "COrg": 5, "y1": 25 },
+    { "id": "RT_COrg5_y30", "space": "Rg", "rail": "TOP", "axis": "long", "value": 55.0, "path": "RIGHT_TOP", "COrg": 5, "y1": 30 },
+    { "id": "RT_COrg5_y35", "space": "Rg", "rail": "TOP", "axis": "long", "value": 69.285714, "path": "RIGHT_TOP", "COrg": 5, "y1": 35 },
+    { "id": "RT_COrg5_y40", "space": "Rg", "rail": "TOP", "axis": "long", "value": 80.0, "path": "RIGHT_TOP", "COrg": 5, "y1": 40 },
+
+    { "id": "RT_COrg10_y20", "space": "Rg", "rail": "TOP", "axis": "long", "value": 10.0, "path": "RIGHT_TOP", "COrg": 10, "y1": 20 },
+    { "id": "RT_COrg10_y25", "space": "Rg", "rail": "TOP", "axis": "long", "value": 38.0, "path": "RIGHT_TOP", "COrg": 10, "y1": 25 },
+    { "id": "RT_COrg10_y30", "space": "Rg", "rail": "TOP", "axis": "long", "value": 56.666667, "path": "RIGHT_TOP", "COrg": 10, "y1": 30 },
+    { "id": "RT_COrg10_y35", "space": "Rg", "rail": "TOP", "axis": "long", "value": 70.0, "path": "RIGHT_TOP", "COrg": 10, "y1": 35 },
+    { "id": "RT_COrg10_y40", "space": "Rg", "rail": "TOP", "axis": "long", "value": 80.0, "path": "RIGHT_TOP", "COrg": 10, "y1": 40 },
+
+    /* =========================
+       LEFT_TOP path
+       ========================= */
+
+    { "id": "LT_COrg5_y20", "space": "Rg", "rail": "TOP", "axis": "long", "value": 5.0, "path": "LEFT_TOP", "COrg": 5, "y1": 20 },
+    { "id": "LT_COrg5_y25", "space": "Rg", "rail": "TOP", "axis": "long", "value": 3.0, "path": "LEFT_TOP", "COrg": 5, "y1": 25 },
+    { "id": "LT_COrg5_y30", "space": "Rg", "rail": "TOP", "axis": "long", "value": 1.666667, "path": "LEFT_TOP", "COrg": 5, "y1": 30 },
+    { "id": "LT_COrg5_y35", "space": "Rg", "rail": "TOP", "axis": "long", "value": 0.714286, "path": "LEFT_TOP", "COrg": 5, "y1": 35 },
+    { "id": "LT_COrg5_y40", "space": "Rg", "rail": "TOP", "axis": "long", "value": 0.0, "path": "LEFT_TOP", "COrg": 5, "y1": 40 },
+
+    { "id": "LT_COrg10_y20", "space": "Rg", "rail": "TOP", "axis": "long", "value": 10.0, "path": "LEFT_TOP", "COrg": 10, "y1": 20 },
+    { "id": "LT_COrg10_y25", "space": "Rg", "rail": "TOP", "axis": "long", "value": 6.0, "path": "LEFT_TOP", "COrg": 10, "y1": 25 },
+    { "id": "LT_COrg10_y30", "space": "Rg", "rail": "TOP", "axis": "long", "value": 3.333333, "path": "LEFT_TOP", "COrg": 10, "y1": 30 },
+    { "id": "LT_COrg10_y35", "space": "Rg", "rail": "TOP", "axis": "long", "value": 1.428571, "path": "LEFT_TOP", "COrg": 10, "y1": 35 },
+    { "id": "LT_COrg10_y40", "space": "Rg", "rail": "TOP", "axis": "long", "value": 0.0, "path": "LEFT_TOP", "COrg": 10, "y1": 40 }
+  ],
+
+  "meta": {
+    "generated_from": "0tip_plus_dataset.json:c2_table",
+    "notes": [
+      "Anchors extracted directly from original Otip Plus C2 table",
+      "Used for table-based derivation in otip_plus.rules.json",
+      "No interpolation or correction data stored here",
+      "All values are rail-grid (Rg) long-axis values on TOP rail"
+    ]
+  }
+}

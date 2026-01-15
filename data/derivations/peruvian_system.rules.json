@@ -1,0 +1,150 @@
+{
+  "meta": {
+    "system_id": "peruvian_system",
+    "system_name": "Peruvian System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "references": {
+      "profile": "systems/peruvian_system/profile.json",
+      "logic": "systems/peruvian_system/logic.json",
+      "anchors": "systems/peruvian_system/anchors.json",
+      "tool_reference": "peruvian_calculator.py"
+    },
+    "notes": [
+      "All computations are sys-domain only.",
+      "Coordinates (Fg/Rg) are used only for anchor lookup and display mapping.",
+      "Display label policy follows peruvian_calculator.py: decided ONLY by HP_n (rounded to nearest int)."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "1C", "3C"],
+    "validation": {
+      "track_required": true,
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    },
+    "validation": "input mark must include rail"
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "offset_fg2rg": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "description": "Resolve CO_sys, 1C_sys, 3C_sys from anchors for the selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "1C", "3C"],
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["CO_sys", "C1_sys", "C3_sys"]
+    },
+
+    {
+      "step": 2,
+      "name": "compute_HP_n",
+      "description": "Compute HP_n using sys-domain formula.",
+      "formula": {
+        "expr": "HP_n = CO_sys + C1_sys + C3_sys",
+        "vars": ["CO_sys", "C1_sys", "C3_sys"],
+        "tags": {
+          "CO": "_f",
+          "1C": "_f",
+          "3C": "_r"
+        }
+      },
+      "outputs": ["HP_n"]
+    },
+
+    {
+      "step": 3,
+      "name": "display_label_from_HP",
+      "description": "Display label decided ONLY by HP_n (rounded to nearest integer).",
+      "rules": {
+        "rounding": "nearest_int",
+        "mapping": {
+          "-1": "-1tip, 타점 11시15분",
+          "1": "+1tip, 타점 12시45분"
+        },
+        "otherwise": null
+      },
+      "outputs": ["display_label"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C1_sys", "C3_sys", "HP_n"],
+    "display": ["display_label"]
+  },
+
+  "validation_scenarios": {
+    "note": "Scenarios are conceptual; concrete values can be validated later in Admin Mode.",
+    "scenarios": [
+      {
+        "id": "exact_anchor_match",
+        "description": "Inputs match exact anchors (no interpolation).",
+        "inputs": {
+          "track": "B2T_L",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 30 },
+          "1C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 30 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 0 }
+        },
+        "expected": {
+          "interpolation": "none",
+          "formula": "HP_n = CO_sys + C1_sys + C3_sys"
+        }
+      },
+      {
+        "id": "interpolation_required",
+        "description": "Inputs fall between anchors (linear interpolation).",
+        "inputs": {
+          "track": "B2T_L",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 35 },
+          "1C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 27.5 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 10 }
+        },
+        "expected": {
+          "interpolation": "linear",
+          "no_extrapolation": true
+        }
+      },
+      {
+        "id": "out_of_range_clamp",
+        "description": "Inputs exceed anchor range; clamp is applied (no extrapolation).",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 90 },
+          "1C": { "space": "Fg", "rail": "LEFT", "axis": "short", "value": 100 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 999 }
+        },
+        "expected": {
+          "clamp": "applied",
+          "no_extrapolation": true
+        }
+      }
+    ]
+  }
+}

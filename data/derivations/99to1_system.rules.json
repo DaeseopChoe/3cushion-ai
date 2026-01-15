@@ -1,0 +1,30 @@
+{
+  "system": "99to1_system",
+
+  "identity": {
+    "formula": "1C_f = CO_f - 4C_f",
+    "strict": true
+  },
+
+  "derivation_policy": {
+    "type": "direct",
+    "notes": "1C is derived directly from CO and 4C without interpolation or correction"
+  },
+
+  "guards": {
+    "no_extrapolation": true,
+    "snap_tolerance": 0.02,
+    "ambiguity_policy": "error"
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "derivation_rules",
+    "notes": [
+      "Minimal ruleset for reverse-calculation system",
+      "No interpolation, correction, or candidate expansion",
+      "Accuracy depends on anchor precision and profile constraints",
+      "All derivations operate strictly in frame-space system values"
+    ]
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "system": "rodriguez",
+
+  "display": {
+    "name_key": "system.rodriguez.name",
+    "short_name_key": "system.rodriguez.short",
+    "description_key": "system.rodriguez.desc",
+
+    "category": "ratio",
+    "difficulty": "medium",
+
+    "tags": ["ratio", "relation", "no_co", "classic", "mixed_grid"],
+
+    "overlay_keys": {
+      "how_to_use": "system.rodriguez.howto",
+      "caution": "system.rodriguez.caution",
+      "tip": "system.rodriguez.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "1C + 2C = 3C"
+  },
+
+  "value_domains": {
+    "1C": {
+      "allowed": [10, 20, 30, 40, 50, 60],
+      "notes": "First cushion values (rail grid)"
+    },
+    "2C": {
+      "allowed": [10, 20, 30, 40, 50, 60],
+      "notes": "Second cushion values (rail grid)"
+    },
+    "3C": {
+      "allowed": [30, 40, 50, 60, 70, 80],
+      "notes": "Third cushion values (frame grid)"
+    }
+  },
+
+  "safety": {
+    "co_required": false,
+    "pattern": "long-short-long",
+    "no_extrapolation": true,
+    "sys_invariant_under_symmetry": true
+  },
+
+  "space_rule": {
+    "grid_mix": {
+      "1C": "Rg",
+      "2C": "Rg",
+      "3C": "Fg"
+    },
+    "frame_constants": [-2.5, 42.5],
+    "tolerance": {
+      "rg_const_eps": 0.02,
+      "fg_const_eps": 0.30
+    }
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "Rodriguez system is a classic relation-based system",
+      "System uses no cue ball reference (CO is not used)",
+      "First and second cushions are measured in rail grid, third cushion in frame grid",
+      "The identity 1C + 2C = 3C must always hold",
+      "All calculations are performed strictly in system-value space"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "system_id": "split",
+  "system_name": "Split System",
+  "role": "input_validation_and_symmetry_only",
+
+  "input_mode": {
+    "type": "geometry",
+    "required_marks": ["CO"],
+    "optional": ["target_corner"],
+    "defaults": {
+      "target_corner": "RIGHT"
+    }
+  },
+
+  "constraints": {
+    "CO_within_table": true,
+    "target_corner": ["LEFT", "RIGHT"]
+  },
+
+  "symmetry": {
+    "enabled": true,
+    "axis": "vertical",
+    "rule": "If target_corner is LEFT, mirror x = 80 - x and compute as RIGHT."
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "rules_reference": "derivations/split.rules.json"
+  },
+
+  "validation_hints": {
+    "on_invalid_input": "error"
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-13"
+  }
+}

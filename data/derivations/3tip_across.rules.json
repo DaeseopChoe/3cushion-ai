@@ -1,0 +1,70 @@
+{
+  "system": "3tip_across",
+
+  "identity": {
+    "type": "spin_control_parallel",
+    "strict": true
+  },
+
+  "derivation_policy": {
+    "type": "continuous_spin",
+    "description": "Spin-based continuous control system for post-cushion parallel paths",
+    "interpolation_allowed": true,
+    "extrapolation_allowed": false
+  },
+
+  "parameter_rules": {
+    "tip": {
+      "range": [0.0, 4.0],
+      "step": 0.5,
+      "interpolation": true,
+      "meaning": {
+        "0.0": "No spin compensation",
+        "3.0": "Standard across control reference",
+        "4.0": "Maximum practical spin"
+      }
+    },
+
+    "spin_factor": {
+      "by_cushion_type": {
+        "LONG": 10,
+        "SHORT": 5
+      },
+      "notes": "Spin contribution per tip unit depends on cushion length"
+    },
+
+    "residual": {
+      "unit": "delta",
+      "target": 0.0,
+      "tolerance": [-2.0, 2.0],
+      "notes": "Residual deviation from perfect parallel (0 is ideal)"
+    }
+  },
+
+  "guards": {
+    "no_extrapolation": true,
+    "tip_required": true,
+    "reject_tip_overflow": true,
+    "reject_invalid_parallel": false,
+    "ambiguity_policy": "warn"
+  },
+
+  "output_constraints": {
+    "primary_output": "residual",
+    "acceptable_range": [-80, 80],
+    "snap_tolerance": 0.5
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "derivation_rules",
+    "notes": [
+      "3tip_across is a continuous spin-control system",
+      "Interpolation of tip values is allowed and expected",
+      "Spin factor is determined solely by cushion length",
+      "Extrapolation beyond defined spin or residual bounds is forbidden",
+      "Residual tolerance defines acceptable near-parallel solutions",
+      "All numeric and geometric calculations are delegated to simulator layer"
+    ]
+  }
+}

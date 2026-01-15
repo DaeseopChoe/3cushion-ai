@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Even Ratio (rail-based) Input Schema",
+  "type": "object",
+  "properties": {
+    "rail": {
+      "type": "string",
+      "enum": [
+        "long_left",
+        "long_right",
+        "short_bottom",
+        "short_top"
+      ],
+      "description": "선택 레일 (장좌, 장우, 단하, 단상)"
+    },
+    "division": {
+      "type": "string",
+      "enum": [
+        "internal",
+        "external"
+      ],
+      "default": "internal",
+      "description": "내분/외분 선택 (기본: internal)"
+    },
+    "tolerance": {
+      "type": "number",
+      "minimum": 0.0,
+      "default": 1e-06,
+      "description": "검증 허용 오차(RG)"
+    },
+    "CO": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 80.0
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 40.0
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "내 공 좌표 (RG, 장 0..80, 단 0..40)"
+    },
+    "OB": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 80.0
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 40.0
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "뒤 공 좌표 (RG, 장 0..80, 단 0..40)"
+    },
+    "mm_per_grid": {
+      "type": "number",
+      "default": 35.55,
+      "description": "1눈금(mm)"
+    },
+    "ball_radius_mm": {
+      "type": "number",
+      "default": 30.75,
+      "description": "공 반지름(mm)"
+    }
+  },
+  "required": [
+    "rail",
+    "CO",
+    "OB"
+  ],
+  "additionalProperties": true
+}

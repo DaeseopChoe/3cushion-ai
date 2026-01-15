@@ -1,0 +1,63 @@
+{
+  "system": "1byhalf",
+
+  "identity": {
+    "concept": "base_plus_correction",
+    "description": "1C is derived by adding a base value from CO and a correction based on 3C target",
+    "strict": true
+  },
+
+  "derivation_policy": {
+    "base_value": {
+      "source": "CO_f",
+      "method": "table",
+      "notes": "Base value is obtained from predefined CO-to-base lookup table"
+    },
+
+    "correction_value": {
+      "source": "3C_y",
+      "allowed_targets": [11, 15, 19],
+      "method": "discrete",
+      "notes": "Correction value depends solely on discrete 3C target y"
+    },
+
+    "composition_rule": {
+      "formula": "1C_f = base(CO_f) + correction(3C_y)",
+      "order": "base_then_correction"
+    }
+  },
+
+  "tables": {
+    "base_table": {
+      "description": "CO to base mapping table",
+      "source": "1byhalf_dataset.json",
+      "domain": "CO_f"
+    },
+    "correction_table": {
+      "description": "Correction values per 3C target",
+      "entries": [
+        { "3C_y": 11, "correction": -1.0 },
+        { "3C_y": 15, "correction": 0.0 },
+        { "3C_y": 19, "correction": 1.0 }
+      ]
+    }
+  },
+
+  "guards": {
+    "no_extrapolation": true,
+    "snap_tolerance": 0.02,
+    "ambiguity_policy": "error"
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "derivation_rules",
+    "notes": [
+      "1byhalf is a deterministic system with no candidate expansion",
+      "Base value table and correction table are applied sequentially",
+      "Only discrete 3C targets (11, 15, 19) are supported",
+      "No interpolation or angle correction is permitted",
+      "All derivations operate strictly in system space"
+    ]
+  }
+}

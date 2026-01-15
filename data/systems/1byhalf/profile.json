@@ -1,0 +1,74 @@
+{
+  "system": "1byhalf",
+
+  "display": {
+    "name_key": "system.1byhalf.name",
+    "short_name_key": "system.1byhalf.short",
+    "description_key": "system.1byhalf.desc",
+
+    "category": "ratio",
+    "difficulty": "medium",
+
+    "tags": ["ratio", "half", "correction", "3c_target"],
+
+    "overlay_keys": {
+      "how_to_use": "system.1byhalf.howto",
+      "caution": "system.1byhalf.caution",
+      "tip": "system.1byhalf.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "1C_f = base(CO_f) + correction(3C_y)"
+  },
+
+  "value_domains": {
+    "CO_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Cue ball reference value on frame grid (bottom rail)"
+    },
+    "3C_y": {
+      "unit": 1,
+      "allowed": [11, 15, 19],
+      "notes": "Allowed third-cushion target y-values"
+    },
+    "1C_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Derived first cushion value (primary output)"
+    }
+  },
+
+  "safety": {
+    "pattern": "long-short-long",
+    "no_extrapolation": true,
+    "sys_identity_strict": true,
+    "ambiguity_policy": "error"
+  },
+
+  "space_rule": {
+    "grid": "frame",
+    "snap_tolerance": 0.02,
+    "frame_constants": {
+      "BOTTOM": -2.25,
+      "TOP": 42.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "1byhalf system combines a base value from CO with a correction derived from 3C target",
+      "Third cushion y must be one of the discrete allowed values (11, 15, 19)",
+      "Spin and correction values are defined in derivations layer",
+      "Primary output is the first cushion position (1C)",
+      "All calculations are performed strictly in system space"
+    ]
+  }
+}

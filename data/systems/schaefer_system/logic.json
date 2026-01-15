@@ -1,0 +1,48 @@
+{
+  "system_id": "schaefer_system",
+  "system_name": "Schaefer System",
+  "role": "track_and_input_logic_only",
+
+  "track_policy": {
+    "available_tracks": ["T2B_L"],
+    "selection_mode": "fixed",
+    "note": "Schaefer System uses a single fixed track (T2B_L)."
+  },
+
+  "input_mode": {
+    "type": "continuous",
+    "required_marks": ["CO", "1C"],
+    "optional_marks": [],
+    "derived_marks": ["HP"],
+    "description": "CO and 1C are inputs; HP is always derived by calculation."
+  },
+
+  "constraints": {
+    "single_track_only": true
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "derived_only": true,
+    "rules_reference": "derivations/schaefer_system.rules.json",
+    "note": "All calculations are performed exclusively in rules.json"
+  },
+
+  "validation_hints": {
+    "require_anchor_match": true,
+    "on_invalid_input": "error"
+  },
+
+  "notes": {
+    "ko": [
+      "logic.json은 계산을 수행하지 않습니다.",
+      "HP는 rules.json에서 sys 계산으로만 생성됩니다."
+    ]
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-13"
+  }
+}

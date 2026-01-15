@@ -1,0 +1,86 @@
+{
+  "system_id": "short_plate_system",
+  "system_name": "Short Plate System",
+  "role": "track_selection_only",
+
+  "track_selection": {
+    "strategy": "short_plate_constant_pattern",
+    "snap_tolerance": 0.02,
+
+    "rules": [
+      {
+        "id": "B2T_R",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "short", "value": -2.25 },
+          "1C": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 81.5 },
+          "4C": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
+        },
+        "result": "B2T_R"
+      },
+      {
+        "id": "B2T_L",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "short", "value": -2.25 },
+          "1C": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -1.5 },
+          "4C": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
+        },
+        "result": "B2T_L"
+      },
+      {
+        "id": "T2B_R",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "TOP", "axis": "short", "value": 42.25 },
+          "1C": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -1.5 },
+          "4C": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
+        },
+        "result": "T2B_R"
+      },
+      {
+        "id": "T2B_L",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "TOP", "axis": "short", "value": 42.25 },
+          "1C": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 81.5 },
+          "4C": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
+        },
+        "result": "T2B_L"
+      }
+    ],
+
+    "fallback": {
+      "policy": "error",
+      "message": "Unable to resolve track: CO/1C/4C must match short-plate constant patterns."
+    }
+  },
+
+  "required_marks": ["CO", "1C", "4C"],
+
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true
+  },
+
+  "hit_point_policy": {
+    "rule": "fixed_by_turn",
+    "mapping": {
+      "R": "3:00",
+      "L": "9:00"
+    },
+    "note": "Short Plate uses reverse spin hit point."
+  },
+
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 선택만 담당합니다.",
+      "Short Plate System은 단쿠션 기반 되돌려 치기 시스템입니다.",
+      "계산은 rules.json에서만 수행됩니다."
+    ]
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-12"
+  }
+}

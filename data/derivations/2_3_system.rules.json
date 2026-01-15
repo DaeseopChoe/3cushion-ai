@@ -1,0 +1,45 @@
+{
+  "system": "2_3_system",
+
+  "identity": {
+    "formula": "1C_f = (CO_f - (1.5 * 3C_f - tip * 5)) / 2",
+    "strict": true
+  },
+
+  "derivation_policy": {
+    "type": "direct",
+    "description": "Deterministic calculation with discrete tip adjustment",
+    "inputs": ["CO_f", "3C_f", "tip"],
+    "output": "1C_f"
+  },
+
+  "tip_policy": {
+    "unit": 1,
+    "allowed": [0, 1, 2, 3, 4],
+    "gain_per_tip": 5,
+    "notes": "Each tip adds a linear correction of +5 system units before division"
+  },
+
+  "corrections": {
+    "enabled": false,
+    "notes": "No additional correction or interpolation is permitted"
+  },
+
+  "guards": {
+    "no_extrapolation": true,
+    "snap_tolerance": 0.02,
+    "ambiguity_policy": "error"
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "derivation_rules",
+    "notes": [
+      "2/3 system is a pure calculation-based system",
+      "No candidate expansion or interpolation is allowed",
+      "Tip adjustment is discrete and linear",
+      "System values are preserved across symmetry transforms",
+      "All derivations operate strictly in system-value space"
+    ]
+  }
+}

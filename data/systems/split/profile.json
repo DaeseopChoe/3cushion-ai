@@ -1,0 +1,48 @@
+{
+  "system": "Split System",
+  "category": "geometry_path",
+
+  "description": {
+    "ko": "Split 시스템은 내 공 좌표를 기준으로 3쿠션 분리 경로가 성립하는지 판단하고, 각 쿠션 포인트를 기하적으로 계산하는 보조 시스템이다.",
+    "en": "Split system evaluates whether a 3-cushion split path is valid and computes cushion contact points geometrically."
+  },
+
+  "system_characteristics": {
+    "type": "geometry",
+    "continuous_calculation": true,
+    "sys_formula": false,
+    "anchor_based": false,
+    "interpolation": false,
+    "extrapolation": false
+  },
+
+  "ui": {
+    "category": "geometry",
+    "input_marks": ["CO"],
+    "output_marks": ["C1", "C2", "C3"],
+    "extra_outputs": ["is_valid"],
+    "display_hint": {
+      "tip": "±0.5 tip",
+      "path": "LLL (long-long-long)"
+    }
+  },
+
+  "notes": [
+    "이 시스템은 sys 계산 시스템이 아니다.",
+    "기하 좌표 계산이 rules.json에 포함되는 예외 시스템이다.",
+    "anchors를 사용하지 않는다.",
+    "경로 성립 여부 판단이 주 목적이다."
+  ],
+
+  "safety": {
+    "coordinate_domain": "Fg",
+    "allowed_error": 0.5
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "PM-direct",
+    "geometry_exception": true,
+    "last_updated": "2026-01-13"
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "system_id": "spider_web",
+    "system_name": "Spider Web System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "continuous_solve_one_of_four",
+    "notes": [
+      "Solve exactly one missing value among START(CO), C1, C3, TIP.",
+      "All calculations are strictly performed in sys domain.",
+      "TIP token is converted via HP_sys = TIP*10."
+    ]
+  },
+
+  "inputs": {
+    "required": ["mode"],
+    "optional": ["track"],
+    "one_of_sets": [
+      { "mode": "solve_start", "required_marks": ["1C", "3C", "TIP"] },
+      { "mode": "solve_c1",    "required_marks": ["CO", "3C", "TIP"] },
+      { "mode": "solve_c3",    "required_marks": ["CO", "1C", "TIP"] },
+      { "mode": "solve_tip",   "required_marks": ["CO", "1C", "3C"] }
+    ],
+    "validation": {
+      "exactly_three_of_four": true,
+      "tip_token_range": { "min": 0, "max": 4 },
+      "no_extrapolation": true
+    }
+  },
+
+  "principle": {
+    "calculation_domain": "sys_only",
+    "coordinates_in_formula": false,
+    "tip_mapping": "HP_sys = TIP * 10"
+  },
+
+  "formula_set": {
+    "hp_sys": { "expression": "TIP * 10" },
+
+    "solve_c1": {
+      "expression": "CO_sys - C3_sys + HP_sys",
+      "outputs": ["C1_sys"]
+    },
+    "solve_c3": {
+      "expression": "CO_sys + HP_sys - C1_sys",
+      "outputs": ["C3_sys"]
+    },
+    "solve_start": {
+      "expression": "C1_sys + C3_sys - HP_sys",
+      "outputs": ["CO_sys"]
+    },
+    "solve_tip": {
+      "expression": "(C1_sys - (CO_sys - C3_sys)) / 10",
+      "outputs": ["TIP_token"]
+    }
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_inputs",
+      "description": "Resolve provided marks into sys values using anchors (exact then interpolate, clamp, no extrapolation).",
+      "rules": {
+        "source": "anchors.trajectories[track]",
+        "method": "exact_match_then_linear_interpolation",
+        "clamp": true,
+        "no_extrapolation": true
+      },
+      "outputs": ["CO_sys", "C1_sys", "C3_sys", "TIP_token"]
+    },
+    {
+      "step": 2,
+      "name": "compute_missing",
+      "description": "Compute the missing variable in sys domain based on mode.",
+      "rules": {
+        "dispatch_by_mode": {
+          "solve_start": "CO_sys = C1_sys + C3_sys - (TIP_token*10)",
+          "solve_c1":    "C1_sys = CO_sys - C3_sys + (TIP_token*10)",
+          "solve_c3":    "C3_sys = CO_sys + (TIP_token*10) - C1_sys",
+          "solve_tip":   "TIP_token = (C1_sys - (CO_sys - C3_sys)) / 10"
+        }
+      }
+    },
+    {
+      "step": 3,
+      "name": "validate_result",
+      "description": "Validate discrete TIP token (if solved) and range sanity (warn-only).",
+      "rules": {
+        "if_mode_solve_tip": {
+          "require_integer": true,
+          "allowed_set": [0, 1, 2, 3, 4],
+          "on_violation": {
+            "action": "warn",
+            "ui_feedback": true,
+            "message": "Solved TIP is not an integer token in [0..4]."
+          }
+        }
+      }
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C1_sys", "C3_sys", "HP_sys"],
+    "tokens": ["TIP_token"],
+    "marks": [
+      { "id": "CO", "source": "resolved_or_computed_sys_then_anchor_projection" },
+      { "id": "1C", "source": "resolved_or_computed_sys_then_anchor_projection" },
+      { "id": "3C", "source": "resolved_or_computed_sys_then_anchor_projection" },
+      { "id": "TIP", "source": "resolved_or_computed_token" }
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "coordinates_not_used_in_formula": true,
+    "warn_only_validation": true
+  }
+}

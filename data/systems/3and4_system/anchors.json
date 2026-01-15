@@ -1,0 +1,39 @@
+{
+  "system": "3and4_system",
+  "canonical": "B2T_L",
+
+  "trajectories": {
+    "B2T_L": [
+      { "id": "4C_20", "space": "Fg", "rail": "TOP", "axis": "long", "value": 20 },
+      { "id": "4C_30", "space": "Fg", "rail": "TOP", "axis": "long", "value": 30 },
+      { "id": "4C_40", "space": "Fg", "rail": "TOP", "axis": "long", "value": 40 },
+      { "id": "4C_50", "space": "Fg", "rail": "TOP", "axis": "long", "value": 50 },
+      { "id": "4C_60", "space": "Fg", "rail": "TOP", "axis": "long", "value": 60 }
+    ],
+
+    "B2T_R": {
+      "generated_from": "B2T_L",
+      "ops": ["H"]
+    },
+
+    "T2B_L": {
+      "generated_from": "B2T_L",
+      "ops": ["V"]
+    },
+
+    "T2B_R": {
+      "generated_from": "B2T_L",
+      "ops": ["RPI"]
+    }
+  },
+
+  "meta": {
+    "generated_from": "3and4_dataset.json",
+    "notes": [
+      "Anchors define the valid 4C reference span only (20–60)",
+      "System is continuous; anchors are not a lookup table",
+      "All derived tracks preserve reference values; coordinates are mirrored only",
+      "Anchors are used for geometry framing and validation, not discrete solving"
+    ]
+  }
+}

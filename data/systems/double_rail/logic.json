@@ -1,0 +1,47 @@
+{
+  "system_id": "double_rail",
+  "track_selection": {
+    "strategy": "cap_aware_dual_candidate",
+    "snap_tolerance": 0.02,
+    "frame_constants_fg": {
+      "x": [-2.25, 82.25],
+      "y": [-2.25, 42.25]
+    },
+    "candidate_rule": {
+      "when_CO_on_left": ["B2T_L", "T2B_R"],
+      "when_CO_on_right": ["B2T_R", "T2B_L"],
+      "when_CO_on_bottom": ["B2T_L", "B2T_R"],
+      "when_CO_on_top": ["T2B_L", "T2B_R"]
+    },
+    "fallback_rule": {
+      "requires": ["1C", "4C_or_3C"],
+      "note": "If CO is not on a frame constant line, track is resolved using CO and 1C relative position and/or 4C(=c3 arg) position."
+    },
+    "source": "Double_Rail_track_selector.py"
+  },
+  "required_marks": ["CO", "4C"],
+  "optional_marks": ["1C"],
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true,
+    "error_messages": {
+      "missing_CO": "CO 입력이 필요합니다.",
+      "missing_4C": "공식(HP=CO+4C)을 위해 4C 입력이 필요합니다.",
+      "track_not_resolved": "트랙을 판정할 수 없습니다. CO가 프레임 상수선(±0.02)에 있는지, 또는 1C/4C 입력을 확인하세요."
+    }
+  },
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 선택만 담당합니다.",
+      "cap(HP<=30) 적용, 후보 트랙 평가, HP/clock 산출은 derivations에서 수행합니다."
+    ]
+  },
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "sources": ["Double_Rail_track_selector.py", "Double_Rail_Base Logic.txt"],
+    "last_updated": "2026-01-11"
+  }
+}

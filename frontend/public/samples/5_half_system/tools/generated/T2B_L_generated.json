@@ -1,0 +1,98 @@
+{
+  "sample_id": "H001_05_T2B_L",
+  "system_id": "5_half_system",
+  "pattern": "뒤돌리기",
+  "rotation": "LEFT",
+  "track": "T2B_L",
+  "last_cushion": "4C",
+  "ui": {
+    "balls": {
+      "cue": {
+        "x": 40,
+        "y": 10
+      },
+      "target_center": {
+        "x": 52,
+        "y": 8.510000000000002
+      },
+      "impact": {
+        "x": 50.73,
+        "y": 9.690000000000001
+      },
+      "second": {
+        "x": 4,
+        "y": 1
+      }
+    },
+    "anchors": {
+      "CO": {
+        "x": 20,
+        "y": 42.25
+      },
+      "1C": {
+        "x": 60,
+        "y": -2.25
+      },
+      "2C": {
+        "x": 80,
+        "y": 13
+      },
+      "3C": {
+        "x": 60,
+        "y": 40
+      },
+      "4C": {
+        "x": 3,
+        "y": 0
+      },
+      "5C": null,
+      "6C": null,
+      "target_center": {
+        "x": 52,
+        "y": 8.510000000000002
+      }
+    },
+    "system": {
+      "values": {
+        "CO": 40,
+        "1C": 20,
+        "2C": null,
+        "3C": 20,
+        "4C": 15,
+        "5C": null,
+        "6C": null
+      },
+      "human_readable": {
+        "1C_calc": "CO_40 - 3C_20 = 1C_20",
+        "3C_calc": "CO_40 - 1C_20 = 3C_20",
+        "4C_calc": "3C_20 + (레일 보정_-5) = 4C_15"
+      }
+    },
+    "display_options": {
+      "thickness": "3/8",
+      "hitpoint_clock": "01:30",
+      "english_tips": "상단 2팁",
+      "speed_rail": 2.5,
+      "penetration_ball": 2,
+      "curving_hint": "dynamic"
+    },
+    "strategy": [
+      "5&half 시스템을 적용, 기본 계산 40-20=20. 3쿠션까지 도착값은 20입니다.",
+      "그러나 내 공 입사하는 각의 기울기가 크고, 앞 공과의 거리가 3포인트 이상 멀어지면 구름 관성에 따른 밀림 값을 추가해야 합니다.",
+      "보정 : 밀림값 5를 더하면, 큐 볼 출발값은 40에서 45가 됩니다. 이에 대한 짧아지는 보정값 -2.5하면 4쿠션 도착값은 22.5가 됩니다.."
+    ]
+  },
+  "debug": {
+    "base_values": {
+      "CO_base_sys": 40,
+      "3C_eff_sys": 20
+    },
+    "corrections": {
+      "sliding_sys": 0,
+      "thickness_sys": 0,
+      "distance_sys": 0,
+      "slope_sys": 0,
+      "rail_sys": 0
+    }
+  }
+}

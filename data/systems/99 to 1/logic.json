@@ -1,0 +1,72 @@
+{
+  "system": "99to1_system",
+
+  "applicability": {
+    "required_marks": ["CO", "4C"],
+    "notes": [
+      "99 to 1 system is a reverse-calculation system",
+      "Used when 4C arrival point is known and 1C is to be derived"
+    ]
+  },
+
+  "track_selection": {
+    "strategy": "ruleset",
+    "snap_tolerance": 0.02,
+
+    "ruleset": [
+      {
+        "if": "CO.rail == BOTTOM",
+        "then": "B2T_L"
+      },
+      {
+        "if": "CO.rail == TOP",
+        "then": "T2B_L"
+      }
+    ],
+
+    "tie_breaker": {
+      "condition": "false",
+      "priority": [
+        "prefer_existing_anchor"
+      ]
+    }
+  },
+
+  "direction_policy": {
+    "default": {
+      "spin": "center",
+      "description": "99 to 1 system assumes center hit (no side spin)"
+    }
+  },
+
+  "required_marks": ["CO", "4C"],
+  "optional_marks": ["1C"],
+
+  "hp_policy": {
+    "co_required": true,
+    "pattern": "long-short-long",
+    "fixed_hit": 0,
+    "description": "No spin variation; system uses fixed center hit"
+  },
+
+  "space_assumptions": {
+    "rails": {
+      "TOP": 42.25,
+      "BOTTOM": -2.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "notes": [
+    "Track is determined solely by CO rail position",
+    "No left/right ambiguity handling is required",
+    "1C is always a derived value, never an input",
+    "System identity is resolved in profile and derivations layers"
+  ],
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_logic"
+  }
+}

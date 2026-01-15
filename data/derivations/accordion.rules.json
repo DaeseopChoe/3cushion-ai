@@ -1,0 +1,127 @@
+{
+  "meta": {
+    "system_id": "accordion",
+    "system_name": "Accordion",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "notes": [
+      "Formula-driven system (no anchors).",
+      "Unit must be consistent (RG or FG) per request; no conversion is performed.",
+      "Baseline/aim-line/arrival-point are UI overlay constructs, not physics simulation."
+    ],
+    "references": {
+      "dataset": "accordion_system.json",
+      "input_schema": "accordion_input_schema.json",
+      "manual": "accordion_logic_manual.txt"
+    }
+  },
+
+  "inputs": {
+    "schema_ref": "accordion_input_schema.json",
+    "required": ["unit", "spin", "target_value"],
+    "optional": ["x0", "tolerance"]
+  },
+
+  "constants": {
+    "base_value": 30,
+    "target_range": [0, 30],
+    "table_grid": { "long_max": 80.0, "short_max": 40.0 }
+  },
+
+  "calculation_policy": {
+    "domain": "sys_only",
+    "note": "This system does not use Fg/Rg coordinate transforms; unit is just a label for consistency."
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "validate_input",
+      "rules": {
+        "unit": { "enum": ["RG", "FG"] },
+        "spin": { "enum": ["4시30분", "7시30분"] },
+        "target_value": { "type": "integer", "min": 0, "max": 30 },
+        "x0": { "type": "number", "min": 0.0, "max": 80.0, "default": 40.0 },
+        "tolerance": { "type": "number", "exclusiveMin": 0.0, "default": 0.5 }
+      },
+      "outputs": ["unit", "spin", "target_value", "x0", "tolerance"]
+    },
+
+    {
+      "step": 2,
+      "name": "compute_slope_adjustment",
+      "description": "slope_adjustment = -0.25 * (base_value - target_value)",
+      "formula": {
+        "expr": "slope_adjustment = -0.25 * (base_value - target_value)",
+        "vars": ["base_value", "target_value"]
+      },
+      "outputs": ["slope_adjustment"]
+    },
+
+    {
+      "step": 3,
+      "name": "construct_overlay_geometry",
+      "description": "UI overlay only: baseline, aim_line, arrival_point.",
+      "rules": {
+        "spin_sign": {
+          "4시30분": 1.0,
+          "7시30분": -1.0
+        },
+        "baseline": {
+          "start": ["x0", 0.0],
+          "end": ["x0", 40.0]
+        },
+        "aim_line": {
+          "start": ["x0", 0.0],
+          "end": ["x0 + slope_adjustment", 40.0]
+        },
+        "arrival_point": {
+          "x": "clamp(x0 + spin_sign[spin] * target_value, 0, 80)",
+          "y": 40.0
+        },
+        "arrival_increment": "target_value"
+      },
+      "outputs": ["baseline", "aim_line", "arrival_point", "arrival_increment", "spin_sign"]
+    },
+
+    {
+      "step": 4,
+      "name": "runtime_consistency_check",
+      "description": "In this rule-based model, predicted arrival_increment equals target_value by definition.",
+      "rules": {
+        "predicted": "arrival_increment",
+        "error": "abs(predicted - target_value)",
+        "ok": "error <= tolerance"
+      },
+      "outputs": ["ok", "error"]
+    }
+  ],
+
+  "outputs": {
+    "primary": ["slope_adjustment"],
+    "overlay": ["baseline", "aim_line", "arrival_point"],
+    "checks": ["ok", "error"],
+    "meta": ["unit", "spin", "target_value", "x0", "tolerance"]
+  },
+
+  "validation_scenarios": {
+    "note": "Representative cases; full 0..30 batch validation is provided by tools/runtime_check.",
+    "scenarios": [
+      {
+        "id": "target_30_no_slope",
+        "inputs": { "unit": "RG", "spin": "4시30분", "target_value": 30, "x0": 40.0 },
+        "expected": { "slope_adjustment": 0.0, "arrival_increment": 30 }
+      },
+      {
+        "id": "target_20_slope_minus_2_5",
+        "inputs": { "unit": "RG", "spin": "4시30분", "target_value": 20, "x0": 32.5 },
+        "expected": { "slope_adjustment": -2.5, "arrival_increment": 20 }
+      },
+      {
+        "id": "target_10_slope_minus_5",
+        "inputs": { "unit": "FG", "spin": "7시30분", "target_value": 10, "x0": 55.0 },
+        "expected": { "slope_adjustment": -5.0, "arrival_increment": 10 }
+      }
+    ]
+  }
+}

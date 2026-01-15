@@ -1,0 +1,367 @@
+{
+  "meta": {
+    "system_id": "35half",
+    "system_name": "35&½ System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "references": {
+      "anchors": "systems/35half/anchors.json",
+      "profile": "systems/35half/profile.json",
+      "logic": "systems/35half/logic.json"
+    },
+    "notes": [
+      "All calculations are performed in sys-domain only.",
+      "Coordinates (Fg/Rg) are used only for input interpretation and output display.",
+      "v1.0: gap clamp 로직 구체화, 1C axis=long/x 수정, anchors 기반 검증 시나리오 추가"
+    ]
+  },
+
+  "inputs": {
+    "required_marks": ["CO", "3C"],
+    "validation": {
+      "rail_required": true,
+      "axis_required": true,
+      "track_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "domain": {
+    "CO_sys": {
+      "valid_ranges": [
+        { "min": 0, "max": 35, "type": "primary" },
+        { "min": 45, "max": 80, "type": "mirror" }
+      ],
+      "gap": { "min": 35, "max": 45, "type": "undefined" },
+      "gap_policy": {
+        "rule": "clamp_to_nearest_boundary",
+        "midpoint": 40,
+        "boundaries": [35, 45],
+        "logic": [
+          "if CO_sys_raw in (35, 45):",
+          "  if CO_sys_raw < 40: CO_sys = 35",
+          "  if CO_sys_raw >= 40: CO_sys = 45"
+        ],
+        "note": "중간값(40)을 기준으로 가까운 경계로 clamp (40은 45로 할당)"
+      }
+    }
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    },
+    "validation": "rail must exist on input mark",
+    "rationale": [
+      "TOP/BOTTOM rail: y는 프레임 상수선에 고정, x가 변화",
+      "LEFT/RIGHT rail: x는 프레임 상수선에 고정, y가 변화",
+      "35half는 장쿠션(TOP/BOTTOM) 기반 시스템"
+    ]
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "description": "Resolve CO_sys and 3C_sys from anchors using sys-domain linear interpolation.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "3C"],
+        "axis_inference": {
+          "use": "axis_inference.mapping",
+          "note": "입력 마크의 rail로 축 판정 (TOP/BOTTOM → x)"
+        },
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true,
+          "procedure": [
+            "1. 입력 마크의 rail로 축 판정",
+            "2. 해당 축 값으로 anchors에서 인접 두 점 찾기",
+            "3. 선형 보간으로 sys 값 계산",
+            "4. 범위 밖인 경우 앵커 min/max로 clamp"
+          ]
+        }
+      },
+      "outputs": ["CO_sys_raw", "3C_sys"]
+    },
+
+    {
+      "step": 1.1,
+      "name": "apply_CO_domain_policy",
+      "description": "Apply domain split and gap clamp for CO_sys.",
+      "rules": {
+        "gap_detection": {
+          "condition": "35 < CO_sys_raw < 45",
+          "action": "clamp_to_nearest_boundary"
+        },
+        "clamp_logic": {
+          "midpoint": 40,
+          "if_less_than_midpoint": {
+            "condition": "CO_sys_raw < 40",
+            "result": "CO_sys = 35"
+          },
+          "if_greater_or_equal": {
+            "condition": "CO_sys_raw >= 40",
+            "result": "CO_sys = 45"
+          },
+          "rationale": "중간값(40)을 기준으로 가까운 경계 선택 (동점 40은 45로)"
+        },
+        "valid_ranges": {
+          "primary": [0, 35],
+          "mirror": [45, 80]
+        },
+        "examples": [
+          { "input": 37, "output": 35, "reason": "37 < 40" },
+          { "input": 40, "output": 45, "reason": "40 >= 40" },
+          { "input": 43, "output": 45, "reason": "43 >= 40" }
+        ]
+      },
+      "inputs": ["CO_sys_raw"],
+      "outputs": ["CO_sys"]
+    },
+
+    {
+      "step": 2,
+      "name": "compute_1C_sys",
+      "description": "Compute 1C_sys using 35&½ formula (sys-only).",
+      "formula": {
+        "expr": "1C_sys_raw = ((35 + CO_sys) / 2) - 3C_sys",
+        "vars": ["CO_sys", "3C_sys"],
+        "domain": "sys-only",
+        "note": "좌표를 사용하지 않음, 순수 sys-domain 연산"
+      },
+      "outputs": ["1C_sys_raw"]
+    },
+
+    {
+      "step": 3,
+      "name": "clamp_1C_sys",
+      "description": "Clamp 1C_sys to anchor-derived sys bounds.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "derive_bounds": {
+          "filter": "anchors where label='1C'",
+          "min": "min(sys values in filtered 1C anchors)",
+          "max": "max(sys values in filtered 1C anchors)",
+          "note": "1C 앵커들의 sys 값 범위 추출"
+        },
+        "clamp_operation": {
+          "formula": "1C_sys = clamp(1C_sys_raw, min, max)",
+          "preserve_raw": false,
+          "note": "1C_sys_raw는 폐기하고, clamp된 1C_sys만 출력"
+        }
+      },
+      "inputs": ["1C_sys_raw"],
+      "outputs": ["1C_sys"]
+    },
+
+    {
+      "step": 4,
+      "name": "map_output_mark",
+      "description": "Map 1C_sys to display coordinate using 1C anchors of the selected track.",
+      "rules": {
+        "output_mark": {
+          "id": "1C",
+          "space": "Fg",
+          "rail_policy": "opposite_long_cushion_of_CO",
+          "rail_mapping": {
+            "if_CO_on_BOTTOM": "1C_on_TOP",
+            "if_CO_on_TOP": "1C_on_BOTTOM"
+          },
+          "axis": "long",
+          "note": "35half는 장쿠션 시스템: 1C는 TOP/BOTTOM rail에서 x값으로 표시"
+        },
+        "sys_to_coord": {
+          "source": "anchors.trajectories[track].anchors",
+          "filter": "anchors where label='1C'",
+          "target_axis": "x_fg",
+          "interpolation": {
+            "method": "linear",
+            "clamp": true,
+            "no_extrapolation": true,
+            "procedure": [
+              "1. 1C_sys를 입력으로 anchors[track].1C에서 인접 앵커 찾기",
+              "2. 선형 보간으로 x_fg 계산",
+              "3. 범위 밖인 경우 1C 앵커의 x_fg min/max로 clamp"
+            ]
+          }
+        },
+        "output_mark_policy": {
+          "sys_value": {
+            "preserve": true,
+            "note": "1C_sys는 Step 3에서 clamp된 계산 결과를 그대로 유지"
+          },
+          "coordinate_value": {
+            "clamp_to_anchor_range": true,
+            "note": "x_fg는 1C 앵커의 좌표 범위로 추가 clamp (물리적 표시 정책)"
+          },
+          "rationale": [
+            "sys 값은 계산 결과이고 시스템의 논리적 출력",
+            "좌표는 물리적 표시를 위한 것이므로 표시 가능 범위로 제한",
+            "35half는 장쿠션(TOP/BOTTOM) 기반 시스템"
+          ]
+        }
+      },
+      "outputs": ["output_mark_1C"]
+    }
+  ],
+
+  "output_mark_policy": {
+    "sys_value": {
+      "preserve": true,
+      "note": "System value is the final calculation result."
+    },
+    "coordinate_value": {
+      "clamp_to_anchor_range": true,
+      "note": "Display coordinate is clamped to physical anchor range."
+    }
+  },
+
+  "outputs": {
+    "sys": ["CO_sys", "3C_sys", "1C_sys"],
+    "marks": [
+      {
+        "id": "1C",
+        "space": "Fg",
+        "rail": "track_dependent",
+        "rail_mapping": {
+          "if_CO_on_BOTTOM": "TOP",
+          "if_CO_on_TOP": "BOTTOM"
+        },
+        "axis": "long",
+        "value": "x_fg",
+        "meta": {
+          "formula": "1C_sys = ((35 + CO_sys) / 2) - 3C_sys",
+          "domain_policy": "CO_sys split + gap clamp",
+          "sys_value": "1C_sys (preserved from Step 3)",
+          "coordinate_value": "x_fg (clamped in Step 4)",
+          "no_extrapolation": true,
+          "clamp": true
+        }
+      }
+    ]
+  },
+
+  "validation_scenarios": {
+    "note": "실제 anchors.json 데이터 기반 시나리오 (track = B2T_R)",
+    "anchor_structure": {
+      "B2T_R": {
+        "CO": "BOTTOM rail (y=-2.25), x ∈ {80, 70, 60, 50, 45}",
+        "3C": "BOTTOM rail (y=-2.25), x ∈ {80, 70, 60, 50, 45}",
+        "1C": "TOP rail (y=42.25), x varies"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "exact_anchor_match",
+        "description": "앵커에 정확히 일치하는 점",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 60 },
+          "3C": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 60 }
+        },
+        "expected": {
+          "CO_sys_raw": "anchors[B2T_R].CO에서 x=60에 해당하는 sys=20 (정확 일치)",
+          "CO_sys": "20 (gap 영역 아님, 그대로 유지)",
+          "3C_sys": "anchors[B2T_R].3C에서 x=60에 해당하는 sys=20 (정확 일치)",
+          "1C_sys": "((35+20)/2) - 20 = 27.5 - 20 = 7.5",
+          "1C_mark": "sys=7.5를 1C 앵커에서 x_fg로 보간",
+          "interpolation": "none (exact match)",
+          "clamp": "none (within valid range)"
+        }
+      },
+      {
+        "id": "interpolation_required",
+        "description": "앵커 사이 중간값 (선형 보간)",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 65 },
+          "3C": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 55 }
+        },
+        "expected": {
+          "CO_sys_raw": "anchors[B2T_R].CO에서 x=65를 선형 보간 (60↔70 사이) → sys=15",
+          "CO_sys": "15 (gap 영역 아님)",
+          "3C_sys": "anchors[B2T_R].3C에서 x=55를 선형 보간 (50↔60 사이) → sys=25",
+          "1C_sys": "((35+15)/2) - 25 = 25 - 25 = 0",
+          "1C_mark": "sys=0을 1C 앵커에서 x_fg로 변환",
+          "interpolation": "linear between adjacent anchors",
+          "clamp": "Step 3에서 1C_sys 범위 확인 후 필요시 clamp"
+        }
+      },
+      {
+        "id": "out_of_range_clamp",
+        "description": "CO, 3C 모두 앵커 범위 초과",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 85 },
+          "3C": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 90 }
+        },
+        "expected": {
+          "CO_sys_raw": "anchors[B2T_R].CO의 max sys (x=85 > 80, Step 1에서 x=80으로 clamp)",
+          "CO_sys": "CO_sys_raw (mirror 범위 [45,80] 내)",
+          "3C_sys": "anchors[B2T_R].3C의 max sys (x=90 > 80, Step 1에서 x=80으로 clamp)",
+          "1C_sys": "계산 후 Step 3에서 1C 앵커 sys 범위로 clamp",
+          "clamp": "Step 1: CO_sys_raw, 3C_sys 입력 clamp / Step 3: 1C_sys 출력 clamp / Step 4: x_fg 좌표 clamp"
+        }
+      },
+      {
+        "id": "co_gap_clamp_lower_sys_mode",
+        "description": "CO_sys가 gap 영역 진입 (하한 근처) - AdminMode sys 입력",
+        "input_mode": "sys",
+        "inputs": {
+          "track": "B2T_R",
+          "CO_sys_raw": 37,
+          "3C_sys": 20
+        },
+        "expected": {
+          "gap_detection": "35 < 37 < 45 → true",
+          "clamp_logic": "37 < 40 → CO_sys = 35",
+          "1C_sys": "((35+35)/2) - 20 = 35 - 20 = 15",
+          "clamp": "Step 1.1: CO_sys gap clamp applied (37 → 35)"
+        }
+      },
+      {
+        "id": "co_gap_clamp_upper_sys_mode",
+        "description": "CO_sys가 gap 영역 진입 (상한 근처) - AdminMode sys 입력",
+        "input_mode": "sys",
+        "inputs": {
+          "track": "B2T_R",
+          "CO_sys_raw": 42,
+          "3C_sys": 25
+        },
+        "expected": {
+          "gap_detection": "35 < 42 < 45 → true",
+          "clamp_logic": "42 >= 40 → CO_sys = 45",
+          "1C_sys": "((35+45)/2) - 25 = 40 - 25 = 15",
+          "clamp": "Step 1.1: CO_sys gap clamp applied (42 → 45)"
+        }
+      },
+      {
+        "id": "co_gap_clamp_midpoint_sys_mode",
+        "description": "CO_sys가 gap 중간값(40) - AdminMode sys 입력",
+        "input_mode": "sys",
+        "inputs": {
+          "track": "B2T_R",
+          "CO_sys_raw": 40,
+          "3C_sys": 20
+        },
+        "expected": {
+          "gap_detection": "35 < 40 < 45 → true",
+          "clamp_logic": "40 >= 40 → CO_sys = 45 (동점은 상한으로)",
+          "1C_sys": "((35+45)/2) - 20 = 40 - 20 = 20",
+          "clamp": "Step 1.1: CO_sys gap clamp applied (40 → 45)"
+        }
+      }
+    ]
+  }
+}

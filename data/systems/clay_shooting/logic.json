@@ -1,0 +1,39 @@
+{
+  "system_id": "clay_shooting",
+  "track_selection": {
+    "strategy": "ruleset",
+    "snap_tolerance": 0.02,
+    "rule_summary": [
+      "입력 좌표를 상수선(±tol)으로 스냅 후 트랙을 1개로 결정한다.",
+      "CO가 BOTTOM이면 B2T_*, CO가 TOP이면 T2B_*",
+      "1C_x/3C_x 상수선 일치가 있으면 우선, 없으면 CO.x 와 3C.x 비교로 모호성 해소"
+    ],
+    "rule_source": "Clay_shooting_track_selector.py"
+  },
+  "required_marks": ["CO", "3C"],
+  "optional_marks": ["1C"],
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true,
+    "error_messages": {
+      "missing_CO": "CO 입력이 필요합니다.",
+      "missing_3C": "3C 입력이 필요합니다.",
+      "track_not_resolved": "트랙을 판정할 수 없습니다. 상수선 정렬(±0.02) 또는 1C 입력을 확인하세요."
+    }
+  },
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 선택만 담당합니다.",
+      "1C 계산(1C=CO-3C)과 좌표 매핑은 derivations에서만 수행합니다.",
+      "타점은 모든 트랙에서 12시 고정입니다."
+    ]
+  },
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-11",
+    "sources": ["Clay_shooting_track_selector.py", "Clay_shooting_system_base_manual.txt"]
+  }
+}

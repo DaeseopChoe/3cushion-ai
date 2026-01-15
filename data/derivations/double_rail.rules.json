@@ -1,0 +1,309 @@
+{
+  "meta": {
+    "system_id": "double_rail",
+    "system_name": "Double Rail",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "references": {
+      "profile": "systems/double_rail/profile.json",
+      "logic": "systems/double_rail/logic.json",
+      "anchors": "systems/double_rail/anchors.json",
+      "base_logic": "Double_Rail_Base Logic.txt",
+      "selector_ref": "Double_Rail_track_selector.py"
+    },
+    "notes": [
+      "All computations are sys-domain only.",
+      "Coordinates are used only for anchor lookup and display mapping.",
+      "Track selection may evaluate two candidates and apply HP cap.",
+      "v1.0: cap-aware 트랙 선택 로직 정식화, clockface 매핑 테이블 완전 포함"
+    ]
+  },
+
+  "inputs": {
+    "required": ["CO", "4C", "track_or_candidate_context"],
+    "optional": ["1C", "cap", "tol"],
+    "mark_schema": {
+      "type": "object",
+      "required": ["space", "rail", "axis", "value"],
+      "properties": {
+        "space": { "enum": ["Fg", "Rg"] },
+        "rail": { "enum": ["TOP", "BOTTOM", "LEFT", "RIGHT"] },
+        "axis": { "enum": ["long", "short"] },
+        "value": { "type": "number" }
+      }
+    },
+    "validation": {
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "constants": {
+    "snap_tolerance": 0.02,
+    "frame_constants_fg": {
+      "x": [-2.25, 82.25],
+      "y": [-2.25, 42.25]
+    },
+    "hp_cap_default": 30,
+    "clock_step": 5
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    },
+    "validation": "input mark must include rail",
+    "rationale": [
+      "TOP/BOTTOM rail: y는 프레임 상수선에 고정, x가 변화",
+      "LEFT/RIGHT rail: x는 프레임 상수선에 고정, y가 변화"
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "hp_cap": 30,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_candidate_tracks",
+      "description": "If CO on frame constant line (±tol), produce 2 candidate tracks; otherwise, use fallback-resolved single track.",
+      "rules": {
+        "candidate_rule": {
+          "condition": "CO on frame constant line within tolerance",
+          "tolerance": "snap_tolerance (0.02)",
+          "result": "2 candidate tracks",
+          "note": "see systems/double_rail/logic.json track_selection.candidate_rule"
+        },
+        "fallback_rule": {
+          "condition": "CO not on frame constant line",
+          "result": "1 track (fallback)",
+          "note": "see systems/double_rail/logic.json track_selection.fallback_rule"
+        }
+      },
+      "outputs": ["candidate_tracks"]
+    },
+
+    {
+      "step": 2,
+      "name": "resolve_sys_from_anchors_per_track",
+      "description": "For each candidate track, resolve CO_sys and 4C_sys via anchor interpolation (linear + clamp, no extrapolation).",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "4C"],
+        "axis_inference": {
+          "use": "axis_inference.mapping",
+          "procedure": [
+            "1. 입력 마크의 rail 확인",
+            "2. mapping으로 축 판정 (TOP/BOTTOM → x, LEFT/RIGHT → y)",
+            "3. 해당 축 값으로 anchors에서 인접 두 점 찾기",
+            "4. 선형 보간으로 sys 값 계산",
+            "5. 범위 밖인 경우 앵커 min/max로 clamp"
+          ]
+        },
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["per_track_values"]
+    },
+
+    {
+      "step": 3,
+      "name": "compute_HP_raw",
+      "description": "Compute HP_n_raw in sys domain using formula: HP = CO + 4C.",
+      "formula": {
+        "expr": "HP_n_raw = CO_sys + 4C_sys",
+        "vars": ["CO_sys", "4C_sys"],
+        "domain": "sys-only",
+        "note": "좌표를 사용하지 않음, 순수 sys-domain 합산"
+      },
+      "outputs": ["HP_n_raw_per_track"]
+    },
+
+    {
+      "step": 4,
+      "name": "select_track_with_cap_policy",
+      "description": "Cap-aware selection: choose first candidate satisfying HP<=cap; else choose candidate with smallest HP; then apply HP cap.",
+      "rules": {
+        "cap": {
+          "default": 30,
+          "override_from_input": "cap",
+          "note": "입력에서 cap 값이 제공되면 해당 값 사용, 없으면 기본값 30"
+        },
+        "selection_policy": {
+          "priority": {
+            "rule": "first_track_with_HP_le_cap",
+            "condition": "HP_n_raw <= cap",
+            "action": "select first candidate satisfying condition",
+            "note": "우선순위: cap 이하인 첫 번째 후보 선택"
+          },
+          "fallback": {
+            "rule": "min_HP",
+            "condition": "all candidates have HP_n_raw > cap",
+            "action": "select candidate with smallest HP_n_raw",
+            "note": "모든 후보가 cap 초과 시 최소값 선택"
+          },
+          "procedure": [
+            "1. for each candidate_track in candidate_tracks:",
+            "2.   if HP_n_raw <= cap:",
+            "3.     selected_track = candidate_track",
+            "4.     break",
+            "5. if no track selected:",
+            "6.   selected_track = argmin(HP_n_raw)",
+            "7. apply capping: HP_n = min(cap, HP_n_raw)"
+          ]
+        },
+        "capping": {
+          "expr": "HP_n = min(cap, HP_n_raw)",
+          "preserve_raw": true,
+          "note": "HP_n_raw는 debug 용으로 유지, HP_n은 cap 적용된 최종값"
+        }
+      },
+      "inputs": ["candidate_tracks", "HP_n_raw_per_track", "cap"],
+      "outputs": ["track", "HP_n_raw", "HP_n"]
+    },
+
+    {
+      "step": 5,
+      "name": "clockface_label",
+      "description": "Map HP_n to nearest 5-step (tie to higher) and then to clock label by turn(L/R).",
+      "rules": {
+        "rounding": {
+          "step": 5,
+          "tie_break": "up",
+          "clamp": [5, 30],
+          "formula": [
+            "1. rounded = round(HP_n / 5) * 5",
+            "2. if HP_n == k.5 for some k: round up",
+            "3. clamp(rounded, 5, 30)"
+          ],
+          "note": "5 단위로 반올림, 동점(k.5)은 상향, 최종 [5,30] 범위로 clamp"
+        },
+        "turn_from_track": {
+          "B2T_L": "L",
+          "T2B_L": "L",
+          "B2T_R": "R",
+          "T2B_R": "R",
+          "note": "track에서 방향(L/R) 결정"
+        },
+        "clock_table": {
+          "R": {
+            "5": "12:30",
+            "10": "1:00",
+            "15": "1:30",
+            "20": "2:00",
+            "25": "2:30",
+            "30": "3:00"
+          },
+          "L": {
+            "5": "11:30",
+            "10": "11:00",
+            "15": "10:30",
+            "20": "10:00",
+            "25": "9:30",
+            "30": "9:00"
+          },
+          "note": "rounded HP_n과 방향(L/R)으로 clock 라벨 결정"
+        }
+      },
+      "inputs": ["track", "HP_n"],
+      "outputs": ["clock"]
+    }
+  ],
+
+  "outputs": {
+    "primary": ["track", "HP_n", "clock"],
+    "debug": ["HP_n_raw"],
+    "marks": [
+      {
+        "id": "HP",
+        "value": "HP_n",
+        "meta": {
+          "HP_n_raw": "debug value (before cap)",
+          "HP_n": "final value (after cap)",
+          "clock": "clockface label"
+        }
+      }
+    ]
+  },
+
+  "validation_scenarios": {
+    "note": "실제 anchors.json 데이터 기반 시나리오",
+    "scenarios": [
+      {
+        "id": "exact_anchor_match",
+        "description": "앵커에 정확히 일치하는 점",
+        "inputs": {
+          "track_context": "single_track",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 40 },
+          "4C": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 50 }
+        },
+        "expected": {
+          "candidate_tracks": 1,
+          "CO_sys": "anchors[track].CO에서 x=40 (정확 일치)",
+          "4C_sys": "anchors[track].4C에서 x=50 (정확 일치)",
+          "HP_n_raw": "CO_sys + 4C_sys",
+          "interpolation": "none (exact match)",
+          "clamp": "none (within range)",
+          "cap_applied": "depends on HP_n_raw vs 30"
+        }
+      },
+      {
+        "id": "interpolation_required",
+        "description": "앵커 사이 중간값 (선형 보간)",
+        "inputs": {
+          "track_context": "single_track",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 45 },
+          "4C": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 55 }
+        },
+        "expected": {
+          "candidate_tracks": 1,
+          "CO_sys": "anchors[track].CO에서 x=45를 선형 보간",
+          "4C_sys": "anchors[track].4C에서 x=55를 선형 보간",
+          "HP_n_raw": "CO_sys + 4C_sys",
+          "interpolation": "linear between adjacent anchors",
+          "clamp": "none (within range)",
+          "cap_applied": "HP_n = min(30, HP_n_raw)"
+        }
+      },
+      {
+        "id": "cap_policy_selects_track",
+        "description": "후보 2트랙 중 cap 이하인 트랙 선택",
+        "inputs": {
+          "track_context": "candidate_tracks: [B2T_L, B2T_R]",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": -2.25 },
+          "4C": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 60 },
+          "cap": 30
+        },
+        "expected": {
+          "candidate_tracks": 2,
+          "track_A": {
+            "track": "B2T_L",
+            "HP_n_raw": "예: 28 (cap 이하)"
+          },
+          "track_B": {
+            "track": "B2T_R",
+            "HP_n_raw": "예: 35 (cap 초과)"
+          },
+          "selection": "B2T_L (first candidate with HP_n_raw <= 30)",
+          "HP_n": 28,
+          "HP_n_raw": 28,
+          "cap_applied": "no (already below cap)",
+          "clock": "determined by HP_n=28 and turn=L"
+        }
+      }
+    ]
+  }
+}

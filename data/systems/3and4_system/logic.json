@@ -1,0 +1,80 @@
+{
+  "system": "3and4_system",
+
+  "logic_type": "geometric_decision",
+
+  "inputs_required": [
+    "CB_xy",
+    "TB_xy",
+    "4C_f"
+  ],
+
+  "decision_steps": [
+    {
+      "step": "classify_inside_outside",
+      "description": "Determine whether the target ball lies on the inside or outside of the CB–4C reference line",
+      "method": "signed_area",
+
+      "inputs": ["CB_xy", "TB_xy", "4C_f"],
+
+      "output": "path_type",
+
+      "rules": {
+        "inside": "TB lies on the same side of the CB–4C line as the table center",
+        "outside": "TB lies on the opposite side of the CB–4C line"
+      },
+
+      "on_ambiguity": "error"
+    },
+
+    {
+      "step": "select_target_rail",
+      "description": "Select the first cushion rail based on inside/outside classification",
+      "input": "path_type",
+
+      "output": "target_rail",
+
+      "rules": {
+        "inside": "LONG_RAIL",
+        "outside": "SHORT_RAIL"
+      }
+    },
+
+    {
+      "step": "validate_geometry",
+      "description": "Ensure the CB–TB line intersects the selected rail within valid bounds",
+      "inputs": ["CB_xy", "TB_xy", "target_rail"],
+
+      "guards": {
+        "intersection_required": true,
+        "no_parallel_to_rail": true,
+        "no_extrapolation": true
+      },
+
+      "on_failure": "error"
+    }
+  ],
+
+  "rail_definitions": {
+    "LONG_RAIL": ["TOP", "BOTTOM"],
+    "SHORT_RAIL": ["LEFT", "RIGHT"]
+  },
+
+  "safety": {
+    "requires_physical_coordinates": true,
+    "no_extrapolation": true,
+    "ambiguity_policy": "error"
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_logic",
+    "notes": [
+      "Logic determines path type (inside/outside) using geometric side test",
+      "Rail selection is strictly derived from inside/outside classification",
+      "This file performs no numeric calculation of cushion values",
+      "All geometric ambiguity results in immediate rejection",
+      "Actual intersection computation is delegated to simulator layer"
+    ]
+  }
+}

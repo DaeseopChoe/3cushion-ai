@@ -1,0 +1,193 @@
+{
+  "meta": {
+    "system_id": "florida_system",
+    "system_name": "Florida System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "references": {
+      "profile": "systems/florida_system/profile.json",
+      "logic": "systems/florida_system/logic.json",
+      "anchors": "systems/florida_system/anchors.json",
+      "manual": "Florida_system_base_manual.txt"
+    },
+    "notes": [
+      "All calculations are performed in sys-domain only.",
+      "Coordinates (Fg/Rg) are used only for anchor lookup and display mapping.",
+      "No iteration or convergence logic is used in this system."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "4C"],
+    "optional": ["1C"],
+    "validation": {
+      "track_required": true,
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    },
+    "validation": "input mark must include rail"
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "offset_fg2rg": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "description": "Resolve CO_sys and 4C_sys from anchors under the selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "4C"],
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["CO_sys", "4C_sys"]
+    },
+
+    {
+      "step": 2,
+      "name": "determine_An",
+      "description": "Determine multiplier An based on CO_sys.",
+      "rules": {
+        "mapping": [
+          { "CO_sys": 40, "An": 1 },
+          { "CO_sys": 30, "An": 2 },
+          { "CO_sys": 20, "An": 3 },
+          { "CO_sys": 10, "An": 4 }
+        ],
+        "tolerance": 0.5,
+        "on_mismatch": {
+          "policy": "error",
+          "message": "CO_sys does not match any An mapping within tolerance."
+        }
+      },
+      "outputs": ["An"]
+    },
+
+    {
+      "step": 3,
+      "name": "compute_1C_sys",
+      "description": "Compute 1C_sys using Florida system formula.",
+      "formula": {
+        "expr": "1C_sys_raw = CO_sys - (4C_sys * An)",
+        "vars": ["CO_sys", "4C_sys", "An"]
+      },
+      "post_process": {
+        "clamp_range": [0, 40],
+        "expr": "1C_sys = clamp(1C_sys_raw, 0, 40)"
+      },
+      "outputs": ["1C_sys"]
+    },
+
+    {
+      "step": 4,
+      "name": "map_1C_sys_to_coord",
+      "description": "Map 1C_sys to display coordinates using 1C anchors of the selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "label": "1C",
+        "sys_to_coord": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["mark_1C"]
+    },
+
+    {
+      "step": 5,
+      "name": "fixed_tip",
+      "description": "Florida system uses a fixed center hit-point.",
+      "rules": {
+        "tip": {
+          "mode": "fixed",
+          "position": "center"
+        }
+      },
+      "outputs": ["tip"]
+    }
+  ],
+
+  "output_mark_policy": {
+    "sys_value": {
+      "preserve": true,
+      "note": "1C_sys is the final computed system value."
+    },
+    "coordinate_value": {
+      "clamp_to_anchor_range": true,
+      "note": "Display coordinates are clamped to physical anchor bounds."
+    }
+  },
+
+  "outputs": {
+    "sys": ["CO_sys", "4C_sys", "1C_sys"],
+    "marks": ["mark_1C"],
+    "tip": ["tip"]
+  },
+
+  "validation_scenarios": {
+    "note": "Representative anchor-based validation cases.",
+    "scenarios": [
+      {
+        "id": "exact_anchor_match",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 40 },
+          "4C": { "space": "Fg", "rail": "LEFT", "axis": "short", "value": 20 }
+        },
+        "expected": {
+          "CO_sys": 40,
+          "An": 1,
+          "formula": "1C_sys = 40 - (4C_sys * 1)",
+          "interpolation": "none"
+        }
+      },
+      {
+        "id": "interpolation_required",
+        "inputs": {
+          "track": "B2T_L",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 35 },
+          "4C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 18 }
+        },
+        "expected": {
+          "interpolation": "linear",
+          "An": 2,
+          "clamp": "none"
+        }
+      },
+      {
+        "id": "out_of_range_clamp",
+        "inputs": {
+          "track": "T2B_R",
+          "CO": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 40 },
+          "4C": { "space": "Fg", "rail": "LEFT", "axis": "short", "value": 50 }
+        },
+        "expected": {
+          "An": 1,
+          "clamp": "1C_sys clamped to [0,40]"
+        }
+      }
+    ]
+  }
+}

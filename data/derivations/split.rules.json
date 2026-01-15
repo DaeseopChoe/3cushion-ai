@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "system_id": "split",
+    "system_name": "Split System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "geometry",
+    "notes": [
+      "Split system uses geometric reflection, not sys formulas.",
+      "This is an approved exception in Phase 2."
+    ]
+  },
+
+  "inputs": {
+    "required": ["CO_fg"],
+    "optional": ["target_corner"],
+    "defaults": {
+      "target_corner": "RIGHT"
+    }
+  },
+
+  "principle": {
+    "description": "Compute split path using geometric halving and mirror reflection.",
+    "calculation_domain": "Fg_only",
+    "anchors_used": false
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "compute_virtual_target",
+      "description": "Reflect target corner to compute virtual target for straight-line path.",
+      "rules": {
+        "method": "mirror_reflection",
+        "corner": "RIGHT",
+        "virtual_target": {
+          "x": 80,
+          "y": 40
+        }
+      },
+      "outputs": ["VT_fg"]
+    },
+    {
+      "step": 2,
+      "name": "compute_first_cushion",
+      "description": "Compute first cushion using split rule COfg = x/2.",
+      "rules": {
+        "formula": {
+          "COfg": "CO_fg.x / 2",
+          "C1_fg": ["COfg", 40]
+        }
+      },
+      "outputs": ["C1_fg"]
+    },
+    {
+      "step": 3,
+      "name": "compute_remaining_cushions",
+      "description": "Compute remaining cushion points via line intersection and reflection.",
+      "rules": {
+        "method": "iterative_reflection",
+        "count": 2,
+        "table": { "width": 80, "height": 40 }
+      },
+      "outputs": ["C2_fg", "C3_fg"]
+    },
+    {
+      "step": 4,
+      "name": "validate_path",
+      "description": "Check if path reaches target corner within tolerance.",
+      "rules": {
+        "tolerance": 0.5,
+        "on_fail": {
+          "action": "warn",
+          "is_valid": false
+        },
+        "on_success": {
+          "is_valid": true
+        }
+      }
+    }
+  ],
+
+  "outputs": {
+    "points": ["C1_fg", "C2_fg", "C3_fg"],
+    "flags": ["is_valid"]
+  },
+
+  "safety": {
+    "geometry_exception": true,
+    "no_sys_calculation": true
+  }
+}

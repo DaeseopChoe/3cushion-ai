@@ -1,0 +1,27 @@
+{
+  "id": "hpt_user_overlay",
+  "version": "1.0",
+  "mode": "read_only",
+  "description": "HP/T user display overlay",
+
+  "display_elements": {
+    "cue_ball": {
+      "show_center": true,
+      "center_style": "crosshair",
+      "show_base_line": true,
+      "show_hit_point": true,
+      "hit_point_source": "hit_point.xy"
+    }
+  },
+
+  "text_summary": [
+    {
+      "label": "타점",
+      "content": "{tip_description} ({clock_description})"
+    },
+    {
+      "label": "두께",
+      "content": "{thickness_fraction}"
+    }
+  ]
+}

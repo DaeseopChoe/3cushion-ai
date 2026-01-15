@@ -1,0 +1,54 @@
+{
+  "system_id": "reverse_end_system",
+  "system_name": "Reverse End System",
+  "category": "end_position_lookup",
+
+  "description": {
+    "ko": "Reverse End System은 계산을 수행하지 않고, 사전에 정의된 앵커 조합을 조회하여 해답을 도출하는 엔드포지션 전용 시스템입니다.",
+    "en": "Reverse End System is a discrete lookup-based end-position system using predefined anchor combinations."
+  },
+
+  "system_characteristics": {
+    "type": "lookup_based",
+    "continuous_calculation": false,
+    "interpolation": false,
+    "extrapolation": false
+  },
+
+  "formula_reference": {
+    "expression": "1C_sys = CO_sys + 2C_sys",
+    "usage": "validation_only",
+    "note": "This formula is NOT used for calculation. All valid results are pre-encoded in anchors."
+  },
+
+  "inputs": {
+    "required_marks": ["CO", "2C"],
+    "derived_marks": ["1C", "3C"],
+    "track_required": true
+  },
+
+  "outputs": {
+    "marks": ["CO", "1C", "2C", "3C"],
+    "description": "All output marks are retrieved directly from anchors."
+  },
+
+  "usage_notes": {
+    "ko": [
+      "Reverse End System은 조합형 시스템이므로 계산 정확도보다 앵커의 완전성이 중요합니다.",
+      "2C 값은 CO_sys에 따라 허용 범위가 제한됩니다.",
+      "관리자 모드에서 앵커 유효성 검증을 권장합니다."
+    ]
+  },
+
+  "display": {
+    "show_formula": true,
+    "show_anchor_sequence": true
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "authoring": "3Cushion AI",
+    "calculation_in_profile": false,
+    "last_updated": "2026-01-12"
+  }
+}

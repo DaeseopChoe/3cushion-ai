@@ -1,0 +1,77 @@
+{
+  "system_id": "peruvian_system",
+  "system_name": "Peruvian System",
+  "role": "track_selection_only",
+
+  "track_selection": {
+    "strategy": "frame_constant_first_with_1c_turn",
+    "snap_tolerance": 0.02,
+
+    "base_direction": {
+      "rule": "CO rail decides base direction (frame-constant-first)",
+      "mapping": {
+        "CO_on_BOTTOM": "B2T",
+        "CO_on_TOP": "T2B",
+        "CO_on_RIGHT": "B2T",
+        "CO_on_LEFT": "T2B"
+      }
+    },
+
+    "turn_direction": {
+      "rule": "1C LEFT/RIGHT decides turn (depends on base)",
+      "mapping": {
+        "B2T": {
+          "1C_on_LEFT": "R",
+          "1C_on_RIGHT": "L"
+        },
+        "T2B": {
+          "1C_on_LEFT": "L",
+          "1C_on_RIGHT": "R"
+        }
+      },
+      "fallback": {
+        "policy": "relative_dx",
+        "description": "If 1C is not on LEFT/RIGHT constants, use dx = (1C_x - CO_x). dx>0 => R, dx<0 => L."
+      }
+    },
+
+    "result_format": "{base}_{turn}",
+
+    "fallback": {
+      "policy": "error",
+      "message": "Unable to resolve track: CO must be on a frame constant rail (TOP/BOTTOM/LEFT/RIGHT) within tolerance."
+    },
+
+    "source_reference": "peruvian_calculator.py"
+  },
+
+  "required_marks": ["CO", "1C", "3C"],
+
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true,
+    "error_messages": {
+      "missing_CO": "CO 입력이 필요합니다.",
+      "missing_1C": "1C 입력이 필요합니다.",
+      "missing_3C": "3C 입력이 필요합니다.",
+      "invalid_CO_position": "CO는 TOP/BOTTOM 또는 LEFT/RIGHT 프레임 상수선에 있어야 합니다."
+    }
+  },
+
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 선택만 담당합니다.",
+      "Peruvian은 CO의 프레임 상수선 위치로 B2T/T2B를 먼저 결정하고, 1C의 LEFT/RIGHT로 L/R을 결정합니다.",
+      "HP 계산 및 타점/라벨 판정은 derivations/peruvian_system.rules.json에서만 수행됩니다."
+    ]
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-12",
+    "source": "peruvian_calculator.py"
+  }
+}

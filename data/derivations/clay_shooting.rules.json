@@ -1,0 +1,159 @@
+{
+  "meta": {
+    "system_id": "clay_shooting",
+    "system_name": "Clay Shooting System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "references": {
+      "profile": "systems/clay_shooting/profile.json",
+      "logic": "systems/clay_shooting/logic.json",
+      "anchors": "systems/clay_shooting/anchors.json",
+      "manual": "Clay_shooting_system_base_manual.txt"
+    },
+    "notes": [
+      "Track is selected first (logic).",
+      "All math is sys-domain only: 1C_sys = CO_sys - 3C_sys.",
+      "Coordinates are used only for anchor lookup and display mapping."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "3C"],
+    "optional": ["1C"],
+    "validation": {
+      "rail_required": true,
+      "axis_required": true,
+      "track_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    }
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "offset_fg2rg": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  },
+
+  "pipeline": [
+    {
+      "step": 0,
+      "name": "track_selected",
+      "description": "Track must be provided by systems/clay_shooting/logic.json selection.",
+      "outputs": ["track"]
+    },
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "description": "Resolve CO_sys and 3C_sys via anchor interpolation under selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "3C"],
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["CO_sys", "3C_sys"]
+    },
+    {
+      "step": 2,
+      "name": "compute_1C_sys",
+      "description": "Compute 1C_sys in sys-domain only.",
+      "formula": {
+        "expr": "1C_sys = CO_sys - 3C_sys",
+        "vars": ["CO_sys", "3C_sys"]
+      },
+      "outputs": ["1C_sys"]
+    },
+    {
+      "step": 3,
+      "name": "map_1C_sys_to_coord",
+      "description": "Map 1C_sys to (x_fg,y_fg) using 1C anchors of selected track (linear + clamp).",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "label": "1C",
+        "sys_to_coord": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["mark_1C"]
+    },
+    {
+      "step": 4,
+      "name": "tip_fixed",
+      "description": "Tip is fixed 12 o'clock for all tracks.",
+      "rules": { "tip": { "mode": "fixed", "direction": "12시" } },
+      "outputs": ["tip"]
+    }
+  ],
+
+  "output_mark_policy": {
+    "sys_value": { "preserve": true },
+    "coordinate_value": { "clamp_to_anchor_range": true }
+  },
+
+  "outputs": {
+    "sys": ["CO_sys", "3C_sys", "1C_sys"],
+    "marks": ["mark_1C"],
+    "tip": ["tip"]
+  },
+
+  "validation_scenarios": {
+    "note": "Anchor-based representative cases. Exact numeric expectations are derived from anchors.",
+    "scenarios": [
+      {
+        "id": "exact_anchor_match",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 70 },
+          "3C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 21 }
+        },
+        "expected": {
+          "interpolation": "none or minimal",
+          "formula": "1C_sys = CO_sys - 3C_sys",
+          "tip": "12시"
+        }
+      },
+      {
+        "id": "interpolation_required",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 65 },
+          "3C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 23.5 }
+        },
+        "expected": {
+          "interpolation": "linear",
+          "clamp": "none",
+          "tip": "12시"
+        }
+      },
+      {
+        "id": "out_of_range_clamp",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 95 },
+          "3C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 60 }
+        },
+        "expected": {
+          "clamp": "Step1 input->sys clamp, Step3 sys->coord clamp",
+          "tip": "12시"
+        }
+      }
+    ]
+  }
+}

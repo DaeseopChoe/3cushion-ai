@@ -1,0 +1,75 @@
+{
+  "system": "99to1_system",
+
+  "display": {
+    "name_key": "system.99to1.name",
+    "short_name_key": "system.99to1.short",
+    "description_key": "system.99to1.desc",
+
+    "category": "calculation",
+    "difficulty": "easy",
+
+    "tags": ["reverse", "calculation", "center_hit", "4c_based"],
+
+    "overlay_keys": {
+      "how_to_use": "system.99to1.howto",
+      "caution": "system.99to1.caution",
+      "tip": "system.99to1.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "1C_f = CO_f - 4C_f"
+  },
+
+  "value_domains": {
+    "CO_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Cue ball reference on frame grid"
+    },
+    "4C_f": {
+      "unit": 10,
+      "range": [0, 40],
+      "notes": "Fourth cushion frame value (input)"
+    },
+    "1C_f": {
+      "unit": 1,
+      "range": [-40, 80],
+      "notes": "Derived first cushion value by reverse calculation"
+    }
+  },
+
+  "safety": {
+    "co_required": true,
+    "pattern": "long-short-long",
+    "no_extrapolation": true,
+    "sys_identity_strict": true,
+    "ambiguity_policy": "error"
+  },
+
+  "space_rule": {
+    "grid": "frame",
+    "snap_tolerance": 0.02,
+    "frame_constants": {
+      "BOTTOM": -2.25,
+      "TOP": 42.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "99to1 is a reverse-calculation system",
+      "First cushion (1C) is always derived, never an input",
+      "System assumes center hit with no side spin",
+      "Accuracy depends primarily on 4C anchor precision",
+      "All calculations are performed strictly in system space"
+    ]
+  }
+}

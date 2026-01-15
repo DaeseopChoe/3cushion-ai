@@ -1,0 +1,60 @@
+{
+  "system": "3and4_system",
+
+  "identity": {
+    "type": "geometric_continuous",
+    "strict": true
+  },
+
+  "derivation_policy": {
+    "type": "interpolated",
+    "description": "Continuous geometric system with mandatory interpolation",
+    "interpolation_allowed": true,
+    "extrapolation_allowed": false
+  },
+
+  "parameter_rules": {
+    "u_parameter": {
+      "description": "Normalized intersection parameter along the CB–TB ray",
+      "range": [0.0, 1.0],
+      "inclusive": true,
+      "meaning": {
+        "0.0": "Cue ball position",
+        "1.0": "Target ball direction intersection"
+      }
+    },
+
+    "step_policy": {
+      "type": "continuous",
+      "quantization": null,
+      "notes": "No discrete step snapping; values are preserved as continuous"
+    }
+  },
+
+  "guards": {
+    "no_extrapolation": true,
+    "require_intersection": true,
+    "reject_parallel": true,
+    "reject_out_of_bounds": true,
+    "ambiguity_policy": "error"
+  },
+
+  "output_constraints": {
+    "primary_output": "1C_f",
+    "valid_range": [-10, 90],
+    "snap_tolerance": 0.02
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "derivation_rules",
+    "notes": [
+      "3and4 system is a continuous geometric system",
+      "Interpolation is mandatory and inherent to the system",
+      "Parameter u represents normalized intersection along the shot line",
+      "No discrete stepping or rounding is applied at this stage",
+      "Any extrapolation beyond valid geometric bounds is strictly forbidden",
+      "All numeric computation is delegated to simulator layer"
+    ]
+  }
+}

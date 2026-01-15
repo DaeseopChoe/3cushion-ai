@@ -1,0 +1,86 @@
+{
+  "system": "plus_system",
+
+  "derivation_policy": {
+    "identity": {
+      "formula": "3C_sys = CO_sys + 1C_sys",
+      "strict": true
+    },
+
+    "interpolation": {
+      "enabled": true,
+      "domain": "sys",
+      "target": "1C_sys",
+      "range": [50, 60],
+      "strategy": "linear",
+      "no_extrapolation": true
+    },
+
+    "conditions": {
+      "co_sys_exact": [20, 30, 40, 50],
+      "co_sys_ranges": [
+        [20, 50],
+        [60, 110]
+      ]
+    }
+  },
+
+  "track_rules": {
+    "snap_tolerance": 0.02,
+
+    "by_co_rail": {
+      "BOTTOM": {
+        "if_1C_known": {
+          "RIGHT": "B2T_L",
+          "LEFT": "B2T_R"
+        },
+        "if_1C_unknown": {
+          "CO.x > 3C.x": "B2T_L",
+          "CO.x < 3C.x": "B2T_R"
+        }
+      },
+      "TOP": {
+        "if_1C_known": {
+          "RIGHT": "T2B_R",
+          "LEFT": "T2B_L"
+        },
+        "if_1C_unknown": {
+          "CO.x > 3C.x": "T2B_R",
+          "CO.x < 3C.x": "T2B_L"
+        }
+      }
+    },
+
+    "tie_breaker": {
+      "condition": "|CO.x - 3C.x| <= 0.02",
+      "priority": [
+        "prefer_3C_side_rail",
+        "prefer_existing_anchor"
+      ]
+    }
+  },
+
+  "guards": {
+    "snap_constants": {
+      "TOP": 42.25,
+      "BOTTOM": -2.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    },
+
+    "valid_1C_y_lines": [0, 5, 10, 15, 20, 25, 30, 35, 40],
+
+    "ambiguity_policy": "error",
+    "no_extrapolation": true
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "derivation_rules",
+    "notes": [
+      "Interpolation applies only to 1C_sys when CO_sys is in (50,60)",
+      "CO_sys and 3C_sys are never interpolated",
+      "Rules are declarative; execution logic lives outside data layer"
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "system_id": "35half",
+  "track_selection": {
+    "strategy": "ruleset",
+    "snap_tolerance": 0.02,
+    "ruleset": [
+      {
+        "if": "CO.rail == BOTTOM && CO.x >= 0 && CO.x <= 35",
+        "then": {
+          "track": "B2T_L",
+          "spin": { "direction": "left_turn", "tip": "9시" }
+        }
+      },
+      {
+        "if": "CO.rail == BOTTOM && CO.x >= 45 && CO.x <= 80",
+        "then": {
+          "track": "B2T_R",
+          "spin": { "direction": "right_turn", "tip": "3시" }
+        }
+      },
+      {
+        "if": "CO.rail == TOP && CO.x >= 0 && CO.x <= 35",
+        "then": {
+          "track": "T2B_R",
+          "spin": { "direction": "right_turn", "tip": "3시" }
+        }
+      },
+      {
+        "if": "CO.rail == TOP && CO.x >= 45 && CO.x <= 80",
+        "then": {
+          "track": "T2B_L",
+          "spin": { "direction": "left_turn", "tip": "9시" }
+        }
+      }
+    ]
+  },
+  "required_marks": ["CO"],
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true,
+    "error_messages": {
+      "missing_CO": "35&½ 시스템은 CO 입력이 필수입니다.",
+      "invalid_domain": "CO_sys가 유효 도메인(0~35 또는 45~80)에 있지 않습니다.",
+      "track_not_resolved": "CO 위치로 트랙을 판정할 수 없습니다."
+    }
+  },
+  "notes": {
+    "ko": [
+      "35&½ 시스템은 CO 위치만으로 트랙이 결정됩니다.",
+      "3C는 계산 단계에서 사용되며 트랙 선택에는 관여하지 않습니다.",
+      "logic.json에는 계산/보간/공식이 포함되지 않습니다."
+    ]
+  },
+  "meta": {
+    "rule_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-11"
+  }
+}

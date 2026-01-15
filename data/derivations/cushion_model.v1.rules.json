@@ -1,0 +1,154 @@
+{
+  "meta": {
+    "id": "cushion_model",
+    "version": "1.0",
+    "scope": "global",
+    "description": "Global cushion reflection model with tip-based angular adjustment (fg-based standard)."
+  },
+
+  "constants": {
+    "table": {
+      "width": 80,
+      "height": 40
+    },
+    "tip_standard": {
+      "unit_fg_per_tip": 5,
+      "reference_length": 40,
+      "max_tip": 4
+    },
+    "angle_limits": {
+      "max_tip_angle_deg": 26.565
+    }
+  },
+
+  "tip_to_delta_theta": {
+    "definition": "Δθ_tip = atan((5 * tip) / 40) in degrees (horizontal-axis reference)",
+    "table": {
+      "1": 7.125,
+      "2": 14.036,
+      "3": 20.556,
+      "4": 26.565
+    }
+  },
+
+  "inputs": {
+    "points": {
+      "CO": { "space": "Fg", "type": "point" },
+      "C1": { "space": "Fg", "type": "point" }
+    },
+    "tip": {
+      "count": { "type": "integer", "range": [0, 4], "default": 0 },
+      "side": { "type": "enum", "values": ["L", "R"], "default": "R" }
+    },
+    "joystick": {
+      "delta_2C_fg": { "type": "number", "default": 0.0 }
+    }
+  },
+
+  "derived_rules": {
+    "second_cushion_selection": {
+      "rule": "if CO.x < C1.x then RIGHT else LEFT",
+      "RIGHT": { "x": 80 },
+      "LEFT": { "x": 0 }
+    }
+  },
+
+  "core_logic": {
+    "steps": [
+      {
+        "id": "incoming_direction",
+        "description": "Compute incoming direction angle from CO to 1C (horizontal reference).",
+        "compute": {
+          "dx": "C1.x - CO.x",
+          "dy": "C1.y - CO.y",
+          "theta_in": "atan2(dy, dx)"
+        }
+      },
+
+      {
+        "id": "basic_reflection",
+        "description": "Apply mirror reflection on vertical cushion (LEFT/RIGHT).",
+        "compute": {
+          "theta_reflect": "pi - theta_in"
+        }
+      },
+
+      {
+        "id": "tip_angle_adjustment",
+        "description": "Add tip-based angular offset.",
+        "compute": {
+          "delta_theta_tip": "deg_to_rad( lookup(tip_to_delta_theta, tip.count) )",
+          "signed_delta": "delta_theta_tip * (tip.side == 'R' ? 1 : -1)",
+          "theta_final": "theta_reflect + signed_delta"
+        }
+      },
+
+      {
+        "id": "direction_vector",
+        "description": "Compute final direction vector.",
+        "compute": {
+          "ux": "cos(theta_final)",
+          "uy": "sin(theta_final)"
+        }
+      },
+
+      {
+        "id": "base_2C_intersection",
+        "description": "Intersect ray from 1C with selected second cushion.",
+        "compute": {
+          "x2": "selected_cushion.x",
+          "t": "(x2 - C1.x) / ux",
+          "y2_base": "C1.y + t * uy"
+        }
+      },
+
+      {
+        "id": "apply_joystick",
+        "description": "Apply joystick adjustment along cushion axis (y only).",
+        "compute": {
+          "y2": "y2_base + joystick.delta_2C_fg"
+        }
+      },
+
+      {
+        "id": "clamp_and_finalize",
+        "description": "Clamp 2C to valid cushion range.",
+        "compute": {
+          "y2_clamped": "clamp(y2, 0, table.height)"
+        }
+      }
+    ]
+  },
+
+  "outputs": {
+    "mark_2C": {
+      "space": "Fg",
+      "rail": "LEFT|RIGHT",
+      "axis": "short",
+      "position": {
+        "x": "x2",
+        "y": "y2_clamped"
+      }
+    },
+    "debug": {
+      "theta_in_deg": "rad_to_deg(theta_in)",
+      "theta_reflect_deg": "rad_to_deg(theta_reflect)",
+      "delta_theta_tip_deg": "lookup(tip_to_delta_theta, tip.count)",
+      "theta_final_deg": "rad_to_deg(theta_final)"
+    }
+  },
+
+  "validation": {
+    "guards": [
+      {
+        "condition": "abs(delta_theta_tip_deg) > angle_limits.max_tip_angle_deg",
+        "action": "clamp"
+      },
+      {
+        "condition": "t <= 0",
+        "action": "warn",
+        "message": "Invalid ray intersection: check incoming direction."
+      }
+    ]
+  }
+}

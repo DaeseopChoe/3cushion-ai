@@ -1,0 +1,72 @@
+{
+  "track_selection": {
+    "strategy": "ruleset",
+    "tolerance": 0.02,
+
+    "ruleset": [
+      {
+        "if": "CO.y == -2.25 and 1C.y == 42.25 and CO.x <= 40",
+        "then": "B2T_L"
+      },
+      {
+        "if": "CO.y == -2.25 and 1C.y == 42.25 and CO.x > 40",
+        "then": "B2T_R"
+      },
+      {
+        "if": "CO.y == 42.25 and 1C.y == -2.25 and CO.x <= 40",
+        "then": "T2B_R"
+      },
+      {
+        "if": "CO.y == 42.25 and 1C.y == -2.25 and CO.x > 40",
+        "then": "T2B_L"
+      }
+    ]
+  },
+
+  "usage_conditions": {
+    "required_marks": ["CO", "1C", "3C"],
+    "optional_marks": ["4C", "5C", "6C"],
+    "allow_double_rail": true,
+    "third_cushion_mode": ["straight", "curved"]
+  },
+
+  "branch_rules": {
+    "third_cushion": {
+      "if": "3C.axis == long",
+      "then": "BOTTOM_OR_TOP",
+      "else": "LEFT_OR_RIGHT"
+    },
+
+    "multi_cushion_generation": [
+      {
+        "if": "4C.exists == true and 4C.rail in ['LEFT','RIGHT']",
+        "then": ["5C", "6C"]
+      },
+      {
+        "if": "4C.exists == true and 4C.rail in ['TOP','BOTTOM']",
+        "then": []
+      }
+    ]
+  },
+
+  "hp_policy": {
+    "source": "rules",
+    "description": "HP(타점) 결정은 logic.json이 아닌 derivations.rules.json에서 수행된다."
+  },
+
+  "failure_policy": {
+    "on_no_track": "abort",
+    "on_invalid_marks": "abort",
+    "on_out_of_domain": "abort"
+  },
+
+  "meta": {
+    "notes": [
+      "5&half_system의 logic.json은 트랙(B2T/T2B, L/R)과 분기 조건만 정의한다.",
+      "CO와 1C의 프레임 위치가 트랙 선택의 유일한 기준이다.",
+      "3C의 위치는 트랙 이후의 분기(장/단 쿠션) 판단에만 사용된다.",
+      "4C 이후의 5C, 6C 생성 여부는 쿠션 방향에 의해 결정된다.",
+      "보정값, HP, ΔCO, 수치 계산은 전부 derivations.rules.json으로 위임된다."
+    ]
+  }
+}

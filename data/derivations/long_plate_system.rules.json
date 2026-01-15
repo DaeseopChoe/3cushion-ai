@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "system_id": "long_plate_system",
+    "system_name": "Long Plate System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "notes": [
+      "Pure formula-based system.",
+      "All calculations are performed in sys-domain only.",
+      "Coordinates are used only for anchor lookup and display."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "4C"],
+    "validation": {
+      "track_required": true,
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    }
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "description": "Resolve CO_sys and 4C_sys from anchors using linear interpolation.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "4C"],
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["CO_sys", "C4_sys"]
+    },
+
+    {
+      "step": 2,
+      "name": "validate_4C_range",
+      "description": "Ensure 4C_sys is within valid long-plate range.",
+      "rules": {
+        "valid_range": { "min": 50, "max": 90 },
+        "policy": "clamp"
+      },
+      "outputs": ["C4_sys"]
+    },
+
+    {
+      "step": 3,
+      "name": "compute_1C_sys",
+      "description": "Apply Long Plate formula.",
+      "formula": {
+        "expr": "C1_sys = CO_sys - C4_sys",
+        "vars": ["CO_sys", "C4_sys"]
+      },
+      "outputs": ["C1_sys"]
+    },
+
+    {
+      "step": 4,
+      "name": "map_sys_to_display",
+      "description": "Map 1C_sys to coordinate for display using anchors.",
+      "rules": {
+        "label": "1C",
+        "source": "anchors.trajectories[track].anchors",
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["1C_mark"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C4_sys", "C1_sys"],
+    "marks": ["1C_mark"]
+  },
+
+  "validation_scenarios": {
+    "note": "Concrete validation is deferred to Admin Mode.",
+    "examples": [
+      {
+        "id": "basic_case",
+        "formula": "1C_sys = CO_sys - 4C_sys"
+      }
+    ]
+  }
+}

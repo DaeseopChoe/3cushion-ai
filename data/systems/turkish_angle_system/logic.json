@@ -1,0 +1,63 @@
+{
+  "system_id": "turkish_angle_system",
+  "system_name": "Turkish Angle",
+  "role": "track_selection_only",
+
+  "input_policy": {
+    "required_marks": ["CO", "3C"],
+    "optional_marks": ["track"],
+    "note": "track이 명시되면 그대로 사용하고, 없으면 CO/3C 좌표 힌트로 추론한다."
+  },
+
+  "track_policy": {
+    "available_tracks": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"],
+    "selection_mode": "explicit_or_infer"
+  },
+
+  "inference_rules": {
+    "tolerance": 0.02,
+    "frame_constants": [-2.25, 42.25, 82.25],
+
+    "ruleset": [
+      {
+        "if": "(CO.x≈-2.25 OR CO.y≈-2.25) AND 3C.y≈-2.25 AND (CO.x < 3C.x)",
+        "then": "B2T_R"
+      },
+      {
+        "if": "(CO.x≈82.25 OR CO.y≈-2.25) AND 3C.y≈-2.25 AND (CO.x > 3C.x)",
+        "then": "B2T_L"
+      },
+      {
+        "if": "(CO.x≈82.25 OR CO.y≈42.25) AND 3C.y≈42.25 AND (CO.x > 3C.x)",
+        "then": "T2B_R"
+      },
+      {
+        "if": "(CO.x≈-2.25 OR CO.y≈42.25) AND 3C.y≈42.25 AND (CO.x < 3C.x)",
+        "then": "T2B_L"
+      }
+    ],
+
+    "ambiguity_policy": {
+      "on_no_match": {
+        "action": "require_explicit_track",
+        "message": "Track cannot be inferred uniquely. Please specify track explicitly."
+      },
+      "on_multiple_match": {
+        "action": "require_explicit_track",
+        "message": "Multiple tracks matched. Please specify track explicitly."
+      }
+    }
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "rules_reference": "derivations/turkish_angle_system.rules.json",
+    "note": "All sys calculations are handled exclusively in rules.json."
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-13"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "system": "Tokyo System",
+  "formula": "1C_f = CO_f * 2C_r",
+  "value_domains": {
+    "CO_sys": [
+      1.3,
+      2,
+      2.5,
+      3,
+      3.5,
+      4,
+      4.5,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "1C_sys": [
+      0,
+      10,
+      20,
+      30,
+      40,
+      50,
+      60,
+      70,
+      80,
+      90
+    ],
+    "2C_sys": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ]
+  },
+  "safety": {
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68,
+    "no_extrapolation": true
+  },
+  "space_rule": {
+    "frame_constants": [
+      -2.25,
+      42.25,
+      82.25
+    ],
+    "tolerance": 0.02,
+    "rule": "if x or y matches frame_constants => Fg, else Rg"
+  },
+  "mappings": null,
+  "meta": {
+    "version": "1.0",
+    "generator": "profile_template_generator.py"
+  }
+}

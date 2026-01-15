@@ -1,0 +1,49 @@
+{
+  "system_id": "7_system",
+  "track_selection": {
+    "strategy": "ruleset",
+    "tolerance": 0.02,
+    "ruleset": [
+      {
+        "if": "CO.rail == BOTTOM && 3C.rail == RIGHT",
+        "then": "B2T_R"
+      },
+      {
+        "if": "CO.rail == BOTTOM && 3C.rail == LEFT",
+        "then": "B2T_L"
+      },
+      {
+        "if": "CO.rail == TOP && 3C.rail == LEFT",
+        "then": "T2B_R"
+      },
+      {
+        "if": "CO.rail == TOP && 3C.rail == RIGHT",
+        "then": "T2B_L"
+      }
+    ]
+  },
+  "required_marks": ["CO", "3C"],
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true,
+    "error_messages": {
+      "missing_required_marks": "required_marks 중 누락이 있습니다.",
+      "missing_rail": "입력 마크에 rail이 반드시 필요합니다.",
+      "missing_axis": "입력 마크에 axis가 반드시 필요합니다.",
+      "track_not_resolved": "CO/3C의 rail 조합으로 트랙을 판정할 수 없습니다."
+    }
+  },
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 판정만 담당합니다. 계산/보간/클램프 규칙은 derivations로 이동합니다.",
+      "7_system은 CO와 3C의 rail 조합으로 4트랙이 유일하게 결정됩니다."
+    ]
+  },
+  "meta": {
+    "rule_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-11"
+  }
+}

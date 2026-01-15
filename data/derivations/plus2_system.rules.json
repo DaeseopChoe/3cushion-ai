@@ -1,0 +1,77 @@
+{
+  "system": "plus2_system",
+
+  "identity": {
+    "formula": "3C_sys = CO_sys + 1C_sys + 20",
+    "strict": true
+  },
+
+  "derivation_policy": {
+    "applicability": {
+      "condition": "CO_sys < 20",
+      "on_violation": "error"
+    },
+
+    "C1_derivation": {
+      "source": "CO_sys",
+      "strategy": "piecewise_linear",
+      "segments": [
+        {
+          "co_range": [0, 10],
+          "target_lines": [10],
+          "notes": "Low CO region snaps to 10-line"
+        },
+        {
+          "co_range": [10, 20],
+          "target_lines": [20],
+          "notes": "High CO region snaps to 20-line"
+        }
+      ],
+      "interpolation": {
+        "enabled": true,
+        "domain": "sys",
+        "no_extrapolation": true
+      }
+    }
+  },
+
+  "angle_correction": {
+    "enabled": true,
+    "method": "ratio_table",
+    "tables": {
+      "long_rail": [
+        { "from": 0,  "to": 10, "ratio": 1.00 },
+        { "from": 10, "to": 20, "ratio": 1.05 }
+      ],
+      "short_rail": [
+        { "from": 0,  "to": 10, "ratio": 0.95 },
+        { "from": 10, "to": 20, "ratio": 0.90 }
+      ]
+    },
+    "notes": "Angle ratios compensate for long/short rail differences"
+  },
+
+  "fourth_cushion_derivation": {
+    "enabled": true,
+    "derived_from": "3C",
+    "rule": "parallel_extension",
+    "notes": "4C is derived by extending 3C trajectory symmetrically"
+  },
+
+  "guards": {
+    "snap_tolerance": 0.02,
+    "no_extrapolation": true,
+    "ambiguity_policy": "error"
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "derivation_rules",
+    "notes": [
+      "Plus2 system uses fixed +20 offset",
+      "C1 is derived from CO_sys via piecewise linear rule",
+      "Angle correction is declarative; execution handled by engine",
+      "All rules operate strictly in sys-space"
+    ]
+  }
+}

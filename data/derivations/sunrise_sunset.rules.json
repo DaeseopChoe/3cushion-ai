@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "system_id": "sunrise_sunset",
+    "system_name": "Sunrise / Sunset System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "continuous",
+    "notes": [
+      "Sunrise/Sunset is a canonical continuous sys calculation system.",
+      "Anchors define exact sys reference points; rules perform interpolation and calculation only.",
+      "No geometry or coordinate math is used in formulas."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "1C", "3C"],
+    "optional": [],
+    "validation": {
+      "track_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "principle": {
+    "calculation_domain": "sys_only",
+    "coordinates_in_formula": false,
+    "formula_definition": "HP_sys = CO_sys + C1_sys + C3_sys"
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_inputs",
+      "description": "Resolve CO_sys, C1_sys, and C3_sys from anchors for the selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "method": "exact_match_then_linear_interpolation",
+        "grouping": {
+          "CO": "frame",
+          "C1": "frame",
+          "C3": "rail"
+        },
+        "interpolation": "linear",
+        "clamp": true,
+        "no_extrapolation": true
+      },
+      "outputs": ["CO_sys", "C1_sys", "C3_sys"]
+    },
+    {
+      "step": 2,
+      "name": "compute_hp",
+      "description": "Compute HP_sys using the Sunrise/Sunset formula.",
+      "rules": {
+        "expression": "CO_sys + C1_sys + C3_sys"
+      },
+      "outputs": ["HP_sys"]
+    },
+    {
+      "step": 3,
+      "name": "validate_hp_range",
+      "description": "Validate HP_sys is within practical tip range.",
+      "rules": {
+        "tip_range": {
+          "min": -4,
+          "max": 4
+        },
+        "on_out_of_range": {
+          "action": "warn",
+          "ui_feedback": true,
+          "message": "Computed HP_sys is outside the recommended tip range."
+        }
+      },
+      "outputs": ["validation_result"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C1_sys", "C3_sys", "HP_sys"],
+    "marks": [
+      {
+        "id": "HP",
+        "source": "computed_sys_then_anchor_projection",
+        "note": "HP is derived from sys calculation and projected for display."
+      }
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "warn_only_validation": true,
+    "coordinates_not_used_in_formula": true
+  }
+}

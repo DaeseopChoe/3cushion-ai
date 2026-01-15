@@ -1,0 +1,62 @@
+{
+  "system_id": "7_system",
+  "system_name": "Seven System",
+  "alias": ["Turkish_Angle", "Seven System (Turkish Angle)"],
+  "category": {
+    "family": "angle",
+    "type": "single",
+    "difficulty": "medium"
+  },
+  "display": {
+    "ko": {
+      "title": "7 시스템 (터키식 앵글)",
+      "short_title": "7 System",
+      "description": "CO와 3C의 시스템값을 이용해 1C를 산출하는 등각 계열 시스템. 타점은 중앙 고정."
+    },
+    "en": {
+      "title": "Seven System (Turkish Angle)",
+      "short_title": "7 System",
+      "description": "An angle-family system that derives 1C from CO and 3C system values. Tip (spin/english) fixed to center."
+    }
+  },
+  "formula_concept": {
+    "text": "1C is determined by the product of CO and 3C (conceptual).",
+    "symbols": ["CO", "3C", "1C"],
+    "note": "This is a concept statement for UI/notes only. Actual computation rules live in derivations/7_system.rules.json."
+  },
+  "aim_policy": {
+    "tip": {
+      "fixed": true,
+      "value": "center",
+      "note": "4 tracks share the same center tip policy."
+    }
+  },
+  "ui": {
+    "inputs": [
+      { "id": "CO", "label_ko": "CO", "label_en": "CO" },
+      { "id": "3C", "label_ko": "3C", "label_en": "3C" }
+    ],
+    "outputs": [
+      { "id": "1C", "label_ko": "1C", "label_en": "1C" }
+    ],
+    "hints_ko": [
+      "계산은 sys 도메인 전용이며, 좌표(Fg/Rg)는 입력/표시용입니다.",
+      "타점(팁)은 중앙 고정입니다."
+    ]
+  },
+  "notes": {
+    "ssot": [
+      "systems/7_system/profile.json: 시스템 정체성/UI/공식 개념만 포함 (계산 금지)",
+      "systems/7_system/logic.json: 트랙 선택만 포함 (계산 금지)",
+      "systems/7_system/anchors.json: 기준 앵커 (수정 금지)",
+      "derivations/7_system.rules.json: 보간/클램프/계산 규칙 SSOT"
+    ]
+  },
+  "meta": {
+    "rule_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_profile": true,
+    "last_updated": "2026-01-11",
+    "source_hint": "7_system_base_manual.txt"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "system": "3tip_plus",
+
+  "derivation_policy": {
+    "description": "3tip_plus 시스템의 시스템값 보간 및 계산 허용 규칙"
+  },
+
+  "interpolation": {
+    "CO_sys": {
+      "method": "linear",
+      "source": "anchors",
+      "priority": 1
+    },
+    "C1_sys": {
+      "method": "linear",
+      "source": "anchors",
+      "priority": 2
+    },
+    "C3_sys": {
+      "method": "linear",
+      "source": "anchors",
+      "priority": 1
+    }
+  },
+
+  "calculation_flow": [
+    "resolve_track",
+    "resolve_CO_sys",
+    "resolve_C3_sys",
+    "calculate_C1_sys_from_formula",
+    "resolve_C1_coordinate"
+  ],
+
+  "constraints": {
+    "allow_extrapolation": false,
+    "clamp_out_of_range": true,
+    "require_valid_track": true
+  },
+
+  "priority_rules": {
+    "value_resolution": "exact > interpolate > clamp",
+    "track_resolution": "snap_with_tolerance"
+  },
+
+  "notes": [
+    "3tip_plus는 CO_sys와 C3_sys를 기준으로 C1_sys를 역산하는 사용 빈도가 높다.",
+    "anchors는 sys-domain 보간의 기준점으로만 사용되며 좌표 계산은 display 단계에서 수행한다.",
+    "외삽은 금지되며 범위를 벗어나는 경우 가장 가까운 앵커로 clamp된다.",
+    "트랙이 명확히 결정되지 않으면 계산을 중단한다."
+  ]
+}

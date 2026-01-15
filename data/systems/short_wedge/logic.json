@@ -1,0 +1,52 @@
+{
+  "system_id": "short_wedge",
+  "system_name": "Short Wedge System",
+  "role": "track_and_input_logic_only",
+
+  "track_policy": {
+    "available_tracks": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"],
+    "selection_mode": "ruleset",
+    "note": "Track is selected based on CO/1C frame constants and 2C rail position."
+  },
+
+  "input_mode": {
+    "type": "continuous",
+    "required_marks": ["CO", "2C"],
+    "optional_marks": [],
+    "derived_marks": ["1C"],
+    "description": "CO and 2C are inputs; 1C is derived by calculation."
+  },
+
+  "constraints": {
+    "CO_must_be_on_frame_constant": true,
+    "frame_constants": [-2.25, 42.25, 82.25]
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "derived_only": true,
+    "rules_reference": "derivations/short_wedge.rules.json"
+  },
+
+  "track_selection": {
+    "strategy": "ruleset",
+    "tolerance": 0.02,
+    "ruleset": [
+      { "if": "CO.y == -2.25 && 2C.x == 0",  "then": "B2T_L" },
+      { "if": "CO.y == -2.25 && 2C.x == 80", "then": "B2T_R" },
+      { "if": "CO.y == 42.25 && 2C.x == 0", "then": "T2B_R" },
+      { "if": "CO.y == 42.25 && 2C.x == 80","then": "T2B_L" }
+    ]
+  },
+
+  "validation_hints": {
+    "require_anchor_match": true,
+    "on_invalid_input": "error"
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-13"
+  }
+}

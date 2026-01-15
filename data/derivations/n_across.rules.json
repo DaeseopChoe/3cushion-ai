@@ -1,0 +1,418 @@
+{
+  "meta": {
+    "system_id": "n_across_long",
+    "system_name": "N_Across (Long)",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "references": {
+      "profile": "systems/n_across_long/profile.json",
+      "logic": "systems/n_across_long/logic.json",
+      "anchors": "systems/n_across_long/anchors.json",
+      "base_logic": "N_Across_long_logic_manual.txt",
+      "selector_ref": "N_Across_profile_long_system_track_selector.py"
+    },
+    "notes": [
+      "Key concept: CO_sys selects family; 3C input is converted to internal c within that family; formula uses c, not independent 3C_sys.",
+      "All computations are sys-domain only; coordinates are used only for anchor lookup and display mapping.",
+      "No extrapolation; clamp is allowed.",
+      "v1.0: CO 패밀리 구조 명시, 3C→c 이중 보간 구체화, validation 시나리오 완성"
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "3C"],
+    "optional": ["1C"],
+    "mark_schema": {
+      "type": "object",
+      "required": ["space", "rail", "axis", "value"],
+      "properties": {
+        "space": { "enum": ["Fg", "Rg"] },
+        "rail": { "enum": ["TOP", "BOTTOM", "LEFT", "RIGHT"] },
+        "axis": { "enum": ["long", "short"] },
+        "value": { "type": "number" }
+      }
+    },
+    "validation": {
+      "track_required": true,
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    },
+    "validation": "input mark must include rail",
+    "rationale": [
+      "TOP/BOTTOM rail: y는 프레임 상수선에 고정, x가 변화",
+      "LEFT/RIGHT rail: x는 프레임 상수선에 고정, y가 변화"
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "offset_fg2rg": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  },
+
+  "co_family_structure": {
+    "description": "N_Across는 CO_sys 값에 따라 서로 다른 3C→c 변환 기준선(패밀리)을 사용",
+    "family_definition": {
+      "concept": "anchors 내 각 CO 앵커는 하나의 패밀리 레벨을 정의",
+      "family_key": "CO_sys (예: 10, 15, 20)",
+      "family_members": "해당 CO 앵커 다음에 나오는 3C 앵커들이 그 패밀리의 3C→c 변환 테이블 구성",
+      "note": "다음 CO 앵커가 나오면 새로운 패밀리 시작"
+    },
+    "example": {
+      "track": "B2T_R",
+      "families": [
+        {
+          "family_level": "CO_sys=20",
+          "anchor": "CO_(82.25,0)_20",
+          "3C_table": [
+            { "coord": "(80,40)", "c": 0 },
+            { "coord": "(60,40)", "c": 1.5 },
+            { "coord": "(40,40)", "c": 3 },
+            { "coord": "(20,40)", "c": 4.5 },
+            { "coord": "(0,40)", "c": 6 }
+          ]
+        },
+        {
+          "family_level": "CO_sys=15",
+          "anchor": "CO_(82.25,10)_15",
+          "3C_table": [
+            { "coord": "(80,40)", "c": 0 },
+            { "coord": "(60,40)", "c": 1.25 },
+            { "coord": "(40,40)", "c": 2.5 },
+            { "coord": "(20,40)", "c": 3.75 },
+            { "coord": "(0,40)", "c": 5 }
+          ]
+        },
+        {
+          "family_level": "CO_sys=10",
+          "anchor": "CO_(82.25,20)_10",
+          "3C_table": [
+            { "coord": "(80,40)", "c": 0 },
+            { "coord": "(60,40)", "c": 0.75 },
+            { "coord": "(40,40)", "c": 1.5 },
+            { "coord": "(20,40)", "c": 2.25 },
+            { "coord": "(0,40)", "c": 3 }
+          ]
+        }
+      ]
+    }
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_CO_sys",
+      "description": "Resolve CO_sys from anchors under selected track (linear + clamp, no extrapolation).",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "filter": "anchors where label='CO'",
+        "axis_inference": {
+          "use": "axis_inference.mapping",
+          "procedure": [
+            "1. 입력 CO 마크의 rail 확인",
+            "2. mapping으로 축 판정",
+            "3. 해당 축 값으로 CO anchors에서 인접 두 점 찾기",
+            "4. 선형 보간으로 CO_sys 계산",
+            "5. 범위 밖인 경우 CO 앵커 min/max로 clamp"
+          ]
+        },
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["CO_sys"]
+    },
+
+    {
+      "step": 2,
+      "name": "select_family_levels",
+      "description": "Select one or two adjacent CO-family levels (by CO_sys) for c computation.",
+      "rules": {
+        "family_levels_source": "anchors.trajectories[track].anchors filtered by label='CO'",
+        "family_level_definition": "Each CO anchor defines a family level with CO_sys = its sys value",
+        "selection_policy": {
+          "type": "adjacent_bounds",
+          "tolerance": 0.5,
+          "procedure": [
+            "1. CO 앵커들의 sys 값을 정렬하여 패밀리 레벨 목록 생성 (예: [10, 15, 20])",
+            "2. CO_sys가 특정 레벨과 tolerance 내에서 일치:",
+            "   → family_lower = family_upper = 해당 레벨 (단일 패밀리)",
+            "3. CO_sys가 두 레벨 사이:",
+            "   → family_lower = 하위 레벨, family_upper = 상위 레벨",
+            "   → family_ratio = (CO_sys - family_lower) / (family_upper - family_lower)",
+            "4. CO_sys가 최소값 미만 또는 최대값 초과:",
+            "   → 가장 가까운 레벨로 clamp (외삽 금지)"
+          ]
+        }
+      },
+      "outputs": ["family_lower", "family_upper", "family_ratio"]
+    },
+
+    {
+      "step": 3,
+      "name": "compute_c_in_each_family",
+      "description": "For each selected family, compute c from 3C coordinate using that family's 3C→c table (1D interpolation).",
+      "rules": {
+        "family_grouping": {
+          "definition": "anchors 리스트를 순회하며 CO 앵커가 나오면 새 패밀리 시작. 다음 CO 앵커 전까지의 3C 앵커들이 그 패밀리의 3C→c 테이블 구성",
+          "family_key": "CO 앵커의 sys 값 (예: 20)",
+          "3C_points": "해당 패밀리 블록 내 3C 앵커들의 좌표를 입력 축으로, sys 값을 c로 사용"
+        },
+        "interpolation_per_family": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true,
+          "procedure": [
+            "1. family_lower 패밀리:",
+            "   - 해당 패밀리의 3C 앵커들로 정렬된 (좌표, c) 쌍 생성",
+            "   - 입력 3C 마크의 좌표로 선형 보간 → c_lower",
+            "2. family_upper 패밀리 (다른 경우):",
+            "   - 동일 방식으로 c_upper 계산",
+            "3. 범위 밖인 경우: 해당 패밀리 테이블의 min/max c로 clamp"
+          ]
+        },
+        "axis_for_3C": {
+          "use": "axis_inference.mapping",
+          "note": "3C 마크의 rail로 축 판정 (대부분 TOP/BOTTOM이므로 x축 사용)"
+        }
+      },
+      "outputs": ["c_lower", "c_upper"]
+    },
+
+    {
+      "step": 4,
+      "name": "interpolate_c_across_families",
+      "description": "If two families are selected, interpolate c across families by CO_sys ratio (2D / double interpolation).",
+      "rules": {
+        "interpolation_type": "bilinear (conceptually: 1D in 3C coord within family, then 1D across families)",
+        "procedure": [
+          "1. if family_lower == family_upper:",
+          "     c = c_lower",
+          "2. else:",
+          "     c = c_lower + (c_upper - c_lower) * family_ratio",
+          "3. family_ratio는 Step 2에서 계산됨, [0,1] 범위로 clamp"
+        ],
+        "note": "이것이 N_Across의 핵심 2D 보간 (CO_sys dimension + 3C coord dimension)"
+      },
+      "outputs": ["c"]
+    },
+
+    {
+      "step": 5,
+      "name": "compute_1C_sys",
+      "description": "Compute 1C_sys in sys-domain using internal c (not independent 3C_sys).",
+      "formula": {
+        "expr": "1C_sys = CO_sys + c",
+        "vars": ["CO_sys", "c"],
+        "domain": "sys-only",
+        "note": "c는 3C 좌표에서 파생된 내부 변수, 독립적인 3C_sys가 아님"
+      },
+      "outputs": ["1C_sys"]
+    },
+
+    {
+      "step": 6,
+      "name": "map_1C_sys_to_coord",
+      "description": "Map 1C_sys to display coordinates using 1C anchors under the selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "filter": "anchors where label='1C'",
+        "axis_inference": {
+          "use": "axis_inference.mapping",
+          "note": "1C 마크의 rail로 축 판정 (대부분 LEFT/RIGHT이므로 y축 사용)"
+        },
+        "sys_to_coord": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true,
+          "procedure": [
+            "1. 1C_sys를 입력으로 1C anchors에서 인접 앵커 찾기",
+            "2. 선형 보간으로 좌표 계산",
+            "3. 범위 밖인 경우 1C 앵커 좌표 min/max로 clamp"
+          ]
+        }
+      },
+      "outputs": ["mark_1C"]
+    },
+
+    {
+      "step": 7,
+      "name": "fixed_tip",
+      "description": "Fixed cue tip for this system.",
+      "rules": {
+        "tip": {
+          "mode": "fixed",
+          "position": "12:00",
+          "note": "N_Across는 12시 방향 고정 타점"
+        }
+      },
+      "outputs": ["tip"]
+    }
+  ],
+
+  "output_mark_policy": {
+    "sys_value": {
+      "preserve": true,
+      "note": "1C_sys는 계산 결과를 그대로 유지"
+    },
+    "coordinate_value": {
+      "clamp_to_anchor_range": true,
+      "note": "좌표는 1C 앵커 범위로 clamp (물리적 표시 정책)"
+    }
+  },
+
+  "outputs": {
+    "sys": ["CO_sys", "c", "1C_sys"],
+    "marks": [
+      {
+        "id": "1C",
+        "space": "Fg",
+        "rail": "track_dependent",
+        "axis": "track_dependent",
+        "value": "coordinate from sys_to_coord",
+        "meta": {
+          "sys_value": "1C_sys",
+          "formula": "1C_sys = CO_sys + c"
+        }
+      }
+    ],
+    "tip": {
+      "position": "12:00",
+      "mode": "fixed"
+    }
+  },
+
+  "validation_scenarios": {
+    "note": "실제 anchors.json 데이터 기반 시나리오 (track = B2T_R)",
+    "anchor_reference": {
+      "track": "B2T_R",
+      "CO_families": [
+        { "level": 20, "anchor": "CO_(82.25,0)_20" },
+        { "level": 15, "anchor": "CO_(82.25,10)_15" },
+        { "level": 10, "anchor": "CO_(82.25,20)_10" }
+      ],
+      "1C_anchors": [
+        { "coord": "(-2.25,0)", "sys": 40 },
+        { "coord": "(-2.25,10)", "sys": 30 },
+        { "coord": "(-2.25,20)", "sys": 20 },
+        { "coord": "(-2.25,30)", "sys": 10 },
+        { "coord": "(-2.25,40)", "sys": 0 }
+      ]
+    },
+    "scenarios": [
+      {
+        "id": "exact_family_match",
+        "description": "CO_sys가 정확히 패밀리 레벨과 일치 (단일 패밀리 사용)",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 82.25, "y": 0 },
+          "3C": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 60, "y": 40 }
+        },
+        "expected": {
+          "CO_sys": 20,
+          "family_selection": {
+            "family_lower": 20,
+            "family_upper": 20,
+            "family_ratio": 0,
+            "note": "CO_sys=20이므로 단일 패밀리"
+          },
+          "c_computation": {
+            "family_used": "CO_sys=20",
+            "3C_table": "[(80,40)→0, (60,40)→1.5, (40,40)→3, (20,40)→4.5, (0,40)→6]",
+            "3C_input": "(60,40)",
+            "c_lower": 1.5,
+            "c_upper": 1.5,
+            "c": 1.5,
+            "note": "3C x=60은 테이블에 정확 일치 → c=1.5"
+          },
+          "formula": {
+            "1C_sys": "CO_sys + c = 20 + 1.5 = 21.5"
+          },
+          "1C_coord": "1C_sys=21.5 → 1C anchors에서 y 좌표 보간"
+        }
+      },
+      {
+        "id": "inter_family_interpolation",
+        "description": "CO_sys가 두 패밀리 레벨 사이 (이중 보간)",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 82.25, "y": 5 },
+          "3C": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 50, "y": 40 }
+        },
+        "expected": {
+          "CO_sys": "17.5 (CO y=5는 y=0(sys=20)과 y=10(sys=15) 사이 중간)",
+          "family_selection": {
+            "family_lower": 15,
+            "family_upper": 20,
+            "family_ratio": "0.5 ((17.5-15)/(20-15))",
+            "note": "두 패밀리 사용"
+          },
+          "c_computation": {
+            "family_lower": {
+              "level": 15,
+              "3C_table": "[(80,40)→0, (60,40)→1.25, (40,40)→2.5, (20,40)→3.75, (0,40)→5]",
+              "3C_input": "(50,40)",
+              "c_lower": "선형 보간: (60,40)→1.25와 (40,40)→2.5 사이 중간 = 1.875"
+            },
+            "family_upper": {
+              "level": 20,
+              "3C_table": "[(80,40)→0, (60,40)→1.5, (40,40)→3, (20,40)→4.5, (0,40)→6]",
+              "3C_input": "(50,40)",
+              "c_upper": "선형 보간: (60,40)→1.5와 (40,40)→3 사이 중간 = 2.25"
+            },
+            "c": "c_lower + (c_upper - c_lower) * ratio = 1.875 + (2.25 - 1.875) * 0.5 = 2.0625",
+            "note": "2D 보간: 3C 좌표 축 + CO_sys 축"
+          },
+          "formula": {
+            "1C_sys": "CO_sys + c = 17.5 + 2.0625 = 19.5625"
+          },
+          "1C_coord": "1C_sys=19.5625 → 1C anchors에서 y 좌표 보간"
+        }
+      },
+      {
+        "id": "out_of_range_clamp",
+        "description": "3C 입력이 패밀리 테이블 범위 초과 (clamp 적용)",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 82.25, "y": 0 },
+          "3C": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 90, "y": 40 }
+        },
+        "expected": {
+          "CO_sys": 20,
+          "family_selection": {
+            "family_lower": 20,
+            "family_upper": 20
+          },
+          "c_computation": {
+            "family_used": "CO_sys=20",
+            "3C_table": "[(80,40)→0, (60,40)→1.5, (40,40)→3, (20,40)→4.5, (0,40)→6]",
+            "3C_input": "(90,40)",
+            "note": "x=90 > max(80) → clamp to x=80",
+            "c": 0,
+            "clamp": "applied (no extrapolation)"
+          },
+          "formula": {
+            "1C_sys": "CO_sys + c = 20 + 0 = 20"
+          },
+          "interpolation": "clamp only",
+          "no_extrapolation": true
+        }
+      }
+    ]
+  }
+}

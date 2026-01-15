@@ -1,0 +1,84 @@
+{
+  "system": "plus_system",
+
+  "track_selection": {
+    "strategy": "ruleset",
+    "snap_tolerance": 0.02,
+
+    "ruleset": [
+      {
+        "if": "CO.rail == BOTTOM && 1C.known && 1C.side == RIGHT",
+        "then": "B2T_L"
+      },
+      {
+        "if": "CO.rail == BOTTOM && 1C.known && 1C.side == LEFT",
+        "then": "B2T_R"
+      },
+      {
+        "if": "CO.rail == TOP && 1C.known && 1C.side == RIGHT",
+        "then": "T2B_R"
+      },
+      {
+        "if": "CO.rail == TOP && 1C.known && 1C.side == LEFT",
+        "then": "T2B_L"
+      },
+
+      {
+        "if": "CO.rail == BOTTOM && !1C.known && CO.x > 3C.x",
+        "then": "B2T_L"
+      },
+      {
+        "if": "CO.rail == BOTTOM && !1C.known && CO.x < 3C.x",
+        "then": "B2T_R"
+      },
+      {
+        "if": "CO.rail == TOP && !1C.known && CO.x > 3C.x",
+        "then": "T2B_R"
+      },
+      {
+        "if": "CO.rail == TOP && !1C.known && CO.x < 3C.x",
+        "then": "T2B_L"
+      }
+    ],
+
+    "tie_breaker": {
+      "condition": "|CO.x - 3C.x| <= 0.02",
+      "priority": [
+        "prefer_3C_side_rail",
+        "prefer_existing_anchor"
+      ]
+    }
+  },
+
+  "required_marks": ["CO"],
+
+  "optional_marks": ["1C", "3C"],
+
+  "hp_policy": {
+    "co_required": true,
+    "pattern": "long-short-long",
+    "description": "CO_sys + 1C_sys = 3C_sys"
+  },
+
+  "space_assumptions": {
+    "rails": {
+      "TOP": 42.25,
+      "BOTTOM": -2.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "notes": [
+    "Plus system uses CO as mandatory reference mark",
+    "If 1C is known, track is decided immediately by side rail",
+    "If 1C is unknown, CO.x vs 3C.x comparison is used",
+    "Tie cases are resolved by 3C side rail, then anchor existence",
+    "All sys calculations are performed outside logic.json"
+  ],
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_logic"
+  }
+}

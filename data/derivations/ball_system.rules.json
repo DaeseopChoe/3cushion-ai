@@ -1,0 +1,72 @@
+{
+  "system": "ball_system",
+
+  "identity": {
+    "formula": "HP_n = CO_f + 1C_f + 3C_r",
+    "strict": true
+  },
+
+  "derivation_policy": {
+    "thickness_candidates": {
+      "domain": "1C_f",
+      "values": [-4, -3, -2, -1, 0, 1, 2, 3, 4],
+      "notes": "Thickness candidates relative to target ball center"
+    },
+
+    "hp_candidates": {
+      "domain": "HP_n",
+      "values": [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6],
+      "notes": "Candidate hit-point numbers before correction"
+    },
+
+    "composition_rule": {
+      "strategy": "cartesian_product",
+      "inputs": ["thickness_candidates", "hp_candidates"],
+      "notes": "All (T, HP) combinations are generated before pruning"
+    }
+  },
+
+  "corrections": {
+    "enabled": true,
+    "policy": "negative_only",
+
+    "values": [0, -1, -1.5, -2],
+
+    "application_rule": {
+      "apply_if": "HP_n > tip_range.max",
+      "clamp_to": "tip_range.max"
+    },
+
+    "notes": "Only negative corrections are allowed to compensate excessive spin"
+  },
+
+  "validation_guards": {
+    "tip_range": [-4.0, 4.0],
+    "no_extrapolation": true,
+    "ambiguity_policy": "error"
+  },
+
+  "pruning_rules": {
+    "discard_if": [
+      "HP_n < tip_range.min",
+      "HP_n > tip_range.max"
+    ],
+    "ranking": {
+      "primary": "abs(HP_n)",
+      "secondary": "abs(thickness)",
+      "order": "ascending"
+    },
+    "max_solutions": 3
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "derivation_rules",
+    "notes": [
+      "Ball system derives multiple (thickness, HP) solution candidates",
+      "Corrections are applied only in negative direction",
+      "Final solutions are ranked by minimal spin first",
+      "All derivations operate strictly in system space"
+    ]
+  }
+}

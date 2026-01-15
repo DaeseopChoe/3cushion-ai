@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "id": "sys_admin_input",
+  "version": "1.1",
+  "type": "object",
+
+  "required": [
+    "strategy",
+    "system_id",
+    "CO",
+    "C3",
+    "target_calc_rule",
+    "cue_correction",
+    "curve"
+  ],
+
+  "properties": {
+    "strategy": {
+      "type": "string"
+    },
+
+    "system_id": {
+      "type": "string",
+      "description": "선택된 시스템 ID"
+    },
+
+    "CO": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99
+    },
+
+    "C3": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 80
+    },
+
+    "target_calc_rule": {
+      "type": "string",
+      "enum": [
+        "3C + 보정",
+        "3C - 보정"
+      ]
+    },
+
+    "cue_correction": {
+      "type": "object",
+      "required": ["slide", "draw", "start"],
+      "properties": {
+        "slide": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9
+        },
+        "draw": {
+          "type": "integer",
+          "minimum": -9,
+          "maximum": 0
+        },
+        "start": {
+          "type": "integer",
+          "minimum": -9,
+          "maximum": 9
+        }
+      }
+    },
+
+    "curve": {
+      "type": "object",
+      "required": ["curve_ratio", "tip"],
+      "properties": {
+        "curve_ratio": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9
+        },
+        "tip": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "system": "plus_system",
+
+  "display": {
+    "name_key": "system.plus.name",
+    "short_name_key": "system.plus.short",
+    "description_key": "system.plus.desc",
+
+    "category": "plus",
+    "difficulty": "easy",
+
+    "tags": ["plus", "addition", "basic", "co_based", "3c_target"],
+
+    "overlay_keys": {
+      "how_to_use": "system.plus.howto",
+      "caution": "system.plus.caution",
+      "tip": "system.plus.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "3C_sys = CO_sys + 1C_sys"
+  },
+
+  "value_domains": {
+    "CO_sys": {
+      "unit": 10,
+      "range": [20, 110],
+      "notes": "CO values are defined by anchors; no interpolation"
+    },
+    "1C_sys": {
+      "unit": 5,
+      "range": [0, 50],
+      "notes": "Interpolation allowed only when CO_sys is in (50,60)"
+    },
+    "3C_sys": {
+      "unit": 10,
+      "range": [30, 150],
+      "notes": "Derived value; must satisfy identity formula"
+    }
+  },
+
+  "safety": {
+    "co_required": true,
+    "pattern": "long-short-long",
+    "no_extrapolation": true,
+    "sys_identity_strict": true,
+    "ambiguity_policy": "error"
+  },
+
+  "space_rule": {
+    "grid": "frame",
+    "snap_tolerance": 0.02,
+    "frame_constants": {
+      "TOP": 42.25,
+      "BOTTOM": -2.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "Plus system is an additive system based on CO and 1C",
+      "CO is always required as a reference mark",
+      "1C may be provided or derived depending on the situation",
+      "Interpolation is strictly limited to 1C_sys under controlled conditions",
+      "All calculations are performed strictly in system space"
+    ]
+  }
+}

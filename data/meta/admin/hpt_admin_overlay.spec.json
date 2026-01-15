@@ -1,0 +1,43 @@
+{
+  "id": "hpt_admin_overlay",
+  "version": "1.1",
+  "mode": "admin_only",
+  "description": "HP/T admin input overlay (direct manipulation on cue ball)",
+
+  "visual_guides": {
+    "cue_ball": {
+      "show_center": true,
+      "center_style": "crosshair",
+      "show_vertical_horizontal_axes": true,
+      "show_base_line": true,
+      "base_line_meaning": "table_floor",
+      "valid_hit_radius_ratio": 0.6,
+      "show_valid_hit_boundary": true
+    }
+  },
+
+  "input_method": {
+    "hit_point": {
+      "type": "direct_drag",
+      "surface": "cue_ball",
+      "constraint": "inside_valid_radius",
+      "store_as": "hit_point.xy",
+      "note": "관리자가 당구공 위를 직접 터치/드래그하여 타점을 입력"
+    },
+    "thickness": {
+      "type": "ball_overlap_drag",
+      "description": "임팩트볼이 앞, 타겟볼이 뒤에 위치하며 겹침 정도로 두께 설정",
+      "range": [0.0, 1.0],
+      "step": 0.125,
+      "store_as": "thickness"
+    }
+  },
+
+  "derived_display_fields": [
+    "tip_description",
+    "clock_description",
+    "thickness_fraction"
+  ],
+
+  "actions": ["confirm", "cancel"]
+}

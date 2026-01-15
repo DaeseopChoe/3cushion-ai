@@ -1,0 +1,52 @@
+{
+  "system": "Zigzag System",
+  "system_id": "zigzag_system",
+  "category": "continuous_additive",
+
+  "description": {
+    "ko": "CO(sys)와 3C(sys)를 이용해 1C(sys)를 합산으로 계산하는 Zigzag 시스템",
+    "en": "Zigzag computes 1C(sys) from CO(sys) and 3C(sys) by addition"
+  },
+
+  "system_characteristics": {
+    "type": "continuous",
+    "continuous_calculation": true,
+    "interpolation": true,
+    "extrapolation": false,
+    "lookup_based": false,
+    "multi_track": true
+  },
+
+  "ui": {
+    "category": "zigzag",
+    "input_marks": ["CO", "3C"],
+    "output_marks": ["1C"],
+    "display_hint": {
+      "fixed_tip": "12 o'clock"
+    }
+  },
+
+  "concept_formula_note": {
+    "expression": "1C_f = CO_f + 3C_f",
+    "note": "개념 공식(설명용). 실제 계산은 rules.json에서 sys-only로 수행."
+  },
+
+  "value_domains": {
+    "CO_sys": [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
+    "C1_sys": [-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50],
+    "C3_sys": [-15, -10, -5, 0, 5, 10, 15]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "snap_tolerance": 0.02,
+    "fixed_tip": "12 o'clock"
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "PM-direct",
+    "calculation_in_profile": false,
+    "last_updated": "2026-01-13"
+  }
+}

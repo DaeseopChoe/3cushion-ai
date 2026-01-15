@@ -1,0 +1,52 @@
+{
+  "system": "Turkish Angle",
+  "system_id": "turkish_angle_system",
+  "category": "continuous_linear_transform",
+
+  "description": {
+    "ko": "CO(sys)와 3C(sys)를 이용해 1C(sys)를 선형식으로 계산하는 Turkish Angle 시스템",
+    "en": "Turkish Angle computes 1C(sys) from CO(sys) and 3C(sys) via a linear formula"
+  },
+
+  "system_characteristics": {
+    "type": "continuous",
+    "continuous_calculation": true,
+    "interpolation": true,
+    "extrapolation": false,
+    "lookup_based": false,
+    "multi_track": true
+  },
+
+  "ui": {
+    "category": "angle",
+    "input_marks": ["CO", "3C"],
+    "output_marks": ["1C"],
+    "display_hint": {
+      "fixed_tip": "12 o'clock"
+    }
+  },
+
+  "concept_formula_note": {
+    "expression": "1C_f = CO_f - 1.5*3C_r",
+    "note": "Profile에는 개념 공식만 기록(계산은 rules.json에서 sys로만 수행)"
+  },
+
+  "value_domains": {
+    "CO_sys": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140, 160, 180, 200],
+    "1C_sys": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "3C_sys": [0, 10, 20, 30, 40, 50, 60, 70, 80]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "snap_tolerance": 0.02,
+    "fixed_tip": "12 o'clock"
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "PM-direct",
+    "calculation_in_profile": false,
+    "last_updated": "2026-01-13"
+  }
+}

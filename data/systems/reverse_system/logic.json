@@ -1,0 +1,61 @@
+{
+  "system_id": "reverse_system",
+  "system_name": "Reverse System",
+  "role": "track_and_input_logic_only",
+
+  "track_policy": {
+    "available_tracks": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"],
+    "selection_mode": "ruleset",
+    "note": "Track is determined by CO position and relative direction of cushions."
+  },
+
+  "input_mode": {
+    "type": "continuous",
+    "required_marks": ["CO", "2C"],
+    "optional_marks": [],
+    "derived_marks": ["1C"],
+    "description": "CO and 2C are inputs; 1C is always derived by calculation."
+  },
+
+  "constraints": {
+    "CO_must_be_on_frame_constant": true,
+    "frame_constants": [-2.25, 42.25, 82.25]
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "derived_only": true,
+    "rules_reference": "derivations/reverse_system.rules.json",
+    "note": "All calculations are performed exclusively in rules.json"
+  },
+
+  "track_selection": {
+    "strategy": "ruleset",
+    "tolerance": 0.02,
+    "ruleset": [
+      { "if": "CO.on_bottom_or_left && 1C.x > CO.x && 2C.x > CO.x", "then": "B2T_R" },
+      { "if": "CO.on_bottom_or_right && 1C.x < CO.x && 2C.x < CO.x", "then": "B2T_L" },
+      { "if": "CO.on_top_or_right && 1C.x < CO.x && 2C.x < CO.x", "then": "T2B_R" },
+      { "if": "CO.on_top_or_left && 1C.x > CO.x && 2C.x > CO.x", "then": "T2B_L" }
+    ]
+  },
+
+  "validation_hints": {
+    "require_anchor_match": true,
+    "on_invalid_input": "error"
+  },
+
+  "notes": {
+    "ko": [
+      "logic.json은 계산을 절대 수행하지 않습니다.",
+      "1C는 항상 derivations/reverse_system.rules.json에서 계산됩니다.",
+      "좌표는 트랙 판정에만 사용됩니다."
+    ]
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-13"
+  }
+}

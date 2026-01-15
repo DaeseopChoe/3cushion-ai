@@ -1,0 +1,135 @@
+{
+  "meta": {
+    "id": "curve_model",
+    "version": "1.0",
+    "scope": "global",
+    "description": "Global Curve Model for CO→1C. Generates curved path, effective anchor, and sys-equivalent interpretation."
+  },
+
+  "inputs": {
+    "anchors": {
+      "CO": { "space": "Fg", "type": "point" },
+      "C1": { "space": "Fg", "type": "point" }
+    },
+    "curve_params": {
+      "enable": { "type": "boolean", "default": false },
+      "side": { "type": "enum", "values": ["L", "R"], "required": true },
+      "amount": { "type": "number", "range": [0.0, 1.0], "default": 0.0 },
+      "curve_ratio": { "type": "number", "range": [0.0, 1.0], "default": 0.0 },
+      "decay": { "type": "number", "range": [0.0, 1.0], "default": 0.5 },
+      "bias": { "type": "number", "range": [-1.0, 1.0], "default": 0.0 },
+      "distance_roll": { "type": "number", "range": [0.0, 1.0], "default": 0.0 },
+      "env_id": { "type": "string", "default": "default" }
+    }
+  },
+
+  "environment_presets": {
+    "default": {
+      "amount_scale": 1.0,
+      "curve_ratio_scale": 1.0,
+      "decay_scale": 1.0,
+      "sys_scale_hint": 1.0
+    },
+    "new_cloth": {
+      "amount_scale": 0.85,
+      "curve_ratio_scale": 0.9,
+      "decay_scale": 0.8,
+      "sys_scale_hint": 0.9
+    },
+    "old_cloth": {
+      "amount_scale": 1.15,
+      "curve_ratio_scale": 1.1,
+      "decay_scale": 1.2,
+      "sys_scale_hint": 1.1
+    }
+  },
+
+  "core_logic": {
+    "steps": [
+      {
+        "id": "vector_base",
+        "description": "Compute base vector CO→C1 and its normal.",
+        "compute": {
+          "V": "normalize(C1 - CO)",
+          "L": "length(C1 - CO)",
+          "N": "normal(V, side)"
+        }
+      },
+
+      {
+        "id": "apply_environment",
+        "description": "Apply environment scaling.",
+        "compute": {
+          "amount_e": "amount * env.amount_scale",
+          "curve_ratio_e": "curve_ratio * env.curve_ratio_scale",
+          "decay_e": "decay * env.decay_scale"
+        }
+      },
+
+      {
+        "id": "apply_distance_roll",
+        "description": "Apply rolling inertia effect before collision.",
+        "compute": {
+          "spin_factor": "1.0 - distance_roll",
+          "amount_r": "amount_e * (1.0 - 0.6 * distance_roll)",
+          "decay_r": "clamp(decay_e + 0.4 * distance_roll, 0.0, 1.0)"
+        }
+      },
+
+      {
+        "id": "generate_curve",
+        "description": "Generate curved path from CO to effective point.",
+        "compute": {
+          "curve_function": "offset(t) = L * amount_r * sin(pi * t) * exp(-decay_r * t)",
+          "curve_domain": "t ∈ [0, curve_ratio_e]",
+          "path_samples": 24
+        }
+      },
+
+      {
+        "id": "effective_anchor",
+        "description": "Determine effective 1C at curve end.",
+        "compute": {
+          "effective_1C.position": "CO + V * (L * curve_ratio_e) + N * offset(1.0)",
+          "effective_heading": "tangent_at_curve_end"
+        }
+      }
+    ]
+  },
+
+  "outputs": {
+    "geometry": {
+      "effective_1C": {
+        "position": { "x": "number", "y": "number" },
+        "heading": { "dx": "number", "dy": "number" }
+      },
+      "path": {
+        "type": "polyline",
+        "segments": ["curve", "straight"]
+      }
+    },
+
+    "interpretation": {
+      "sys_equivalent": {
+        "CO_delta_estimate": {
+          "description": "Estimated equivalent delta in CO_sys for interpretation only.",
+          "compute": "project_delta_to_sys_axis(effective_1C - C1) * env.sys_scale_hint"
+        }
+      }
+    }
+  },
+
+  "validation": {
+    "guards": {
+      "curve_ratio_min": 0.0,
+      "curve_ratio_max": 0.9,
+      "amount_max": 1.0
+    },
+    "warnings": [
+      {
+        "condition": "distance_roll > 0.7 && amount > 0.7",
+        "message": "Strong rolling inertia may suppress backspin curvature."
+      }
+    ]
+  }
+}

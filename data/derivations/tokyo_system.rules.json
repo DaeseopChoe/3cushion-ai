@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "system_id": "tokyo_system",
+    "system_name": "Tokyo System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "continuous_multiplicative",
+    "notes": [
+      "Tokyo System uses a multiplicative sys formula.",
+      "This system requires validation due to amplification risk.",
+      "Anchors are treated as immutable SSOT."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "C2"],
+    "optional": [],
+    "validation": {
+      "track_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "principle": {
+    "calculation_domain": "sys_only",
+    "coordinates_in_formula": false,
+    "formula_definition": "HP_sys = CO_sys * C2_sys"
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_inputs",
+      "description": "Resolve CO_sys and C2_sys from anchors for the selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "method": "exact_match_then_linear_interpolation",
+        "grouping": {
+          "CO": "frame",
+          "C2": "rail"
+        },
+        "interpolation": "linear",
+        "clamp": true,
+        "no_extrapolation": true
+      },
+      "outputs": ["CO_sys", "C2_sys"]
+    },
+    {
+      "step": 2,
+      "name": "compute_hp",
+      "description": "Compute HP_sys using Tokyo System multiplicative formula.",
+      "rules": {
+        "expression": "CO_sys * C2_sys",
+        "outputs": ["HP_sys"],
+        "domain_notes": {
+          "zero_input": "CO_sys or C2_sys near zero may produce marginal HP.",
+          "large_result": "Large multiplication result may exceed typical practical range."
+        },
+        "on_zero_input": {
+          "action": "warn",
+          "message": "CO_sys or C2_sys is zero or near zero. Result may be physically marginal."
+        }
+      }
+    },
+    {
+      "step": 3,
+      "name": "validate_hp_against_anchors",
+      "description": "Validate computed HP_sys against nearest anchor-based reference.",
+      "rules": {
+        "reference_source": "anchors.trajectories[track].anchors where label='HP'",
+        "validation_method": "nearest_anchor_comparison",
+        "procedure": [
+          "1. Identify nearest HP anchor sys value",
+          "2. error = abs(HP_sys - nearest_HP_sys)",
+          "3. If error > allowed_error_sys → warn"
+        ],
+        "allowed_error_sys": {
+          "value": 1.0,
+          "description": "Tolerance for multiplicative Tokyo system",
+          "rationale": "Multiplication amplifies input variance; moderate tolerance required."
+        },
+        "on_exceed": {
+          "action": "warn",
+          "ui_feedback": true,
+          "log_for_audit": true,
+          "message": "Computed HP_sys deviates from anchor reference beyond allowed tolerance."
+        }
+      },
+      "outputs": ["validation_result", "error_magnitude"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C2_sys", "HP_sys"],
+    "marks": [
+      {
+        "id": "HP",
+        "source": "computed_sys_then_anchor_projection",
+        "note": "HP is derived via sys multiplication and projected for display."
+      }
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "warn_only_validation": true,
+    "coordinates_not_used_in_formula": true
+  }
+}

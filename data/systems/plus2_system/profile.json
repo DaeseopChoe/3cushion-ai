@@ -1,0 +1,78 @@
+{
+  "system": "plus2_system",
+
+  "display": {
+    "name_key": "system.plus2.name",
+    "short_name_key": "system.plus2.short",
+    "description_key": "system.plus2.desc",
+
+    "category": "plus",
+    "difficulty": "medium",
+
+    "tags": ["plus", "fixed_offset", "co_limited", "derived_1c", "extension"],
+
+    "overlay_keys": {
+      "how_to_use": "system.plus2.howto",
+      "caution": "system.plus2.caution",
+      "tip": "system.plus2.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "3C_sys = CO_sys + 1C_sys + 20"
+  },
+
+  "value_domains": {
+    "CO_sys": {
+      "unit": 2.5,
+      "range": [0, 20],
+      "exclusive_max": true,
+      "notes": "Plus2 system is applicable only when CO_sys < 20"
+    },
+    "1C_sys": {
+      "unit": 2.5,
+      "range": [0, 20],
+      "notes": "Derived from CO_sys and target SFG lines (10 or 20); interpolation allowed"
+    },
+    "3C_sys": {
+      "unit": 2.5,
+      "range": [20, 80],
+      "notes": "Derived value; must satisfy identity formula"
+    }
+  },
+
+  "safety": {
+    "co_required": true,
+    "co_upper_bound": 20,
+    "pattern": "long-short-long",
+    "fixed_plus": 20,
+    "no_extrapolation": true,
+    "sys_identity_strict": true,
+    "ambiguity_policy": "error"
+  },
+
+  "space_rule": {
+    "grid": "frame",
+    "snap_tolerance": 0.02,
+    "frame_constants": {
+      "TOP": 42.25,
+      "BOTTOM": -2.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "Plus2 system extends Plus system with fixed +20 offset",
+      "CO_sys must be strictly less than 20",
+      "1C_sys is not freely chosen; it is derived from CO_sys",
+      "4C coordinates and angle corrections are handled in derivations layer",
+      "All calculations are performed strictly in sys-space"
+    ]
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "system_id": "spread30",
+    "system_name": "Spread30 System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "geometry_fixed",
+    "notes": [
+      "Spread30 uses fixed geometric spread rules.",
+      "Anchors and sys-domain formulas are not used."
+    ]
+  },
+
+  "inputs": {
+    "required": ["start_fg", "mode", "spin", "speed"],
+    "validation": {
+      "speed_allowed": [3.0, 3.5],
+      "no_extrapolation": true
+    }
+  },
+
+  "principle": {
+    "description": "Compute cushion points using fixed spread distances (30 or 15).",
+    "calculation_domain": "Fg_only"
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "compute_first_cushion",
+      "description": "Compute first cushion point based on mode.",
+      "rules": {
+        "dispatch": {
+          "short": {
+            "C1_fg": ["80", "start_fg.y"]
+          },
+          "long": {
+            "C1_fg": ["start_fg.x", "40"]
+          }
+        }
+      },
+      "outputs": ["C1_fg"]
+    },
+    {
+      "step": 2,
+      "name": "compute_second_cushion",
+      "description": "Apply fixed spread offset to compute second cushion.",
+      "rules": {
+        "offsets": {
+          "short": 30,
+          "long": 15
+        },
+        "formula": {
+          "short": {
+            "left":  ["0", "start_fg.y + 30"],
+            "right": ["0", "start_fg.y - 30"]
+          },
+          "long": {
+            "left":  ["start_fg.x - 15", "0"],
+            "right": ["start_fg.x + 15", "0"]
+          }
+        }
+      },
+      "outputs": ["C2_fg"]
+    },
+    {
+      "step": 3,
+      "name": "validate_range",
+      "description": "Validate second cushion is within table bounds.",
+      "rules": {
+        "bounds": { "x": [0, 80], "y": [0, 40] },
+        "on_out_of_range": {
+          "action": "warn",
+          "status": "OUT_OF_RANGE"
+        },
+        "on_success": {
+          "status": "OK"
+        }
+      }
+    }
+  ],
+
+  "outputs": {
+    "points": ["C1_fg", "C2_fg"],
+    "status": ["OK", "OUT_OF_RANGE", "INVALID_START", "UNSUPPORTED_SPEED"]
+  },
+
+  "safety": {
+    "geometry_exception": true,
+    "warn_only_validation": true
+  }
+}

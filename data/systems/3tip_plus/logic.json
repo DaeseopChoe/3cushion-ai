@@ -1,0 +1,49 @@
+{
+  "track_selection": {
+    "strategy": "ruleset",
+    "tolerance": 0.02,
+
+    "ruleset": [
+      {
+        "if": "CO.y == -2.25 and 1C.x == 82.25 and CO.x >= 0 and CO.x <= 30",
+        "then": "B2T_L"
+      },
+      {
+        "if": "CO.y == -2.25 and 1C.x == -2.25 and CO.x >= 50 and CO.x <= 80",
+        "then": "B2T_R"
+      },
+      {
+        "if": "CO.y == 42.25 and 1C.x == 82.25 and CO.x >= 0 and CO.x <= 30",
+        "then": "T2B_R"
+      },
+      {
+        "if": "CO.y == 42.25 and 1C.x == -2.25 and CO.x >= 50 and CO.x <= 80",
+        "then": "T2B_L"
+      }
+    ]
+  },
+
+  "required_marks": ["CO", "1C"],
+
+  "hp_policy": {
+    "turn": {
+      "B2T_L": "L",
+      "B2T_R": "R",
+      "T2B_R": "R",
+      "T2B_L": "L"
+    },
+    "hit_point": {
+      "L": "9시",
+      "R": "3시"
+    }
+  },
+
+  "meta": {
+    "notes": [
+      "3tip_plus는 CO 위치와 1C 쿠션 위치로 트랙을 결정한다.",
+      "CO는 반드시 상단 또는 하단 프레임(y = -2.25 또는 42.25)에 위치해야 한다.",
+      "CO_x 유효 구간은 0~30 또는 50~80으로 제한된다.",
+      "조건에 부합하는 트랙이 없을 경우 계산을 중단한다."
+    ]
+  }
+}

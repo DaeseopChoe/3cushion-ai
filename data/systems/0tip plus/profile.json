@@ -1,0 +1,86 @@
+{
+  "system": "otip_plus",
+
+  "display": {
+    "name_key": "system.otip_plus.name",
+    "short_name_key": "system.otip_plus.short",
+    "description_key": "system.otip_plus.desc",
+
+    "category": "reflection",
+    "difficulty": "easy",
+
+    "tags": ["zero_tip", "reflection", "no_spin"],
+
+    "overlay_keys": {
+      "how_to_use": "system.otip_plus.howto",
+      "caution": "system.otip_plus.caution",
+      "tip": "system.otip_plus.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "C2_f = reflect(CO_f)"
+  },
+
+  "value_domains": {
+    "CO_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Cue ball reference value on frame grid (bottom rail)"
+    },
+    "C1_f": {
+      "unit": 1,
+      "range": [0, 40],
+      "notes": "First cushion value on short rail (left or right depending on path)"
+    },
+    "C2_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Second cushion value on top rail (primary output)"
+    },
+    "C3_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Third cushion value, optional validation target"
+    },
+    "C4_f": {
+      "unit": 1,
+      "range": [0, 40],
+      "notes": "Fourth cushion value, optional reverse input"
+    }
+  },
+
+  "safety": {
+    "fixed_hit": 0,
+    "pattern": "long-short-long",
+    "no_extrapolation": true,
+    "sys_identity_strict": true,
+    "ambiguity_policy": "error"
+  },
+
+  "space_rule": {
+    "grid": "frame",
+    "snap_tolerance": 0.02,
+    "frame_constants": {
+      "BOTTOM": -2.25,
+      "TOP": 42.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "Otip Plus is a zero-tip (center hit) system",
+      "System is based on pure reflection geometry (incidence equals reflection)",
+      "C2 on top rail is the primary output value",
+      "C1, C3, C4 are optional marks used for validation or reverse solving",
+      "No spin, no thickness, no correction is assumed",
+      "All calculations are performed strictly in system space"
+    ]
+  }
+}

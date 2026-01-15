@@ -1,0 +1,43 @@
+{
+  "system": "Spider Web System",
+  "category": "continuous_solve_one_of_four",
+
+  "description": {
+    "ko": "거미줄 시스템: start(CO), 1C, 3C, tip(0~4) 중 3개를 입력하면 나머지 1개를 sys 도메인에서 선형식으로 계산한다.",
+    "en": "Spider web system: given 3 of start(CO), 1C, 3C, tip(0..4), solve the remaining one in sys domain."
+  },
+
+  "system_characteristics": {
+    "type": "continuous",
+    "continuous_calculation": true,
+    "interpolation": true,
+    "extrapolation": false,
+    "lookup_based": false,
+    "multi_track": true
+  },
+
+  "ui": {
+    "category": "spider",
+    "input_marks": ["CO", "1C", "3C", "TIP"],
+    "output_marks": ["CO", "1C", "3C", "TIP"],
+    "mode": ["solve_start", "solve_c1", "solve_c3", "solve_tip"]
+  },
+
+  "notes": [
+    "모든 계산은 sys 도메인에서만 수행",
+    "좌표(Fg/Rg)는 앵커 조회/표시/트랙 판정에만 사용",
+    "tip은 0~4 정수 토큰이며, 계산에는 HP_sys = tip*10 을 사용",
+    "앵커는 route(4글자) + spin(L/R) 트랙으로 구성됨"
+  ],
+
+  "safety": {
+    "no_extrapolation": true
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "PM-direct",
+    "calculation_in_profile": false,
+    "last_updated": "2026-01-13"
+  }
+}

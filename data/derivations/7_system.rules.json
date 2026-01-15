@@ -1,0 +1,258 @@
+{
+  "meta": {
+    "system_id": "7_system",
+    "system_name": "Seven System (Turkish_Angle)",
+    "rule_version": "v1.4",
+    "ssot_role": "derivations",
+    "source_files": {
+      "anchors": "systems/7_system/anchors.json",
+      "profile_reference": "systems/7_system/profile.json",
+      "logic_reference": "systems/7_system/logic.json"
+    },
+    "notes": [
+      "계산은 sys-domain만 수행한다. 좌표(Fg/Rg)는 입력 마크 해석 및 표시용이다.",
+      "보간은 선형(linear) + clamp, 외삽 금지(no_extrapolation=true).",
+      "트랙 선택은 logic.json이 담당하며, 이 rules는 '선택된 track'을 입력으로 받는다.",
+      "v1.4: 축 판정 규칙 명문화, output_mark_policy 구조화, 입력 검증 추가"
+    ]
+  },
+
+  "inputs": {
+    "required_marks": ["CO", "3C"],
+    "mark_schema": {
+      "type": "object",
+      "required": ["space", "rail", "axis", "value"],
+      "properties": {
+        "space": { "enum": ["Fg", "Rg"] },
+        "rail": { "enum": ["TOP", "BOTTOM", "LEFT", "RIGHT"] },
+        "axis": { "enum": ["long", "short"] },
+        "value": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "track": { "enum": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"] },
+    "validation": {
+      "rail_required": true,
+      "error_on_missing_rail": "rail 속성이 누락된 입력 마크는 처리 불가"
+    }
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "offset_fg2rg": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "description": "선택된 track의 anchors에서 CO/3C의 sys 값을 좌표축 기준으로 선형보간(clamp)하여 산출한다.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "anchor_id_format": "ID_(x,y)_sys",
+        "labels": ["CO", "3C"],
+        "axis_inference": {
+          "rule": "마크의 rail 속성으로 판정",
+          "mapping": {
+            "TOP": "x",
+            "BOTTOM": "x",
+            "LEFT": "y",
+            "RIGHT": "y"
+          },
+          "validation": "입력 마크의 rail 속성이 반드시 존재해야 함",
+          "rationale": [
+            "TOP/BOTTOM rail은 y가 프레임 상수선에 고정, x가 변화",
+            "LEFT/RIGHT rail은 x가 프레임 상수선에 고정, y가 변화",
+            "따라서 변화하는 축을 보간 기준으로 사용"
+          ]
+        },
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true,
+          "procedure": [
+            "1. 입력 마크의 rail로 축 판정 (TOP/BOTTOM→x, LEFT/RIGHT→y)",
+            "2. 해당 축 값으로 anchors에서 인접 두 점 찾기",
+            "3. 선형 보간으로 sys 값 계산",
+            "4. 범위 밖인 경우 앵커 min/max로 clamp"
+          ]
+        }
+      },
+      "outputs": ["CO_sys", "3C_sys"]
+    },
+
+    {
+      "step": 2,
+      "name": "compute_1c_sys",
+      "description": "공식: 1C_sys = CO_sys * 3C_sys",
+      "formula": {
+        "expr": "1C_sys_raw = CO_sys * 3C_sys",
+        "vars": ["CO_sys", "3C_sys"],
+        "domain": "sys-only",
+        "note": "좌표를 사용하지 않음, 순수 sys-domain 곱셈"
+      },
+      "outputs": ["1C_sys_raw"]
+    },
+
+    {
+      "step": 3,
+      "name": "clamp_1c_sys",
+      "description": "CO/3C sys의 앵커 범위로부터 가능한 최소/최대 곱을 계산하고 1C_sys를 clamp 한다.",
+      "rules": {
+        "derive_bounds_from_anchors": {
+          "source": "anchors.trajectories[track].anchors",
+          "CO_sys_range": {
+            "filter": "anchors where label='CO'",
+            "min": "min(sys values in filtered CO anchors)",
+            "max": "max(sys values in filtered CO anchors)",
+            "note": "CO 앵커들의 sys 값 범위 추출"
+          },
+          "3C_sys_range": {
+            "filter": "anchors where label='3C'",
+            "min": "min(sys values in filtered 3C anchors)",
+            "max": "max(sys values in filtered 3C anchors)",
+            "note": "3C 앵커들의 sys 값 범위 추출"
+          },
+          "1C_sys_bounds": {
+            "min": "CO_sys_min * 3C_sys_min",
+            "max": "CO_sys_max * 3C_sys_max",
+            "note": "가능한 1C_sys의 이론적 min/max 범위"
+          }
+        },
+        "clamp_operation": {
+          "formula": "1C_sys = clamp(1C_sys_raw, min, max)",
+          "preserve_raw": false,
+          "note": "1C_sys_raw는 폐기하고, clamp된 1C_sys만 출력"
+        }
+      },
+      "outputs": ["1C_sys"]
+    },
+
+    {
+      "step": 4,
+      "name": "map_output_mark",
+      "description": "1C 출력 마크(표시용)를 해당 track의 1C 앵커를 이용해 sys->좌표로 보간(clamp)한다. (외삽 금지)",
+      "rules": {
+        "output_mark_per_track": {
+          "B2T_R": { "space": "Fg", "rail": "LEFT", "axis": "short" },
+          "B2T_L": { "space": "Fg", "rail": "RIGHT", "axis": "short" },
+          "T2B_R": { "space": "Fg", "rail": "RIGHT", "axis": "short" },
+          "T2B_L": { "space": "Fg", "rail": "LEFT", "axis": "short" }
+        },
+        "sys_to_coord": {
+          "label": "1C",
+          "target_axis": "y_fg",
+          "interpolation": {
+            "method": "linear",
+            "clamp": true,
+            "no_extrapolation": true,
+            "procedure": [
+              "1. 1C_sys를 입력으로 anchors[track].1C에서 인접 앵커 찾기",
+              "2. 선형 보간으로 y_fg 계산",
+              "3. 범위 밖인 경우 1C 앵커의 y_fg min/max로 clamp"
+            ]
+          }
+        },
+        "output_mark_policy": {
+          "sys_value": {
+            "preserve": true,
+            "note": "1C_sys는 Step 3에서 clamp된 계산 결과를 그대로 유지"
+          },
+          "coordinate_value": {
+            "clamp_to_anchor_range": true,
+            "note": "y_fg는 1C 앵커의 좌표 범위로 추가 clamp (물리적 표시 정책)"
+          },
+          "rationale": [
+            "sys 값은 계산 결과이고 시스템의 논리적 출력",
+            "좌표는 물리적 표시를 위한 것이므로 표시 가능 범위로 제한",
+            "이 분리는 5&half, 3tip_plus 등 다른 시스템과의 일관성 유지"
+          ]
+        }
+      },
+      "outputs": ["output_mark_1C"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "3C_sys", "1C_sys"],
+    "marks": [
+      {
+        "id": "1C",
+        "space": "Fg",
+        "rail": "track_dependent",
+        "rail_mapping": {
+          "B2T_R": "LEFT",
+          "B2T_L": "RIGHT",
+          "T2B_R": "RIGHT",
+          "T2B_L": "LEFT"
+        },
+        "axis": "short",
+        "value": "y_fg",
+        "meta": {
+          "formula": "1C_sys = CO_sys * 3C_sys",
+          "sys_value": "1C_sys (preserved from Step 3)",
+          "coordinate_value": "y_fg (clamped in Step 4)",
+          "no_extrapolation": true,
+          "clamp": true
+        }
+      }
+    ]
+  },
+
+  "validation_scenarios": {
+    "note": "실제 anchors.json 데이터 기반 시나리오",
+    "scenarios": [
+      {
+        "id": "exact_anchor_match",
+        "description": "앵커에 정확히 일치하는 점",
+        "inputs": {
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 40 },
+          "3C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 20 },
+          "track": "B2T_R"
+        },
+        "expected": {
+          "CO_sys": "anchors[B2T_R].CO에서 x=40에 해당하는 sys",
+          "3C_sys": "anchors[B2T_R].3C에서 y=20에 해당하는 sys",
+          "1C_sys": "CO_sys * 3C_sys",
+          "interpolation": "none (exact match)",
+          "clamp": "none (within range)"
+        }
+      },
+      {
+        "id": "interpolation_required",
+        "description": "앵커 사이 중간값 (선형 보간)",
+        "inputs": {
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 45 },
+          "3C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 25 },
+          "track": "B2T_R"
+        },
+        "expected": {
+          "CO_sys": "anchors[B2T_R].CO에서 x=45를 선형 보간",
+          "3C_sys": "anchors[B2T_R].3C에서 y=25를 선형 보간",
+          "1C_sys": "CO_sys * 3C_sys",
+          "interpolation": "linear between adjacent anchors",
+          "clamp": "depends on result vs 1C anchor range"
+        }
+      },
+      {
+        "id": "out_of_range_clamp",
+        "description": "앵커 범위 초과 (clamp 적용)",
+        "inputs": {
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 85 },
+          "3C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 45 },
+          "track": "B2T_R"
+        },
+        "expected": {
+          "CO_sys": "anchors[B2T_R].CO의 max sys (x=85는 범위 밖, Step 1에서 clamp)",
+          "3C_sys": "anchors[B2T_R].3C의 max sys (y=45는 범위 밖, Step 1에서 clamp)",
+          "1C_sys": "clamp(CO_sys * 3C_sys, min, max) (Step 3에서 추가 clamp 가능)",
+          "interpolation": "none (both inputs out of range)",
+          "clamp": "Step 1: CO_sys, 3C_sys 입력 clamp / Step 3: 1C_sys 출력 clamp / Step 4: y_fg 좌표 clamp"
+        }
+      }
+    ]
+  }
+}

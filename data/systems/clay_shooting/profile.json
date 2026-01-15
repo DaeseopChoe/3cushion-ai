@@ -1,0 +1,66 @@
+{
+  "system_id": "clay_shooting",
+  "system_name": "Clay Shooting System",
+  "alias": ["clay_shooting", "Clay Shooting"],
+  "category": {
+    "family": "formula_with_anchors",
+    "type": "simple",
+    "difficulty": "easy"
+  },
+  "display": {
+    "ko": {
+      "title": "클레이 슈팅 시스템",
+      "short_title": "Clay Shooting",
+      "description": "트랙을 먼저 선택한 뒤, sys-only 공식 1C = CO - 3C로 1C_sys를 계산하고, 선택 트랙의 1C 앵커로 좌표를 매핑한다."
+    },
+    "en": {
+      "title": "Clay Shooting System",
+      "short_title": "Clay Shooting",
+      "description": "Select track first, compute 1C_sys by sys-only formula 1C = CO - 3C, then map to coordinates via 1C anchors of the selected track."
+    }
+  },
+  "formula_concept": {
+    "canonical": "1C_f = CO_f - 3C_f",
+    "note": "Concept only. All computation and mapping rules are defined in derivations/clay_shooting.rules.json."
+  },
+  "value_domains": {
+    "CO_sys": { "min": -20, "max": 80, "step": 10 },
+    "3C_sys": { "min": -20, "max": 80, "step": 10 },
+    "1C_sys": { "min": -20, "max": 60, "step": 5 }
+  },
+  "aim_policy": {
+    "tip": {
+      "mode": "fixed",
+      "direction": "12시",
+      "note": "All tracks use a fixed 12 o'clock tip. No numeric alias."
+    }
+  },
+  "scope": {
+    "requires_anchors": true,
+    "requires_track": true,
+    "supported": [
+      "B2T_L/R, T2B_L/R tracks",
+      "sys-only formula 1C = CO - 3C",
+      "sys -> coordinate mapping via 1C anchors"
+    ],
+    "not_supported": [
+      "systems requiring iterative solving",
+      "systems that compute 3C from CO dynamically"
+    ]
+  },
+  "notes": {
+    "ssot_roles": [
+      "systems/clay_shooting/profile.json : identity/UI/concept only",
+      "systems/clay_shooting/logic.json : track selection only (no calc)",
+      "systems/clay_shooting/anchors.json : 4-track anchor data (do not modify)",
+      "derivations/clay_shooting.rules.json : all calculations + mapping"
+    ]
+  },
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_profile": true,
+    "last_updated": "2026-01-11",
+    "source": "Clay_shooting_system_profile.json"
+  }
+}

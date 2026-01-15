@@ -1,0 +1,101 @@
+{
+  "sample_id": "H001_05_SB2",
+  "system_id": "5_half_system",
+  "track": "B2T_R",
+  "last_cushion": "4C",
+  "ui": {
+    "balls": {
+      "cue": {
+        "x": 26.0,
+        "y": 28.5
+      },
+      "target_center": {
+        "x": 51.5,
+        "y": 30.0
+      },
+      "impact": {
+        "x": 50.0,
+        "y": 31.0
+      },
+      "second": {
+        "x": 33.3,
+        "y": 14.8
+      }
+    },
+    "anchors": {
+      "CO": {
+        "x": 20.0,
+        "y": -2.25
+      },
+      "1C": {
+        "x": 62.0,
+        "y": 42.25
+      },
+      "2C": {
+        "x": 80.0,
+        "y": 27.0
+      },
+      "3C": {
+        "x": 55.5,
+        "y": 0.0
+      },
+      "4C": {
+        "x": 0.0,
+        "y": 37.0
+      },
+      "5C": null,
+      "6C": null,
+      "target_center": {
+        "x": 51.5,
+        "y": 30.0
+      }
+    },
+    "system": {
+      "values": {
+        "CO": 43,
+        "1C": 18,
+        "2C": null,
+        "3C": 25,
+        "4C": 21.5,
+        "5C": null,
+        "6C": null
+      },
+      "human_readable": {
+        "1C_calc": "CO_43 - 3C_25 = 1C_18",
+        "3C_calc": "CO_40 + (밀림값 보정_3) - 1C_18 = 3C_25 사용",
+        "4C_calc": "3C_25 + (레일 보정_-3.5) = 4C_21.5"
+      }
+    },
+    "display_options": {
+      "thickness": "3/8",
+      "hitpoint_clock": "01:50",
+      "english_tips": "상단 2.5팁",
+      "speed_rail": 3.0,
+      "penetration_ball": 2.0,
+      "curving_hint": "dynamic"
+    },
+    "strategy": [
+      "5&half 시스템을 적용, 기본 계산 40-18=22.",
+      "보정 : 밀림값 3을 더하고, 큐 볼 출발값 43에 대한 짧아지는 보정값 -3.5하면 4쿠션 도착은 21.5입니다..",
+      "앞 공과의 거리가 3포인트 이상 멀어지면 구름 관성에 따른 밀림 값을 추가해야 합니다."
+    ]
+  },
+  "debug": {
+    "base_values": {
+      "CO_base_sys": 40,
+      "3C_eff_sys": 25
+    },
+    "corrections": {
+      "sliding_sys": 3,
+      "thickness_sys": 0,
+      "distance_sys": 0,
+      "slope_sys": 0,
+      "rail_sys": -3.5
+    }
+  },
+  "second_ball_meta": {
+    "division": 2,
+    "percentage": 40.0,
+    "segment": "3C→4C"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "system_id": "reverse_end_system",
+  "system_name": "Reverse End System",
+  "role": "track_and_input_logic_only",
+
+  "track_policy": {
+    "available_tracks": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"],
+    "selection_mode": "explicit",
+    "note": "Track must be explicitly provided or pre-selected by UI."
+  },
+
+  "input_mode": {
+    "type": "discrete_lookup",
+    "required_marks": ["CO", "2C"],
+    "optional_marks": [],
+    "description": "Inputs are treated as discrete selections, not continuous values."
+  },
+
+  "two_cushion_requirement": {
+    "required": true,
+    "note": "2C mark is mandatory for reverse_end_system."
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "lookup_only": true,
+    "rules_reference": "derivations/reverse_end.rules.json"
+  },
+
+  "validation_hints": {
+    "require_anchor_match": true,
+    "on_invalid_input": "error"
+  },
+
+  "notes": {
+    "ko": [
+      "logic.json은 계산을 절대 수행하지 않습니다.",
+      "Reverse End System은 rules.json에서 정의된 lookup 규칙에 따라 동작합니다.",
+      "트랙 선택은 UI 또는 상위 로직에서 결정됩니다."
+    ]
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-12"
+  }
+}

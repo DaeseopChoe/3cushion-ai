@@ -1,0 +1,111 @@
+{
+  "system_id": "accordion",
+  "system_name": "Accordion",
+  "alias": ["accordion_system", "rail_first_accordion"],
+  "category": {
+    "family": "rail_first",
+    "type": "formula_driven",
+    "difficulty": "easy_to_medium"
+  },
+  "display": {
+    "ko": {
+      "title": "아코디언 시스템",
+      "short_title": "Accordion",
+      "description": "장쿠션 레일 퍼스트(rail-first) 샷 전용. 수직 기준 도착 +30을 기반으로 목표 도착값(0~30)에 맞춰 기울기(slope)를 조정한다."
+    },
+    "en": {
+      "title": "Accordion System",
+      "short_title": "Accordion",
+      "description": "Rail-first long-rail to opposite long-rail layout system. Uses base +30 arrival and a negative slope adjustment to match target (0..30)."
+    }
+  },
+  "scope": {
+    "shot_type": "rail_first_only",
+    "supported": [
+      "Long rail -> opposite long rail vertical baseline",
+      "Fixed tip: 4:30 (right) or 7:30 (left)",
+      "Target arrival increment 0..30"
+    ],
+    "not_supported": [
+      "short-rail rail-first",
+      "direct object ball hits (1st/2nd object ball)",
+      "mixed RG/FG within one request"
+    ]
+  },
+  "formula_concept": {
+    "base_value": 30,
+    "text": "When sent vertically to the opposite long rail (rail-first), arrival increases by +30 in the spin direction. For target < 30, apply negative slope.",
+    "canonical": "slope_adjustment = -0.25 * (30 - target_value)",
+    "note": "Concept only. Actual computation rules are in derivations/accordion.rules.json."
+  },
+  "aim_policy": {
+    "tip": {
+      "fixed": true,
+      "options": [
+        { "spin": "4시30분", "direction": "right" },
+        { "spin": "7시30분", "direction": "left" }
+      ],
+      "note": "Only these two fixed tips are supported."
+    }
+  },
+  "ui": {
+    "inputs": [
+      {
+        "id": "unit",
+        "type": "enum",
+        "values": ["RG", "FG"],
+        "label_ko": "단위",
+        "label_en": "Unit",
+        "note_ko": "한 요청 내 RG 또는 FG 중 하나만 사용"
+      },
+      {
+        "id": "spin",
+        "type": "enum",
+        "values": ["4시30분", "7시30분"],
+        "label_ko": "회전(타점)",
+        "label_en": "Spin/Tip"
+      },
+      {
+        "id": "target_value",
+        "type": "int",
+        "min": 0,
+        "max": 30,
+        "label_ko": "목표 도착값",
+        "label_en": "Target arrival increment"
+      },
+      {
+        "id": "x0",
+        "type": "number",
+        "min": 0,
+        "max": 80,
+        "default": 40.0,
+        "label_ko": "출발 x(표시용)",
+        "label_en": "Start x (display)"
+      }
+    ],
+    "outputs": [
+      { "id": "slope_adjustment", "label_ko": "기울기", "label_en": "Slope adjustment" },
+      { "id": "baseline", "label_ko": "수직 기준선", "label_en": "Baseline" },
+      { "id": "aim_line", "label_ko": "조준선", "label_en": "Aim line" },
+      { "id": "arrival_point", "label_ko": "도착점", "label_en": "Arrival point" }
+    ],
+    "warnings_ko": [
+      "target_value가 0에 가까울수록 오차 민감도가 커집니다.",
+      "속도/타점 편차에 민감합니다."
+    ]
+  },
+  "notes": {
+    "ssot_roles": [
+      "systems/accordion/profile.json : identity, UI, concept only",
+      "systems/accordion/logic.json : applicability checks only (no calc)",
+      "derivations/accordion.rules.json : all calculations and output construction"
+    ]
+  },
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_profile": true,
+    "last_updated": "2026-01-11",
+    "source": "accordion_logic_manual.txt"
+  }
+}

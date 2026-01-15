@@ -1,0 +1,57 @@
+{
+  "system": "Reverse System (Frame Only)",
+  "category": "reverse_continuous",
+
+  "description": {
+    "ko": "CO와 2C 위치를 기준으로 1C를 역산하는 프레임 전용 리버스 시스템",
+    "en": "Frame-only reverse system that infers 1C from CO and 2C"
+  },
+
+  "system_characteristics": {
+    "type": "continuous_reverse",
+    "continuous_calculation": true,
+    "interpolation": true,
+    "extrapolation": false,
+    "lookup_based": false
+  },
+
+  "notes": [
+    "모든 계산은 sys 도메인에서만 수행",
+    "좌표(Fg/Rg)는 트랙 판정 및 앵커 조회용으로만 사용",
+    "CO는 반드시 프레임 상수선(y=-2.25, 42.25 또는 x=-2.25, 82.25)에 위치해야 함"
+  ],
+
+  "ui": {
+    "category": "reverse",
+    "input_marks": ["CO", "2C"],
+    "output_marks": ["1C"],
+    "display_mode": "frame_only"
+  },
+
+  "value_domains": {},
+
+  "safety": {
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68,
+    "no_extrapolation": true
+  },
+
+  "space_rule": {
+    "frame_constants": [-2.25, 42.25, 82.25],
+    "tolerance": 0.02,
+    "rule": "if x or y matches frame_constants => Fg, else invalid"
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "PM-direct",
+    "calculation_in_profile": false,
+    "no_preset_autofill": true,
+    "last_updated": "2026-01-13"
+  }
+}

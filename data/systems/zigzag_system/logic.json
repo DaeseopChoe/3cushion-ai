@@ -1,0 +1,61 @@
+{
+  "system_id": "zigzag_system",
+  "system_name": "Zigzag System",
+  "role": "track_selection_only",
+
+  "input_policy": {
+    "required_marks": ["CO", "3C"],
+    "optional_marks": ["track", "1C"],
+    "note": "track이 명시되면 그대로 사용. 없으면 CO/3C(선택적으로 1C) 상수선 스냅으로 추론."
+  },
+
+  "track_policy": {
+    "available_tracks": ["B2T_R", "B2T_L", "T2B_R", "T2B_L"],
+    "selection_mode": "explicit_or_infer"
+  },
+
+  "inference_rules": {
+    "tolerance": 0.02,
+    "frame_constants": [-2.25, 42.25, 82.25],
+    "ruleset": [
+      {
+        "if": "CO.y≈-2.25 AND 1C.y≈42.25 AND 3C.x≈82.25",
+        "then": "B2T_R"
+      },
+      {
+        "if": "CO.y≈-2.25 AND 1C.y≈42.25 AND 3C.x≈-2.25",
+        "then": "B2T_L"
+      },
+      {
+        "if": "CO.y≈42.25 AND 1C.y≈-2.25 AND 3C.x≈-2.25",
+        "then": "T2B_R"
+      },
+      {
+        "if": "CO.y≈42.25 AND 1C.y≈-2.25 AND 3C.x≈82.25",
+        "then": "T2B_L"
+      }
+    ],
+    "ambiguity_policy": {
+      "on_no_match": {
+        "action": "require_explicit_track",
+        "message": "Track cannot be inferred uniquely. Please specify track explicitly."
+      },
+      "on_multiple_match": {
+        "action": "require_explicit_track",
+        "message": "Multiple tracks matched. Please specify track explicitly."
+      }
+    }
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "rules_reference": "derivations/zigzag_system.rules.json",
+    "note": "All sys calculations are handled exclusively in rules.json."
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-13"
+  }
+}

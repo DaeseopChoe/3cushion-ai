@@ -1,0 +1,441 @@
+{
+  "meta": {
+    "system_id": "backside_umbrella",
+    "system_name": "Backside Umbrella",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "references": {
+      "profile": "systems/backside_umbrella/profile.json",
+      "logic": "systems/backside_umbrella/logic.json",
+      "anchors": "systems/backside_umbrella/anchors.json",
+      "base_logic": "backside_umbrella_Base_logic.txt",
+      "calculator_ref": "backside_umbrella_calculator.py"
+    },
+    "notes": [
+      "All calculations are performed in sys-domain only.",
+      "Coordinates (Fg/Rg) are used only for input interpretation and output display.",
+      "v1.0: Fixed-point iteration procedure 명시, hit_point 매핑 테이블 포함, 4C 출력 포함"
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "1C", "3C"],
+    "mark_schema": {
+      "type": "object",
+      "required": ["space", "rail", "axis", "value"],
+      "properties": {
+        "space": { "enum": ["Fg", "Rg"] },
+        "rail": { "enum": ["TOP", "BOTTOM", "LEFT", "RIGHT"] },
+        "axis": { "enum": ["long", "short"] },
+        "value": { "type": "number" }
+      }
+    },
+    "validation": {
+      "track_required": true,
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    },
+    "space_note": "CO/1C는 _f(frame 기준), 3C는 _r(rail 기준) 태그이나 계산에서는 모두 sys로 통일"
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    },
+    "validation": "input mark must include rail",
+    "rationale": [
+      "TOP/BOTTOM rail: y는 프레임 상수선에 고정, x가 변화",
+      "LEFT/RIGHT rail: x는 프레임 상수선에 고정, y가 변화"
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "description": "Resolve CO_sys, 1C_sys, 3C_sys from anchors using sys-domain linear interpolation.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "1C", "3C"],
+        "axis_inference": {
+          "use": "axis_inference.mapping",
+          "procedure": [
+            "1. 입력 마크의 rail 확인",
+            "2. mapping으로 축 판정 (TOP/BOTTOM → x, LEFT/RIGHT → y)",
+            "3. 해당 축 값으로 anchors에서 인접 두 점 찾기",
+            "4. 선형 보간으로 sys 값 계산",
+            "5. 범위 밖인 경우 앵커 min/max로 clamp"
+          ]
+        },
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        },
+        "space_handling": {
+          "note": "CO/1C는 frame 기준(_f), 3C는 rail 기준(_r)이나 sys 변환 후에는 구분 불필요",
+          "calculation": "모두 sys-domain으로 통일하여 계산"
+        }
+      },
+      "outputs": ["CO_sys", "1C_sys", "3C_sys"]
+    },
+
+    {
+      "step": 2,
+      "name": "compute_initial_HP",
+      "description": "Compute initial HP system value using conceptual umbrella relation.",
+      "formula": {
+        "expr": "HP0 = CO_sys + 1C_sys + 3C_sys",
+        "vars": ["CO_sys", "1C_sys", "3C_sys"],
+        "domain": "sys-only",
+        "note": "좌표를 사용하지 않음, 순수 sys-domain 합산"
+      },
+      "outputs": ["HP0"]
+    },
+
+    {
+      "step": 3,
+      "name": "fixed_point_iteration",
+      "description": "Iteratively refine HP_sys until convergence using backside umbrella geometry.",
+      "rules": {
+        "initial_value": "HP0",
+        "iteration_scheme": {
+          "type": "fixed_point",
+          "description": "반복적으로 HP를 재계산하여 수렴",
+          "procedure": [
+            "1. HP_prev = HP0",
+            "2. for i in range(max_iter):",
+            "3.   HP_next = recalculate_HP(HP_prev, CO_sys, 1C_sys, 3C_sys)",
+            "4.   convergence_check = abs(HP_next - HP_prev) < epsilon",
+            "5.   if convergence_check: converged → break",
+            "6.   HP_prev = HP_next",
+            "7. if not converged after max_iter: apply on_diverge policy"
+          ],
+          "recalculation_note": "HP 재계산은 우산 기하학 기반 (backside_umbrella_calculator.py 로직 참조)",
+          "domain": "sys-only (좌표 사용 없음)"
+        },
+        "convergence": {
+          "epsilon": 0.5,
+          "max_iter": 15,
+          "check": "abs(HP_next - HP_prev) < epsilon"
+        },
+        "on_diverge": {
+          "policy": "clamp_and_warn",
+          "action": "HP_sys = clamp(HP_prev, anchor_min, anchor_max)",
+          "flag": "convergence_warning: true",
+          "note": "발산 시 마지막 유효값으로 clamp하고 경고 플래그 반환"
+        }
+      },
+      "inputs": ["HP0", "CO_sys", "1C_sys", "3C_sys"],
+      "outputs": ["HP_sys", "convergence_flag", "iteration_count"]
+    },
+
+    {
+      "step": 4,
+      "name": "determine_hit_point",
+      "description": "Determine hit-point (tip/clock) based on incident angle and exception rules.",
+      "rules": {
+        "priority": "exceptions first, then base rule",
+        "angle_computation": {
+          "theta_t": {
+            "formula": "atan(m) * 180 / pi",
+            "m": "1쿠션 접선 기울기 (anchors 기반 계산)",
+            "unit": "degrees"
+          },
+          "guards": {
+            "m_min": 0.05,
+            "theta_t_max": 68,
+            "note": "m < m_min → m = m_min, theta_t > max → theta_t = max"
+          }
+        },
+        "exception_rules": {
+          "priority": 1,
+          "rules": [
+            {
+              "id": "A",
+              "condition": {
+                "CO_sys": [10, 30],
+                "1C_sys": [0, 10],
+                "operator": "AND"
+              },
+              "action": {
+                "LEFT": { "clock": "10:30", "tip": "중앙" },
+                "RIGHT": { "clock": "1:30", "tip": "중앙" }
+              },
+              "note": "내 공 중앙, 1쿠션 낮음 → 고정 타점"
+            },
+            {
+              "id": "B",
+              "condition": {
+                "CO_sys": [60, 80]
+              },
+              "action": {
+                "LEFT": { "clock": "9:00", "tip": "중앙" },
+                "RIGHT": { "clock": "3:00", "tip": "중앙" }
+              },
+              "note": "내 공 높음 → 고정 타점"
+            }
+          ]
+        },
+        "base_rule": {
+          "priority": 2,
+          "angle_range": {
+            "min": 30,
+            "base": 40,
+            "max": 50
+          },
+          "mapping": {
+            "method": "linear_interpolation",
+            "input": "theta_t",
+            "output": "hit_point_index [0..4]",
+            "formula": [
+              "if theta_t < 30: index = 0",
+              "if 30 <= theta_t < 40: index = (theta_t - 30) / 10 * 2",
+              "if theta_t == 40: index = 2",
+              "if 40 < theta_t <= 50: index = 2 + (theta_t - 40) / 10 * 2",
+              "if theta_t > 50: index = 4"
+            ]
+          },
+          "hit_point_table": {
+            "LEFT": {
+              "0": { "clock": "9:00", "tip": "중앙", "description": "수직 타점" },
+              "1": { "clock": "9:30", "tip": "중앙", "description": "중간 타점 1" },
+              "2": { "clock": "10:00", "tip": "중앙", "description": "기본 타점" },
+              "3": { "clock": "10:30", "tip": "중앙", "description": "중간 타점 2" },
+              "4": { "clock": "11:00", "tip": "중앙", "description": "최대 각도" }
+            },
+            "RIGHT": {
+              "0": { "clock": "3:00", "tip": "중앙", "description": "수직 타점" },
+              "1": { "clock": "2:30", "tip": "중앙", "description": "중간 타점 1" },
+              "2": { "clock": "2:00", "tip": "중앙", "description": "기본 타점" },
+              "3": { "clock": "1:30", "tip": "중앙", "description": "중간 타점 2" },
+              "4": { "clock": "1:00", "tip": "중앙", "description": "최대 각도" }
+            }
+          }
+        },
+        "direction_mapping": {
+          "B2T_L": "LEFT",
+          "B2T_R": "RIGHT",
+          "T2B_L": "LEFT",
+          "T2B_R": "RIGHT"
+        }
+      },
+      "inputs": ["CO_sys", "1C_sys", "track", "theta_t"],
+      "outputs": ["hit_point"]
+    },
+
+    {
+      "step": 5,
+      "name": "generate_output_marks",
+      "description": "Generate display marks for HP and optional cushions.",
+      "rules": {
+        "primary": {
+          "id": "HP",
+          "value": "HP_sys",
+          "space": "sys",
+          "note": "HP는 수렴된 sys 값"
+        },
+        "optional_marks": [
+          {
+            "id": "4C",
+            "enabled": true,
+            "derivation": {
+              "source": "anchors.trajectories[track].anchors",
+              "filter": "anchors where label='4C'",
+              "method": "sys_to_coord",
+              "interpolation": {
+                "method": "linear",
+                "clamp": true,
+                "no_extrapolation": true
+              },
+              "note": "4C는 HP/타점과 연계되어 시각적·검증적 가치 큼"
+            }
+          },
+          {
+            "id": "5C",
+            "enabled": false,
+            "note": "이번 버전에서 제외, Admin Mode 검증 후 필요시 추가"
+          },
+          {
+            "id": "6C",
+            "enabled": false,
+            "note": "이번 버전에서 제외, Admin Mode 검증 후 필요시 추가"
+          }
+        ],
+        "sys_to_coord": {
+          "procedure": [
+            "1. sys 값을 입력으로 해당 label의 anchors에서 인접 앵커 찾기",
+            "2. 선형 보간으로 좌표(x_fg 또는 y_fg) 계산",
+            "3. 범위 밖인 경우 앵커의 좌표 min/max로 clamp"
+          ],
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["HP_mark", "4C_mark"]
+    }
+  ],
+
+  "output_policy": {
+    "sys_value": {
+      "preserve": true,
+      "note": "Final HP_sys is the converged system value."
+    },
+    "coordinate_value": {
+      "clamp_to_anchor_range": true,
+      "note": "Display coordinates are clamped for physical bounds."
+    }
+  },
+
+  "outputs": {
+    "sys": ["CO_sys", "1C_sys", "3C_sys", "HP_sys"],
+    "hit_point": {
+      "clock": "string (e.g., '10:30')",
+      "tip": "string (e.g., '중앙')",
+      "index": "number [0..4]",
+      "exception_applied": "string | null (e.g., 'A', 'B', null)"
+    },
+    "marks": [
+      {
+        "id": "HP",
+        "space": "Fg",
+        "value": "sys_to_coord result",
+        "meta": {
+          "sys_value": "HP_sys (preserved)",
+          "convergence": "iteration_count, convergence_flag"
+        }
+      },
+      {
+        "id": "4C",
+        "space": "Fg",
+        "rail": "track_dependent",
+        "axis": "track_dependent",
+        "value": "sys_to_coord result",
+        "meta": {
+          "enabled": true,
+          "note": "HP/타점 연계 시각화"
+        }
+      }
+    ]
+  },
+
+  "validation_scenarios": {
+    "note": "실제 anchors.json 데이터 기반 시나리오",
+    "scenarios": [
+      {
+        "id": "exact_anchor_match",
+        "description": "앵커에 정확히 일치하는 점",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 40 },
+          "1C": { "space": "Fg", "rail": "LEFT", "axis": "short", "value": 20 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 50 }
+        },
+        "expected": {
+          "CO_sys": "anchors[B2T_R].CO에서 x=40 (정확 일치)",
+          "1C_sys": "anchors[B2T_R].1C에서 y=20 (정확 일치)",
+          "3C_sys": "anchors[B2T_R].3C에서 x=50 (정확 일치)",
+          "HP0": "CO_sys + 1C_sys + 3C_sys",
+          "interpolation": "none (exact match)",
+          "iteration": "converges within 3-6 iterations",
+          "clamp": "none",
+          "hit_point": "determined by theta_t or exception rules"
+        }
+      },
+      {
+        "id": "interpolation_required",
+        "description": "앵커 사이 중간값 (선형 보간)",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 45 },
+          "1C": { "space": "Fg", "rail": "LEFT", "axis": "short", "value": 25 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 55 }
+        },
+        "expected": {
+          "CO_sys": "anchors[B2T_R].CO에서 x=45를 선형 보간",
+          "1C_sys": "anchors[B2T_R].1C에서 y=25를 선형 보간",
+          "3C_sys": "anchors[B2T_R].3C에서 x=55를 선형 보간",
+          "HP0": "계산",
+          "interpolation": "linear between adjacent anchors",
+          "iteration": "converges within 5-8 iterations",
+          "clamp": "none (within range)",
+          "hit_point": "base rule applied"
+        }
+      },
+      {
+        "id": "out_of_range_clamp",
+        "description": "입력이 앵커 범위 초과",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 85 },
+          "1C": { "space": "Fg", "rail": "LEFT", "axis": "short", "value": 42 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 90 }
+        },
+        "expected": {
+          "CO_sys": "anchors[B2T_R].CO의 max sys (x=85 → clamp)",
+          "1C_sys": "anchors[B2T_R].1C의 max sys (y=42 → clamp)",
+          "3C_sys": "anchors[B2T_R].3C의 max sys (x=90 → clamp)",
+          "HP0": "계산",
+          "interpolation": "none (out of range)",
+          "clamp": "Step 1: all inputs clamped",
+          "iteration": "stable after clamp, converges within 4-7 iterations",
+          "hit_point": "likely exception B (CO_sys high)"
+        }
+      },
+      {
+        "id": "exception_rule_A",
+        "description": "타점 예외 A: 내 공 중앙, 1쿠션 낮음",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 20 },
+          "1C": { "space": "Fg", "rail": "LEFT", "axis": "short", "value": 8 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 45 }
+        },
+        "expected": {
+          "CO_sys": "10 <= CO_sys <= 30 (조건 만족)",
+          "1C_sys": "1C_sys <= 10 (조건 만족)",
+          "exception": "A applied",
+          "hit_point": {
+            "clock": "1:30",
+            "tip": "중앙",
+            "exception_applied": "A"
+          },
+          "note": "예외 A 우선 적용, base rule 무시"
+        }
+      },
+      {
+        "id": "exception_rule_B",
+        "description": "타점 예외 B: 내 공 높음",
+        "inputs": {
+          "track": "B2T_L",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 70 },
+          "1C": { "space": "Fg", "rail": "RIGHT", "axis": "short", "value": 25 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 60 }
+        },
+        "expected": {
+          "CO_sys": "CO_sys >= 60 (조건 만족)",
+          "exception": "B applied",
+          "hit_point": {
+            "clock": "9:00",
+            "tip": "중앙",
+            "exception_applied": "B"
+          },
+          "note": "예외 B 우선 적용, base rule 무시"
+        }
+      }
+    ]
+  }
+}

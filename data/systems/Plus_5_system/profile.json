@@ -1,0 +1,48 @@
+{
+  "system": "Plus_5_system",
+  "formula": "CO_f + 3C_r",
+  "value_domains": {
+    "CO_sys": [0, 5, 10, 15],
+    "C1_sys": [0, 1, 2],
+    "C3_sys": [10, 15, 20],
+    "C4_sys": [0, 5, 10, 15, 20, 25, 30, 35, 40]
+  },
+  "safety": {
+    "tip_range": [-0.0, 0.0],
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68,
+    "no_extrapolation": true
+  },
+  "space_rule": {
+    "frame_constants": [-2.25, 42.25, 82.25],
+    "tolerance": 0.02,
+    "rule": "if x or y matches frame_constants => Fg, else Rg"
+  },
+  "mappings": null,
+  "meta": {
+    "version": "1.0",
+    "generator": "3Cushion AI",
+    "notes": [
+      "핵심 규칙: 3C_sys = CO_sys + 5 + (1C_sys × 계수); 4C_sys = CO_sys + 3C_sys.",
+      "계수는 CO_sys=5→2, 10→4, 15→6 (일반화: 2*(CO_sys/5)).",
+      "타점은 4트랙 모두 정 중앙 고정.",
+      "B2T 계열: y 감소 ↔ sys 증가 / T2B 계열: y 증가 ↔ sys 증가 (앵커 진행 규칙).",
+      "본 profile의 formula는 4C 예측값을 직접 반환(HP_n=CO_f+3C_r). 1C_sys는 selector 출력의 C1_sys를 사용."
+    ],
+    "source_doc": "Plus_5_system_base_manual.txt"
+  },
+  "_documentation": {
+    "how_to_use_with_track_selector": [
+      "track_selector.py는 profile.formula를 평가하여 HP_n을 출력합니다.",
+      "이 파일에서는 formula=CO_f + 3C_r 이므로 HP_n이 곧 4C_sys 예측값입니다.",
+      "1C_sys는 track_selector 출력의 C1_sys 필드로 그대로 제공됩니다."
+    ],
+    "alt_formulas_for_validation": {
+      "check_3C_identity_residual": "3C_r - (CO_f + 5 + 1C_f * (2*CO_f/5))",
+      "equivalent_4C_identity": "CO_f + 3C_r"
+    }
+  }
+}

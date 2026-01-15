@@ -1,0 +1,55 @@
+{
+  "system": "ball_system",
+
+  "track_selection": {
+    "strategy": "ruleset",
+    "tolerance": 0.02,
+    "ruleset": [
+      { "if": "CO.y==-2.25", "then": "B2T" },
+      { "if": "CO.y==42.25", "then": "T2B" },
+
+      { "if": "turn(CO,C1)>0", "then": "R" },
+      { "if": "turn(CO,C1)<=0", "then": "L" },
+
+      { "if": "CO.y==-2.25 && turn(CO,C1)>0", "then": "B2T_R" },
+      { "if": "CO.y==-2.25 && turn(CO,C1)<=0", "then": "B2T_L" },
+      { "if": "CO.y==42.25 && turn(CO,C1)>0", "then": "T2B_R" },
+      { "if": "CO.y==42.25 && turn(CO,C1)<=0", "then": "T2B_L" }
+    ],
+
+    "tie_breaker": {
+      "condition": "|C1.x - CO.x| <= 0.02",
+      "priority": [
+        "prefer_existing_anchor",
+        "fallback_B2T_L"
+      ]
+    }
+  },
+
+  "required_marks": ["CO", "C1", "3C"],
+
+  "aliases": {
+    "TB": "C1"
+  },
+
+  "hp_policy": {
+    "pattern": "long-short-long",
+    "description": "Ball System: input uses CO (cue), C1 (target ball / TB), and 3C arrival rail mark. Thickness(T) and tip(HP) candidates are derived in derivations layer.",
+    "mark_semantics": {
+      "CO": "cue_ball (physical position)",
+      "C1": "target_ball (TB physical position)",
+      "3C": "third_cushion arrival mark (rail mark from anchors)"
+    }
+  },
+
+  "notes": [
+    "Track decision uses only CO and TB(C1) geometry: vertical axis by CO.y, horizontal side by dx = C1.x - CO.x.",
+    "Ball System base logic is canonicalized on B2T_L; other tracks are symmetric variants stored in anchors meta.",
+    "Spin polarity and TB half/one-ball offsets are track meta values in anchors (do not duplicate here)."
+  ],
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_logic"
+  }
+}

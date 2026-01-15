@@ -1,0 +1,430 @@
+{
+  "meta": {
+    "system_id": "n_across_short",
+    "system_name": "N Across System (Short)",
+    "derived_from": "n_across_long",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "references": {
+      "profile": "systems/n_across_short/profile.json",
+      "logic": "systems/n_across_short/logic.json",
+      "anchors": "systems/n_across_short/anchors.json"
+    },
+    "notes": [
+      "This system is a derived variant of n_across_long.",
+      "Core concept is identical: CO_sys selects a family, 3C is converted to internal variable c.",
+      "Short-table constraint: 3C is always on short cushion; interpolation dimension is (CO_sys, short-axis).",
+      "All calculations are sys-domain only; coordinates are used only for anchor lookup and display mapping.",
+      "v1.0: Short 전용 2D(c, CO_sys) 구조 명문화, validation 시나리오 완성"
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "3C"],
+    "optional": ["1C"],
+    "mark_schema": {
+      "type": "object",
+      "required": ["space", "rail", "axis", "value"],
+      "properties": {
+        "space": { "enum": ["Fg", "Rg"] },
+        "rail": { "enum": ["TOP", "BOTTOM", "LEFT", "RIGHT"] },
+        "axis": { "enum": ["long", "short"] },
+        "value": { "type": "number" }
+      }
+    },
+    "validation": {
+      "track_required": true,
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    },
+    "validation": "input mark must include rail",
+    "rationale": [
+      "TOP/BOTTOM rail: y는 프레임 상수선에 고정, x가 변화",
+      "LEFT/RIGHT rail: x는 프레임 상수선에 고정, y가 변화"
+    ],
+    "short_variant_note": "Short 시스템에서 3C는 항상 단쿠션(LEFT/RIGHT)에 위치하므로 y축 사용"
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "offset_fg2rg": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  },
+
+  "co_family_structure": {
+    "description": "N_Across Short는 CO_sys 값에 따라 서로 다른 3C→c 변환 기준선(패밀리)을 사용",
+    "family_definition": {
+      "concept": "anchors 내 각 CO 앵커는 하나의 패밀리 레벨을 정의",
+      "family_key": "CO_sys (예: 10, 15, 20)",
+      "family_members": "해당 CO 앵커 다음에 나오는 3C 앵커들이 그 패밀리의 3C→c 변환 테이블 구성",
+      "note": "다음 CO 앵커가 나오면 새로운 패밀리 시작"
+    },
+    "short_constraint": "3C는 항상 단쿠션(short cushion)에 위치하므로 y축을 보간 기준으로 사용",
+    "example": {
+      "track": "B2T_R",
+      "families": [
+        {
+          "family_level": "CO_sys=20",
+          "anchor": "CO_(60,-2.25)_20",
+          "3C_table": [
+            { "coord": "(80,0)", "c": 0 },
+            { "coord": "(80,10)", "c": 1.5 },
+            { "coord": "(80,20)", "c": 3 },
+            { "coord": "(80,30)", "c": 4.5 },
+            { "coord": "(80,40)", "c": 6 }
+          ],
+          "note": "x=80 고정, y축으로 보간"
+        },
+        {
+          "family_level": "CO_sys=15",
+          "anchor": "CO_(65,-2.25)_15",
+          "3C_table": [
+            { "coord": "(80,0)", "c": 0 },
+            { "coord": "(80,10)", "c": 1.25 },
+            { "coord": "(80,20)", "c": 2.5 },
+            { "coord": "(80,30)", "c": 3.75 },
+            { "coord": "(80,40)", "c": 5 }
+          ]
+        },
+        {
+          "family_level": "CO_sys=10",
+          "anchor": "CO_(70,-2.25)_10",
+          "3C_table": [
+            { "coord": "(80,0)", "c": 0 },
+            { "coord": "(80,10)", "c": 0.75 },
+            { "coord": "(80,20)", "c": 1.5 },
+            { "coord": "(80,30)", "c": 2.25 },
+            { "coord": "(80,40)", "c": 3 }
+          ]
+        }
+      ]
+    }
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_CO_sys",
+      "description": "Resolve CO_sys from anchors under selected track (linear + clamp, no extrapolation).",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "filter": "anchors where label='CO'",
+        "axis_inference": {
+          "use": "axis_inference.mapping",
+          "note": "CO는 장쿠션(TOP/BOTTOM)에 위치, x축 사용",
+          "procedure": [
+            "1. 입력 CO 마크의 rail 확인",
+            "2. mapping으로 축 판정 (TOP/BOTTOM → x)",
+            "3. 해당 축 값으로 CO anchors에서 인접 두 점 찾기",
+            "4. 선형 보간으로 CO_sys 계산",
+            "5. 범위 밖인 경우 CO 앵커 min/max로 clamp"
+          ]
+        },
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["CO_sys"]
+    },
+
+    {
+      "step": 2,
+      "name": "select_CO_families",
+      "description": "Select one or two adjacent CO family levels based on CO_sys.",
+      "rules": {
+        "family_levels_source": "anchors.trajectories[track].anchors filtered by label='CO'",
+        "family_level_definition": "Each CO anchor defines a family level with CO_sys = its sys value",
+        "selection_policy": {
+          "type": "adjacent_bounds",
+          "tolerance": 0.5,
+          "procedure": [
+            "1. CO 앵커들의 sys 값을 정렬하여 패밀리 레벨 목록 생성 (예: [10, 15, 20])",
+            "2. CO_sys가 특정 레벨과 tolerance 내에서 일치:",
+            "   → family_lower = family_upper = 해당 레벨 (단일 패밀리)",
+            "3. CO_sys가 두 레벨 사이:",
+            "   → family_lower = 하위 레벨, family_upper = 상위 레벨",
+            "   → family_ratio = (CO_sys - family_lower) / (family_upper - family_lower)",
+            "4. CO_sys가 최소값 미만 또는 최대값 초과:",
+            "   → 가장 가까운 레벨로 clamp (외삽 금지)"
+          ]
+        }
+      },
+      "outputs": ["family_lower", "family_upper", "family_ratio"]
+    },
+
+    {
+      "step": 3,
+      "name": "compute_c_per_family",
+      "description": "Compute internal variable c from 3C input within each selected CO family.",
+      "rules": {
+        "family_grouping": {
+          "definition": "anchors 리스트를 순회하며 CO 앵커가 나오면 새 패밀리 시작. 다음 CO 앵커 전까지의 3C 앵커들이 그 패밀리의 3C→c 테이블 구성",
+          "family_key": "CO 앵커의 sys 값 (예: 20)",
+          "3C_points": "해당 패밀리 블록 내 3C 앵커들의 좌표를 입력 축으로, sys 값을 c로 사용"
+        },
+        "short_variant_constraint": {
+          "3C_location": "항상 단쿠션(LEFT/RIGHT)에 위치",
+          "interpolation_axis": "y (short-axis)",
+          "note": "x 좌표는 상수, y 좌표만 변화"
+        },
+        "interpolation_per_family": {
+          "method": "linear",
+          "axis": "short (y)",
+          "clamp": true,
+          "no_extrapolation": true,
+          "procedure": [
+            "1. family_lower 패밀리:",
+            "   - 해당 패밀리의 3C 앵커들로 정렬된 (y좌표, c) 쌍 생성",
+            "   - 입력 3C 마크의 y좌표로 선형 보간 → c_lower",
+            "2. family_upper 패밀리 (다른 경우):",
+            "   - 동일 방식으로 c_upper 계산",
+            "3. 범위 밖인 경우: 해당 패밀리 테이블의 min/max c로 clamp"
+          ]
+        }
+      },
+      "outputs": ["c_lower", "c_upper"]
+    },
+
+    {
+      "step": 4,
+      "name": "interpolate_c_across_families",
+      "description": "Interpolate c across CO families if needed (two-stage linear interpolation).",
+      "rules": {
+        "interpolation_type": "two-stage linear (1D in 3C short-axis within family, then 1D across families)",
+        "note": "bilinear 기하학적 보간이 아닌 2단계 선형 보간",
+        "procedure": [
+          "1. if family_lower == family_upper:",
+          "     c = c_lower",
+          "2. else:",
+          "     c = c_lower + (c_upper - c_lower) * family_ratio",
+          "3. family_ratio는 Step 2에서 계산됨, [0,1] 범위로 clamp"
+        ],
+        "rationale": "CO_sys dimension + 3C short-axis dimension의 2D 구조"
+      },
+      "outputs": ["c"]
+    },
+
+    {
+      "step": 5,
+      "name": "compute_1C_sys",
+      "description": "Compute final 1C_sys using internal variable c.",
+      "formula": {
+        "expr": "1C_sys = CO_sys + c",
+        "vars": ["CO_sys", "c"],
+        "domain": "sys-only",
+        "note": "c는 3C 좌표에서 파생된 내부 변수, 독립적인 3C_sys가 아님"
+      },
+      "outputs": ["1C_sys"]
+    },
+
+    {
+      "step": 6,
+      "name": "map_1C_sys_to_coord",
+      "description": "Map 1C_sys to display coordinates using 1C anchors of the selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "filter": "anchors where label='1C'",
+        "axis_inference": {
+          "use": "axis_inference.mapping",
+          "note": "1C는 장쿠션(TOP/BOTTOM)에 위치, x축 사용"
+        },
+        "sys_to_coord": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true,
+          "procedure": [
+            "1. 1C_sys를 입력으로 1C anchors에서 인접 앵커 찾기",
+            "2. 선형 보간으로 x 좌표 계산",
+            "3. 범위 밖인 경우 1C 앵커 x좌표 min/max로 clamp"
+          ]
+        }
+      },
+      "outputs": ["mark_1C"]
+    },
+
+    {
+      "step": 7,
+      "name": "fixed_hit_point",
+      "description": "N Across Short uses a fixed hit point.",
+      "rules": {
+        "hit_point": {
+          "mode": "fixed",
+          "clock": "12:00",
+          "note": "Short 시스템은 12시 방향 고정 타점"
+        }
+      },
+      "outputs": ["hit_point"]
+    }
+  ],
+
+  "output_mark_policy": {
+    "sys_value": {
+      "preserve": true,
+      "note": "1C_sys는 계산 결과를 그대로 유지"
+    },
+    "coordinate_value": {
+      "clamp_to_anchor_range": true,
+      "note": "x 좌표는 1C 앵커 범위로 clamp (물리적 표시 정책)"
+    }
+  },
+
+  "outputs": {
+    "sys": ["CO_sys", "c", "1C_sys"],
+    "marks": [
+      {
+        "id": "1C",
+        "space": "Fg",
+        "rail": "track_dependent",
+        "axis": "long",
+        "value": "x_coordinate from sys_to_coord",
+        "meta": {
+          "sys_value": "1C_sys",
+          "formula": "1C_sys = CO_sys + c"
+        }
+      }
+    ],
+    "hit_point": {
+      "position": "12:00",
+      "mode": "fixed"
+    }
+  },
+
+  "validation_scenarios": {
+    "note": "실제 anchors.json 데이터 기반 시나리오 (track = B2T_R)",
+    "anchor_reference": {
+      "track": "B2T_R",
+      "CO_families": [
+        { "level": 20, "anchor": "CO_(60,-2.25)_20" },
+        { "level": 15, "anchor": "CO_(65,-2.25)_15" },
+        { "level": 10, "anchor": "CO_(70,-2.25)_10" }
+      ],
+      "1C_anchors": [
+        { "coord": "(60,42.25)", "sys": 40 },
+        { "coord": "(65,42.25)", "sys": 30 },
+        { "coord": "(70,42.25)", "sys": 20 },
+        { "coord": "(75,42.25)", "sys": 10 },
+        { "coord": "(80,42.25)", "sys": 0 }
+      ],
+      "3C_constraint": "x=80 고정, y축 변화"
+    },
+    "scenarios": [
+      {
+        "id": "exact_family_match_short",
+        "description": "CO_sys가 정확히 패밀리 레벨과 일치 (단일 패밀리 사용)",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 60, "y": -2.25 },
+          "3C": { "space": "Rg", "rail": "RIGHT", "axis": "short", "value": 80, "y": 20 }
+        },
+        "expected": {
+          "CO_sys": 20,
+          "family_selection": {
+            "family_lower": 20,
+            "family_upper": 20,
+            "family_ratio": 0,
+            "note": "CO x=60 → sys=20 (정확 일치)"
+          },
+          "c_computation": {
+            "family_used": "CO_sys=20",
+            "3C_table": "[(80,0)→0, (80,10)→1.5, (80,20)→3, (80,30)→4.5, (80,40)→6]",
+            "3C_input": "(80,20)",
+            "axis": "y (short-axis)",
+            "c_lower": 3,
+            "c_upper": 3,
+            "c": 3,
+            "note": "3C y=20은 테이블에 정확 일치 → c=3"
+          },
+          "formula": {
+            "1C_sys": "CO_sys + c = 20 + 3 = 23"
+          },
+          "1C_coord": "1C_sys=23 → 1C anchors에서 x 좌표 보간"
+        }
+      },
+      {
+        "id": "inter_family_interpolation_short",
+        "description": "CO_sys가 두 패밀리 레벨 사이 (2단계 선형 보간)",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 62.5, "y": -2.25 },
+          "3C": { "space": "Rg", "rail": "RIGHT", "axis": "short", "value": 80, "y": 15 }
+        },
+        "expected": {
+          "CO_sys": "17.5 (x=62.5는 x=60(sys=20)과 x=65(sys=15) 사이 중간)",
+          "family_selection": {
+            "family_lower": 15,
+            "family_upper": 20,
+            "family_ratio": "0.5 ((17.5-15)/(20-15))",
+            "note": "두 패밀리 사용"
+          },
+          "c_computation": {
+            "family_lower": {
+              "level": 15,
+              "3C_table": "[(80,0)→0, (80,10)→1.25, (80,20)→2.5, (80,30)→3.75, (80,40)→5]",
+              "3C_input": "(80,15)",
+              "axis": "y",
+              "c_lower": "선형 보간: y=10→1.25와 y=20→2.5 사이 중간 = 1.875"
+            },
+            "family_upper": {
+              "level": 20,
+              "3C_table": "[(80,0)→0, (80,10)→1.5, (80,20)→3, (80,30)→4.5, (80,40)→6]",
+              "3C_input": "(80,15)",
+              "axis": "y",
+              "c_upper": "선형 보간: y=10→1.5와 y=20→3 사이 중간 = 2.25"
+            },
+            "c": "c_lower + (c_upper - c_lower) * ratio = 1.875 + (2.25 - 1.875) * 0.5 = 2.0625",
+            "note": "2단계 선형 보간: 3C y축 + CO_sys 축"
+          },
+          "formula": {
+            "1C_sys": "CO_sys + c = 17.5 + 2.0625 = 19.5625"
+          },
+          "1C_coord": "1C_sys=19.5625 → 1C anchors에서 x 좌표 보간"
+        }
+      },
+      {
+        "id": "short_axis_clamp",
+        "description": "3C short-axis 입력이 패밀리 테이블 범위 초과 (clamp 적용)",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 60, "y": -2.25 },
+          "3C": { "space": "Rg", "rail": "RIGHT", "axis": "short", "value": 80, "y": 45 }
+        },
+        "expected": {
+          "CO_sys": 20,
+          "family_selection": {
+            "family_lower": 20,
+            "family_upper": 20
+          },
+          "c_computation": {
+            "family_used": "CO_sys=20",
+            "3C_table": "[(80,0)→0, (80,10)→1.5, (80,20)→3, (80,30)→4.5, (80,40)→6]",
+            "3C_input": "(80,45)",
+            "axis": "y",
+            "note": "y=45 > max(40) → clamp to y=40",
+            "c": 6,
+            "clamp": "applied (no extrapolation)"
+          },
+          "formula": {
+            "1C_sys": "CO_sys + c = 20 + 6 = 26"
+          },
+          "no_extrapolation": true,
+          "clamp": true
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "meta": {
+    "system_id": "minus_5_system",
+    "system_name": "Minus 5 System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "references": {
+      "profile": "systems/minus_5_system/profile.json",
+      "logic": "systems/minus_5_system/logic.json",
+      "anchors": "systems/minus_5_system/anchors.json",
+      "manual": "Minus_5_system_base_manual.txt"
+    },
+    "notes": [
+      "All calculations are strictly sys-domain only.",
+      "This system is a helper system derived from 5&half.",
+      "No iteration, no convergence, no branching in formula."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "1C", "3C"],
+    "validation": {
+      "track_required": true,
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    },
+    "validation": "input mark must include rail"
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "offset_fg2rg": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "description": "Resolve CO_sys, 1C_sys, and 3C_sys from anchors under selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "1C", "3C"],
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["CO_sys", "1C_sys", "3C_sys"]
+    },
+
+    {
+      "step": 2,
+      "name": "compute_1C_sys",
+      "description": "Compute 1C_sys using Minus 5 system formula.",
+      "formula": {
+        "expr": "1C_sys_raw = CO_sys - 3C_sys - 5",
+        "vars": ["CO_sys", "3C_sys"]
+      },
+      "post_process": {
+        "clamp_range": [0, 80],
+        "expr": "1C_sys = clamp(1C_sys_raw, 0, 80)"
+      },
+      "outputs": ["1C_sys"]
+    },
+
+    {
+      "step": 3,
+      "name": "map_1C_sys_to_coord",
+      "description": "Map 1C_sys to display coordinates using 1C anchors of the selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "label": "1C",
+        "sys_to_coord": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["mark_1C"]
+    },
+
+    {
+      "step": 4,
+      "name": "fixed_tip",
+      "description": "Minus 5 system uses a fixed center hit-point.",
+      "rules": {
+        "tip": {
+          "mode": "fixed",
+          "position": "center"
+        }
+      },
+      "outputs": ["tip"]
+    }
+  ],
+
+  "output_mark_policy": {
+    "sys_value": {
+      "preserve": true,
+      "note": "1C_sys is the final computed system value."
+    },
+    "coordinate_value": {
+      "clamp_to_anchor_range": true,
+      "note": "Display coordinates are clamped to physical anchor bounds."
+    }
+  },
+
+  "outputs": {
+    "sys": ["CO_sys", "3C_sys", "1C_sys"],
+    "marks": ["mark_1C"],
+    "tip": ["tip"]
+  },
+
+  "validation_scenarios": {
+    "note": "Representative anchor-based validation cases.",
+    "scenarios": [
+      {
+        "id": "exact_anchor_match",
+        "inputs": {
+          "track": "B2T_R",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 40 },
+          "1C": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 50 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 80 }
+        },
+        "expected": {
+          "formula": "1C_sys = CO_sys - 3C_sys - 5",
+          "interpolation": "none"
+        }
+      },
+      {
+        "id": "interpolation_required",
+        "inputs": {
+          "track": "B2T_L",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 55 },
+          "1C": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 25 },
+          "3C": { "space": "Rg", "rail": "BOTTOM", "axis": "long", "value": 12 }
+        },
+        "expected": {
+          "interpolation": "linear",
+          "clamp": "none"
+        }
+      },
+      {
+        "id": "out_of_range_clamp",
+        "inputs": {
+          "track": "T2B_L",
+          "CO": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 0 },
+          "1C": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 80 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 80 }
+        },
+        "expected": {
+          "clamp": "1C_sys clamped to [0,80]"
+        }
+      }
+    ]
+  }
+}

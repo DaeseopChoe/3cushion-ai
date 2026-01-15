@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "system_id": "plus_5_system",
+    "system_name": "Plus 5 System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations"
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "1C", "3C"],
+    "validation": {
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    }
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "1C", "3C"],
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["CO_sys", "C1_sys", "C3_sys_anchor"]
+    },
+
+    {
+      "step": 2,
+      "name": "compute_3C_sys_pred",
+      "formula": {
+        "expr": "C3_sys_pred = CO_sys + 5 + (C1_sys * (2 * CO_sys / 5))"
+      },
+      "outputs": ["C3_sys_pred"]
+    },
+
+    {
+      "step": 3,
+      "name": "compute_4C_sys",
+      "formula": {
+        "expr": "C4_sys = CO_sys + C3_sys_anchor"
+      },
+      "outputs": ["C4_sys"]
+    },
+
+    {
+      "step": 4,
+      "name": "map_4C_to_display",
+      "rules": {
+        "label": "4C",
+        "source": "anchors.trajectories[track].anchors",
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["4C_mark"]
+    }
+  ],
+
+  "outputs": {
+    "sys": [
+      "CO_sys",
+      "C1_sys",
+      "C3_sys_anchor",
+      "C3_sys_pred",
+      "C4_sys"
+    ],
+    "marks": ["4C_mark"],
+    "hit_point": {
+      "type": "fixed",
+      "value": 0.0
+    }
+  }
+}

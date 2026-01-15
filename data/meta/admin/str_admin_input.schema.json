@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "STR Admin Input Schema",
+  "type": "object",
+  "required": [
+    "stroke_speed_profile",
+    "stroke_type",
+    "rail_speed"
+  ],
+  "properties": {
+    "stroke_speed_profile": {
+      "type": "string",
+      "description": "스트로크 속도 성향",
+      "enum": ["등속", "가속", "감속"]
+    },
+    "stroke_type": {
+      "type": "string",
+      "description": "스트로크 타입",
+      "enum": ["롱스트로크", "숏스트로크", "스탠다드 스트로크"]
+    },
+    "rail_speed": {
+      "type": "number",
+      "description": "레일 기준 속도",
+      "minimum": 0.5,
+      "maximum": 5.0,
+      "multipleOf": 0.1
+    }
+  },
+  "additionalProperties": false
+}

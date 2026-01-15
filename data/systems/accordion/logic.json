@@ -1,0 +1,49 @@
+{
+  "system_id": "accordion",
+  "track_selection": {
+    "strategy": "none",
+    "note": "Accordion system has no track branching. It is formula-driven."
+  },
+  "required_inputs": ["unit", "spin", "target_value"],
+  "input_validation": {
+    "unit_required": true,
+    "spin_required": true,
+    "target_value_required": true,
+    "mixed_units_not_allowed": true,
+    "rules": [
+      {
+        "if": "unit not in {RG, FG}",
+        "then_error": "Unit must be RG or FG."
+      },
+      {
+        "if": "spin not in {4시30분, 7시30분}",
+        "then_error": "Spin must be 4시30분 or 7시30분."
+      },
+      {
+        "if": "target_value is not integer or target_value < 0 or target_value > 30",
+        "then_error": "target_value must be an integer in [0,30]."
+      }
+    ]
+  },
+  "applicability": {
+    "shot_type": "rail_first_long_to_long_vertical_baseline",
+    "constraints": [
+      "rail-first shot only",
+      "baseline is vertical reference from (x0,0) to (x0,40) for overlay",
+      "do not mix RG/FG in one request"
+    ]
+  },
+  "notes": {
+    "ko": [
+      "logic.json은 적용 조건/입력 검증만 담당합니다.",
+      "수치 계산(slope)은 derivations/accordion.rules.json에서만 수행합니다."
+    ]
+  },
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-11",
+    "source": "accordion_input_schema.json"
+  }
+}

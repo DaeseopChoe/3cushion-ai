@@ -1,0 +1,44 @@
+{
+  "track_selection": {
+    "strategy": "ruleset",
+    "tolerance": 0.02,
+    "ruleset": [
+      {
+        "if": "3C.rail == TOP",
+        "then": "T2B"
+      },
+      {
+        "if": "3C.rail == BOTTOM",
+        "then": "B2T"
+      },
+      {
+        "if": "2C.rail == LEFT",
+        "then": "L"
+      },
+      {
+        "if": "2C.rail == RIGHT",
+        "then": "R"
+      }
+    ]
+  },
+
+  "required_marks": ["1C"],
+
+  "hp_policy": {
+    "co_required": false,
+    "pattern": "long-short-long",
+    "grid_mix": {
+      "1C": "Rg",
+      "2C": "Rg",
+      "3C": "Fg"
+    }
+  },
+
+  "notes": [
+    "Rodriguez system: 볼-퍼스트 LSL 패턴",
+    "CO를 사용하지 않음",
+    "3C 위치(Fg, TOP/BOTTOM)로 세로 방향 결정",
+    "2C 위치(Rg, LEFT/RIGHT)로 좌우 방향 결정",
+    "대칭 변환 시 sys 값은 불변"
+  ]
+}

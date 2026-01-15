@@ -1,0 +1,69 @@
+{
+  "system_id": "backside_umbrella",
+  "system_name": "Backside Umbrella",
+  "alias": ["behind_umbrella", "rear_umbrella"],
+  "category": {
+    "family": "umbrella",
+    "type": "composite",
+    "difficulty": "hard"
+  },
+  "display": {
+    "ko": {
+      "title": "뒤쪽 우산 시스템",
+      "short_title": "Backside Umbrella",
+      "description": "공이 진행 방향의 뒤쪽 쿠션군을 활용하는 우산 계열 시스템. 고정점 반복 계산을 통해 HP(타점)를 결정한다."
+    },
+    "en": {
+      "title": "Backside Umbrella System",
+      "short_title": "Backside Umbrella",
+      "description": "An umbrella-family system using backside cushion paths. The hit point (HP) is determined via fixed-point iteration."
+    }
+  },
+  "formula_concept": {
+    "canonical": "HP = CO + 1C + 3C",
+    "note": "This is a conceptual relation only. Actual computation is iterative and defined in derivations/backside_umbrella.rules.json."
+  },
+  "aim_policy": {
+    "hit_point": {
+      "type": "dynamic",
+      "description": "HP is not fixed and must be solved iteratively.",
+      "note": "Initial guess and convergence rules are defined in derivations."
+    },
+    "spin": {
+      "type": "conditional",
+      "note": "Spin direction and amount depend on angle region and exception rules."
+    }
+  },
+  "scope": {
+    "requires_anchors": true,
+    "requires_track": true,
+    "supported": [
+      "Backside umbrella paths",
+      "Multiple cushion sequences (>=4 cushions)",
+      "Fixed-point iterative HP solving"
+    ],
+    "not_supported": [
+      "Direct (non-umbrella) systems",
+      "One-shot closed-form systems"
+    ]
+  },
+  "notes": {
+    "system_characteristics": [
+      "This system is derived from the 5&half family but uses reverse (backside) cushion geometry.",
+      "HP cannot be computed in a single step and requires convergence."
+    ],
+    "ssot_roles": [
+      "systems/backside_umbrella/profile.json : identity, concept, UI text only",
+      "systems/backside_umbrella/logic.json : track selection and mode gating only",
+      "systems/backside_umbrella/anchors.json : reference anchors (do not modify)",
+      "derivations/backside_umbrella.rules.json : all computation and iteration rules"
+    ]
+  },
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_profile": true,
+    "last_updated": "2026-01-11",
+    "source": "backside_umbrella_profile.json"
+  }
+}

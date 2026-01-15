@@ -1,0 +1,27 @@
+{
+  "system": "Long Wedge System",
+  "formula": "1C_f - (CO_f * 2C_r) = HP_n",
+  "value_domains": {
+    "CO": [0, 1, 2, 3, 4],
+    "1C": [0, 5, 10, 15, 20],
+    "2C": [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5]
+  },
+  "safety": {
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68,
+    "no_extrapolation": true
+  },
+  "space_rule": {
+    "frame_constants": [-2.25, 42.25, 82.25],
+    "tolerance": 0.02,
+    "rule": "if x or y matches frame_constants => Fg, else Rg"
+  },
+  "mappings": null,
+  "meta": {
+    "version": "1.0",
+    "generator": "profile_template_generator.py"
+  }
+}

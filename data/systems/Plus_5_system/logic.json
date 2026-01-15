@@ -1,0 +1,67 @@
+{
+  "system_id": "plus_5_system",
+  "system_name": "Plus 5 System",
+  "role": "track_selection_only",
+
+  "track_selection": {
+    "strategy": "constant_pattern_snap",
+    "snap_tolerance": 0.02,
+
+    "rules": [
+      {
+        "id": "B2T_R",
+        "conditions": {
+          "CO": { "x": -2.25 },
+          "3C": { "x": 0 },
+          "4C": { "x": 82.25 },
+          "relation": "CO_y > 3C_y"
+        }
+      },
+      {
+        "id": "B2T_L",
+        "conditions": {
+          "CO": { "x": 82.25 },
+          "3C": { "x": 80 },
+          "4C": { "x": -2.25 },
+          "relation": "CO_y > 3C_y"
+        }
+      },
+      {
+        "id": "T2B_R",
+        "conditions": {
+          "CO": { "x": 82.25 },
+          "3C": { "x": 80 },
+          "4C": { "x": -2.25 },
+          "relation": "CO_y < 3C_y"
+        }
+      },
+      {
+        "id": "T2B_L",
+        "conditions": {
+          "CO": { "x": -2.25 },
+          "3C": { "x": 0 },
+          "4C": { "x": 82.25 },
+          "relation": "CO_y < 3C_y"
+        }
+      }
+    ],
+
+    "fallback": {
+      "policy": "error",
+      "message": "Unable to determine track for plus_5_system"
+    }
+  },
+
+  "hit_point_policy": {
+    "type": "fixed",
+    "value": 0.0,
+    "note": "Plus 5 system always uses center hit point"
+  },
+
+  "required_marks": ["CO", "1C", "3C"],
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true
+  }
+}

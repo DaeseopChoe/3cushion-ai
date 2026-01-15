@@ -1,0 +1,81 @@
+{
+  "system": "otip_plus",
+
+  "identity": {
+    "concept": "pure_reflection",
+    "description": "Incidence angle equals reflection angle (zero-tip, no spin)",
+    "strict": true
+  },
+
+  "derivation_policy": {
+    "primary_target": "C2_f",
+
+    "methods": {
+      "table": {
+        "enabled": true,
+        "source": "anchors",
+        "notes": "Discrete anchor table mapping CO_f to C2_f"
+      },
+      "formula": {
+        "enabled": true,
+        "expression": "C2_f = mirror(CO_f)",
+        "notes": "Exact geometric reflection across short rail"
+      },
+      "vanish": {
+        "enabled": true,
+        "notes": "Vanish point method used when C4_f is given"
+      }
+    },
+
+    "method_selection": {
+      "default": "table",
+      "fallback_order": ["formula", "vanish"]
+    }
+  },
+
+  "path_rules": {
+    "RIGHT_TOP": {
+      "C1_rail": "RIGHT",
+      "C2_rail": "TOP"
+    },
+    "LEFT_TOP": {
+      "C1_rail": "LEFT",
+      "C2_rail": "TOP"
+    }
+  },
+
+  "validation_rules": {
+    "C3_check": {
+      "enabled": true,
+      "rule": "ratio_1_5",
+      "tolerance": 0.02,
+      "notes": "C3 must satisfy 1.5:1 rule relative to C1 and C2"
+    }
+  },
+
+  "reverse_derivation": {
+    "from_C4": {
+      "enabled": true,
+      "rule": "inverse_reflection",
+      "notes": "When C4_f is provided, C2_f is derived by reversing reflection"
+    }
+  },
+
+  "guards": {
+    "no_extrapolation": true,
+    "snap_tolerance": 0.02,
+    "ambiguity_policy": "error"
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "derivation_rules",
+    "notes": [
+      "Otip Plus uses zero-tip and no side spin",
+      "Primary output is C2_f on top rail",
+      "Anchor table is the preferred derivation method",
+      "Formula and vanish methods act as fallbacks",
+      "All derivations operate strictly in system space"
+    ]
+  }
+}

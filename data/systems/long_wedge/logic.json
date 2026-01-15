@@ -1,0 +1,86 @@
+{
+  "system_id": "long_wedge",
+  "system_name": "Long Wedge System",
+  "role": "track_selection_only",
+
+  "track_selection": {
+    "strategy": "constant_line_combination",
+    "snap_tolerance": 0.02,
+
+    "rules": [
+      {
+        "id": "B2T_R",
+        "condition": {
+          "CO": { "rail": "RIGHT" },
+          "1C": { "rail": "LEFT" },
+          "2C": { "rail": "TOP" }
+        },
+        "result": "B2T_R"
+      },
+      {
+        "id": "B2T_L",
+        "condition": {
+          "CO": { "rail": "LEFT" },
+          "1C": { "rail": "RIGHT" },
+          "2C": { "rail": "TOP" }
+        },
+        "result": "B2T_L"
+      },
+      {
+        "id": "T2B_R",
+        "condition": {
+          "CO": { "rail": "LEFT" },
+          "1C": { "rail": "RIGHT" },
+          "2C": { "rail": "BOTTOM" }
+        },
+        "result": "T2B_R"
+      },
+      {
+        "id": "T2B_L",
+        "condition": {
+          "CO": { "rail": "RIGHT" },
+          "1C": { "rail": "LEFT" },
+          "2C": { "rail": "BOTTOM" }
+        },
+        "result": "T2B_L"
+      }
+    ],
+
+    "fallback": {
+      "policy": "error",
+      "message": "Unable to resolve track: CO, 1C, and 2C must be on expected constant rails."
+    },
+
+    "source_reference": "long_wedge_system_track_selector.py"
+  },
+
+  "required_marks": ["CO", "1C", "2C"],
+
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true,
+    "error_messages": {
+      "missing_CO": "CO 입력이 필요합니다.",
+      "missing_1C": "1C 입력이 필요합니다.",
+      "missing_2C": "2C 입력이 필요합니다.",
+      "invalid_position": "CO, 1C, 2C는 각각 지정된 레일 상수선에 있어야 합니다."
+    }
+  },
+
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 선택만 담당합니다.",
+      "Long Wedge 시스템은 CO, 1C, 2C의 레일 조합으로 트랙이 결정됩니다.",
+      "계산 공식은 derivations/long_wedge.rules.json에서만 수행됩니다."
+    ]
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-11",
+    "source": "long_wedge_system_track_selector.py"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "system": "even_ratio_rail_based",
+  "version": "1.0.0",
+  "units": {
+    "coordinate": "RG",
+    "mm_per_grid": 35.55,
+    "ball_radius_mm": 30.75
+  },
+  "table": {
+    "long_grids": 80,
+    "short_grids": 40,
+    "size_mm": {
+      "W": 2844,
+      "H": 1422
+    }
+  },
+  "rails": [
+    "long_left",
+    "long_right",
+    "short_bottom",
+    "short_top"
+  ],
+  "definition": {
+    "summary": "CO와 OB에서 선택 레일까지의 법선 거리 비율(d1:d2)을 레일 위 투영점(F1,F2)의 내분으로 적용하여 C1을 결정한다.",
+    "distance_rg": {
+      "long_left": "d = (x*mm - R) / mm",
+      "long_right": "d = ((80 - x)*mm - R) / mm",
+      "short_bottom": "d = (y*mm - R) / mm",
+      "short_top": "d = ((40 - y)*mm - R) / mm"
+    },
+    "division": "C1_coord = F1 + (F2 - F1) * d1/(d1 + d2)"
+  },
+  "examples": [
+    {
+      "name": "ex_long_left_basic",
+      "rail": "long_left",
+      "CO": {
+        "x": 10.0,
+        "y": 10.0
+      },
+      "OB": {
+        "x": 20.0,
+        "y": 40.0
+      },
+      "expected": {
+        "C1": {
+          "x": 0.0,
+          "y": 19.694
+        }
+      }
+    }
+  ]
+}

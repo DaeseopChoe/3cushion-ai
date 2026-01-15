@@ -1,0 +1,62 @@
+{
+  "system": "2_3_system",
+
+  "formula": {
+    "expr": "1C_f = (CO_f - (1.5 * 3C_f - tip * 5)) / 2"
+  },
+
+  "value_domains": {
+    "CO_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Cue ball reference value on frame grid"
+    },
+    "3C_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Third cushion reference value on frame grid"
+    },
+    "tip": {
+      "unit": 1,
+      "allowed": [0, 1, 2, 3, 4],
+      "notes": "Discrete spin adjustment (tip units)"
+    },
+    "1C_f": {
+      "unit": 1,
+      "range": [-40, 80],
+      "notes": "Derived first cushion value (primary output)"
+    }
+  },
+
+  "safety": {
+    "pattern": "long-short-long",
+    "no_extrapolation": true,
+    "sys_identity_strict": true,
+    "ambiguity_policy": "error"
+  },
+
+  "space_rule": {
+    "grid": "frame",
+    "snap_tolerance": 0.02,
+    "frame_constants": {
+      "BOTTOM": -2.25,
+      "TOP": 42.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "2/3 system is a deterministic calculation-based system",
+      "First cushion (1C) is derived from CO, 3C, and discrete tip adjustment",
+      "Tip unit is treated as a system-space scalar (5 units per tip)",
+      "No candidate expansion or interpolation is performed",
+      "All calculations are executed strictly in system-value space"
+    ]
+  }
+}

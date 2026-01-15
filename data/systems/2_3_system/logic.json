@@ -1,0 +1,45 @@
+{
+  "system": "2_3_system",
+
+  "applicability": {
+    "required_marks": ["CO", "3C"],
+    "notes": [
+      "Two-Thirds system derives 1C from CO and 3C",
+      "System supports spin adjustment via discrete tip values"
+    ]
+  },
+
+  "track_selection": {
+    "strategy": "auto_detect",
+    "supported_tracks": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"],
+    "normalization_base": "B2T_L"
+  },
+
+  "input_constraints": {
+    "tip_allowed": [0, 1, 2, 3, 4]
+  },
+
+  "required_marks": ["CO", "3C"],
+  "optional_marks": ["1C"],
+
+  "result_policy": {
+    "primary_result": "1C",
+    "description": "Primary output is first cushion position (1C)"
+  },
+
+  "hp_policy": {
+    "description": "Spin is expressed as discrete tip values",
+    "tip_gain_unit": 5
+  },
+
+  "notes": [
+    "Track is detected from CO and 3C rail positions",
+    "System operates strictly in system-value space (sys-only)",
+    "Coordinate symmetry is applied only after calculation"
+  ],
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_logic"
+  }
+}

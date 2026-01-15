@@ -1,0 +1,51 @@
+{
+  "system_id": "spider_web",
+  "system_name": "Spider Web System",
+  "role": "track_and_input_logic_only",
+
+  "track_policy": {
+    "available_tracks": ["RLTR_R", "LRTL_L", "RLBR_L", "LRBL_R"],
+    "selection_mode": "auto_or_explicit",
+    "note": "Track can be explicitly provided, otherwise inferred from CO/1C rails and relative direction."
+  },
+
+  "input_mode": {
+    "type": "solve_one_of_four",
+    "required_any_three_of": ["CO", "1C", "3C", "TIP"],
+    "optional": ["track"],
+    "derived_marks": ["CO", "1C", "3C", "TIP"],
+    "description": "Exactly 3 of 4 values must be provided; the remaining one is derived in rules.json."
+  },
+
+  "spin_policy": {
+    "mode": "auto_or_explicit",
+    "note": "If spin(L/R) is not provided, infer using CO/1C route and relative direction.",
+    "inference": {
+      "route_rule": [
+        "if CO.rail==RIGHT and 1C.rail==LEFT => route=RL",
+        "if CO.rail==LEFT and 1C.rail==RIGHT => route=LR"
+      ],
+      "direction_rule": [
+        "if y(1C) > y(CO): RL->R, LR->L",
+        "if y(1C) < y(CO): RL->L, LR->R"
+      ]
+    }
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "rules_reference": "derivations/spider_web.rules.json",
+    "note": "All calculations are performed exclusively in rules.json"
+  },
+
+  "validation_hints": {
+    "require_anchor_match": true,
+    "on_invalid_input": "error"
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-13"
+  }
+}

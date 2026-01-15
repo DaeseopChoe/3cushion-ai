@@ -1,0 +1,93 @@
+{
+  "system": "3and4_system",
+
+  "display": {
+    "name_key": "system.3and4.name",
+    "short_name_key": "system.3and4.short",
+    "description_key": "system.3and4.desc",
+
+    "category": "composite",
+    "difficulty": "hard",
+
+    "tags": [
+      "reflection",
+      "inside_outside",
+      "4c_based",
+      "geometric",
+      "advanced"
+    ],
+
+    "overlay_keys": {
+      "how_to_use": "system.3and4.howto",
+      "caution": "system.3and4.caution",
+      "tip": "system.3and4.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "1C_f = intersect(line(CB, TB), rail)"
+  },
+
+  "value_domains": {
+    "4C_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Fourth cushion reference value on frame grid"
+    },
+    "CB_xy": {
+      "type": "point",
+      "range": {
+        "x": [0.5, 79.5],
+        "y": [0.5, 39.5]
+      },
+      "notes": "Cue ball center position (physical coordinates)"
+    },
+    "TB_xy": {
+      "type": "point",
+      "range": {
+        "x": [0.5, 79.5],
+        "y": [0.5, 39.5]
+      },
+      "notes": "Target ball (impact ball) center position"
+    },
+    "1C_f": {
+      "unit": 1,
+      "range": [-10, 90],
+      "notes": "Derived first cushion intersection value (primary output)"
+    }
+  },
+
+  "safety": {
+    "pattern": "long-short-long",
+    "requires_geometry": true,
+    "no_extrapolation": true,
+    "sys_identity_strict": true,
+    "ambiguity_policy": "error"
+  },
+
+  "space_rule": {
+    "grid": "frame",
+    "snap_tolerance": 0.02,
+    "frame_constants": {
+      "BOTTOM": -2.25,
+      "TOP": 42.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "3and4 system is a geometry-based system derived from 4C reference",
+      "System determines 1C by intersecting the CB–TB line with the cushion rail",
+      "Inside/Outside classification depends on the relative position of the target ball",
+      "System operates on continuous geometry rather than discrete integer tables",
+      "Interpolation is inherent to the system; extrapolation is strictly forbidden",
+      "All calculations are executed in system-value space with physical coordinates used only for geometry"
+    ]
+  }
+}

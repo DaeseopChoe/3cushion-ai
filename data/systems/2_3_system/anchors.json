@@ -1,0 +1,38 @@
+{
+  "system": "2_3_system",
+  "canonical": "B2T_L",
+
+  "trajectories": {
+    "B2T_L": [
+      { "id": "3C_10", "space": "Rg", "rail": "TOP", "axis": "long", "value": 10 },
+      { "id": "3C_20", "space": "Rg", "rail": "TOP", "axis": "long", "value": 20 },
+      { "id": "3C_30", "space": "Rg", "rail": "TOP", "axis": "long", "value": 30 },
+      { "id": "3C_40", "space": "Rg", "rail": "TOP", "axis": "long", "value": 40 }
+    ],
+
+    "B2T_R": {
+      "generated_from": "B2T_L",
+      "ops": ["H"]
+    },
+
+    "T2B_L": {
+      "generated_from": "B2T_L",
+      "ops": ["V"]
+    },
+
+    "T2B_R": {
+      "generated_from": "B2T_L",
+      "ops": ["RPI"]
+    }
+  },
+
+  "meta": {
+    "generated_from": "2_3_system_dataset.json",
+    "notes": [
+      "Anchors are pure 3C system-value references",
+      "All derived tracks preserve system values; only coordinates are mirrored",
+      "No tip or correction data included",
+      "This file is SSOT for 2/3 system anchors"
+    ]
+  }
+}

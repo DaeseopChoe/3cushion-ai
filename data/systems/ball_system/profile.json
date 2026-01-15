@@ -1,0 +1,82 @@
+{
+  "system": "ball_system",
+
+  "display": {
+    "name_key": "system.ball.name",
+    "short_name_key": "system.ball.short",
+    "description_key": "system.ball.desc",
+
+    "category": "ball",
+    "difficulty": "medium",
+
+    "tags": ["ball", "hit_point", "hp", "composite", "aiming"],
+
+    "overlay_keys": {
+      "how_to_use": "system.ball.howto",
+      "caution": "system.ball.caution",
+      "tip": "system.ball.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "HP_n = CO_f + 1C_f + 3C_r"
+  },
+
+  "value_domains": {
+    "CO_f": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Cue ball reference on frame grid"
+    },
+    "1C_f": {
+      "unit": 1,
+      "range": [-20, 20],
+      "notes": "First cushion (thickness-based) frame value derived from TB position"
+    },
+    "3C_r": {
+      "unit": 1,
+      "range": [0, 80],
+      "notes": "Third cushion rail value"
+    },
+    "HP_n": {
+      "unit": 1,
+      "range": [-10, 10],
+      "notes": "Tip offset / hit point number (output domain)"
+    }
+  },
+
+  "safety": {
+    "pattern": "long-short-long",
+    "tip_range": [-4.0, 4.0],
+    "correction_only_negative": true,
+    "no_extrapolation": true,
+    "sys_identity_strict": true,
+    "ambiguity_policy": "error"
+  },
+
+  "space_rule": {
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "frame_constants": {
+      "BOTTOM": -2.25,
+      "TOP": 42.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    },
+    "snap_tolerance": 0.02
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "Ball system outputs hit point (HP) candidates rather than a single arrival value",
+      "CO_f and 1C_f are frame-based values; 3C_r is a rail-based value",
+      "HP_n is an abstract system value mapped to physical tip offset at render time",
+      "All calculations are performed in system space; coordinates are display-only"
+    ]
+  }
+}

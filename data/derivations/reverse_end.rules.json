@@ -1,0 +1,326 @@
+{
+  "meta": {
+    "system_id": "reverse_end_system",
+    "system_name": "Reverse End System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "lookup_based",
+    "notes": [
+      "This system is NOT a continuous calculation system.",
+      "All valid trajectories are predefined in anchors.json.",
+      "rules.json only defines lookup, validation, and selection policy.",
+      "No interpolation, extrapolation, or computation is allowed.",
+      "v1.0: lookup 정책 명확화, 2C 선택 정책 강화, validation 규칙 완성"
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "2C"],
+    "optional": [],
+    "mark_schema": {
+      "type": "object",
+      "required": ["space", "rail", "axis", "value"],
+      "properties": {
+        "space": { "enum": ["Fg", "Rg"] },
+        "rail": { "enum": ["TOP", "BOTTOM", "LEFT", "RIGHT"] },
+        "axis": { "enum": ["long", "short"] },
+        "value": { "type": "number" }
+      }
+    },
+    "validation": {
+      "track_required": true,
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "principle": {
+    "description": "Reverse End is a discrete lookup system.",
+    "formula_reference": {
+      "expression": "1C_sys = CO_sys + 2C_sys",
+      "purpose": "validation_only",
+      "note": "The formula is NOT used to compute values. Anchors already encode valid results. This formula is only for conceptual reference and validation."
+    },
+    "anchors_are_authoritative": true
+  },
+
+  "lookup_policy": {
+    "source": "anchors.trajectories[track].seq3c",
+    "mode": "exact_match",
+    "description": "모든 결과는 anchors.json의 seq3c에서 정확히 일치하는 조합을 찾아야 함",
+    "keys": {
+      "primary": ["CO_sys", "C2_sys"],
+      "note": "(CO_sys, 2C_sys) 쌍이 유일한 키로 작동"
+    },
+    "required_labels": ["CO", "1C", "2C", "3C"],
+    "uniqueness": {
+      "policy": "unique_pair",
+      "description": "Each (CO_sys, 2C_sys) pair must map to exactly one anchor sequence in seq3c.",
+      "on_duplicate": "error"
+    },
+    "on_not_found": {
+      "policy": "error",
+      "no_fallback": true,
+      "no_approximation": true,
+      "message": "No matching anchor sequence found for given (CO_sys, 2C_sys) in reverse_end_system."
+    }
+  },
+
+  "two_cushion_policy": {
+    "description": "Allowed 2C_sys values depend on CO_sys.",
+    "mode": "discrete",
+    "rationale": "2C 선택은 CO_sys 값에 따라 제한됨. 이 정책은 anchors.json의 구조를 반영.",
+    "mapping": {
+      "30": [5, 7.5, 10],
+      "35": [5, 10],
+      "40": [5, 10],
+      "45": [5, 10],
+      "47.5": [7.5, 15],
+      "50": [10, 20],
+      "60": [10, 20],
+      "70": [10, 20]
+    },
+    "validation": {
+      "on_invalid": "error",
+      "message": "Invalid 2C_sys for given CO_sys in reverse_end_system. Check two_cushion_policy.mapping."
+    },
+    "note": "This mapping is derived from anchors.json structure and must remain consistent."
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_inputs",
+      "description": "Resolve CO_sys and 2C_sys from input marks using seq3c.",
+      "rules": {
+        "source": "anchors.trajectories[track].seq3c",
+        "method": "seq3c_only_lookup",
+        "coordinate_snap": {
+          "tolerance": 0.02,
+          "scope": "coordinate_to_anchor_match_only",
+          "note": "좌표 스냅 허용 범위. 입력 좌표와 seq3c 내 앵커 좌표 매칭에만 사용."
+        },
+        "procedure": [
+          "1. 입력 CO 마크의 좌표와 seq3c 내 모든 시퀀스의 첫 번째 앵커(CO) 좌표 비교",
+          "2. coordinate_snap.tolerance 내에서 일치하는 CO 앵커 찾기",
+          "3. 해당 CO 앵커의 sys 값을 CO_sys로 추출",
+          "4. 입력 2C 마크의 좌표와 seq3c 내 모든 시퀀스의 세 번째 앵커(2C) 좌표 비교",
+          "5. coordinate_snap.tolerance 내에서 일치하는 2C 앵커 찾기",
+          "6. 해당 2C 앵커의 sys 값을 C2_sys로 추출",
+          "7. sys 값 비교는 항상 exact match (tolerance 사용 안 함)"
+        ],
+        "interpolation": "none",
+        "no_extrapolation": true,
+        "clamp": false,
+        "note": "seq3c가 유일한 SSOT. anchors 배열 참조 없음."
+      },
+      "outputs": ["CO_sys", "C2_sys"]
+    },
+    {
+      "step": 2,
+      "name": "validate_two_cushion",
+      "description": "Validate that selected 2C_sys is allowed for the given CO_sys.",
+      "rules": {
+        "policy": "two_cushion_policy.mapping",
+        "procedure": [
+          "1. CO_sys를 two_cushion_policy.mapping에서 확인",
+          "2. 해당 CO_sys의 허용 2C_sys 목록 가져오기",
+          "3. C2_sys가 목록에 있는지 확인",
+          "4. 없으면 error"
+        ],
+        "on_invalid": "error"
+      },
+      "outputs": ["validation_result"]
+    },
+    {
+      "step": 3,
+      "name": "lookup_sequence",
+      "description": "Lookup full sequence [CO,1C,2C,3C] from anchors.seq3c.",
+      "rules": {
+        "source": "anchors.trajectories[track].seq3c",
+        "match_keys": ["CO_sys", "C2_sys"],
+        "match_procedure": [
+          "1. seq3c 배열을 순회",
+          "2. 각 시퀀스의 CO 앵커에서 sys 값 추출 → CO_sys_seq",
+          "3. 각 시퀀스의 2C 앵커에서 sys 값 추출 → C2_sys_seq",
+          "4. if CO_sys_seq == CO_sys AND C2_sys_seq == C2_sys:",
+          "5.   해당 시퀀스 전체를 결과로 반환",
+          "6. 일치하는 시퀀스가 없으면 error"
+        ],
+        "required_labels": ["CO", "1C", "2C", "3C"],
+        "on_not_found": {
+          "policy": "error",
+          "no_fallback": true,
+          "message": "No matching sequence found in seq3c for (CO_sys, C2_sys)."
+        }
+      },
+      "outputs": ["CO_mark", "C1_mark", "C2_mark", "C3_mark"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C2_sys"],
+    "marks": [
+      {
+        "id": "CO",
+        "source": "lookup from seq3c",
+        "note": "입력 마크가 아닌 anchors에서 조회된 정확한 좌표"
+      },
+      {
+        "id": "1C",
+        "source": "lookup from seq3c",
+        "note": "계산이 아닌 anchors 조회 결과"
+      },
+      {
+        "id": "2C",
+        "source": "lookup from seq3c",
+        "note": "입력 마크가 아닌 anchors에서 조회된 정확한 좌표"
+      },
+      {
+        "id": "3C",
+        "source": "lookup from seq3c",
+        "note": "anchors에서만 도출됨"
+      }
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "no_interpolation": true,
+    "no_calculation": true,
+    "anchors_are_authoritative": true,
+    "note": "모든 결과는 anchors.json에 정확히 일치하는 조합이 있어야만 생성됨"
+  },
+
+  "validation_rules": {
+    "anchor_integrity": {
+      "require_labels": ["CO", "1C", "2C", "3C"],
+      "require_sys_values": true,
+      "require_seq3c": true,
+      "description": "anchors.json의 seq3c는 반드시 4개 앵커(CO, 1C, 2C, 3C) 시퀀스여야 함"
+    },
+    "pair_uniqueness": {
+      "keys": ["CO_sys", "C2_sys"],
+      "must_be_unique": true,
+      "description": "동일한 (CO_sys, C2_sys) 조합이 seq3c에 중복 존재하면 안 됨"
+    },
+    "two_cushion_consistency": {
+      "description": "two_cushion_policy.mapping은 실제 anchors.seq3c에 존재하는 조합만 포함해야 함",
+      "note": "Admin Mode에서 정기적으로 검증 필요"
+    }
+  },
+
+  "failure_policy": {
+    "on_lookup_failure": {
+      "no_interpolation": true,
+      "no_approximation": true,
+      "no_nearest_match": true,
+      "action": "error",
+      "message": "Exact match not found. Reverse End System requires exact anchor match."
+    },
+    "on_validation_failure": {
+      "action": "error",
+      "message": "2C_sys is not allowed for given CO_sys according to two_cushion_policy."
+    },
+    "on_anchor_missing": {
+      "action": "error",
+      "message": "Required anchor labels (CO, 1C, 2C, 3C) are missing in sequence."
+    }
+  },
+
+  "validation_scenarios": {
+    "note": "실제 anchors.json 데이터 기반 시나리오 (track = B2T_L)",
+    "scenarios": [
+      {
+        "id": "exact_match_success",
+        "description": "정확히 일치하는 anchors 조합 (정상 케이스)",
+        "inputs": {
+          "track": "B2T_L",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 60, "y": -2.25 },
+          "2C": { "space": "Rg", "rail": "BOTTOM", "axis": "long", "value": 10, "y": 0 }
+        },
+        "expected": {
+          "CO_sys": 40,
+          "C2_sys": 5,
+          "validation": "2C_sys=5 is allowed for CO_sys=40",
+          "lookup": "seq3c에서 정확히 일치하는 시퀀스 찾기 성공",
+          "result": {
+            "CO": "CO_(60,-2.25)_40",
+            "1C": "1C_(45,42.25)_45",
+            "2C": "2C_(10,0)_5",
+            "3C": "3C_(0,10)_10"
+          },
+          "note": "모든 마크가 seq3c에서 조회됨, 계산 없음"
+        }
+      },
+      {
+        "id": "invalid_two_cushion",
+        "description": "허용되지 않은 2C 선택 (실패 케이스)",
+        "inputs": {
+          "track": "B2T_L",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 60, "y": -2.25 },
+          "2C": { "space": "Rg", "rail": "BOTTOM", "axis": "long", "value": 15, "y": 0 }
+        },
+        "expected": {
+          "result": "error",
+          "reason": "2C_sys is not in allowed list for CO_sys=40",
+          "CO_sys": 40,
+          "allowed_2C_sys": [5, 10],
+          "policy": "two_cushion_policy.mapping",
+          "message": "Invalid 2C_sys for given CO_sys in reverse_end_system."
+        }
+      },
+      {
+        "id": "anchor_not_found",
+        "description": "seq3c에 없는 조합 (실패 케이스)",
+        "inputs": {
+          "track": "B2T_L",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 55, "y": -2.25 },
+          "2C": { "space": "Rg", "rail": "BOTTOM", "axis": "long", "value": 10, "y": 0 }
+        },
+        "expected": {
+          "result": "error",
+          "reason": "No anchor sequence exists for the given input coordinates in seq3c",
+          "policy": "exact_match_required",
+          "no_interpolation": true,
+          "no_approximation": true,
+          "message": "No matching sequence found in seq3c."
+        }
+      },
+      {
+        "id": "multiple_valid_options",
+        "description": "동일 CO_sys에 여러 2C_sys 선택 가능 (정상 케이스)",
+        "inputs": {
+          "track": "B2T_L",
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 60, "y": -2.25 }
+        },
+        "expected": {
+          "CO_sys": 40,
+          "allowed_2C_sys": [5, 10],
+          "note": "사용자는 2C_sys=5 또는 10을 선택 가능",
+          "sequences": [
+            {
+              "2C_sys": 5,
+              "result": ["CO_(60,-2.25)_40", "1C_(45,42.25)_45", "2C_(10,0)_5", "3C_(0,10)_10"]
+            },
+            {
+              "2C_sys": 10,
+              "result": ["CO_(60,-2.25)_40", "1C_(50,42.25)_50", "2C_(20,0)_10", "3C_(0,23)_23"]
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "notes": {
+    "ko": [
+      "Reverse End System은 계산 시스템이 아니라 lookup 시스템입니다.",
+      "anchors.json이 유일한 진실(SSOT)이며 rules.json은 정책만 정의합니다.",
+      "보간, 외삽, 반복 계산은 허용되지 않습니다.",
+      "모든 결과는 anchors.seq3c에 정확히 일치하는 조합이 있어야만 생성됩니다.",
+      "2C 선택은 CO_sys 값에 따라 제한되며, 허용되지 않은 조합은 에러를 반환합니다."
+    ]
+  }
+}

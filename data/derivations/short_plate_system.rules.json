@@ -1,0 +1,91 @@
+{
+  "meta": {
+    "system_id": "short_plate_system",
+    "system_name": "Short Plate System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "notes": [
+      "Short Plate is a pure formula-based reverse-spin system.",
+      "All calculations are sys-domain only."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "4C"],
+    "validation": {
+      "track_required": true,
+      "rail_required": true,
+      "axis_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "axis_inference": {
+    "rule": "determine axis by rail",
+    "mapping": {
+      "TOP": "x",
+      "BOTTOM": "x",
+      "LEFT": "y",
+      "RIGHT": "y"
+    }
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "clamp": true,
+    "valid_4C_range": [50, 90]
+  },
+
+  "pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_from_anchors",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "labels": ["CO", "4C"],
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["CO_sys", "C4_sys"]
+    },
+    {
+      "step": 2,
+      "name": "validate_4C_range",
+      "rules": {
+        "valid_range": { "min": 50, "max": 90 },
+        "policy": "error"
+      }
+    },
+    {
+      "step": 3,
+      "name": "compute_1C_sys",
+      "formula": {
+        "expr": "C1_sys = CO_sys - C4_sys",
+        "vars": ["CO_sys", "C4_sys"]
+      },
+      "outputs": ["C1_sys"]
+    },
+    {
+      "step": 4,
+      "name": "map_sys_to_display",
+      "rules": {
+        "label": "1C",
+        "source": "anchors.trajectories[track].anchors",
+        "interpolation": {
+          "method": "linear",
+          "clamp": true,
+          "no_extrapolation": true
+        }
+      },
+      "outputs": ["1C_mark"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C4_sys", "C1_sys"],
+    "marks": ["1C_mark"]
+  }
+}

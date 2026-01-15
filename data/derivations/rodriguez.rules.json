@@ -1,0 +1,13 @@
+{
+  "system_name": "Rodriguez",
+  "formula": "1C + 2C = 3C",
+  "grid_mix": { "c1": "Rg", "c2": "Rg", "c3": "Fg" },
+  "data_table": [
+    { "start_point": 10, "2cushion": 20, "3cushion_target": 30 },
+    { "start_point": 20, "2cushion": 20, "3cushion_target": 40 },
+    { "start_point": 30, "2cushion": 20, "3cushion_target": 50 },
+    { "start_point": 40, "2cushion": 20, "3cushion_target": 60 },
+    { "start_point": 50, "2cushion": 20, "3cushion_target": 70 },
+    { "start_point": 60, "2cushion": 20, "3cushion_target": 80 }
+  ]
+}

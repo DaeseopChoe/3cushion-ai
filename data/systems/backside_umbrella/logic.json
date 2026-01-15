@@ -1,0 +1,58 @@
+{
+  "system_id": "backside_umbrella",
+  "track_selection": {
+    "strategy": "ruleset",
+    "snap_tolerance": 0.02,
+    "ruleset": [
+      {
+        "if": "CO.rail == BOTTOM && direction == LEFT",
+        "then": "B2T_L"
+      },
+      {
+        "if": "CO.rail == BOTTOM && direction == RIGHT",
+        "then": "B2T_R"
+      },
+      {
+        "if": "CO.rail == TOP && direction == LEFT",
+        "then": "T2B_R"
+      },
+      {
+        "if": "CO.rail == TOP && direction == RIGHT",
+        "then": "T2B_L"
+      }
+    ]
+  },
+  "required_marks": ["CO"],
+  "required_inputs": ["direction"],
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "direction_required": true,
+    "error_on_missing": true,
+    "error_messages": {
+      "missing_CO": "Backside Umbrella 시스템은 CO 입력이 필수입니다.",
+      "missing_direction": "진행 방향(direction: LEFT/RIGHT)이 필요합니다.",
+      "track_not_resolved": "입력 조건으로 트랙을 판정할 수 없습니다."
+    }
+  },
+  "modes": {
+    "tb_mode": {
+      "enabled": true,
+      "description": "Top-Bottom mixed backside umbrella mode.",
+      "note": "TB mode flag is passed to derivations for HP iteration constraints."
+    }
+  },
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 판정과 모드 구분만 담당합니다.",
+      "HP 계산, 반복, 타점 예외 규칙은 derivations로 위임됩니다."
+    ]
+  },
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-11",
+    "source": "backside_umbrella_Base_logic.txt"
+  }
+}

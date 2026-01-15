@@ -1,0 +1,35 @@
+{
+  "button": "AI",
+  "overlay_type": "admin",
+  "layout": {
+    "direction": "vertical",
+    "padding": "comfortable",
+    "auto_height": true,
+    "max_width": 420
+  },
+  "sections": [
+    {
+      "title": "AI 코칭 선택",
+      "content": [
+        {
+          "type": "dropdown",
+          "bind": "selected_coaching_id",
+          "source": "ai_coaching_pool",
+          "order": "usage_desc",
+          "placeholder": "선택 또는 비워두기"
+        }
+      ]
+    },
+    {
+      "title": "새 코칭 문장 추가",
+      "content": [
+        {
+          "type": "textarea",
+          "bind": "new_coaching_text",
+          "placeholder": "상황에 맞는 코칭 문장을 입력하세요",
+          "rows": 4
+        }
+      ]
+    }
+  ]
+}

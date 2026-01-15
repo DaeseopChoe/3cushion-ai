@@ -1,0 +1,81 @@
+{
+  "system_id": "florida_system",
+  "system_name": "Florida System",
+  "role": "track_selection_only",
+
+  "track_selection": {
+    "strategy": "constant_line_based",
+    "snap_tolerance": 0.02,
+
+    "rules": [
+      {
+        "id": "CO_on_bottom",
+        "condition": {
+          "mark": "CO",
+          "rail": "BOTTOM"
+        },
+        "result": ["B2T_L", "B2T_R"]
+      },
+      {
+        "id": "CO_on_top",
+        "condition": {
+          "mark": "CO",
+          "rail": "TOP"
+        },
+        "result": ["T2B_L", "T2B_R"]
+      }
+    ],
+
+    "disambiguation": {
+      "method": "relative_position",
+      "description": "When two candidate tracks exist, resolve using relative horizontal position of CO and 4C.",
+      "procedure": [
+        "1. Compare CO axis value and 4C axis value.",
+        "2. If CO < 4C → use LEFT track.",
+        "3. If CO > 4C → use RIGHT track."
+      ],
+      "mapping": {
+        "LEFT": ["B2T_L", "T2B_L"],
+        "RIGHT": ["B2T_R", "T2B_R"]
+      }
+    },
+
+    "fallback": {
+      "policy": "error",
+      "message": "Unable to resolve track: CO must be on TOP or BOTTOM rail within tolerance."
+    },
+
+    "source_reference": "Florida_system_track_selector.py"
+  },
+
+  "required_marks": ["CO", "4C"],
+  "optional_marks": ["1C"],
+
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true,
+    "error_messages": {
+      "missing_CO": "CO 입력이 필요합니다.",
+      "missing_4C": "4C 입력이 필요합니다.",
+      "invalid_CO_position": "CO는 TOP 또는 BOTTOM 레일 상수선에 있어야 합니다."
+    }
+  },
+
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 선택만 담당합니다.",
+      "Florida System은 CO 위치로 트랙 방향(T2B/B2T)을 결정합니다.",
+      "좌/우 구분은 CO와 4C의 상대 위치로 판정합니다.",
+      "계산 공식 및 보정은 derivations/florida_system.rules.json에서만 수행됩니다."
+    ]
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-11",
+    "source": "Florida_system_track_selector.py"
+  }
+}

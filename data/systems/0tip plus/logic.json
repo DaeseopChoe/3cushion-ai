@@ -1,0 +1,73 @@
+{
+  "system": "otip_plus",
+
+  "applicability": {
+    "required_marks": ["CO"],
+    "notes": [
+      "Otip Plus assumes zero-tip (center hit)",
+      "Cue ball starts from bottom rail",
+      "System is based on incidence = reflection geometry"
+    ]
+  },
+
+  "modes": {
+    "default": "c2_from_CO_y1",
+    "available": ["c2_from_CO_y1", "from_C3", "from_C4"]
+  },
+
+  "track_selection": {
+    "strategy": "explicit_path",
+    "allowed_paths": ["RIGHT_TOP", "LEFT_TOP"],
+    "default_path": "RIGHT_TOP"
+  },
+
+  "path_policy": {
+    "RIGHT_TOP": {
+      "description": "Right short rail to top long rail"
+    },
+    "LEFT_TOP": {
+      "description": "Left short rail to top long rail"
+    }
+  },
+
+  "required_marks": ["CO"],
+  "optional_marks": ["C1", "C2", "C3", "C4"],
+
+  "hp_policy": {
+    "fixed_hit": 0,
+    "description": "Zero-tip system; no side spin is applied"
+  },
+
+  "calculation_policy": {
+    "method": {
+      "default": "table",
+      "allowed": ["table", "formula", "vanish", "auto"]
+    },
+    "notes": [
+      "Table method is recommended",
+      "Formula method is exact geometry",
+      "Vanish method is used when target cushion is given"
+    ]
+  },
+
+  "space_assumptions": {
+    "rails": {
+      "TOP": 42.25,
+      "BOTTOM": -2.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "notes": [
+    "C2 is always located on TOP rail",
+    "C1 is located on LEFT or RIGHT short rail depending on path",
+    "C3 is validated by 1.5:1 rule when provided",
+    "C4 may be used as a reverse target for solving"
+  ],
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_logic"
+  }
+}

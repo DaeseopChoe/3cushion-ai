@@ -1,0 +1,91 @@
+{
+  "system_id": "n_across_long",
+  "system_name": "N Across System (Long)",
+  "role": "track_selection_only",
+
+  "track_selection": {
+    "strategy": "constant_line_pattern",
+    "snap_tolerance": 0.02,
+
+    "rules": [
+      {
+        "id": "B2T_R_pattern",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 82.25 },
+          "1C": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -2.25 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
+        },
+        "result": "B2T_R"
+      },
+      {
+        "id": "B2T_L_pattern",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -2.25 },
+          "1C": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 82.25 },
+          "3C": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
+        },
+        "result": "B2T_L"
+      },
+      {
+        "id": "T2B_R_pattern",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -2.25 },
+          "1C": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 82.25 },
+          "3C": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
+        },
+        "result": "T2B_R"
+      },
+      {
+        "id": "T2B_L_pattern",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 82.25 },
+          "1C": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -2.25 },
+          "3C": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
+        },
+        "result": "T2B_L"
+      }
+    ],
+
+    "fallback": {
+      "policy": "error",
+      "message": "Unable to determine track: CO/1C/3C must lie on N-Across constant lines within snap tolerance."
+    }
+  },
+
+  "required_marks": ["CO", "3C"],
+  "optional_marks": ["1C"],
+
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true,
+    "error_messages": {
+      "missing_CO": "CO 입력이 필요합니다.",
+      "missing_3C": "3C 입력이 필요합니다.",
+      "invalid_pattern": "입력 마크가 N-Across 상수선 패턴과 일치하지 않습니다."
+    }
+  },
+
+  "hit_point_policy": {
+    "mode": "fixed",
+    "clock": "12:00",
+    "note": "N-Across 시스템은 타점 고정(12시)을 사용합니다."
+  },
+
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 선택만 담당합니다.",
+      "N-Across는 CO, 1C, 3C의 상수선 패턴으로 트랙을 판정합니다.",
+      "CO_sys, c 계산 및 보간은 rules.json에서만 수행됩니다.",
+      "수치 테이블 및 공식은 logic에 포함되지 않습니다."
+    ]
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-12",
+    "source": "N_Across_long_logic_manual.txt"
+  }
+}

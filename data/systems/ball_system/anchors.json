@@ -1,0 +1,1180 @@
+{
+  "trajectories": {
+    "B2T_L": {
+      "meta": {
+        "tb_oneball_offset": -1.7,
+        "tb_halfball_offset": -0.86,
+        "spin_polarity": "left",
+        "G_sys_mapping": [
+          {
+            "G": -10,
+            "sys": -2
+          },
+          {
+            "G": -5,
+            "sys": -1
+          },
+          {
+            "G": 0,
+            "sys": 0
+          },
+          {
+            "G": 5,
+            "sys": 1
+          },
+          {
+            "G": 10,
+            "sys": 2
+          },
+          {
+            "G": 15,
+            "sys": 3
+          },
+          {
+            "G": 20,
+            "sys": 4
+          },
+          {
+            "G": 25,
+            "sys": 5
+          }
+        ],
+        "G_range_sys": [
+          -2,
+          5
+        ]
+      },
+      "BL": [
+        {
+          "id": "BL_1_A",
+          "label": "BL_1_(10.0,42.25)_1",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 10.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "BL_1_B",
+          "label": "BL_1_(20.0,-2.25)_1",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "BL_2_A",
+          "label": "BL_2_(20.0,42.25)_2",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "BL_2_B",
+          "label": "BL_2_(40.0,-2.25)_2",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "BL_3_A",
+          "label": "BL_3_(30.0,42.25)_3",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 30.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "BL_3_B",
+          "label": "BL_3_(60.0,-2.25)_3",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "BL_4_A",
+          "label": "BL_4_(40.0,42.25)_4",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "BL_4_B",
+          "label": "BL_4_(80.0,-2.25)_4",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 80.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "BL_5_A",
+          "label": "BL_5_(50.0,42.25)_5",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 50.0
+          },
+          "sys": 5
+        },
+        {
+          "id": "BL_5_B",
+          "label": "BL_5_(82.25,12.5)_5",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 12.5
+          },
+          "sys": 5
+        },
+        {
+          "id": "BL_6_A",
+          "label": "BL_6_(60.0,42.25)_6",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "BL_6_B",
+          "label": "BL_6_(82.25,25.0)_6",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 25.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "BL_7_A",
+          "label": "BL_7_(70.0,42.25)_7",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 70.0
+          },
+          "sys": 7
+        },
+        {
+          "id": "BL_7_B",
+          "label": "BL_7_(82.25,35.0)_7",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 35.0
+          },
+          "sys": 7
+        }
+      ],
+      "C3": [
+        {
+          "id": "C3_1",
+          "label": "3C_(5.0,0.0)_1",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 5.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "C3_2",
+          "label": "3C_(10.0,0.0)_2",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 10.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "C3_3",
+          "label": "3C_(15.0,0.0)_3",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 15.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "C3_4",
+          "label": "3C_(20.0,0.0)_4",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "C3_5",
+          "label": "3C_(25.0,0.0)_5",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 25.0
+          },
+          "sys": 5
+        },
+        {
+          "id": "C3_6",
+          "label": "3C_(30.0,0.0)_6",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 30.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "C3_7",
+          "label": "3C_(35.0,0.0)_7",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 35.0
+          },
+          "sys": 7
+        },
+        {
+          "id": "C3_8",
+          "label": "3C_(40.0,0.0)_8",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 8
+        }
+      ]
+    },
+    "B2T_R": {
+      "meta": {
+        "tb_oneball_offset": 1.7,
+        "tb_halfball_offset": 0.86,
+        "spin_polarity": "right",
+        "G_sys_mapping": [
+          {
+            "G": -10,
+            "sys": -2
+          },
+          {
+            "G": -5,
+            "sys": -1
+          },
+          {
+            "G": 0,
+            "sys": 0
+          },
+          {
+            "G": 5,
+            "sys": 1
+          },
+          {
+            "G": 10,
+            "sys": 2
+          },
+          {
+            "G": 15,
+            "sys": 3
+          },
+          {
+            "G": 20,
+            "sys": 4
+          },
+          {
+            "G": 25,
+            "sys": 5
+          }
+        ],
+        "G_range_sys": [
+          -2,
+          5
+        ]
+      },
+      "BL": [
+        {
+          "id": "BL_1_A",
+          "label": "BL_(70.0,42.25)_1",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 70.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "BL_1_B",
+          "label": "BL_(60.0,-2.25)_1",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "BL_2_A",
+          "label": "BL_(60.0,42.25)_2",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "BL_2_B",
+          "label": "BL_(40.0,-2.25)_2",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "BL_3_A",
+          "label": "BL_(50.0,42.25)_3",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 50.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "BL_3_B",
+          "label": "BL_(20.0,-2.25)_3",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "BL_4_A",
+          "label": "BL_(40.0,42.25)_4",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "BL_4_B",
+          "label": "BL_(0.0,-2.25)_4",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 0.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "BL_5_A",
+          "label": "BL_(30.0,42.25)_5",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 30.0
+          },
+          "sys": 5
+        },
+        {
+          "id": "BL_5_B",
+          "label": "BL_(-2.25,12.5)_5",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 12.5
+          },
+          "sys": 5
+        },
+        {
+          "id": "BL_6_A",
+          "label": "BL_(20.0,42.25)_6",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "BL_6_B",
+          "label": "BL_(-2.25,25.0)_6",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 25.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "BL_7_A",
+          "label": "BL_(10.0,42.25)_7",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 10.0
+          },
+          "sys": 7
+        },
+        {
+          "id": "BL_7_B",
+          "label": "BL_(-2.25,35.0)_7",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 35.0
+          },
+          "sys": 7
+        }
+      ],
+      "C3": [
+        {
+          "id": "C3_1",
+          "label": "C3_(75.0,0.0)_1",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 75.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "C3_2",
+          "label": "C3_(70.0,0.0)_2",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 70.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "C3_3",
+          "label": "C3_(65.0,0.0)_3",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 65.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "C3_4",
+          "label": "C3_(60.0,0.0)_4",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "C3_5",
+          "label": "C3_(55.0,0.0)_5",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 55.0
+          },
+          "sys": 5
+        },
+        {
+          "id": "C3_6",
+          "label": "C3_(50.0,0.0)_6",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 50.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "C3_7",
+          "label": "C3_(45.0,0.0)_7",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 45.0
+          },
+          "sys": 7
+        },
+        {
+          "id": "C3_8",
+          "label": "C3_(40.0,0.0)_8",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 8
+        }
+      ]
+    },
+    "T2B_R": {
+      "meta": {
+        "tb_oneball_offset": -1.7,
+        "tb_halfball_offset": -0.86,
+        "spin_polarity": "right",
+        "G_sys_mapping": [
+          {
+            "G": -10,
+            "sys": -2
+          },
+          {
+            "G": -5,
+            "sys": -1
+          },
+          {
+            "G": 0,
+            "sys": 0
+          },
+          {
+            "G": 5,
+            "sys": 1
+          },
+          {
+            "G": 10,
+            "sys": 2
+          },
+          {
+            "G": 15,
+            "sys": 3
+          },
+          {
+            "G": 20,
+            "sys": 4
+          },
+          {
+            "G": 25,
+            "sys": 5
+          }
+        ],
+        "G_range_sys": [
+          -2,
+          5
+        ]
+      },
+      "BL": [
+        {
+          "id": "BL_1_A",
+          "label": "BL_(10.0,-2.25)_1",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 10.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "BL_1_B",
+          "label": "BL_(20.0,42.25)_1",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "BL_2_A",
+          "label": "BL_(20.0,-2.25)_2",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "BL_2_B",
+          "label": "BL_(40.0,42.25)_2",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "BL_3_A",
+          "label": "BL_(30.0,-2.25)_3",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 30.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "BL_3_B",
+          "label": "BL_(60.0,42.25)_3",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "BL_4_A",
+          "label": "BL_(40.0,-2.25)_4",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "BL_4_B",
+          "label": "BL_(80.0,42.25)_4",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 80.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "BL_5_A",
+          "label": "BL_(50.0,-2.25)_5",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 50.0
+          },
+          "sys": 5
+        },
+        {
+          "id": "BL_5_B",
+          "label": "BL_(82.25,27.5)_5",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 27.5
+          },
+          "sys": 5
+        },
+        {
+          "id": "BL_6_A",
+          "label": "BL_(60.0,-2.25)_6",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "BL_6_B",
+          "label": "BL_(82.25,15.0)_6",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 15.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "BL_7_A",
+          "label": "BL_(70.0,-2.25)_7",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 70.0
+          },
+          "sys": 7
+        },
+        {
+          "id": "BL_7_B",
+          "label": "BL_(82.25,5.0)_7",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 5.0
+          },
+          "sys": 7
+        }
+      ],
+      "C3": [
+        {
+          "id": "C3_1",
+          "label": "C3_(5.0,40.0)_1",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 5.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "C3_2",
+          "label": "C3_(10.0,40.0)_2",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 10.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "C3_3",
+          "label": "C3_(15.0,40.0)_3",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 15.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "C3_4",
+          "label": "C3_(20.0,40.0)_4",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "C3_5",
+          "label": "C3_(25.0,40.0)_5",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 25.0
+          },
+          "sys": 5
+        },
+        {
+          "id": "C3_6",
+          "label": "C3_(30.0,40.0)_6",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 30.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "C3_7",
+          "label": "C3_(35.0,40.0)_7",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 35.0
+          },
+          "sys": 7
+        },
+        {
+          "id": "C3_8",
+          "label": "C3_(40.0,40.0)_8",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 8
+        }
+      ]
+    },
+    "T2B_L": {
+      "meta": {
+        "tb_oneball_offset": 1.7,
+        "tb_halfball_offset": 0.86,
+        "spin_polarity": "left",
+        "G_sys_mapping": [
+          {
+            "G": -10,
+            "sys": -2
+          },
+          {
+            "G": -5,
+            "sys": -1
+          },
+          {
+            "G": 0,
+            "sys": 0
+          },
+          {
+            "G": 5,
+            "sys": 1
+          },
+          {
+            "G": 10,
+            "sys": 2
+          },
+          {
+            "G": 15,
+            "sys": 3
+          },
+          {
+            "G": 20,
+            "sys": 4
+          },
+          {
+            "G": 25,
+            "sys": 5
+          }
+        ],
+        "G_range_sys": [
+          -2,
+          5
+        ]
+      },
+      "BL": [
+        {
+          "id": "BL_1_A",
+          "label": "BL_(70.0,-2.25)_1",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 70.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "BL_1_B",
+          "label": "BL_(60.0,42.25)_1",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "BL_2_A",
+          "label": "BL_(60.0,-2.25)_2",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "BL_2_B",
+          "label": "BL_(40.0,42.25)_2",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "BL_3_A",
+          "label": "BL_(50.0,-2.25)_3",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 50.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "BL_3_B",
+          "label": "BL_(20.0,42.25)_3",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "BL_4_A",
+          "label": "BL_(40.0,-2.25)_4",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "BL_4_B",
+          "label": "BL_(0.0,42.25)_4",
+          "mark": {
+            "space": "Fg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 0.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "BL_5_A",
+          "label": "BL_(30.0,-2.25)_5",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 30.0
+          },
+          "sys": 5
+        },
+        {
+          "id": "BL_5_B",
+          "label": "BL_(-2.25,27.5)_5",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 27.5
+          },
+          "sys": 5
+        },
+        {
+          "id": "BL_6_A",
+          "label": "BL_(20.0,-2.25)_6",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 20.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "BL_6_B",
+          "label": "BL_(-2.25,15.0)_6",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 15.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "BL_7_A",
+          "label": "BL_(10.0,-2.25)_7",
+          "mark": {
+            "space": "Fg",
+            "rail": "TOP",
+            "axis": "long",
+            "value": 10.0
+          },
+          "sys": 7
+        },
+        {
+          "id": "BL_7_B",
+          "label": "BL_(-2.25,5.0)_7",
+          "mark": {
+            "space": "Fg",
+            "rail": "RIGHT",
+            "axis": "short",
+            "value": 5.0
+          },
+          "sys": 7
+        }
+      ],
+      "C3": [
+        {
+          "id": "C3_1",
+          "label": "C3_(75.0,40.0)_1",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 75.0
+          },
+          "sys": 1
+        },
+        {
+          "id": "C3_2",
+          "label": "C3_(70.0,40.0)_2",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 70.0
+          },
+          "sys": 2
+        },
+        {
+          "id": "C3_3",
+          "label": "C3_(65.0,40.0)_3",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 65.0
+          },
+          "sys": 3
+        },
+        {
+          "id": "C3_4",
+          "label": "C3_(60.0,40.0)_4",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 60.0
+          },
+          "sys": 4
+        },
+        {
+          "id": "C3_5",
+          "label": "C3_(55.0,40.0)_5",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 55.0
+          },
+          "sys": 5
+        },
+        {
+          "id": "C3_6",
+          "label": "C3_(50.0,40.0)_6",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 50.0
+          },
+          "sys": 6
+        },
+        {
+          "id": "C3_7",
+          "label": "C3_(45.0,40.0)_7",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 45.0
+          },
+          "sys": 7
+        },
+        {
+          "id": "C3_8",
+          "label": "C3_(40.0,40.0)_8",
+          "mark": {
+            "space": "Rg",
+            "rail": "BOTTOM",
+            "axis": "long",
+            "value": 40.0
+          },
+          "sys": 8
+        }
+      ]
+    }
+  },
+  "meta": {
+    "generated_from": "B2T_L canonical (Ball System base logic)",
+    "ops": [
+      "H",
+      "V",
+      "RPI"
+    ],
+    "offset_fg2rg": 2.25,
+    "no_extrapolation": true,
+    "m_min": 0.05,
+    "theta_t_max": 68
+  }
+}

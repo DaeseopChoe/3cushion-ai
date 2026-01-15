@@ -1,0 +1,28 @@
+{
+  "button": "STR",
+  "overlay_type": "readonly",
+  "layout": {
+    "direction": "vertical",
+    "padding": "compact",
+    "auto_height": true,
+    "max_width": 360
+  },
+  "sections": [
+    {
+      "title": "스트로크",
+      "content": [
+        {
+          "template": "{stroke_speed_profile}, {stroke_type}"
+        }
+      ]
+    },
+    {
+      "title": "속도",
+      "content": [
+        {
+          "template": "{rail_speed} 레일 스피드"
+        }
+      ]
+    }
+  ]
+}

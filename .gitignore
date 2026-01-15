@@ -1,7 +1,32 @@
-﻿node_modules
-dist
-.env
+
+# =========================
+# OS / Editor
+# =========================
 .DS_Store
+Thumbs.db
 *.log
-.vscode
-.idea
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+
+# =========================
+# Frontend (Vite / Node)
+# =========================
+node_modules/
+dist/
+.vite/
+
+# =========================
+# Experimental / legacy repo
+# =========================
+repo/
+
+# =========================
+# Temporary / local
+# =========================
+.env
+.env.local

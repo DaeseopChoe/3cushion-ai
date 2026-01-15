@@ -1,0 +1,28 @@
+{
+"profile_minus_5_system.json": {
+"system": "Minus_5_system",
+"formula": "1C_f = CO_f - 3C_r - 5",
+"value_domains": {
+"CO_sys": [30, 35, 40, 45, 50],
+"C1_sys": [10, 20, 30, 40],
+"C3_sys": [0, 10, 20]
+},
+"safety": {
+"offset_fg2rg": 2.25,
+"fg_extension_long": 2.25,
+"fg_extension_short": 2.25,
+"m_min": 0.05,
+"theta_t_max": 68,
+"no_extrapolation": true
+},
+"space_rule": {
+"frame_constants": [-2.25, 42.25, 82.25],
+"tolerance": 0.02,
+"rule": "if x or y matches frame_constants => Fg, else Rg"
+},
+"mappings": null,
+"meta": {
+"version": "1.0",
+"generator": "profile_template_generator.py"
+}
+},

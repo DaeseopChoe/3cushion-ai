@@ -1,0 +1,34 @@
+{
+  "system": "N_Across_long_system",
+  "formula": "1C_f = CO_f + 3C_r",
+  "value_domains": {
+    "CO": [10, 15, 20],
+    "1C": [0, 10, 20, 30, 40],
+    "3C": [0, 1.5, 3, 4.5, 6],
+    "cue_tip": ["12:00"]
+  },
+  "safety": {
+    "cue_tip_fixed": "12:00",
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68,
+    "no_extrapolation": true
+  },
+  "space_rule": {
+    "frame_constants": [-2.25, 42.25, 82.25],
+    "tolerance": 0.02,
+    "rule": "if x or y matches frame_constants => Fg, else Rg"
+  },
+  "mappings": null,
+  "meta": {
+    "version": "1.0",
+    "generator": "profile_template_generator.py",
+    "spec_source": "N_Across_long_logic_manual.txt",
+    "notes": [
+      "타점 고정 12:00 — 계산 파이프라인은 safety.cue_tip_fixed 우선 적용",
+      "계산은 sys 전용: formula는 _f/_r 태그로 프레임/레일 기준만 표기"
+    ]
+  }
+}

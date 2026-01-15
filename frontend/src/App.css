@@ -1,0 +1,83 @@
+/* ============================================
+   Phase G-2 정리: 전역 스타일
+   ============================================ */
+
+/* HTML/Body 기본 설정 */
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;  /* 스크롤 방지 */
+}
+
+/* ============================================
+   Phase 1.5: #root 수정 (핵심)
+   - Stage가 화면 전체를 제어
+   - max-width, padding 제거
+   - 배경 제거 (Stage가 유일한 배경)
+   ============================================ */
+#root {
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  
+  /* 배경 제거: Stage가 담당 */
+  background: transparent;
+  
+  /* 정렬 제거: Stage가 담당 */
+  /* text-align: center; ← 제거 */
+  /* max-width: 1280px; ← 제거 */
+}
+
+/* ============================================
+   모바일 전용 override (Phase 2에서 재검토)
+   ============================================ */
+body.mobile-root #root {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================
+   기타 스타일 (Vite 기본값, 사용 안 함)
+   ============================================ */
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}

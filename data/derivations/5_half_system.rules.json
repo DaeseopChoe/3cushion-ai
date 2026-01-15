@@ -1,0 +1,126 @@
+{
+  "system": "5_half_system",
+
+  "derivation_policy": {
+    "description": "5&half_system의 보정·분기·타점·다중쿠션 생성 규칙"
+  },
+
+  "interpolation": {
+    "domain": "sys",
+    "method": "linear",
+    "clamp": true,
+    "allow_extrapolation": false
+  },
+
+  "baseline": {
+    "CO_sys": 50,
+    "description": "모든 보정의 기준 CO 값"
+  },
+
+  "delta_rules": {
+    "CO_gain": 0.5,
+    "delta_CO": "dCO = CO_gain * (CO_sys - 50)",
+    "apply_to": ["1C", "3C", "4C", "5C", "6C"],
+    "notes": [
+      "CO_sys=50을 기준으로 좌우 CO 변화량에 비례한 보정 적용",
+      "보정은 sys-domain에서 선형으로 적용"
+    ]
+  },
+
+  "hp_rules": {
+    "source": "3C_sys",
+    "mapping": [
+      { "range": [0, 0],  "hp": 4.0 },
+      { "range": [5, 5],  "hp": 3.5 },
+      { "range": [10,10], "hp": 3.0 },
+      { "range": [15,15], "hp": 2.5 },
+      { "range": [20,20], "hp": 2.0 },
+      { "range": [25,25], "hp": 2.5 },
+      { "range": [30,30], "hp": 3.0 },
+      { "range": [35,35], "hp": 3.5 },
+      { "range": [40,90], "hp": 4.0 }
+    ],
+    "interpolation": "linear",
+    "notes": [
+      "타점은 3C_sys를 기준으로 결정",
+      "명시되지 않은 값은 인접 구간 선형 보간"
+    ]
+  },
+
+  "fourth_cushion_rules": {
+    "base_formula": "4C_sys = f(1C_sys, 3C_sys)",
+    "correction_by_CO": {
+      "if": "3C_sys > 10",
+      "rules": [
+        {
+          "when": "CO_sys < 50",
+          "delta_per_5": -2.5,
+          "description": "CO가 5 감소할 때마다 4C_sys -2.5"
+        },
+        {
+          "when": "CO_sys > 50",
+          "table": {
+            "60": 5,
+            "70": 10,
+            "80": 12.5,
+            "90": 15
+          }
+        }
+      ]
+    },
+
+    "exceptions": [
+      {
+        "when": "3C_sys == 0",
+        "behavior": "use_anchor_values"
+      },
+      {
+        "when": "3C_sys == 5",
+        "behavior": "use_anchor_values"
+      }
+    ],
+
+    "notes": [
+      "4C는 1C+3C 기본값에 CO 보정을 적용",
+      "3C_sys 0,5 구간은 예외로 앵커 기준값 사용"
+    ]
+  },
+
+  "multi_cushion_generation": {
+    "condition": "4C.rail in ['LEFT','RIGHT']",
+    "generate": ["5C", "6C"],
+    "inherit_sys": true,
+    "notes": [
+      "4C가 단쿠션일 때만 5C,6C 생성",
+      "5C_sys == 6C_sys == 4C_sys (보정 후)"
+    ]
+  },
+
+  "calculation_flow": [
+    "resolve_track",
+    "resolve_anchors",
+    "interpolate_missing_sys",
+    "apply_CO_delta",
+    "determine_HP",
+    "calculate_4C",
+    "generate_5C_6C_if_applicable"
+  ],
+
+  "constraints": {
+    "require_valid_track": true,
+    "require_anchors": true,
+    "abort_on_exception": false
+  },
+
+  "priority_rules": {
+    "value_resolution": "exact > interpolate > clamp",
+    "exception_resolution": "explicit_exception > general_rule"
+  },
+
+  "notes": [
+    "5&half_system은 공식보다 규칙의 집합으로 정의된다.",
+    "모든 계산은 sys-domain에서 수행되며 좌표 변환은 display 단계에서만 한다.",
+    "예외 규칙(3C_sys=0,5)은 일반 규칙보다 항상 우선한다.",
+    "이 rules.json은 실전 샘플과 보정 문서를 그대로 반영한 선언형 표현이다."
+  ]
+}

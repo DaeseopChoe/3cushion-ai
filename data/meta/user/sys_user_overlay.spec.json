@@ -1,0 +1,47 @@
+{
+  "button": "SYS",
+  "overlay_type": "readonly",
+  "layout": {
+    "direction": "vertical",
+    "padding": "compact",
+    "auto_height": true,
+    "max_width": 420
+  },
+  "sections": [
+    {
+      "title": "공략 / 시스템",
+      "content": [
+        {
+          "template": "공략 : {attack_type}"
+        },
+        {
+          "template": "시스템 : {system_name}"
+        }
+      ]
+    },
+    {
+      "title": "공식",
+      "content": [
+        {
+          "template": "{formula_display}"
+        }
+      ]
+    },
+    {
+      "title": "계산 결과",
+      "content": [
+        {
+          "template": "1C = {one_c_value}"
+        }
+      ]
+    },
+    {
+      "title": "큐볼 보정",
+      "content": [
+        {
+          "template": "밀림값 : {push_value}, 끌림값 : {pull_value}, 출발 보정 : {start_offset}"
+        }
+      ]
+    }
+  ]
+}

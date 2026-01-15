@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "system_id": "turkish_angle_system",
+    "system_name": "Turkish Angle",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "continuous_linear_transform",
+    "notes": [
+      "All computations are strictly performed in sys domain.",
+      "Anchors are immutable SSOT.",
+      "Fixed tip: 12 o'clock."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "3C"],
+    "optional": [],
+    "validation": {
+      "track_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "principle": {
+    "calculation_domain": "sys_only",
+    "coordinates_in_formula": false,
+    "formula_definition": "C1_sys = CO_sys - 1.5 * C3_sys"
+  },
+
+  "formula": {
+    "expression": "CO_sys - 1.5 * C3_sys",
+    "outputs": ["C1_sys_raw"],
+    "domain_notes": {
+      "negative_possible": "Linear subtraction may produce negative results depending on inputs."
+    }
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_inputs",
+      "description": "Resolve CO_sys and C3_sys from anchors for the selected track (exact then linear interpolation, clamp, no extrapolation).",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "method": "exact_match_then_linear_interpolation",
+        "grouping": {
+          "CO": "frame",
+          "3C": "rail_or_frame"
+        },
+        "interpolation": "linear",
+        "clamp": true,
+        "no_extrapolation": true
+      },
+      "outputs": ["CO_sys", "C3_sys"]
+    },
+    {
+      "step": 2,
+      "name": "compute_1c_raw",
+      "description": "Compute C1_sys_raw using Turkish Angle formula in sys domain.",
+      "rules": {
+        "expression": "CO_sys - 1.5 * C3_sys"
+      },
+      "outputs": ["C1_sys_raw"]
+    },
+    {
+      "step": 3,
+      "name": "clamp_to_1c_anchor_domain",
+      "description": "Clamp computed C1_sys_raw into the available 1C anchor sys range (no extrapolation).",
+      "rules": {
+        "anchor_domain_source": "anchors.trajectories[track].anchors where label='1C'",
+        "policy": "clamp",
+        "on_out_of_range": {
+          "action": "warn",
+          "ui_feedback": true,
+          "message": "Computed 1C_sys is outside anchor domain; clamped to nearest available 1C sys."
+        }
+      },
+      "outputs": ["C1_sys"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C3_sys", "C1_sys"],
+    "calc_debug": ["C1_sys_raw"],
+    "marks": [
+      {
+        "id": "1C",
+        "source": "computed_sys_then_anchor_projection",
+        "note": "1C mark is derived from computed sys value and projected for display."
+      }
+    ],
+    "fixed": {
+      "tip": "12 o'clock"
+    }
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "warn_only_validation": true,
+    "coordinates_not_used_in_formula": true
+  }
+}

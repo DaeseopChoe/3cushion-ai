@@ -1,0 +1,43 @@
+{
+  "system_id": "spread30",
+  "system_name": "Spread30 System",
+  "role": "input_validation_and_mode_only",
+
+  "input_mode": {
+    "type": "geometry",
+    "required_fields": ["start_fg", "mode", "spin", "speed"],
+    "allowed": {
+      "mode": ["short", "long"],
+      "spin": ["left", "right"],
+      "speed": [3.0, 3.5]
+    }
+  },
+
+  "constraints": {
+    "start_within_table": true
+  },
+
+  "mode_policy": {
+    "short": {
+      "description": "Side spread of 30"
+    },
+    "long": {
+      "description": "Side spread of 15"
+    }
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "rules_reference": "derivations/spread30.rules.json"
+  },
+
+  "validation_hints": {
+    "on_invalid_input": "error"
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-13"
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "id": "sys_admin_overlay",
+  "version": "1.1",
+  "description": "Admin overlay specification for SYS button (updated formula & target rules)",
+
+  "sections": [
+    {
+      "id": "strategy",
+      "title": "공략",
+      "type": "dropdown",
+      "source": "enum.strategy"
+    },
+    {
+      "id": "system",
+      "title": "시스템",
+      "type": "dropdown",
+      "source": "systems.registry"
+    },
+
+    {
+      "id": "formula",
+      "title": "공식",
+      "type": "readonly",
+      "source": "system.formula.aiming",
+      "note": "공식은 시스템 파일에서 자동 로드되며 관리자 수정 불가"
+    },
+
+    {
+      "id": "base_values",
+      "title": "계산값 입력",
+      "fields": [
+        {
+          "id": "CO",
+          "label": "CO (큐볼 출발값)",
+          "type": "dropdown",
+          "range": [0, 99]
+        },
+        {
+          "id": "C3",
+          "label": "3C",
+          "type": "dropdown",
+          "range": [0, 80]
+        }
+      ]
+    },
+
+    {
+      "id": "target_rule",
+      "title": "타겟볼 계산",
+      "fields": [
+        {
+          "id": "target_calc_rule",
+          "label": "계산 방식",
+          "type": "dropdown",
+          "options": [
+            "3C + 보정",
+            "3C - 보정"
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "cue_correction",
+      "title": "큐볼 보정",
+      "fields": [
+        {
+          "id": "slide",
+          "label": "밀림값",
+          "type": "dropdown",
+          "range": [0, 9]
+        },
+        {
+          "id": "draw",
+          "label": "끌림값",
+          "type": "dropdown",
+          "range": [-9, 0]
+        },
+        {
+          "id": "start",
+          "label": "출발 보정",
+          "type": "dropdown",
+          "range": [-9, 9]
+        }
+      ]
+    },
+
+    {
+      "id": "curve_model",
+      "title": "CurveModel",
+      "fields": [
+        {
+          "id": "curve_ratio",
+          "label": "곡구 비율",
+          "type": "dropdown",
+          "range": [0, 9]
+        },
+        {
+          "id": "tip",
+          "label": "회전 팁",
+          "type": "dropdown",
+          "range": [0, 4]
+        }
+      ]
+    }
+  ],
+
+  "actions": ["confirm", "cancel"]
+}

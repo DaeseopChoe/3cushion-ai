@@ -1,0 +1,75 @@
+{
+  "system_id": "long_plate_system",
+  "system_name": "Long Plate System",
+  "role": "track_selection_only",
+
+  "track_selection": {
+    "strategy": "frame_constant_line",
+
+    "snap_tolerance": 0.02,
+
+    "rules": [
+      {
+        "id": "B2T_R",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": -2.25 },
+          "4C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 80 }
+        },
+        "result": "B2T_R"
+      },
+      {
+        "id": "B2T_L",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "long", "value": 82.25 },
+          "4C": { "space": "Rg", "rail": "TOP", "axis": "long", "value": 0 }
+        },
+        "result": "B2T_L"
+      },
+      {
+        "id": "T2B_R",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "TOP", "axis": "long", "value": -2.25 },
+          "4C": { "space": "Rg", "rail": "BOTTOM", "axis": "long", "value": 80 }
+        },
+        "result": "T2B_R"
+      },
+      {
+        "id": "T2B_L",
+        "condition": {
+          "CO": { "space": "Fg", "rail": "TOP", "axis": "long", "value": 82.25 },
+          "4C": { "space": "Rg", "rail": "BOTTOM", "axis": "long", "value": 0 }
+        },
+        "result": "T2B_L"
+      }
+    ],
+
+    "fallback": {
+      "policy": "error",
+      "message": "Unable to resolve track: CO and 4C must lie on long-plate constant lines."
+    }
+  },
+
+  "required_marks": ["CO", "4C"],
+  "optional_marks": ["1C"],
+
+  "input_validation": {
+    "rail_required": true,
+    "axis_required": true,
+    "error_on_missing": true
+  },
+
+  "notes": {
+    "ko": [
+      "logic.json은 트랙 선택만 담당합니다.",
+      "Long Plate System은 CO와 4C의 프레임/레일 상수선 조합으로 트랙이 결정됩니다.",
+      "계산은 전부 rules.json에서 수행됩니다."
+    ]
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_logic": true,
+    "last_updated": "2026-01-12"
+  }
+}

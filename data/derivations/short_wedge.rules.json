@@ -1,0 +1,122 @@
+{
+  "meta": {
+    "system_id": "short_wedge",
+    "system_name": "Short Wedge System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "continuous",
+    "notes": [
+      "Short Wedge System uses mixed frame/rail inputs.",
+      "All calculations are strictly performed in sys domain.",
+      "v1.0: Validation step added, warn-based safety for multiplication system"
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "2C"],
+    "optional": [],
+    "validation": {
+      "track_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "principle": {
+    "description": "Compute 1C_sys by multiplying CO_sys and C2_sys.",
+    "calculation_domain": "sys_only",
+    "coordinates_in_formula": false
+  },
+
+  "formula": {
+    "expression": "CO_sys * C2_sys",
+    "outputs": ["C1_sys"],
+    "note": "Short wedge multiplication formula",
+    "domain_notes": {
+      "zero_input": "CO_sys or C2_sys near zero may produce physically marginal result",
+      "large_result": "Large multiplication result may exceed typical anchor range"
+    },
+    "on_zero_input": {
+      "action": "warn",
+      "message": "CO_sys or C2_sys is zero or near zero. Result may be marginal."
+    }
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_inputs",
+      "description": "Resolve CO_sys (frame) and C2_sys (rail) from anchors for selected track.",
+      "rules": {
+        "source": "anchors.trajectories[track].anchors",
+        "method": "exact_match_then_linear_interpolation",
+        "coordinate_snap": { "tolerance": 0.02 },
+        "interpolation": "linear",
+        "clamp": true,
+        "no_extrapolation": true
+      },
+      "outputs": ["CO_sys", "C2_sys"]
+    },
+    {
+      "step": 2,
+      "name": "compute_1c",
+      "description": "Compute C1_sys using multiplication formula.",
+      "rules": {
+        "expression": "CO_sys * C2_sys"
+      },
+      "outputs": ["C1_sys"]
+    },
+    {
+      "step": 3,
+      "name": "validate_c1_result",
+      "description": "Validate computed C1_sys against nearest anchor-based reference.",
+      "rules": {
+        "reference_source": "anchors.trajectories[track].anchors where label='1C'",
+        "validation_method": "nearest_anchor_comparison",
+        "procedure": [
+          "1. Compute C1_sys using multiplication formula",
+          "2. Find nearest 1C anchor sys value",
+          "3. error = abs(C1_sys - nearest_1C_sys)",
+          "4. If error > allowed_error_sys → warn"
+        ],
+        "allowed_error_sys": {
+          "value": 1.0,
+          "description": "Tolerance for multiplication-based system"
+        },
+        "on_exceed": {
+          "action": "warn",
+          "ui_feedback": true,
+          "log_for_audit": true,
+          "message": "Computed C1_sys deviates more than allowed tolerance from anchor reference."
+        }
+      },
+      "outputs": ["validation_result", "error_magnitude"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C2_sys", "C1_sys"],
+    "marks": [
+      {
+        "id": "1C",
+        "source": "computed_sys_then_anchor_projection",
+        "note": "1C mark is derived from computed sys value"
+      }
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "coordinates_not_used_in_formula": true,
+    "warn_based_safety": true,
+    "note": "Short wedge uses warn-based safety, not fail-fast"
+  },
+
+  "notes": {
+    "ko": [
+      "Short Wedge System은 곱셈 기반 연속 계산 시스템입니다.",
+      "0 입력 또는 큰 값 곱셈 시 경고를 표시하지만 계산은 계속됩니다.",
+      "보간은 허용되지만 외삽은 금지됩니다.",
+      "anchor 기준 검증 단계로 안전성을 확보합니다."
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "system_id": "schaefer_system",
+    "system_name": "Schaefer System",
+    "rule_version": "v1.0",
+    "ssot_role": "derivations",
+    "system_type": "continuous",
+    "notes": [
+      "Schaefer System is a simple continuous calculation system.",
+      "HP_sys is computed by summing CO_sys and 1C_sys.",
+      "All calculations are strictly performed in sys domain."
+    ]
+  },
+
+  "inputs": {
+    "required": ["track", "CO", "1C"],
+    "optional": [],
+    "validation": {
+      "track_required": true,
+      "error_on_missing": true
+    }
+  },
+
+  "principle": {
+    "description": "Compute hit point (HP_sys) by summing CO_sys and 1C_sys.",
+    "calculation_domain": "sys_only",
+    "coordinates_in_formula": false
+  },
+
+  "formula": {
+    "expression": "CO_sys + C1_sys",
+    "outputs": ["HP_sys"],
+    "note": "Basic Schaefer formula"
+  },
+
+  "resolution_pipeline": [
+    {
+      "step": 1,
+      "name": "resolve_sys_inputs",
+      "description": "Resolve CO_sys and C1_sys from anchors on the fixed track.",
+      "rules": {
+        "source": "anchors.trajectories[T2B_L].anchors",
+        "method": "exact_match_then_linear_interpolation",
+        "coordinate_snap": {
+          "tolerance": 0.02
+        },
+        "interpolation": "linear",
+        "clamp": true,
+        "no_extrapolation": true
+      },
+      "outputs": ["CO_sys", "C1_sys"]
+    },
+    {
+      "step": 2,
+      "name": "compute_hp",
+      "description": "Compute HP_sys using Schaefer formula.",
+      "rules": {
+        "expression": "CO_sys + C1_sys"
+      },
+      "outputs": ["HP_sys"]
+    }
+  ],
+
+  "outputs": {
+    "sys": ["CO_sys", "C1_sys", "HP_sys"],
+    "marks": [
+      {
+        "id": "HP",
+        "source": "computed_sys_then_anchor_projection",
+        "note": "HP mark is derived from computed sys value"
+      }
+    ]
+  },
+
+  "safety": {
+    "no_extrapolation": true,
+    "coordinates_not_used_in_formula": true
+  },
+
+  "notes": {
+    "ko": [
+      "Schaefer System은 단순 합산 기반 연속 계산 시스템입니다.",
+      "보간은 허용되지만 외삽은 금지됩니다."
+    ]
+  }
+}

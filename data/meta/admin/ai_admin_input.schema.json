@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AI Coaching Admin Input Schema",
+  "type": "object",
+  "required": [],
+  "properties": {
+    "selected_coaching_id": {
+      "type": ["string", "null"],
+      "description": "선택된 AI 코칭 문장 ID (없으면 null)"
+    },
+    "new_coaching_text": {
+      "type": ["string", "null"],
+      "description": "관리자가 새로 입력한 코칭 문장",
+      "maxLength": 500
+    }
+  },
+  "additionalProperties": false
+}

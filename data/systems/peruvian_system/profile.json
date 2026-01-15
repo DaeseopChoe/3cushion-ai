@@ -1,0 +1,60 @@
+{
+  "system": "Peruvian",
+  "formula": "CO_f + 1C_f + 3C_r = HP_n",
+  "value_domains": {
+    "CO_sys": [
+      -2,
+      -1,
+      0,
+      1,
+      2
+    ],
+    "1C_sys": [
+      -1,
+      0,
+      1,
+      2,
+      3
+    ],
+    "3C_sys": [
+      -2,
+      -1,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "safety": {
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68,
+    "no_extrapolation": true
+  },
+  "space_rule": {
+    "frame_constants": [
+      -2.25,
+      42.25,
+      82.25
+    ],
+    "tolerance": 0.02,
+    "rule": "if x or y matches frame_constants => Fg, else Rg"
+  },
+  "mappings": null,
+  "meta": {
+    "version": "1.0",
+    "generator": "3Cushion AI",
+    "created_at": "2025-09-01T00:00:00Z",
+    "source": "anchors.json B2T_L"
+  },
+  "display_labels": {
+    "B2T_L": "-1tip, 타점 11시15분",
+    "B2T_R": "+1tip, 타점 12시45분",
+    "T2B_L": "-1tip, 타점 11시15분",
+    "T2B_R": "+1tip, 타점 12시45분"
+  }
+}

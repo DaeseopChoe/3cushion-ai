@@ -1,0 +1,86 @@
+{
+  "system_id": "double_rail",
+  "system_name": "Double Rail",
+  "alias": ["double_rail", "Double Rail"],
+  "category": {
+    "family": "formula_with_anchors",
+    "type": "cap_aware_selector",
+    "difficulty": "medium"
+  },
+  "display": {
+    "ko": {
+      "title": "더블 레일 시스템",
+      "short_title": "Double Rail",
+      "description": "프레임 상수선 출발 시 후보 2트랙을 모두 평가하고 HP_n ≤ cap(기본 30)을 만족하는 트랙을 우선 채택한다. 공식은 sys-only로 HP_n = CO_f + 4C_f."
+    }
+  },
+  "formula_concept": {
+    "canonical": "HP_n = CO_f + 4C_f",
+    "note": "Concept only. Track selection, cap policy, interpolation, and clock mapping are defined in derivations/double_rail.rules.json."
+  },
+  "value_domains": {
+    "HP_n": { "min": 0, "max": 30, "step": 5 },
+    "CO_f": { "min": 0, "max": 30, "step": 5 },
+    "4C_f": { "min": 0, "max": 30, "step": 5 },
+    "clock_mapping": {
+      "RIGHT": {
+        "5": "12:30",
+        "10": "1:00",
+        "15": "1:30",
+        "20": "2:00",
+        "25": "2:30",
+        "30": "3:00"
+      },
+      "LEFT": {
+        "5": "11:30",
+        "10": "11:00",
+        "15": "10:30",
+        "20": "10:00",
+        "25": "9:30",
+        "30": "9:00"
+      }
+    },
+    "clock_rounding": {
+      "step": 5,
+      "tie_break": "round_half_up_to_higher_step",
+      "clamp": [5, 30]
+    }
+  },
+  "safety": {
+    "hp_cap": 30,
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68,
+    "no_extrapolation": true
+  },
+  "scope": {
+    "requires_anchors": true,
+    "requires_track": true,
+    "supported": [
+      "CO/4C anchor-based sys interpolation",
+      "cap-aware track selection at frame constant lines",
+      "clockface label output (RIGHT/LEFT spin)"
+    ],
+    "not_supported": [
+      "systems requiring iterative solving",
+      "systems requiring global scale assumptions"
+    ]
+  },
+  "notes": {
+    "ssot_roles": [
+      "systems/double_rail/profile.json : identity + concept only",
+      "systems/double_rail/logic.json : track selection only (no calc)",
+      "systems/double_rail/anchors.json : 4-track anchors (do not modify)",
+      "derivations/double_rail.rules.json : all calculations/policies"
+    ]
+  },
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "3Cushion AI (PM)",
+    "no_calc_in_profile": true,
+    "source": "Double_Rail_profile.json",
+    "last_updated": "2026-01-11"
+  }
+}

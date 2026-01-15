@@ -1,0 +1,76 @@
+{
+  "system_id": "tokyo_system",
+  "system_name": "Tokyo System",
+  "role": "track_selection_only",
+
+  "description": "Select trajectory track (B2T / T2B, L / R) for Tokyo System. No calculation is performed here.",
+
+  "input_policy": {
+    "required_marks": ["CO", "C2"],
+    "optional_marks": ["track"],
+    "note": "If track is explicitly provided, logic will not infer it."
+  },
+
+  "track_policy": {
+    "available_tracks": [
+      "B2T_L",
+      "B2T_R",
+      "T2B_L",
+      "T2B_R"
+    ],
+    "selection_mode": "explicit_or_infer"
+  },
+
+  "explicit_track_rule": {
+    "if_provided": "use_as_is",
+    "validation": "must_be_in_available_tracks"
+  },
+
+  "inference_rules": {
+    "axis_reference": "long_axis",
+
+    "vertical_direction": {
+      "rule": "compare CO.y and C2.y",
+      "conditions": {
+        "CO.y < C2.y": "B2T",
+        "CO.y > C2.y": "T2B",
+        "CO.y == C2.y": "ambiguous"
+      }
+    },
+
+    "horizontal_side": {
+      "rule": "compare CO.x and C2.x",
+      "conditions": {
+        "CO.x < C2.x": "R",
+        "CO.x > C2.x": "L",
+        "CO.x == C2.x": "ambiguous"
+      }
+    },
+
+    "ambiguity_policy": {
+      "on_ambiguous": {
+        "action": "require_explicit_track",
+        "message": "Track cannot be inferred uniquely. Please specify track explicitly."
+      }
+    }
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "rules_reference": "derivations/tokyo_system.rules.json",
+    "note": "All sys calculations are handled exclusively in rules.json."
+  },
+
+  "safety": {
+    "no_sys_calculation": true,
+    "no_interpolation": true,
+    "no_anchor_access": true
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "PM-direct",
+    "ssot_boundary_clear": true,
+    "last_updated": "2026-01-13"
+  }
+}

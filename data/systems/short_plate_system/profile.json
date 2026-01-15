@@ -1,0 +1,50 @@
+{
+  "system": "Short Plate System",
+  "formula": "1C_f = CO_f - 4C_r",
+  "value_domains": {
+    "CO_sys": [
+      50,
+      70,
+      90
+    ],
+    "1C_sys": [
+      0,
+      10,
+      20,
+      30,
+      40,
+      50
+    ],
+    "4C_sys": [
+      50,
+      70,
+      90
+    ]
+  },
+  "safety": {
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68,
+    "no_extrapolation": true,
+    "valid_4C_range": [
+      50,
+      90
+    ]
+  },
+  "space_rule": {
+    "frame_constants": [
+      -2.25,
+      42.25,
+      82.25
+    ],
+    "tolerance": 0.02,
+    "rule": "if x or y matches frame_constants => Fg, else Rg"
+  },
+  "mappings": null,
+  "meta": {
+    "version": "1.0",
+    "generator": "profile_template_generator.py"
+  }
+}
