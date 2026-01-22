@@ -88,6 +88,7 @@ export default function Stage() {
   let BUTTON_GAP = BUTTON_W * 0.22;  // 0.12 → 0.16 (간격 소폭 증가)
 
   const buttons = [
+    { id: "COACH", label: "코칭", type: "coach" },
     { id: "S1", label: "S1", type: "shot" },
     { id: "S2", label: "S2", type: "shot" },
     { id: "S3", label: "S3", type: "shot" },
@@ -97,13 +98,14 @@ export default function Stage() {
     { id: "AI", label: "AI", type: "info" },
   ];
 
-  let totalButtonHeight = BUTTON_HEIGHT * 7 + BUTTON_GAP * 6;
+  let totalButtonHeight = BUTTON_HEIGHT * 8 + BUTTON_GAP * 7;
   if (totalButtonHeight > stageH * 0.95) {
-    BUTTON_GAP = Math.max(BUTTON_W * 0.08, (stageH * 0.95 - BUTTON_HEIGHT * 7) / 6);
-    totalButtonHeight = BUTTON_HEIGHT * 7 + BUTTON_GAP * 6;
+    BUTTON_GAP = Math.max(BUTTON_W * 0.08, (stageH * 0.95 - BUTTON_HEIGHT * 8) / 7);
+    totalButtonHeight = BUTTON_HEIGHT * 8 + BUTTON_GAP * 7;
   }
 
   const getButtonColor = (id, isActive) => {
+    if (id === "COACH") return isActive ? "#2563eb" : "#3b82f6";
     if (id === "AI") return isActive ? "#c2410c" : "#ea580c";
     if (["SYS", "HP/T", "STR"].includes(id)) return isActive ? "#d97706" : "#f59e0b";
     return isActive ? "#047857" : "#10b981";

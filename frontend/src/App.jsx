@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
 
+const ADMIN_BUTTONS = ["SYS", "HPT", "STR", "AI"];
+
 const SHOTS = [
   { id: "H001_05", label: "H001 – B2T_R / 4C", file: "canonical.json" },
   { id: "H001_05_SB1", label: "H001 – B2T_R / 4C - SB1", file: "B2T_R/H001_05_SB1.json" },
@@ -101,6 +103,158 @@ function getImpactDirection(rotation, pattern) {
   return rotation === "LEFT" ? 1 : -1;
 }
 
+// ============================================
+// ImpactBall / HP-T 함수들
+// ============================================
+
+/**
+ * T값 파싱
+ * @param {string} T - "8/8", "+3/8", "-0/8" 등
+ * @returns {{ direction: -1|0|1, numerator: number, denominator: number }}
+ */
+function parseT(T) {
+  // [1] T 없으면 "8/8" fallback
+  if (!T) {
+    console.warn("parseT: T값 없음, 기본값 8/8 사용");
+    return { direction: 0, numerator: 8, denominator: 8 };
+  }
+  
+  // [2] "8/8"은 direction = 0
+  if (T === "8/8") {
+    return { direction: 0, numerator: 8, denominator: 8 };
+  }
+  
+  // [3] + / - 부호 파싱
+  const sign = T[0];
+  if (sign !== '+' && sign !== '-') {
+    console.warn("parseT: 부호 없음, fallback 8/8", T);
+    return { direction: 0, numerator: 8, denominator: 8 };
+  }
+  
+  const direction = sign === '+' ? 1 : -1;
+  
+  // [4] numerator / denominator 파싱
+  const fraction = T.slice(1);
+  if (!fraction.includes('/')) {
+    console.warn("parseT: 분수 형식 아님, fallback 8/8", T);
+    return { direction: 0, numerator: 8, denominator: 8 };
+  }
+  
+  const parts = fraction.split('/');
+  const numerator = Number(parts[0]);
+  const denominator = Number(parts[1]);
+  
+  // [5] 잘못된 값은 console.warn 후 8/8 fallback
+  if (isNaN(numerator) || isNaN(denominator) || denominator === 0) {
+    console.warn("parseT: 숫자 파싱 실패, fallback 8/8", T);
+    return { direction: 0, numerator: 8, denominator: 8 };
+  }
+  
+  return { direction, numerator, denominator };
+}
+
+/**
+ * 타겟볼 기준 임팩트볼 위치 계산
+ * 
+ * 개념 고정:
+ * - 순서: cue → impact → target
+ * - 타겟볼이 주체
+ * - 접점이 먼저, ImpactBall은 결과
+ * - ImpactBall = 접점에서 큐볼 방향으로 BALL_RADIUS 이동
+ */
+function calcImpactBall(cue, target, T) {
+  // [1] 입력 검증
+  if (!cue || !target) {
+    console.warn("calcImpactBall: 큐볼 또는 타겟볼 없음");
+    return null;
+  }
+
+  // [2] T 파싱
+  const { direction, numerator, denominator } = parseT(T);
+
+  // [3] 큐 → 타겟 진행 방향 단위벡터 계산
+  const dx = target.x - cue.x;
+  const dy = target.y - cue.y;
+  const dist = Math.hypot(dx, dy);
+  
+  if (dist < 1e-6) {
+    console.warn("calcImpactBall: 큐볼과 타겟볼이 겹침");
+    return { x: target.x, y: target.y };
+  }
+  
+  const ux = dx / dist;
+  const uy = dy / dist;
+
+  // [4] 8/8 특수 처리
+  if (T === "8/8") {
+    // 접점 = target - (진행방향 × BALL_RADIUS)
+    const contactX = target.x - ux * BALL_RADIUS_RG;
+    const contactY = target.y - uy * BALL_RADIUS_RG;
+    
+    // ImpactBall = 접점 - (진행방향 × BALL_RADIUS)
+    return {
+      x: contactX - ux * BALL_RADIUS_RG,
+      y: contactY - uy * BALL_RADIUS_RG
+    };
+  }
+
+  // [5] 일반 두께 (0/8 ~ 7/8)
+  // [5-1] 접선 방향 단위벡터
+  const vx = direction * uy;
+  const vy = direction * (-ux);
+
+  // [5-2] 접선 이동량
+  // ⚠️ numerator === 0 → offset = 0, direction 계산에는 영향 없음
+  const offset = (numerator / denominator) * BALL_DIAMETER_RG;
+
+  // [5-3] 타겟볼 표면 시작점
+  const surfaceX = target.x - ux * BALL_RADIUS_RG;
+  const surfaceY = target.y - uy * BALL_RADIUS_RG;
+
+  // [5-4] 접선 이동 (raw contact)
+  const rawContactX = surfaceX + vx * offset;
+  const rawContactY = surfaceY + vy * offset;
+
+  // [5-5] 접점 정규화 (타겟볼 원 위)
+  const dcx = rawContactX - target.x;
+  const dcy = rawContactY - target.y;
+  const distContact = Math.hypot(dcx, dcy);
+  
+  if (distContact < 1e-6) {
+    console.warn("calcImpactBall: 접점이 타겟볼 중심과 겹침");
+    return {
+      x: target.x - ux * BALL_RADIUS_RG * 2,
+      y: target.y - uy * BALL_RADIUS_RG * 2
+    };
+  }
+  
+  const contactX = target.x + (dcx / distContact) * BALL_RADIUS_RG;
+  const contactY = target.y + (dcy / distContact) * BALL_RADIUS_RG;
+
+  // [6] ImpactBall 위치 계산
+  // 접점 → 큐볼 방향 단위벡터 계산
+  const towardsCueX = cue.x - contactX;
+  const towardsCueY = cue.y - contactY;
+  const distToCue = Math.hypot(towardsCueX, towardsCueY);
+  
+  if (distToCue < 1e-6) {
+    console.warn("calcImpactBall: 접점이 큐볼과 겹침");
+    return {
+      x: contactX - ux * BALL_RADIUS_RG,
+      y: contactY - uy * BALL_RADIUS_RG
+    };
+  }
+  
+  const ucx = towardsCueX / distToCue;
+  const ucy = towardsCueY / distToCue;
+  
+  // ImpactBall = 접점 + (큐방향 × BALL_RADIUS)
+  return {
+    x: contactX + ucx * BALL_RADIUS_RG,
+    y: contactY + ucy * BALL_RADIUS_RG
+  };
+}
+
 function calculateImpact(cue, target, CO_fg, C1_fg, thicknessStr, pattern) {
   let t = 0.5;
   if (typeof thicknessStr === "string" && thicknessStr.includes("/")) {
@@ -189,7 +343,7 @@ function groupSystemValuesByRail(anchors, systemValues, lastCushion) {
   return groups;
 }
 
-function Ball({ x, y, color, opacity = 1 }) {
+function Ball({ x, y, color, opacity = 1, ...eventProps }) {
   const p = toPx({ x, y });
   return (
     <circle
@@ -199,6 +353,8 @@ function Ball({ x, y, color, opacity = 1 }) {
       fill={color}
       opacity={opacity}
       shapeRendering="geometricPrecision"
+      pointerEvents="all"
+      {...eventProps}
     />
   );
 }
@@ -256,6 +412,451 @@ function AnchorPoint({ x, y, label, isFg = false, systemValues }) {
         )}
       </text>
     </g>
+  );
+}
+
+
+
+// ============================================
+// 관리자 모드 오버레이 컴포넌트들
+// ============================================
+
+function SysOverlay({ data, onSave, onCancel }) {
+  const [tempData, setTempData] = useState(data);
+
+  return (
+    <div style={{ color: '#334155', fontSize: '14px' }}>
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>시스템 ID</label>
+        <input
+          type="text"
+          value={tempData.system_id || ''}
+          onChange={(e) => setTempData({ ...tempData, system_id: e.target.value })}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+          placeholder="예: 5_half_system"
+        />
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>CO</label>
+        <input
+          type="number"
+          value={tempData.CO ?? ''}
+          onChange={(e) => setTempData({ ...tempData, CO: e.target.value ? Number(e.target.value) : null })}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+          placeholder="0~80"
+        />
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>C3</label>
+        <input
+          type="number"
+          value={tempData.C3 ?? ''}
+          onChange={(e) => setTempData({ ...tempData, C3: e.target.value ? Number(e.target.value) : null })}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+          placeholder="0~80"
+        />
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>보정값</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+          <div>
+            <label style={{ fontSize: '12px', color: '#64748b' }}>Push</label>
+            <input
+              type="number"
+              value={tempData.corrections?.push ?? 0}
+              onChange={(e) => setTempData({
+                ...tempData,
+                corrections: { ...tempData.corrections, push: Number(e.target.value) }
+              })}
+              style={{
+                width: '100%',
+                padding: '6px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#64748b' }}>Pull</label>
+            <input
+              type="number"
+              value={tempData.corrections?.pull ?? 0}
+              onChange={(e) => setTempData({
+                ...tempData,
+                corrections: { ...tempData.corrections, pull: Number(e.target.value) }
+              })}
+              style={{
+                width: '100%',
+                padding: '6px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#64748b' }}>Start</label>
+            <input
+              type="number"
+              value={tempData.corrections?.start ?? 0}
+              onChange={(e) => setTempData({
+                ...tempData,
+                corrections: { ...tempData.corrections, start: Number(e.target.value) }
+              })}
+              style={{
+                width: '100%',
+                padding: '6px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+        <button
+          onClick={() => onSave(tempData)}
+          style={{
+            flex: 1,
+            padding: '10px',
+            backgroundColor: '#2563eb',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          적용
+        </button>
+        <button
+          onClick={onCancel}
+          style={{
+            flex: 1,
+            padding: '10px',
+            backgroundColor: '#e2e8f0',
+            color: '#334155',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function HptOverlay({ data, onSave, onCancel }) {
+  const [tempData, setTempData] = useState(data);
+
+  // T값 옵션 (0/8 ~ 8/8, 17개)
+  const T_OPTIONS = [
+    { value: "8/8", label: "정면 (8/8)" },
+    { value: "+7/8", label: "우측 7/8" },
+    { value: "+6/8", label: "우측 6/8" },
+    { value: "+5/8", label: "우측 5/8" },
+    { value: "+4/8", label: "우측 4/8" },
+    { value: "+3/8", label: "우측 3/8" },
+    { value: "+2/8", label: "우측 2/8" },
+    { value: "+1/8", label: "우측 1/8" },
+    { value: "+0/8", label: "우측 0/8 (극단적 얇은 두께)" },
+    { value: "-0/8", label: "좌측 0/8 (극단적 얇은 두께)" },
+    { value: "-1/8", label: "좌측 1/8" },
+    { value: "-2/8", label: "좌측 2/8" },
+    { value: "-3/8", label: "좌측 3/8" },
+    { value: "-4/8", label: "좌측 4/8" },
+    { value: "-5/8", label: "좌측 5/8" },
+    { value: "-6/8", label: "좌측 6/8" },
+    { value: "-7/8", label: "좌측 7/8" }
+  ];
+
+  return (
+    <div style={{ color: '#334155', fontSize: '14px' }}>
+      {/* T값 선택 */}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
+          두께 (Thickness)
+        </label>
+        <select
+          value={tempData.T ?? "8/8"}
+          onChange={(e) => setTempData({ ...tempData, T: e.target.value })}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        >
+          {T_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* 타점 X */}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
+          타점 X (Rg)
+        </label>
+        <input
+          type="number"
+          step="0.1"
+          value={tempData.hit_point?.x ?? 0}
+          onChange={(e) => setTempData({
+            ...tempData,
+            hit_point: { ...tempData.hit_point, x: Number(e.target.value) }
+          })}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        />
+      </div>
+
+      {/* 타점 Y */}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
+          타점 Y (Rg)
+        </label>
+        <input
+          type="number"
+          step="0.1"
+          value={tempData.hit_point?.y ?? 0}
+          onChange={(e) => setTempData({
+            ...tempData,
+            hit_point: { ...tempData.hit_point, y: Number(e.target.value) }
+          })}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        />
+      </div>
+
+      {/* 버튼 */}
+      <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+        <button
+          onClick={() => onSave(tempData)}
+          style={{
+            flex: 1,
+            padding: '10px',
+            backgroundColor: '#2563eb',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          적용
+        </button>
+        <button
+          onClick={onCancel}
+          style={{
+            flex: 1,
+            padding: '10px',
+            backgroundColor: '#e2e8f0',
+            color: '#334155',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StrOverlay({ data, onSave, onCancel }) {
+  const [tempData, setTempData] = useState(data);
+
+  return (
+    <div style={{ color: '#334155', fontSize: '14px' }}>
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>커브 (Curve)</label>
+        <select
+          value={tempData.curve ?? 'constant'}
+          onChange={(e) => setTempData({ ...tempData, curve: e.target.value })}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        >
+          <option value="constant">일정</option>
+          <option value="accelerate">가속</option>
+          <option value="decelerate">감속</option>
+        </select>
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>타입 (Type)</label>
+        <select
+          value={tempData.type ?? 'standard'}
+          onChange={(e) => setTempData({ ...tempData, type: e.target.value })}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        >
+          <option value="short">단구</option>
+          <option value="standard">표준</option>
+          <option value="long">장구</option>
+        </select>
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>속도 (Speed)</label>
+        <input
+          type="number"
+          step="0.1"
+          value={tempData.speed ?? 5}
+          onChange={(e) => setTempData({ ...tempData, speed: Number(e.target.value) })}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+        <button
+          onClick={() => onSave(tempData)}
+          style={{
+            flex: 1,
+            padding: '10px',
+            backgroundColor: '#2563eb',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          적용
+        </button>
+        <button
+          onClick={onCancel}
+          style={{
+            flex: 1,
+            padding: '10px',
+            backgroundColor: '#e2e8f0',
+            color: '#334155',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AiOverlay({ data, onSave, onCancel }) {
+  const [tempData, setTempData] = useState(data);
+
+  return (
+    <div style={{ color: '#334155', fontSize: '14px' }}>
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>AI 코멘트</label>
+        <textarea
+          value={tempData.text ?? ''}
+          onChange={(e) => setTempData({ ...tempData, text: e.target.value })}
+          rows={6}
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '14px',
+            fontFamily: 'inherit',
+            resize: 'vertical'
+          }}
+          placeholder="AI 코멘트를 입력하세요..."
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+        <button
+          onClick={() => onSave(tempData)}
+          style={{
+            flex: 1,
+            padding: '10px',
+            backgroundColor: '#2563eb',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          적용
+        </button>
+        <button
+          onClick={onCancel}
+          style={{
+            flex: 1,
+            padding: '10px',
+            backgroundColor: '#e2e8f0',
+            color: '#334155',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          취소
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -395,6 +996,60 @@ export default function App({ currentButtonId }) {
   const [error, setError] = useState(null);
   const [overlayContent, setOverlayContent] = useState(null);
   
+  // ============================================
+  // 관리자 모드 상태 (v0)
+  // ============================================
+  const [appMode, setAppMode] = useState("USER"); // "USER" | "ADMIN"
+  
+  const [adminState, setAdminState] = useState({
+    sys: {
+      system_id: null,
+      CO: null,
+      C3: null,
+      corrections: {
+        push: 0,
+        pull: 0,
+        start: 0
+      }
+    },
+    hpt: {
+      T: "8/8",  // ⚠️ SSOT - 두께·방향의 유일한 기준
+      hit_point: { x: 0, y: 0 }  // ⚠️ Rg 좌표계 (타점)
+    },
+    str: {
+      curve: "constant",
+      type: "standard",
+      speed: 5
+    },
+    ai: {
+      text: ""
+    },
+    balls: {
+      cue: { x: 10, y: 10 },
+      target: { x: 50, y: 25 },
+      second: { x: 40, y: 20 }
+    }
+  });
+
+  const [overlayState, setOverlayState] = useState({
+    open: false,
+    type: null // "SYS" | "HPT" | "STR" | "AI" | null
+  });
+  
+  // ============================================
+  // ImpactBall 모드 상태
+  // ============================================
+  const [impactMode, setImpactMode] = useState("CONTACT");
+  // "CONTACT": 타겟볼 접선 고정 (기본)
+  // "FREE": 자유 이동 (더블클릭 후)
+  
+  // ============================================
+  // USER MODE 코칭 표시 상태
+  // ============================================
+  const [showCoaching, setShowCoaching] = useState(false);
+  // false: 배치만 표시 (임펙트볼/가이드 비표시)
+  // true: 코칭 결과 표시 (임펙트볼/가이드 표시)
+  
   // Ball drag state
   const [ballsState, setBallsState] = useState(null);
   const [dragState, setDragState] = useState({
@@ -420,14 +1075,110 @@ export default function App({ currentButtonId }) {
   const JOYSTICK_STEP = 0.1; // Rg
   const JOYSTICK_REPEAT_MS = 60;
 
+  // ============================================
+  // 관리자 모드 헬퍼 함수
+  // ============================================
+  
+  // 권한 체크
+  const canEdit = appMode === "ADMIN";
+
+  // 오버레이 열기 (가드 로직 포함)
+  function openOverlay(type) {
+    // 드래그 중이면 강제 종료
+    if (dragState.dragging) {
+      handlePointerUp({ pointerId: null });
+    }
+    
+    // 조이스틱 숨김
+    setDragState(prev => ({ ...prev, joystickVisible: false }));
+    
+    setOverlayState({ open: true, type });
+  }
+
+  // 오버레이 닫기
+  function closeOverlay() {
+    setOverlayState({ open: false, type: null });
+  }
+
+  // ⭐ 핵심: 버튼 클릭 → Overlay 여는 함수
+  function handleSelectAdminButton(buttonId) {
+    if (appMode !== "ADMIN") return;
+
+    if (!ADMIN_BUTTONS.includes(buttonId)) return;
+
+    // 드래그 중이면 강제 종료
+    if (dragState.dragging) {
+      handlePointerUp({ pointerId: null });
+    }
+    
+    // 조이스틱 숨김
+    setDragState(prev => ({ ...prev, joystickVisible: false }));
+    
+    setOverlayState({
+      open: true,
+      type: buttonId
+    });
+  }
+
+  // Admin Mode 토글 함수
+  function handleToggleAdminMode() {
+    setAppMode((prev) => {
+      const nextMode = prev === "ADMIN" ? "USER" : "ADMIN";
+      
+      // ADMIN 모드 진입 시 항상 코칭 표시 상태로 설정
+      if (nextMode === "ADMIN") {
+        setShowCoaching(true);
+      }
+      
+      return nextMode;
+    });
+    setOverlayState({ open: false, type: null });
+  }
+
+  // SAVE 핸들러
+  function handleSave() {
+    if (!adminState.sys.system_id) {
+      alert("시스템을 선택하세요");
+      return;
+    }
+
+    const record = {
+      timestamp: Date.now(),
+      mode: "ADMIN",
+      system_id: adminState.sys.system_id,
+      balls: adminState.balls,
+      sys_input: adminState.sys,
+      hpt_input: adminState.hpt,
+      str_input: adminState.str,
+      ai_text: adminState.ai.text
+    };
+
+    console.log("💾 SAVED:", record);
+    alert("저장 완료");
+  }
+
   function nudgeBall(ballId, dx, dy) {
     if (!ballId) return;
     setBallsState((prev) => {
       const cur = prev?.[ballId];
       if (!cur) return prev;
+      
+      // ⭐ impact는 FREE 모드일 때 쿠션 근처까지 허용
+      let minX = 0.5;
+      let maxX = 79.5;
+      let minY = 0.5;
+      let maxY = 39.5;
+      
+      if (ballId === "impact" && impactMode === "FREE") {
+        minX = -CUSHION_RG;
+        maxX = 80 + CUSHION_RG;
+        minY = -CUSHION_RG;
+        maxY = 40 + CUSHION_RG;
+      }
+      
       const next = {
-        x: clamp(cur.x + dx, 0.5, 79.5),
-        y: clamp(cur.y + dy, 0.5, 39.5),
+        x: clamp(cur.x + dx, minX, maxX),
+        y: clamp(cur.y + dy, minY, maxY),
       };
       return { ...prev, [ballId]: next };
     });
@@ -536,21 +1287,59 @@ function handleJoyPadPointerUp(e) {
 function handleJoyPadPointerCancel(e) {
   handleJoyPadPointerUp(e);
 }
+  // ============================================
+  // currentButtonId 처리 (USER 모드 오버레이)
+  // ============================================
+  useEffect(() => {
+    // ✅ ADMIN 모드에서는 기존(USER) overlayContent 흐름을 막는다
+    if (appMode === "ADMIN") return;
+    
+    if (!currentButtonId) return;
+
+    // 코칭 버튼 처리
+    if (currentButtonId === "COACH") {
+      setShowCoaching(true);
+      console.log("🎯 코칭 버튼 클릭 감지");
+    }
+    else if (currentButtonId === "SYS") setOverlayContent("SYS");
+    else if (currentButtonId === "HP/T") setOverlayContent("HPT");
+    else if (currentButtonId === "STR") setOverlayContent("STR");
+    else if (currentButtonId === "AI") setOverlayContent("AI");
+    else setOverlayContent(null);
+  }, [currentButtonId, appMode]);
+
+  // ============================================
+  // currentButtonId 처리 (ADMIN 모드 오버레이)
+  // ============================================
+  // ✅ ADMIN 모드에서 SYS/HP/T/STR/AI 버튼 클릭 → 관리자 오버레이(openOverlay)로 연결
+  useEffect(() => {
+    if (appMode !== "ADMIN") return;
+    if (!currentButtonId) return;
+
+    if (currentButtonId === "SYS") openOverlay("SYS");
+    else if (currentButtonId === "HP/T") openOverlay("HPT");
+    else if (currentButtonId === "STR") openOverlay("STR");
+    else if (currentButtonId === "AI") openOverlay("AI");
+  }, [currentButtonId, appMode]);
+
+  // ============================================
+  // S1/S2/S3 시나리오 전환
+  // ============================================
   useEffect(() => {
     if (currentButtonId === 'S1') {
-      setOverlayContent(null);  // 오버레이 해제
+      setOverlayContent(null);
+      setOverlayState({ open: false, type: null });
       setCurrentId(SHOTS[0].id);
     }
     else if (currentButtonId === 'S2') {
-      setOverlayContent(null);  // 오버레이 해제
+      setOverlayContent(null);
+      setOverlayState({ open: false, type: null });
       setCurrentId(SHOTS[1].id);
     }
     else if (currentButtonId === 'S3') {
-      setOverlayContent(null);  // 오버레이 해제
+      setOverlayContent(null);
+      setOverlayState({ open: false, type: null });
       setCurrentId(SHOTS[2].id);
-    }
-    else if (['SYS', 'HP/T', 'STR', 'AI'].includes(currentButtonId)) {
-      setOverlayContent(currentButtonId === 'HP/T' ? 'HPT' : currentButtonId);
     }
   }, [currentButtonId]);
 
@@ -596,6 +1385,40 @@ function handleJoyPadPointerCancel(e) {
       setBallsState(view.ui.balls);
     }
   }, [view]);
+
+  // ============================================
+  // 키보드 단축키 (관리자 모드)
+  // ============================================
+  useEffect(() => {
+    function handleKeyDown(e) {
+      // ✅ 조건 3: input/textarea 포커스 시 동작 금지
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      
+      // Ctrl+Shift+A: 관리자 모드 토글
+      if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+        e.preventDefault();
+        setAppMode(prev => {
+          const nextMode = prev === "USER" ? "ADMIN" : "USER";
+          
+          // ADMIN 모드 진입 시 항상 코칭 표시 상태로 설정
+          if (nextMode === "ADMIN") {
+            setShowCoaching(true);
+          }
+          
+          console.log("🔑 모드 전환:", nextMode);
+          return nextMode;
+        });
+      }
+      
+      // ESC: 오버레이 닫기
+      if (e.key === "Escape" && overlayState.open) {
+        closeOverlay();
+      }
+    }
+    
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [appMode, overlayState.open]);
 
   if (loading) {
     return (
@@ -661,6 +1484,9 @@ function handleJoyPadPointerCancel(e) {
   // 드래그 핸들러
 // 드래그/선택 핸들러
 function handlePointerDown(e) {
+  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
+  if (overlayState.open) return;
+
   // ✅ Rule: joystick closes ONLY when user taps OUTSIDE the joystick.
   // - tap inside joystick: ignore (do not change selection)
   // - tap outside joystick: close joystick immediately and return
@@ -698,6 +1524,15 @@ function handlePointerDown(e) {
 
   for (const [ballId, ballPos] of Object.entries(balls)) {
     if (!ballPos) continue;
+    
+    // ⭐ impact 드래그 조건
+    if (ballId === "impact") {
+      // USER 모드: 임펙트볼 드래그 완전 금지
+      if (appMode === "USER") continue;
+      // ADMIN 모드: FREE 모드일 때만 드래그 가능
+      if (impactMode !== "FREE") continue;
+    }
+    
     const dx = pointerRg.x - ballPos.x;
     const dy = pointerRg.y - ballPos.y;
     const dist = Math.hypot(dx, dy);
@@ -738,14 +1573,30 @@ function handlePointerDown(e) {
 }
 
 function handlePointerMove(e) {
+  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
+  if (overlayState.open) return;
+  
   if (!dragState.dragging || !dragState.ballId || !svgRef.current) return;
 
   const pointerRg = pointerToRg(e, svgRef.current);
   if (!pointerRg) return;
 
+  // ⭐ impact는 FREE 모드일 때 쿠션 근처까지 허용
+  let minX = 0.5;
+  let maxX = 79.5;
+  let minY = 0.5;
+  let maxY = 39.5;
+  
+  if (dragState.ballId === "impact" && impactMode === "FREE") {
+    minX = -CUSHION_RG;
+    maxX = 80 + CUSHION_RG;
+    minY = -CUSHION_RG;
+    maxY = 40 + CUSHION_RG;
+  }
+
   const newRg = {
-    x: clamp(pointerRg.x - dragState.grabOffsetRg.x, 0.5, 79.5),
-    y: clamp(pointerRg.y - dragState.grabOffsetRg.y, 0.5, 39.5),
+    x: clamp(pointerRg.x - dragState.grabOffsetRg.x, minX, maxX),
+    y: clamp(pointerRg.y - dragState.grabOffsetRg.y, minY, maxY),
   };
 
   setBallsState((prev) => ({
@@ -755,6 +1606,9 @@ function handlePointerMove(e) {
 }
 
 function handlePointerUp(e) {
+  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
+  if (overlayState.open) return;
+  
   if (!dragState.dragging || !dragState.ballId) return;
   stopJoystick();
 
@@ -904,9 +1758,6 @@ function handlePointerCancel(e) {
     "C1_rail (교점)": C1_rail
   });
 
-  const cuePx = balls.cue ? toPx(balls.cue) : { x: 0, y: 0 };
-  const impactPx = impact ? toPx(impact) : cuePx;
-
   let lastAnchor = null;
   if (view.last_cushion === "4C") lastAnchor = C4;
   if (view.last_cushion === "5C") lastAnchor = C5;
@@ -957,7 +1808,55 @@ function handlePointerCancel(e) {
       {Object.entries(allAnchors).map(([label, data]) => data.coord && <AnchorPoint key={label} label={label} x={data.coord.x} y={data.coord.y} isFg={data.isFg} systemValues={system.values} />)}
       {CO_line && C1_line && <line x1={toPx(CO_line).x + PADDING} y1={toPx(CO_line).y + PADDING} x2={toPx(C1_line).x + PADDING} y2={toPx(C1_line).y + PADDING} stroke="#fb923c" strokeWidth={2} />}
       {cushionPath.length > 1 && <polyline points={cushionPathAttr} stroke="#ef4444" strokeWidth={2} fill="none" />}
-      {balls.cue && impact && <line x1={cuePx.x + PADDING} y1={cuePx.y + PADDING} x2={impactPx.x + PADDING} y2={impactPx.y + PADDING} stroke="#e5e7eb" strokeDasharray="4 3" strokeWidth={2} />}
+      
+      {/* 큐 → 임팩트 점선 (calcImpactBall 기반 통일) */}
+      {(() => {
+        // ✅ USER MODE 코칭 버튼 누르기 전: 가이드 라인 비표시
+        if (appMode === "USER" && !showCoaching) return null;
+        
+        // T값 결정 (모드별 출처만 다름)
+        const T = canEdit 
+          ? adminState.hpt.T 
+          : (view.ui?.hpt?.T || "8/8");
+        
+        // ============================================
+        // ✅ 수정: impactMode에 따라 올바른 좌표 사용
+        // ============================================
+        let impactBall;
+        
+        if (impactMode === "CONTACT") {
+          // 접선 고정 모드: calcImpactBall 사용
+          impactBall = calcImpactBall(balls.cue, balls.target_center, T);
+        } else {
+          // 자유 이동 모드: ballsState.impact 사용
+          if (balls.impact) {
+            impactBall = balls.impact;
+          } else {
+            // impact가 없으면 초기값으로 calcImpactBall 결과 사용
+            impactBall = calcImpactBall(balls.cue, balls.target_center, T);
+          }
+        }
+        
+        if (!balls.cue || !impactBall) return null;
+        
+        const cuePx = toPx(balls.cue);
+        const impactPx = toPx(impactBall);
+        
+        // 큐 → 임팩트 점선 (항상 현재 ImpactBall 중심 기준)
+        return (
+          <line
+            x1={cuePx.x + PADDING}
+            y1={cuePx.y + PADDING}
+            x2={impactPx.x + PADDING}
+            y2={impactPx.y + PADDING}
+            stroke="#e5e7eb"
+            strokeDasharray="4 3"
+            strokeWidth={2}
+            pointerEvents="none"
+          />
+        );
+      })()}
+      
       {balls.cue && <Ball {...balls.cue} color="#ffffff" />}
       {balls.target_center && <Ball {...balls.target_center} color="#fde047" />}
       {balls.second && <Ball {...balls.second} color="#f87171" />}
@@ -1009,7 +1908,74 @@ function handlePointerCancel(e) {
   );
 })()}
 
-      {impact && <Ball x={impact.x} y={impact.y} color="#ffffff" opacity={0.55} />}
+      {/* ImpactBall (USER/ADMIN 공통, T값 기반) */}
+      {(() => {
+        // ✅ USER MODE 코칭 버튼 누르기 전: 임펙트볼 비표시
+        if (appMode === "USER" && !showCoaching) return null;
+        
+        // T값 결정 (모드별 소스만 다름)
+        const T = canEdit 
+          ? adminState.hpt.T 
+          : (view.ui?.hpt?.T || "8/8");
+        
+        // ============================================
+        // ImpactBall 위치 결정 (모드별 분기)
+        // ============================================
+        let impactBall;
+        
+        if (impactMode === "CONTACT") {
+          // 접선 고정 모드: calcImpactBall 사용
+          impactBall = calcImpactBall(balls.cue, balls.target_center, T);
+        } else {
+          // 자유 이동 모드: ballsState.impact 사용
+          if (balls.impact) {
+            impactBall = balls.impact;
+          } else {
+            // impact가 없으면 초기값으로 calcImpactBall 결과 사용
+            impactBall = calcImpactBall(balls.cue, balls.target_center, T);
+          }
+        }
+        
+        if (!impactBall) return null;
+        
+        // ADMIN: 초록색, USER: 흰색 (시각적 구분만)
+        const color = canEdit ? "#00ff00" : "#ffffff";
+        const opacity = canEdit ? 0.7 : 0.55;
+        
+        return (
+          <Ball 
+            x={impactBall.x} 
+            y={impactBall.y} 
+            color={color} 
+            opacity={opacity}
+            onDoubleClick={appMode === "ADMIN" ? (e) => {
+              e.stopPropagation();
+              console.log("🎯🎯 ImpactBall 더블클릭! 현재 모드:", impactMode);
+              
+              // 모드 토글
+              setImpactMode((prev) => {
+                const nextMode = prev === "CONTACT" ? "FREE" : "CONTACT";
+                console.log("✅ 모드 전환:", prev, "→", nextMode);
+                
+                // CONTACT → FREE 전환 시: 현재 calcImpactBall 결과를 저장
+                if (nextMode === "FREE") {
+                  const currentImpact = calcImpactBall(balls.cue, balls.target_center, T);
+                  if (currentImpact) {
+                    console.log("💾 impact 저장:", currentImpact);
+                    setBallsState((prev) => ({
+                      ...prev,
+                      impact: currentImpact
+                    }));
+                  }
+                }
+                
+                return nextMode;
+              });
+            } : undefined}
+            style={{ cursor: appMode === "ADMIN" ? "pointer" : "default" }}
+          />
+        );
+      })()}
       <SystemValueLabels railGroups={railGroups} />
     </svg>
   );
@@ -1018,6 +1984,150 @@ function handlePointerCancel(e) {
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       {tableSVG}
       
+      {/* 관리자 모드 토글 버튼 (ADMIN 모드에서만 표시) */}
+      {appMode === "ADMIN" && (
+        <button
+          onClick={handleToggleAdminMode}
+          style={{
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            padding: '6px 12px',
+            backgroundColor: 'rgba(239, 68, 68, 0.9)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            zIndex: 100
+          }}
+        >
+          🔧 ADMIN MODE
+        </button>
+      )}
+
+      {/* SAVE 버튼 (관리자 전용) */}
+      {canEdit && (
+        <button
+          onClick={handleSave}
+          style={{
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            padding: '12px 24px',
+            backgroundColor: '#10b981',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+            zIndex: 100
+          }}
+        >
+          💾 SAVE
+        </button>
+      )}
+
+      {/* 관리자 모드 오버레이 */}
+      {overlayState.open && (
+        <div
+          onClick={closeOverlay}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 50,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              borderRadius: '16px',
+              padding: '24px',
+              minWidth: '320px',
+              maxWidth: '70%',
+              maxHeight: '60%',
+              overflowY: 'auto',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>
+                {overlayState.type === 'SYS' && 'SYS 설정'}
+                {overlayState.type === 'HPT' && 'HP/T 설정'}
+                {overlayState.type === 'STR' && 'STR 설정'}
+                {overlayState.type === 'AI' && 'AI 코멘트'}
+              </h2>
+              <button
+                onClick={closeOverlay}
+                style={{
+                  fontSize: '28px',
+                  color: '#94a3b8',
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {overlayState.type === 'SYS' && (
+              <SysOverlay
+                data={adminState.sys}
+                onSave={(newData) => {
+                  setAdminState({ ...adminState, sys: newData });
+                  closeOverlay();
+                }}
+                onCancel={closeOverlay}
+              />
+            )}
+
+            {overlayState.type === 'HPT' && (
+              <HptOverlay
+                data={adminState.hpt}
+                onSave={(newData) => {
+                  setAdminState({ ...adminState, hpt: newData });
+                  closeOverlay();
+                }}
+                onCancel={closeOverlay}
+              />
+            )}
+
+            {overlayState.type === 'STR' && (
+              <StrOverlay
+                data={adminState.str}
+                onSave={(newData) => {
+                  setAdminState({ ...adminState, str: newData });
+                  closeOverlay();
+                }}
+                onCancel={closeOverlay}
+              />
+            )}
+
+            {overlayState.type === 'AI' && (
+              <AiOverlay
+                data={adminState.ai}
+                onSave={(newData) => {
+                  setAdminState({ ...adminState, ai: newData });
+                  closeOverlay();
+                }}
+                onCancel={closeOverlay}
+              />
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* 기존 USER 모드 오버레이 (조건 2: 완전 보존) */}
       {overlayContent && (
         <div
           onClick={() => setOverlayContent(null)}
