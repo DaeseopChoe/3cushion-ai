@@ -1,0 +1,8 @@
+shot_record.sys = {
+  input: SystemCalcInputV1,
+  output: SystemCalcOutputV1,
+  meta: {
+    approved_at: ISODateString,
+    system_version: "v1"
+  }
+}

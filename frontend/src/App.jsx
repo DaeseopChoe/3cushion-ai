@@ -421,134 +421,707 @@ function AnchorPoint({ x, y, label, isFg = false, systemValues }) {
 // 관리자 모드 오버레이 컴포넌트들
 // ============================================
 
+
 function SysOverlay({ data, onSave, onCancel }) {
-  const [tempData, setTempData] = useState(data);
+  // ==========================================
+  // v1 공략 유형 (내부 상수 고정)
+  // ==========================================
+  const SHOT_TYPE_OPTIONS = [
+    "뒤돌리기",
+    "옆돌리기",
+    "앞돌리기",
+    "세워치기",
+    "비켜치기",
+    "더블쿠션",
+    "횡단샷",
+    "리버스",
+    "짧은 뒤돌리기",
+    "뒤돌리기 대회전",
+    "옆돌리기 대회전",
+    "앞돌리기 대회전",
+    "더블 레일",
+    "1뱅크",
+    "2뱅크",
+    "3뱅크",
+    "대회전 뱅크",
+    "바운딩"
+  ];
+
+  // ==========================================
+  // v1 적용 시스템 (내부 상수 고정)
+  // ==========================================
+  const SYSTEM_OPTIONS = [
+    { id: "5_half_system", label: "5½ 시스템" },
+    { id: "rodriguez", label: "로드리게스 시스템" },
+    { id: "ball_system", label: "볼 시스템" },
+    { id: "sunrise_sunset", label: "일출·일몰 시스템" },
+    { id: "plus_system", label: "플러스 시스템" },
+    { id: "plus2_system", label: "플러스2 시스템" },
+    { id: "3tip_plus", label: "3팁 플러스" },
+    { id: "2_3_system", label: "2/3 시스템" },
+    { id: "35_half", label: "3½ 시스템" },
+    { id: "double_rail", label: "더블 레일" },
+    { id: "peruvian_system", label: "페루비안 시스템" },
+    { id: "reverse_end_system", label: "리버스 엔드" },
+    { id: "zigzag_system", label: "지그재그 시스템" },
+    { id: "7_system", label: "7 시스템" },
+    { id: "99_to_1", label: "99 to 1" },
+    { id: "clay_shooting", label: "클레이 슈팅" },
+    { id: "long_plate_system", label: "롱 플레이트" },
+    { id: "long_wedge", label: "롱 웨지" },
+    { id: "reverse_system", label: "리버스 시스템" },
+    { id: "schaefer_system", label: "쉐퍼 시스템" },
+    { id: "tokyo_system", label: "도쿄 시스템" },
+    { id: "turkish_angle_system", label: "터키 앵글" },
+    { id: "short_plate_system", label: "숏 플레이트" },
+    { id: "short_wedge", label: "숏 웨지" },
+    { id: "spider_web", label: "스파이더 웹" },
+    { id: "0tip_plus", label: "0팁 플러스" },
+    { id: "1byhalf", label: "1½ 시스템" },
+    { id: "3and4_system", label: "3&4 시스템" },
+    { id: "3tip_across", label: "3팁 어크로스" },
+    { id: "Plus_5_system", label: "플러스 5 시스템" },
+    { id: "minus_5_system", label: "마이너스 5 시스템" },
+    { id: "n_across", label: "N 어크로스" },
+    { id: "n_across_short", label: "N 어크로스 숏" },
+    { id: "spread_30", label: "스프레드 30" },
+    { id: "split", label: "스플릿" },
+    { id: "accordion", label: "아코디언 시스템" },
+    { id: "florida_system", label: "플로리다 시스템" }
+  ];
+
+  // ==========================================
+  // 상태 관리 (로컬 state)
+  // ==========================================
+  const [formData, setFormData] = useState({
+    shotType: data?.shotType || '뒤돌리기',
+    system: data?.system || SYSTEM_OPTIONS[0]?.id || '5_half_system',
+    coBase: data?.coBase || 40,
+    c3Base: data?.c3Base || 20,
+    corrections: {
+      slide: data?.corrections?.slide || 0,
+      draw: data?.corrections?.draw || 0,
+      departure: data?.corrections?.departure || 0,
+      spin: data?.corrections?.spin || 0
+    }
+  });
+
+  // ==========================================
+  // 자동 계산 (실제 계산)
+  // ==========================================
+  const formula = "CO - 3C = 1C";
+  
+  // 기준 계산값 (1C) 실제 계산
+  const oneC = formData.coBase - formData.c3Base;
+  const baseCalc = `CO_${formData.coBase} - 3C_${formData.c3Base} = 1C_${oneC}`;
+  
+  // ==========================================
+  // 물리 보정 적용 (단계별)
+  // ==========================================
+  
+  // ① 보정한 CO값 (밀림 또는 끌림)
+  const slideValue = formData.corrections.slide || 0;
+  const drawValue = formData.corrections.draw || 0;
+  const coCorrection = slideValue !== 0 ? slideValue : -drawValue;
+  const adjustedCO = formData.coBase + coCorrection;
+  
+  // ② 보정한 3C값 (스핀)
+  const spinValue = formData.corrections.spin || 0;
+  const adjustedC3 = formData.c3Base + spinValue;
+  
+  // ③ 보정한 타겟값 (출발 - 0.75 환산)
+  const departureInput = formData.corrections.departure || 0;
+  const departureEff = departureInput * 0.75;
+  const targetValue = adjustedC3 + departureEff;
+  
+  // ④ 실제 1쿠션 겨냥점 (최종)
+  const finalOneCValue = adjustedCO - targetValue;
+  
+  // ==========================================
+  // UI 표시 문자열 생성
+  // ==========================================
+  
+  // 보정한 CO값 표시
+  let adjustedCODisplay = '';
+  if (slideValue !== 0) {
+    adjustedCODisplay = `CO' = CO(${formData.coBase}) + 밀림(${slideValue}) = ${adjustedCO}`;
+  } else if (drawValue !== 0) {
+    adjustedCODisplay = `CO' = CO(${formData.coBase}) - 끌림(${drawValue}) = ${adjustedCO}`;
+  } else {
+    adjustedCODisplay = `CO' = ${adjustedCO} (보정 없음)`;
+  }
+  
+  // 보정한 3C값 표시
+  let adjustedC3Display = '';
+  if (spinValue !== 0) {
+    adjustedC3Display = `3C' = 3C(${formData.c3Base}) + 스핀(${spinValue >= 0 ? '+' : ''}${spinValue}) = ${adjustedC3}`;
+  } else {
+    adjustedC3Display = `3C' = ${adjustedC3} (보정 없음)`;
+  }
+  
+  // 보정한 타겟값 표시
+  let adjustedTargetDisplay = '';
+  if (departureInput !== 0) {
+    const departureSign = departureEff >= 0 ? '+' : '';
+    adjustedTargetDisplay = `Target = 3C'(${adjustedC3}) + 출발(${departureSign}${departureEff.toFixed(2)}) = ${targetValue.toFixed(2)}`;
+  } else {
+    adjustedTargetDisplay = `Target = ${targetValue.toFixed(2)} (보정 없음)`;
+  }
+  
+  // 실제 1쿠션 겨냥점 표시
+  const finalAimDisplay = `1C = CO'(${adjustedCO}) - Target(${targetValue.toFixed(2)}) = ${finalOneCValue.toFixed(2)}`;
+
+  // ==========================================
+  // 저장 핸들러
+  // ==========================================
+  const handleSave = () => {
+    onSave(formData);
+  };
 
   return (
-    <div style={{ color: '#334155', fontSize: '14px' }}>
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>시스템 ID</label>
-        <input
-          type="text"
-          value={tempData.system_id || ''}
-          onChange={(e) => setTempData({ ...tempData, system_id: e.target.value })}
-          style={{
-            width: '100%',
-            padding: '8px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-          placeholder="예: 5_half_system"
-        />
+    <div style={{ color: '#334155', fontSize: '16px' }}>
+      
+      {/* ========================================
+          SECTION 1: 샷 개요
+      ======================================== */}
+      <div style={{ 
+        marginBottom: '24px',
+        padding: '20px',
+        backgroundColor: '#ffffff',
+        borderRadius: '8px',
+        border: '1px solid #e5e7eb'
+      }}>
+        <h3 style={{ 
+          fontSize: '15px', 
+          fontWeight: '700', 
+          marginBottom: '16px',
+          color: '#1f2937',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          샷 개요
+        </h3>
+
+        {/* ① 공략 유형 */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '8px', 
+            fontWeight: '600', 
+            fontSize: '15px',
+            color: '#374151'
+          }}>
+            공략 유형
+          </label>
+          <select
+            value={formData.shotType}
+            onChange={(e) => setFormData({ ...formData, shotType: e.target.value })}
+            style={{
+              width: '100%',
+              height: '42px',
+              padding: '0 12px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '6px',
+              fontSize: '15px',
+              backgroundColor: '#ffffff',
+              cursor: 'pointer'
+            }}
+          >
+            {SHOT_TYPE_OPTIONS.map(type => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* ② 적용 시스템 */}
+        <div style={{ marginBottom: '0' }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '8px', 
+            fontWeight: '600', 
+            fontSize: '15px',
+            color: '#374151'
+          }}>
+            적용 시스템
+          </label>
+          <select
+            value={formData.system}
+            onChange={(e) => setFormData({ ...formData, system: e.target.value })}
+            style={{
+              width: '100%',
+              height: '42px',
+              padding: '0 12px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '6px',
+              fontSize: '15px',
+              backgroundColor: '#ffffff',
+              cursor: 'pointer'
+            }}
+          >
+            {SYSTEM_OPTIONS.map(sys => (
+              <option key={sys.id} value={sys.id}>
+                {sys.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>CO</label>
-        <input
-          type="number"
-          value={tempData.CO ?? ''}
-          onChange={(e) => setTempData({ ...tempData, CO: e.target.value ? Number(e.target.value) : null })}
-          style={{
-            width: '100%',
-            padding: '8px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-          placeholder="0~80"
-        />
+      {/* ========================================
+          SECTION 2: 계산 구조
+      ======================================== */}
+      <div style={{ 
+        marginBottom: '24px',
+        padding: '20px',
+        backgroundColor: '#f9fafb',
+        borderRadius: '8px',
+        border: '1px solid #e5e7eb'
+      }}>
+        <h3 style={{ 
+          fontSize: '15px', 
+          fontWeight: '700', 
+          marginBottom: '12px',
+          color: '#1f2937',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          계산 구조
+        </h3>
+
+        {/* ③ 계산 공식 */}
+        <div>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '8px', 
+            fontWeight: '600', 
+            fontSize: '14px',
+            color: '#6b7280'
+          }}>
+            계산 공식
+          </label>
+          <div style={{
+            padding: '12px 16px',
+            backgroundColor: '#e5e7eb',
+            borderRadius: '6px',
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: '15px',
+            fontWeight: '600',
+            color: '#1f2937',
+            textAlign: 'center',
+            letterSpacing: '1px'
+          }}>
+            {formula}
+          </div>
+        </div>
       </div>
 
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>C3</label>
-        <input
-          type="number"
-          value={tempData.C3 ?? ''}
-          onChange={(e) => setTempData({ ...tempData, C3: e.target.value ? Number(e.target.value) : null })}
-          style={{
-            width: '100%',
-            padding: '8px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-          placeholder="0~80"
-        />
+      {/* ========================================
+          SECTION 3: 기준값 입력 & 결과 (핵심)
+      ======================================== */}
+      <div style={{ 
+        marginBottom: '24px',
+        padding: '20px',
+        backgroundColor: '#fefce8',
+        borderRadius: '8px',
+        border: '2px solid #fde047'
+      }}>
+        <h3 style={{ 
+          fontSize: '15px', 
+          fontWeight: '700', 
+          marginBottom: '16px',
+          color: '#1f2937',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          기준값 입력 & 결과
+        </h3>
+
+        {/* ④ 기준 입력값 */}
+        <div style={{ marginBottom: '20px' }}>
+          <p style={{ 
+            fontWeight: '600', 
+            fontSize: '14px', 
+            marginBottom: '12px',
+            color: '#374151'
+          }}>
+            기준 입력값
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '6px', 
+                fontSize: '13px',
+                fontWeight: '500',
+                color: '#6b7280'
+              }}>
+                CO 기준값
+              </label>
+              <input
+                type="number"
+                value={formData.coBase}
+                onChange={(e) => setFormData({ ...formData, coBase: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  height: '42px',
+                  padding: '0 12px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '15px',
+                  backgroundColor: '#ffffff'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '6px', 
+                fontSize: '13px',
+                fontWeight: '500',
+                color: '#6b7280'
+              }}>
+                3C 기준값
+              </label>
+              <input
+                type="number"
+                value={formData.c3Base}
+                onChange={(e) => setFormData({ ...formData, c3Base: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  height: '42px',
+                  padding: '0 12px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '15px',
+                  backgroundColor: '#ffffff'
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ⑤ 기준 계산값 */}
+        <div>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '8px', 
+            fontWeight: '600', 
+            fontSize: '14px',
+            color: '#374151'
+          }}>
+            기준 계산값 (이론값)
+          </label>
+          <div style={{
+            padding: '14px 16px',
+            backgroundColor: '#fef3c7',
+            borderRadius: '6px',
+            border: '1px solid #fbbf24',
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: '15px',
+            fontWeight: '600',
+            color: '#92400e',
+            textAlign: 'center',
+            letterSpacing: '0.5px'
+          }}>
+            {baseCalc}
+          </div>
+        </div>
       </div>
 
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>보정값</label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+      {/* ========================================
+          SECTION 4: 물리 보정
+      ======================================== */}
+      <div style={{ 
+        marginBottom: '24px',
+        padding: '20px',
+        backgroundColor: '#ffffff',
+        borderRadius: '8px',
+        border: '1px solid #e5e7eb'
+      }}>
+        <h3 style={{ 
+          fontSize: '15px', 
+          fontWeight: '700', 
+          marginBottom: '16px',
+          color: '#1f2937',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          물리 보정
+        </h3>
+
+        {/* ⑥ 물리 보정 입력 필드 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div>
-            <label style={{ fontSize: '12px', color: '#64748b' }}>Push</label>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '6px', 
+              fontSize: '13px',
+              fontWeight: '500',
+              color: '#6b7280'
+            }}>
+              밀림 (+)
+            </label>
             <input
               type="number"
-              value={tempData.corrections?.push ?? 0}
-              onChange={(e) => setTempData({
-                ...tempData,
-                corrections: { ...tempData.corrections, push: Number(e.target.value) }
+              value={formData.corrections.slide}
+              onChange={(e) => setFormData({
+                ...formData,
+                corrections: { ...formData.corrections, slide: Number(e.target.value) }
               })}
+              step="0.5"
               style={{
                 width: '100%',
-                padding: '6px',
+                height: '42px',
+                padding: '0 12px',
                 border: '1px solid #cbd5e1',
-                borderRadius: '4px',
-                fontSize: '14px'
+                borderRadius: '6px',
+                fontSize: '15px',
+                backgroundColor: '#ffffff'
               }}
             />
           </div>
           <div>
-            <label style={{ fontSize: '12px', color: '#64748b' }}>Pull</label>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '6px', 
+              fontSize: '13px',
+              fontWeight: '500',
+              color: '#6b7280'
+            }}>
+              끌림 (-)
+            </label>
             <input
               type="number"
-              value={tempData.corrections?.pull ?? 0}
-              onChange={(e) => setTempData({
-                ...tempData,
-                corrections: { ...tempData.corrections, pull: Number(e.target.value) }
+              value={formData.corrections.draw}
+              onChange={(e) => setFormData({
+                ...formData,
+                corrections: { ...formData.corrections, draw: Number(e.target.value) }
               })}
+              step="0.5"
               style={{
                 width: '100%',
-                padding: '6px',
+                height: '42px',
+                padding: '0 12px',
                 border: '1px solid #cbd5e1',
-                borderRadius: '4px',
-                fontSize: '14px'
+                borderRadius: '6px',
+                fontSize: '15px',
+                backgroundColor: '#ffffff'
               }}
             />
           </div>
           <div>
-            <label style={{ fontSize: '12px', color: '#64748b' }}>Start</label>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '6px', 
+              fontSize: '13px',
+              fontWeight: '500',
+              color: '#6b7280'
+            }}>
+              출발 (±)
+            </label>
             <input
               type="number"
-              value={tempData.corrections?.start ?? 0}
-              onChange={(e) => setTempData({
-                ...tempData,
-                corrections: { ...tempData.corrections, start: Number(e.target.value) }
+              value={formData.corrections.departure}
+              onChange={(e) => setFormData({
+                ...formData,
+                corrections: { ...formData.corrections, departure: Number(e.target.value) }
               })}
+              step="0.5"
               style={{
                 width: '100%',
-                padding: '6px',
+                height: '42px',
+                padding: '0 12px',
                 border: '1px solid #cbd5e1',
-                borderRadius: '4px',
-                fontSize: '14px'
+                borderRadius: '6px',
+                fontSize: '15px',
+                backgroundColor: '#ffffff'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '6px', 
+              fontSize: '13px',
+              fontWeight: '500',
+              color: '#6b7280'
+            }}>
+              스핀 (±)
+            </label>
+            <input
+              type="number"
+              value={formData.corrections.spin}
+              onChange={(e) => setFormData({
+                ...formData,
+                corrections: { ...formData.corrections, spin: Number(e.target.value) }
+              })}
+              step="0.5"
+              style={{
+                width: '100%',
+                height: '42px',
+                padding: '0 12px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                fontSize: '15px',
+                backgroundColor: '#ffffff'
               }}
             />
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+      {/* ========================================
+          SECTION 5: 결과 요약
+      ======================================== */}
+      <div style={{ 
+        marginBottom: '24px',
+        padding: '20px',
+        backgroundColor: '#ecfdf5',
+        borderRadius: '8px',
+        border: '2px solid #10b981'
+      }}>
+        <h3 style={{ 
+          fontSize: '15px', 
+          fontWeight: '700', 
+          marginBottom: '16px',
+          color: '#1f2937',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          결과 요약
+        </h3>
+
+        {/* 보정한 CO값 */}
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '6px', 
+            fontWeight: '600', 
+            fontSize: '13px',
+            color: '#374151'
+          }}>
+            보정한 CO값
+          </label>
+          <div style={{
+            padding: '10px 14px',
+            backgroundColor: '#d1fae5',
+            borderRadius: '6px',
+            border: '1px solid #10b981',
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: '14px',
+            fontWeight: '600',
+            color: '#065f46',
+            textAlign: 'center'
+          }}>
+            {adjustedCODisplay}
+          </div>
+        </div>
+
+        {/* 보정한 3C값 */}
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '6px', 
+            fontWeight: '600', 
+            fontSize: '13px',
+            color: '#374151'
+          }}>
+            보정한 3C값
+          </label>
+          <div style={{
+            padding: '10px 14px',
+            backgroundColor: '#d1fae5',
+            borderRadius: '6px',
+            border: '1px solid #10b981',
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: '14px',
+            fontWeight: '600',
+            color: '#065f46',
+            textAlign: 'center'
+          }}>
+            {adjustedC3Display}
+          </div>
+        </div>
+
+        {/* ⑦ 보정한 타겟값 */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '6px', 
+            fontWeight: '600', 
+            fontSize: '13px',
+            color: '#374151'
+          }}>
+            보정한 타겟값
+          </label>
+          <div style={{
+            padding: '10px 14px',
+            backgroundColor: '#d1fae5',
+            borderRadius: '6px',
+            border: '1px solid #10b981',
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: '14px',
+            fontWeight: '600',
+            color: '#065f46',
+            textAlign: 'center'
+          }}>
+            {adjustedTargetDisplay}
+          </div>
+        </div>
+
+        {/* ⑧ 실제 1쿠션 겨냥점 (강조) */}
+        <div>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '8px', 
+            fontWeight: '600', 
+            fontSize: '14px',
+            color: '#374151'
+          }}>
+            실제 1쿠션 겨냥점 ⭐
+          </label>
+          <div style={{
+            padding: '14px 18px',
+            backgroundColor: '#059669',
+            borderRadius: '8px',
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: '18px',
+            fontWeight: '700',
+            color: '#ffffff',
+            textAlign: 'center',
+            letterSpacing: '0.5px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+          }}>
+            {finalAimDisplay}
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================
+          버튼 영역
+      ======================================== */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '12px', 
+        marginTop: '28px',
+        paddingTop: '20px',
+        borderTop: '2px solid #e5e7eb'
+      }}>
         <button
-          onClick={() => onSave(tempData)}
+          onClick={handleSave}
           style={{
             flex: 1,
-            padding: '10px',
-            backgroundColor: '#2563eb',
+            padding: '14px 20px',
+            backgroundColor: '#3b82f6',
             color: 'white',
             border: 'none',
-            borderRadius: '6px',
-            fontWeight: '600',
-            cursor: 'pointer'
+            borderRadius: '8px',
+            fontWeight: '700',
+            fontSize: '16px',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
           }}
         >
           적용
@@ -557,13 +1130,15 @@ function SysOverlay({ data, onSave, onCancel }) {
           onClick={onCancel}
           style={{
             flex: 1,
-            padding: '10px',
-            backgroundColor: '#e2e8f0',
-            color: '#334155',
+            padding: '14px 20px',
+            backgroundColor: '#e5e7eb',
+            color: '#374151',
             border: 'none',
-            borderRadius: '6px',
-            fontWeight: '600',
-            cursor: 'pointer'
+            borderRadius: '8px',
+            fontWeight: '700',
+            fontSize: '16px',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
           }}
         >
           취소
@@ -575,6 +1150,9 @@ function SysOverlay({ data, onSave, onCancel }) {
 
 function HptOverlay({ data, onSave, onCancel }) {
   const [tempData, setTempData] = useState(data);
+  const [lastChanged, setLastChanged] = useState(null); // 'x' or 'y'
+  const [isClamped, setIsClamped] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // T값 옵션 (0/8 ~ 8/8, 17개)
   const T_OPTIONS = [
@@ -597,8 +1175,302 @@ function HptOverlay({ data, onSave, onCancel }) {
     { value: "-7/8", label: "좌측 7/8" }
   ];
 
+  // ==========================================
+  // 타점 입력 핸들러 (클램프 포함)
+  // ==========================================
+  const MAX_VALUE = 4.0;
+  const CLAMP_RADIUS = 4.0; // 점선 원 = 입력값 4까지
+
+  const handleHitPointChange = (axis, rawValue) => {
+    // 1차 제한: ±4, 소수점 1자리
+    let value = parseFloat(rawValue);
+    if (isNaN(value)) value = 0;
+    value = Math.max(-MAX_VALUE, Math.min(MAX_VALUE, value));
+    value = Math.round(value * 10) / 10;
+
+    const currentX = axis === 'x' ? value : (tempData.hit_point?.x ?? 0);
+    const currentY = axis === 'y' ? value : (tempData.hit_point?.y ?? 0);
+
+    // 2차 제한: 원형 클램프 (한계 반지름 4)
+    const distance = Math.sqrt(currentX ** 2 + currentY ** 2);
+    
+    let finalX = currentX;
+    let finalY = currentY;
+    let clamped = false;
+
+    if (distance > CLAMP_RADIUS) {
+      clamped = true;
+      
+      // 마지막 변경 축만 클램프
+      if (axis === 'x') {
+        // X를 방금 변경 → X만 한계선으로 클램프
+        const maxX = Math.sqrt(Math.max(0, CLAMP_RADIUS ** 2 - currentY ** 2));
+        finalX = currentX > 0 ? Math.min(currentX, maxX) : Math.max(currentX, -maxX);
+        finalX = Math.round(finalX * 10) / 10;
+        // Y는 그대로 유지
+        finalY = currentY;
+      } else {
+        // Y를 방금 변경 → Y만 한계선으로 클램프
+        const maxY = Math.sqrt(Math.max(0, CLAMP_RADIUS ** 2 - currentX ** 2));
+        finalY = currentY > 0 ? Math.min(currentY, maxY) : Math.max(currentY, -maxY);
+        finalY = Math.round(finalY * 10) / 10;
+        // X는 그대로 유지
+        finalX = currentX;
+      }
+    }
+
+    setTempData({
+      ...tempData,
+      hit_point: { x: finalX, y: finalY }
+    });
+    setLastChanged(axis);
+    setIsClamped(clamped);
+
+    // 클램프 피드백 0.5초 후 제거
+    if (clamped) {
+      setTimeout(() => setIsClamped(false), 500);
+    }
+  };
+
+  // ==========================================
+  // 두께값 파싱 (숫자 변환)
+  // ==========================================
+  const parseThickness = (tValue) => {
+    if (!tValue) return 0;
+    
+    // "8/8" → 8 (완전 겹침)
+    if (tValue === "8/8") return 8;
+    
+    // "+7/8" → 7, "-3/8" → -3
+    const match = tValue.match(/^([+-]?)(\d+)\/8$/);
+    if (!match) return 0;
+    
+    const sign = match[1] === '-' ? -1 : 1;
+    const num = parseInt(match[2], 10);
+    return sign * num;
+  };
+
+  const thickness = parseThickness(tempData.T);
+  const isRightImpact = thickness >= 0;
+
+  // ==========================================
+  // 볼 시각화 설정
+  // ==========================================
+  const BALL_RADIUS = 120; // 40 → 120 (3배)
+  const CANVAS_WIDTH = 600; // 300 → 600 (2배)
+  const CANVAS_HEIGHT = 300; // 150 → 300 (2배)
+  const CENTER_Y = CANVAS_HEIGHT / 2;
+  const CENTER_X = CANVAS_WIDTH / 2;
+  
+  // 두께에 따른 X 위치 (지름 기준)
+  const thicknessValue = Math.abs(thickness); // 0~8 (표기의 n)
+  const thicknessFraction = thicknessValue / 8; // n/8 그대로 사용
+  const centerDistance = (1 - thicknessFraction) * (2 * BALL_RADIUS); // 지름 기준
+  
+  let impactX, targetX;
+  if (isRightImpact) {
+    // 우측이 임펙트볼 (앞)
+    impactX = CENTER_X + centerDistance / 2;
+    targetX = CENTER_X - centerDistance / 2;
+  } else {
+    // 좌측이 임펙트볼 (앞)
+    impactX = CENTER_X - centerDistance / 2;
+    targetX = CENTER_X + centerDistance / 2;
+  }
+  
+  // 60% 원의 반지름
+  const limit60Radius = BALL_RADIUS * 0.6;
+
+  // ==========================================
+  // 드래그 핸들러
+  // ==========================================
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    handleDragMove(e);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    handleDragMove(e);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleDragMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // 픽셀 → 논리 좌표 변환
+    const scale = MAX_VALUE / limit60Radius;
+    
+    const logicalX = (mouseX - impactX) * scale;
+    const logicalY = (CENTER_Y - mouseY) * scale; // Y축 반전
+    
+    // 클램프 적용 (반지름 4 기준)
+    const distance = Math.sqrt(logicalX ** 2 + logicalY ** 2);
+    let finalX = logicalX;
+    let finalY = logicalY;
+    
+    if (distance > CLAMP_RADIUS) {
+      const clampScale = CLAMP_RADIUS / distance;
+      finalX = logicalX * clampScale;
+      finalY = logicalY * clampScale;
+    }
+    
+    // 소수점 1자리로 반올림
+    finalX = Math.round(finalX * 10) / 10;
+    finalY = Math.round(finalY * 10) / 10;
+    
+    setTempData({
+      ...tempData,
+      hit_point: { x: finalX, y: finalY }
+    });
+  };
+
   return (
     <div style={{ color: '#334155', fontSize: '14px' }}>
+      {/* ========================================
+          볼 시각화 영역
+      ======================================== */}
+      <div style={{ 
+        marginBottom: '24px', 
+        padding: '20px',
+        backgroundColor: '#f9fafb',
+        borderRadius: '8px',
+        border: '1px solid #e5e7eb'
+      }}>
+        <h3 style={{ 
+          fontSize: '14px', 
+          fontWeight: '700', 
+          marginBottom: '16px',
+          color: '#1f2937'
+        }}>
+          타점/두께 시각화
+        </h3>
+        
+        <svg 
+          width={CANVAS_WIDTH} 
+          height={CANVAS_HEIGHT}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          style={{ 
+            display: 'block', 
+            margin: '0 auto',
+            backgroundColor: '#ffffff',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            cursor: isDragging ? 'grabbing' : 'grab'
+          }}
+        >
+          {/* 타겟볼 (뒤) */}
+          <circle
+            cx={targetX}
+            cy={CENTER_Y}
+            r={BALL_RADIUS}
+            fill="#ef4444"
+            stroke="#991b1b"
+            strokeWidth="3"
+          />
+          
+          {/* 임펙트볼 (앞) */}
+          <circle
+            cx={impactX}
+            cy={CENTER_Y}
+            r={BALL_RADIUS}
+            fill="#ffffff"
+            stroke="#1f2937"
+            strokeWidth="3"
+          />
+          
+          {/* 임펙트볼 전용 표시 */}
+          {/* 60% 한계선 */}
+          <circle
+            cx={impactX}
+            cy={CENTER_Y}
+            r={limit60Radius}
+            fill="none"
+            stroke="#d1d5db"
+            strokeWidth="1.5"
+            strokeDasharray="6,3"
+            opacity="0.6"
+          />
+          
+          {/* 중심 십자선 (60% 원까지) */}
+          <line
+            x1={impactX - limit60Radius}
+            y1={CENTER_Y}
+            x2={impactX + limit60Radius}
+            y2={CENTER_Y}
+            stroke="#d1d5db"
+            strokeWidth="1"
+            opacity="0.5"
+          />
+          <line
+            x1={impactX}
+            y1={CENTER_Y - limit60Radius}
+            x2={impactX}
+            y2={CENTER_Y + limit60Radius}
+            stroke="#d1d5db"
+            strokeWidth="1"
+            opacity="0.5"
+          />
+          
+          {/* 중심점 (작게) */}
+          <circle
+            cx={impactX}
+            cy={CENTER_Y}
+            r="3"
+            fill="#6b7280"
+            opacity="0.7"
+          />
+          
+          {/* 클램프 피드백 (빨간 테두리) */}
+          {isClamped && (
+            <circle
+              cx={impactX}
+              cy={CENTER_Y}
+              r={limit60Radius}
+              fill="none"
+              stroke="#ef4444"
+              strokeWidth="3"
+              opacity="0.6"
+            />
+          )}
+          
+          {/* 타점 마커 */}
+          {(() => {
+            const hitX = tempData.hit_point?.x ?? 0;
+            const hitY = tempData.hit_point?.y ?? 0;
+            
+            // 타점 좌표를 픽셀로 변환 (±4 → 볼 반지름 60%)
+            const scale = limit60Radius / MAX_VALUE;
+            const markerX = impactX + (hitX * scale);
+            const markerY = CENTER_Y - (hitY * scale); // Y축 반전
+            const markerRadius = BALL_RADIUS / 12;
+            
+            return (
+              <circle
+                cx={markerX}
+                cy={markerY}
+                r={markerRadius}
+                fill="#000000"
+                stroke="#ffffff"
+                strokeWidth="1.5"
+              />
+            );
+          })()}
+        </svg>
+      </div>
+
+      {/* ========================================
+          입력 필드
+      ======================================== */}
       {/* T값 선택 */}
       <div style={{ marginBottom: '16px' }}>
         <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
@@ -629,11 +1501,10 @@ function HptOverlay({ data, onSave, onCancel }) {
         <input
           type="number"
           step="0.1"
+          min="-4"
+          max="4"
           value={tempData.hit_point?.x ?? 0}
-          onChange={(e) => setTempData({
-            ...tempData,
-            hit_point: { ...tempData.hit_point, x: Number(e.target.value) }
-          })}
+          onChange={(e) => handleHitPointChange('x', e.target.value)}
           style={{
             width: '100%',
             padding: '8px',
@@ -652,11 +1523,10 @@ function HptOverlay({ data, onSave, onCancel }) {
         <input
           type="number"
           step="0.1"
+          min="-4"
+          max="4"
           value={tempData.hit_point?.y ?? 0}
-          onChange={(e) => setTempData({
-            ...tempData,
-            hit_point: { ...tempData.hit_point, y: Number(e.target.value) }
-          })}
+          onChange={(e) => handleHitPointChange('y', e.target.value)}
           style={{
             width: '100%',
             padding: '8px',
@@ -705,65 +1575,206 @@ function HptOverlay({ data, onSave, onCancel }) {
 }
 
 function StrOverlay({ data, onSave, onCancel }) {
-  const [tempData, setTempData] = useState(data);
+  const [tempData, setTempData] = useState({
+    type: data?.type || 'medium_follow',
+    acceleration: data?.acceleration || 'smooth_const',
+    speed: data?.speed || 3.0,
+    depth: data?.depth || 2.0,
+    impact: data?.impact || 'medium'
+  });
+
+  // 스트로크 타입 옵션
+  const STROKE_TYPES = [
+    { value: 'long_follow', label: '롱 팔로우' },
+    { value: 'medium_follow', label: '미디엄 팔로우' },
+    { value: 'through_shot', label: '관통 샷' },
+    { value: 'stop_shot', label: '스톱 샷' },
+    { value: 'short_shot', label: '숏 샷' }
+  ];
+
+  // 가속 패턴 옵션
+  const ACCELERATION_PATTERNS = [
+    { value: 'smooth_accel', label: '부드러운 가속' },
+    { value: 'sharp_accel', label: '날카로운 가속' },
+    { value: 'smooth_const', label: '부드러운 등속' },
+    { value: 'intentional_decel', label: '의도적 감속' }
+  ];
+
+  // 타격 강도 옵션
+  const IMPACT_STRENGTHS = [
+    { value: 'soft', label: 'Soft' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'hard', label: 'Hard' },
+    { value: 'sharp', label: 'Sharp' }
+  ];
 
   return (
-    <div style={{ color: '#334155', fontSize: '14px' }}>
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>커브 (Curve)</label>
+    <div style={{ color: '#334155', fontSize: '16px' }}>
+      {/* 1. 스트로크 타입 */}
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ 
+          display: 'block', 
+          marginBottom: '8px', 
+          fontWeight: '600',
+          fontSize: '16px'
+        }}>
+          스트로크 타입
+        </label>
         <select
-          value={tempData.curve ?? 'constant'}
-          onChange={(e) => setTempData({ ...tempData, curve: e.target.value })}
-          style={{
-            width: '100%',
-            padding: '8px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-        >
-          <option value="constant">일정</option>
-          <option value="accelerate">가속</option>
-          <option value="decelerate">감속</option>
-        </select>
-      </div>
-
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>타입 (Type)</label>
-        <select
-          value={tempData.type ?? 'standard'}
+          value={tempData.type}
           onChange={(e) => setTempData({ ...tempData, type: e.target.value })}
           style={{
             width: '100%',
-            padding: '8px',
+            padding: '10px',
             border: '1px solid #cbd5e1',
             borderRadius: '4px',
-            fontSize: '14px'
+            fontSize: '18px',
+            cursor: 'pointer'
           }}
         >
-          <option value="short">단구</option>
-          <option value="standard">표준</option>
-          <option value="long">장구</option>
+          {STROKE_TYPES.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
       </div>
 
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>속도 (Speed)</label>
-        <input
-          type="number"
-          step="0.1"
-          value={tempData.speed ?? 5}
-          onChange={(e) => setTempData({ ...tempData, speed: Number(e.target.value) })}
+      {/* 2. 가속 패턴 */}
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ 
+          display: 'block', 
+          marginBottom: '8px', 
+          fontWeight: '600',
+          fontSize: '16px'
+        }}>
+          가속 패턴
+        </label>
+        <select
+          value={tempData.acceleration}
+          onChange={(e) => setTempData({ ...tempData, acceleration: e.target.value })}
           style={{
             width: '100%',
-            padding: '8px',
+            padding: '10px',
             border: '1px solid #cbd5e1',
             borderRadius: '4px',
-            fontSize: '14px'
+            fontSize: '18px',
+            cursor: 'pointer'
           }}
-        />
+        >
+          {ACCELERATION_PATTERNS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
 
+      {/* 3. 목표 속도 (슬라이더) */}
+      <div style={{ marginBottom: '24px' }}>
+        <label style={{ 
+          display: 'block', 
+          marginBottom: '10px', 
+          fontWeight: '600',
+          fontSize: '16px'
+        }}>
+          목표 속도
+        </label>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px',
+          marginBottom: '4px'
+        }}>
+          <input
+            type="range"
+            min="0.5"
+            max="7.0"
+            step="0.5"
+            value={tempData.speed}
+            onChange={(e) => setTempData({ ...tempData, speed: Number(e.target.value) })}
+            style={{
+              flex: 1,
+              cursor: 'pointer'
+            }}
+          />
+          <span style={{ 
+            minWidth: '100px',
+            textAlign: 'right',
+            fontWeight: '600',
+            fontSize: '18px',
+            color: '#2563eb'
+          }}>
+            {tempData.speed.toFixed(1)} 레일
+          </span>
+        </div>
+      </div>
+
+      {/* 4. 스트로크 깊이 (슬라이더) */}
+      <div style={{ marginBottom: '24px' }}>
+        <label style={{ 
+          display: 'block', 
+          marginBottom: '10px', 
+          fontWeight: '600',
+          fontSize: '16px'
+        }}>
+          스트로크 깊이
+        </label>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px',
+          marginBottom: '4px'
+        }}>
+          <input
+            type="range"
+            min="0.5"
+            max="6.0"
+            step="0.5"
+            value={tempData.depth}
+            onChange={(e) => setTempData({ ...tempData, depth: Number(e.target.value) })}
+            style={{
+              flex: 1,
+              cursor: 'pointer'
+            }}
+          />
+          <span style={{ 
+            minWidth: '100px',
+            textAlign: 'right',
+            fontWeight: '600',
+            fontSize: '18px',
+            color: '#2563eb'
+          }}>
+            {tempData.depth.toFixed(1)} Ball
+          </span>
+        </div>
+      </div>
+
+      {/* 5. 타격 강도 */}
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ 
+          display: 'block', 
+          marginBottom: '8px', 
+          fontWeight: '600',
+          fontSize: '16px'
+        }}>
+          타격 강도
+        </label>
+        <select
+          value={tempData.impact}
+          onChange={(e) => setTempData({ ...tempData, impact: e.target.value })}
+          style={{
+            width: '100%',
+            padding: '10px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '18px',
+            cursor: 'pointer'
+          }}
+        >
+          {IMPACT_STRENGTHS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* 버튼 */}
       <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
         <button
           onClick={() => onSave(tempData)}
@@ -801,40 +1812,185 @@ function StrOverlay({ data, onSave, onCancel }) {
 }
 
 function AiOverlay({ data, onSave, onCancel }) {
-  const [tempData, setTempData] = useState(data);
+  // ==========================================
+  // AI 코멘트 자동 생성
+  // ==========================================
+  
+  // 타점 좌표 → 팁 표현 변환
+  const formatHitPoint = (x, y) => {
+    const parts = [];
+    
+    // X축
+    if (x === 0) {
+      parts.push('중앙');
+    } else if (x > 0) {
+      parts.push(`우측 ${Math.abs(x).toFixed(1)}팁`);
+    } else {
+      parts.push(`왼쪽 ${Math.abs(x).toFixed(1)}팁`);
+    }
+    
+    // Y축
+    if (y === 0) {
+      parts.push('중단');
+    } else if (y > 0) {
+      parts.push(`상단 ${Math.abs(y).toFixed(1)}팁`);
+    } else {
+      parts.push(`하단 ${Math.abs(y).toFixed(1)}팁`);
+    }
+    
+    // 중심 타점 특수 처리
+    if (Math.abs(x) <= 0.3 && Math.abs(y) <= 0.3) {
+      return '중심 타점';
+    }
+    
+    return parts.join(', ');
+  };
+
+  // AI 코멘트 생성
+  const generateAiComment = () => {
+    const sys = data?.sys || {};
+    const hpt = data?.hpt || {};
+    const str = data?.str || {};
+    
+    // 기본값 처리
+    const shotType = sys.shotType || '뒤돌리기';
+    const system = sys.system || '5_half_system';
+    const coBase = sys.coBase || 40;
+    const c3Base = sys.c3Base || 20;
+    
+    const thickness = hpt.T || '8/8';
+    const hitX = hpt.hit_point?.x || 0;
+    const hitY = hpt.hit_point?.y || 0;
+    const hitPointText = formatHitPoint(hitX, hitY);
+    
+    const strokeType = str.type || 'medium_follow';
+    const acceleration = str.acceleration || 'smooth_const';
+    const speed = str.speed || 3.0;
+    const depth = str.depth || 2.0;
+    
+    // 스트로크 타입 한글 변환
+    const strokeTypeMap = {
+      'long_follow': '롱 팔로우',
+      'medium_follow': '미디엄 팔로우',
+      'through_shot': '관통 샷',
+      'stop_shot': '스톱 샷',
+      'short_shot': '숏 샷'
+    };
+    
+    const accelPatternMap = {
+      'smooth_accel': '부드러운 가속',
+      'sharp_accel': '날카로운 가속',
+      'smooth_const': '부드러운 등속',
+      'intentional_decel': '의도적 감속'
+    };
+    
+    const strokeTypeKr = strokeTypeMap[strokeType] || strokeType;
+    const accelPatternKr = accelPatternMap[acceleration] || acceleration;
+    
+    // ① 플레이 전략
+    let strategy = `💡 **플레이 전략**
+
+`;
+    
+    // 타점 기반 해석
+    if (Math.abs(hitX) > 2 || Math.abs(hitY) > 2) {
+      strategy += '타점이 중심에서 벗어나 있어 회전을 적극 활용하는 구성입니다. ';
+    } else if (Math.abs(hitX) <= 0.5 && Math.abs(hitY) <= 0.5) {
+      strategy += '중심 타점으로 회전을 최소화하고 정확한 방향 전달을 목표로 합니다. ';
+    } else {
+      strategy += '적절한 타점 조절로 균형잡힌 회전을 활용하는 설정입니다. ';
+    }
+    
+    // 스트로크 깊이 기반 해석
+    if (depth >= 2.5) {
+      strategy += '스트로크 깊이가 깊어 관통력을 강조한 설정입니다. ';
+    } else if (depth <= 1.5) {
+      strategy += '스트로크 깊이가 얕아 섬세한 터치를 의도한 설정입니다. ';
+    }
+    
+    // 가속 패턴 기반 해석
+    if (acceleration === 'smooth_const') {
+      strategy += `${accelPatternKr}로 공의 움직임을 예측 가능하게 제어하려는 구성입니다.`;
+    } else if (acceleration === 'sharp_accel') {
+      strategy += `${accelPatternKr}로 빠른 힘 전달을 노린 설정입니다.`;
+    } else if (acceleration === 'smooth_accel') {
+      strategy += `${accelPatternKr}로 안정적인 힘 전달을 추구하는 설정입니다.`;
+    } else {
+      strategy += `${accelPatternKr}로 특수한 효과를 노린 설정입니다.`;
+    }
+    
+    // ② 주의 사항
+    let caution = `
+
+⚠️ **주의 사항**
+
+`;
+    
+    // 경고 조건 체크
+    const needsWarning = speed > 3.0 || acceleration === 'sharp_accel';
+    
+    if (needsWarning) {
+      if (speed > 3.0) {
+        caution += `목표 속도가 ${speed.toFixed(1)}레일로 기준(3레일)을 초과합니다. `;
+      }
+      if (acceleration === 'sharp_accel') {
+        caution += '날카로운 가속 패턴이 적용되어 있습니다. ';
+      }
+      caution += `쿠션에서의 회전 전달이 증가하여 공이 예상보다 길어질 수 있으니 스트로크 안정성에 특히 유의하세요.`;
+    } else {
+      caution += `현재 설정은 기준 속도(3레일) 내에서 안정적인 구성입니다. 설정한 시스템 값에 맞춰 쿠션 반응이 예측 가능할 것으로 보입니다.`;
+    }
+    
+    return strategy + caution;
+  };
+
+  // 상태 관리: AI 텍스트 (초기값은 자동 생성)
+  const [aiText, setAiText] = useState('');
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // data 변경 시 AI 코멘트 재생성
+  useEffect(() => {
+    const newComment = generateAiComment();
+    setAiText(newComment);
+    setIsInitialized(true);
+  }, [data]);
 
   return (
-    <div style={{ color: '#334155', fontSize: '14px' }}>
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>AI 코멘트</label>
+    <div style={{ color: '#334155', fontSize: '18px', maxWidth: '1200px' }}>
+      <div style={{ marginBottom: '24px' }}>
         <textarea
-          value={tempData.text ?? ''}
-          onChange={(e) => setTempData({ ...tempData, text: e.target.value })}
-          rows={6}
+          value={aiText}
+          onChange={(e) => setAiText(e.target.value)}
           style={{
             width: '100%',
-            padding: '8px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '4px',
-            fontSize: '14px',
+            minHeight: '420px',
+            padding: '30px',
+            border: '3px solid #cbd5e1',
+            borderRadius: '12px',
+            fontSize: '18px',
             fontFamily: 'inherit',
+            backgroundColor: '#ffffff',
+            whiteSpace: 'pre-wrap',
+            lineHeight: '1.6',
+            color: '#374151',
             resize: 'vertical'
           }}
-          placeholder="AI 코멘트를 입력하세요..."
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+      {/* 버튼 */}
+      <div style={{ display: 'flex', gap: '12px', marginTop: '36px' }}>
         <button
-          onClick={() => onSave(tempData)}
+          onClick={() => onSave({ ...data, aiComment: aiText })}
           style={{
             flex: 1,
-            padding: '10px',
+            padding: '18px',
             backgroundColor: '#2563eb',
             color: 'white',
             border: 'none',
-            borderRadius: '6px',
+            borderRadius: '9px',
             fontWeight: '600',
+            fontSize: '18px',
             cursor: 'pointer'
           }}
         >
@@ -844,12 +2000,13 @@ function AiOverlay({ data, onSave, onCancel }) {
           onClick={onCancel}
           style={{
             flex: 1,
-            padding: '10px',
+            padding: '18px',
             backgroundColor: '#e2e8f0',
             color: '#334155',
             border: 'none',
-            borderRadius: '6px',
+            borderRadius: '9px',
             fontWeight: '600',
+            fontSize: '18px',
             cursor: 'pointer'
           }}
         >
@@ -2050,10 +3207,11 @@ function handlePointerCancel(e) {
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.95)',
               borderRadius: '16px',
-              padding: '24px',
-              minWidth: '320px',
-              maxWidth: '70%',
-              maxHeight: '60%',
+              padding: '40px',
+              minWidth: '700px',
+              width: '750px',
+              maxWidth: '90%',
+              maxHeight: '80%',
               overflowY: 'auto',
               boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
             }}

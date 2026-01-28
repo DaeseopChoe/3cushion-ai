@@ -1,0 +1,22 @@
+{
+  "shot_types": [
+    { "id": "back_spin", "label": "뒤돌리기", "active": true },
+    { "id": "side_spin", "label": "옆돌리기", "active": true },
+    { "id": "front_spin", "label": "앞돌리기", "active": true },
+    { "id": "stand_shot", "label": "세워치기", "active": true },
+    { "id": "cut_shot", "label": "비켜치기", "active": true },
+    { "id": "double_cushion", "label": "더블쿠션", "active": true },
+    { "id": "cross_table", "label": "횡단샷", "active": true },
+    { "id": "reverse", "label": "리버스", "active": true },
+    { "id": "short_back_spin", "label": "짧은 뒤돌리기", "active": true },
+    { "id": "back_spin_long", "label": "뒤돌리기 대회전", "active": true },
+    { "id": "side_spin_long", "label": "옆돌리기 대회전", "active": true },
+    { "id": "front_spin_long", "label": "앞돌리기 대회전", "active": true },
+    { "id": "double_rail", "label": "더블 레일", "active": true },
+    { "id": "bank_1", "label": "1뱅크", "active": true },
+    { "id": "bank_2", "label": "2뱅크", "active": true },
+    { "id": "bank_3", "label": "3뱅크", "active": true },
+    { "id": "bank_long", "label": "대회전 뱅크", "active": true },
+    { "id": "bounding", "label": "바운딩", "active": true }
+  ]
+}

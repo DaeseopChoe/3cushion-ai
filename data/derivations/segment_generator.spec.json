@@ -1,0 +1,71 @@
+{
+  "id": "segment_generator.v1",
+  "version": "1.0",
+  "description": "Generate sampled geometry segments for a shot at admin-save time",
+
+  "generate_timing": "ADMIN_SAVE_AFTER_CURVEMODEL",
+
+  "coordinate_policy": {
+    "allowed_spaces": ["Fg", "Rg"],
+    "default_space": "Rg",
+    "note": "Segments are display/geometry only. Never used in sys-domain calculation."
+  },
+
+  "segments": {
+    "co_to_impact": {
+      "type": "RANGED",
+      "description": "Cue ball to impact ball segment with distance-dependent effects",
+      "active_range": {
+        "from": 0.0,
+        "to": 0.5
+      },
+      "sample_count": {
+        "default": 6,
+        "min": 2,
+        "max": 20
+      },
+      "sampling_method": "UNIFORM_PARAMETRIC",
+      "applies": {
+        "hpt": true,
+        "str": true
+      }
+    },
+
+    "cushion_to_target": {
+      "type": "CONST",
+      "description": "Last cushion to target ball segment (constant effect)",
+      "sample_count": {
+        "default": 7,
+        "min": 2,
+        "max": 20
+      },
+      "sampling_method": "UNIFORM_DISTANCE",
+      "applies": {
+        "hpt": false,
+        "str": false
+      }
+    }
+  },
+
+  "output_schema": {
+    "segments": {
+      "co_to_impact": {
+        "active_range": { "from": "number", "to": "number" },
+        "sample_count": "integer",
+        "space": "Fg|Rg",
+        "points": "array<[x,y]>"
+      },
+      "cushion_to_target": {
+        "sample_count": "integer",
+        "space": "Fg|Rg",
+        "points": "array<[x,y]>"
+      }
+    }
+  },
+
+  "safety_rules": {
+    "no_extrapolation": true,
+    "min_sample_count": 2,
+    "max_sample_count": 20
+  }
+}

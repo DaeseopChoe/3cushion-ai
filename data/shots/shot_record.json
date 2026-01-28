@@ -1,0 +1,56 @@
+{
+  "schema_version": "shot_record_v1",
+  "id": "uuid-or-timestamp",
+  "created_at": 1730000000000,
+  "updated_at": 1730000000000,
+
+  "mode": "ADMIN",
+  "shot_key": "S1",
+
+  "system": {
+    "system_id": "five_half_system_v1",
+    "display_name": {
+      "ko": "5&Half 뒤돌리기",
+      "en": "5 & Half – Reverse",
+      "base": "en"
+    },
+    "attack_type": "REVERSE"
+  },
+
+  "balls": {
+    "cue": { "x": 10.0, "y": 5.0 },
+    "target": { "x": 50.0, "y": 20.0 },
+    "second": { "x": 70.0, "y": 30.0 }
+  },
+
+  "hpt": {
+    "hp": { "x": 0.0, "y": 0.0 },
+    "T": "+3/8"
+  },
+
+  "str": {
+    "length": "Standard",
+    "type": "Constant",
+    "speed": "00"
+  },
+
+  "sys": {
+    "corrections": {
+      "curve_ratio": 5,
+      "drag": 0,
+      "draw": 0,
+      "start": 0
+    },
+    "rail_first": false
+  },
+
+  "applied_snapshot": {
+    "T_used": "+3/8",
+    "impact_ball": { "x": 48.0, "y": 19.0 },
+    "notes": "v1에서는 필수 계산값 최소 저장"
+  },
+
+  "ai": {
+    "text": "두께를 얇게 보고 감속 스트로크로..."
+  }
+}
