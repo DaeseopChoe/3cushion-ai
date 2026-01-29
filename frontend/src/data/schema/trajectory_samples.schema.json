@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3cushion.ai/schemas/trajectory_samples.schema.json",
+  "title": "Trajectory Samples Schema",
+  "description": "Strategy별 연속 궤적(Trajectory)의 기준 샘플(Anchor) 정의 스키마 v1.1",
+  "version": "1.1",
+  "type": "object",
+  "required": ["position_id", "strategy_id", "system_id", "track", "trajectory", "meta"],
+  "properties": {
+    "position_id": {
+      "type": "string",
+      "description": "포지션 식별자 (예: H001)",
+      "pattern": "^[A-Z][0-9]{3}$"
+    },
+    "strategy_id": {
+      "type": "string",
+      "description": "전략 슬롯 식별자 (S1/S2/S3)",
+      "enum": ["S1", "S2", "S3"]
+    },
+    "system_id": {
+      "type": "string",
+      "description": "적용된 시스템 ID (예: 5_half_system)"
+    },
+    "track": {
+      "type": "string",
+      "description": "트랙 타입 (예: B2T_L)",
+      "pattern": "^B[0-9]T_[LR]$"
+    },
+    "trajectory": {
+      "type": "object",
+      "description": "연속 궤적 정의 (Segment 기반)",
+      "required": ["context", "segments"],
+      "properties": {
+        "context": {
+          "type": "object",
+          "description": "Trajectory 전체에 적용되는 컨텍스트 (HP/T 등)",
+          "required": ["hpt"],
+          "properties": {
+            "hpt": {
+              "type": "object",
+              "description": "Hit Point / Thickness 설정",
+              "required": ["T", "hit_point"],
+              "properties": {
+                "T": {
+                  "type": "string",
+                  "description": "두께 표기 (예: +5/8, -3/8, 8/8)",
+                  "pattern": "^([+-]?[0-7]/8|8/8)$"
+                },
+                "hit_point": {
+                  "type": "object",
+                  "description": "타점 좌표 (-4 ~ +4)",
+                  "required": ["x", "y"],
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "minimum": -4.0,
+                      "maximum": 4.0,
+                      "description": "X축 타점 (좌측 음수, 우측 양수)"
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": -4.0,
+                      "maximum": 4.0,
+                      "description": "Y축 타점 (하단 음수, 상단 양수)"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "segments": {
+          "type": "object",
+          "description": "궤적 구간 집합 (CO→Impact, Cushion→Second)",
+          "required": ["co_to_impact", "cushion_to_second"],
+          "properties": {
+            "co_to_impact": {
+              "$ref": "#/$defs/segment"
+            },
+            "cushion_to_second": {
+              "$ref": "#/$defs/segment"
+            }
+          }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "description": "메타데이터 (계산과 무관, 분류/큐레이션용)",
+      "required": ["version", "created_at"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "스키마 버전",
+          "const": "trajectory_samples_v1.1"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "생성 일시 (ISO 8601)"
+        },
+        "shot_type": {
+          "type": "string",
+          "description": "샷 유형 (예: 옆돌리기)"
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "난이도 (예: beginner, intermediate, advanced)",
+          "enum": ["beginner", "intermediate", "advanced"]
+        },
+        "curator": {
+          "type": "string",
+          "description": "작성자/관리자"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "segment": {
+      "type": "object",
+      "description": "궤적 구간 정의 (CO→Impact 또는 Cushion→Second)",
+      "required": ["segment_id", "space", "sampling_rule", "anchors", "anchor_meta"],
+      "properties": {
+        "segment_id": {
+          "type": "string",
+          "description": "구간 식별자",
+          "enum": ["co_to_impact", "cushion_to_second"]
+        },
+        "space": {
+          "type": "string",
+          "description": "좌표계 (Fg = Foreground)",
+          "enum": ["Fg"]
+        },
+        "sampling_rule": {
+          "type": "object",
+          "description": "샘플링 규칙 (선형 보간 전제)",
+          "required": ["method", "parameter", "range"],
+          "properties": {
+            "method": {
+              "type": "string",
+              "description": "보간 방법",
+              "enum": ["linear"]
+            },
+            "parameter": {
+              "type": "string",
+              "description": "매개변수 이름",
+              "const": "t"
+            },
+            "range": {
+              "type": "array",
+              "description": "매개변수 범위 [min, max]",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        },
+        "anchors": {
+          "type": "array",
+          "description": "보간 기준점(Anchor) 배열",
+          "items": {
+            "$ref": "#/$defs/anchor"
+          },
+          "minItems": 2
+        },
+        "anchor_meta": {
+          "type": "object",
+          "description": "Anchor 메타정보",
+          "required": ["anchor_count"],
+          "properties": {
+            "anchor_count": {
+              "type": "integer",
+              "description": "Anchor 개수",
+              "minimum": 2
+            },
+            "description": {
+              "type": "string",
+              "description": "구간 설명"
+            },
+            "source": {
+              "type": "string",
+              "description": "원본 샘플 출처 (예: H001_05_SB*)"
+            }
+          }
+        }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "description": "보간 기준점 (샘플 포인트)",
+      "required": ["anchor_id", "t", "ui", "sys_context"],
+      "properties": {
+        "anchor_id": {
+          "type": "string",
+          "description": "Anchor 식별자 (예: A1, SB1)"
+        },
+        "t": {
+          "type": "number",
+          "description": "구간 내 정규화 위치 (0.0 ~ 1.0)",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "ui": {
+          "type": "object",
+          "description": "UI 표시용 좌표",
+          "required": ["ball"],
+          "properties": {
+            "ball": {
+              "type": "object",
+              "description": "공 위치 좌표",
+              "required": ["x", "y"],
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "description": "X 좌표 (단위: Fg)"
+                },
+                "y": {
+                  "type": "number",
+                  "description": "Y 좌표 (단위: Fg)"
+                }
+              }
+            }
+          }
+        },
+        "sys_context": {
+          "type": "object",
+          "description": "시스템 계산 결과 스냅샷 (필수, read-only)",
+          "required": ["CO", "one_c", "three_c", "target"],
+          "properties": {
+            "CO": {
+              "type": "number",
+              "description": "출발값 (Cue Object)"
+            },
+            "one_c": {
+              "type": "number",
+              "description": "1쿠션 겨냥값"
+            },
+            "three_c": {
+              "type": "number",
+              "description": "3쿠션 겨냥값"
+            },
+            "target": {
+              "type": "number",
+              "description": "목표값 (Target)"
+            }
+          }
+        },
+        "segment_meta": {
+          "type": "object",
+          "description": "Anchor 메타정보 (선택)",
+          "properties": {
+            "division": {
+              "type": "integer",
+              "description": "구간 분할 번호"
+            },
+            "percentage": {
+              "type": "number",
+              "description": "구간 내 비율 (%)",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}
