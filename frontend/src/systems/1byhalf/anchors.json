@@ -1,0 +1,49 @@
+{
+  "system": "1byhalf",
+  "canonical": "B2T_L",
+
+  "anchors": [
+    {
+      "id": "C1_COy0",
+      "space": "Fg",
+      "rail": "TOP",
+      "axis": "long",
+      "value": 82.25,
+      "co_fg_y": 0.0
+    },
+    {
+      "id": "C1_COy10",
+      "space": "Fg",
+      "rail": "TOP",
+      "axis": "long",
+      "value": 75.0,
+      "co_fg_y": 10.0
+    },
+    {
+      "id": "C1_COy20",
+      "space": "Fg",
+      "rail": "TOP",
+      "axis": "long",
+      "value": 62.5,
+      "co_fg_y": 20.0
+    },
+    {
+      "id": "C1_COy30",
+      "space": "Fg",
+      "rail": "TOP",
+      "axis": "long",
+      "value": 50.0,
+      "co_fg_y": 30.0
+    }
+  ],
+
+  "meta": {
+    "generated_from": "1byhalf_dataset.json:co_to_1c_map",
+    "notes": [
+      "Anchors define base C1 positions derived from CO y-value",
+      "Linear interpolation and clamping are defined in derivations layer",
+      "Mirror rules are handled by logic layer",
+      "All anchors are expressed in frame grid (Fg) on TOP rail"
+    ]
+  }
+}

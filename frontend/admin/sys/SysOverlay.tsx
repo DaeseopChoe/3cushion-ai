@@ -5,6 +5,7 @@ import { useState, useMemo } from "react";
 import { useSysCalculation } from "./useSysCalculation";
 import type { SystemCalcInputV1 } from "@/data/system/calculator/types";
 import type { Point } from "@/data/system/calculator/types";
+import { SYSTEM_PROFILES } from "../../src/systems";
 
 /* ===============================
  * SysOverlay 상태 타입
@@ -143,6 +144,12 @@ export function SysOverlay({ initialState, onSave, onClose }: SysOverlayProps) {
     onSave(sysData);
   }
   
+  // 선택된 시스템의 profile에서 계산 공식(expr) 추출 (표시용)
+  const profileKey =
+    { "5_HALF": "5_half_system", "PLUS": "plus_system" }[sysState.systemId] ?? sysState.systemId;
+  const profile = SYSTEM_PROFILES[profileKey];
+  const formulaExpr = profile?.formula?.expr ?? "-";
+
   // ==========================================
   // 6️⃣ UI 렌더링
   // ==========================================
@@ -236,6 +243,32 @@ export function SysOverlay({ initialState, onSave, onClose }: SysOverlayProps) {
           <option value="돌리기">돌리기</option>
           <option value="옆돌리기">옆돌리기</option>
         </select>
+      </div>
+      
+      {/* 계산 공식 (선택된 시스템의 profile.formula.expr) */}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{
+          display: 'block',
+          fontSize: '14px',
+          fontWeight: '500',
+          marginBottom: '8px',
+          color: '#374151'
+        }}>
+          계산 공식
+        </label>
+        <div style={{
+          padding: '12px 16px',
+          backgroundColor: '#e5e7eb',
+          borderRadius: '6px',
+          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+          fontSize: '15px',
+          fontWeight: '600',
+          color: '#1f2937',
+          textAlign: 'center',
+          letterSpacing: '1px'
+        }}>
+          {formulaExpr}
+        </div>
       </div>
       
       {/* 보정값들 */}

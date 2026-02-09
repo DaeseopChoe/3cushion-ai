@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "System Meta Schema",
+  "description": "Lightweight metadata for system resolution and pre-filtering",
+  "type": "object",
+
+  "required": [
+    "system_id",
+    "family",
+    "required_cushions",
+    "canonical_track",
+    "entry_rail",
+    "exit_rail"
+  ],
+
+  "properties": {
+    "system_id": {
+      "type": "string",
+      "description": "Must match systems/{id} folder name"
+    },
+
+    "family": {
+      "type": "string",
+      "description": "System family for coarse grouping",
+      "enum": [
+        "across",
+        "angle",
+        "reverse",
+        "plus",
+        "minus",
+        "plate",
+        "wedge",
+        "umbrella",
+        "zigzag",
+        "other"
+      ]
+    },
+
+    "required_cushions": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Number of cushions involved before target"
+    },
+
+    "canonical_track": {
+      "type": "string",
+      "enum": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"],
+      "description": "Primary trajectory orientation"
+    },
+
+    "entry_rail": {
+      "type": "string",
+      "enum": ["BOTTOM", "TOP", "LEFT", "RIGHT"],
+      "description": "Rail where cue ball starts"
+    },
+
+    "exit_rail": {
+      "type": "string",
+      "enum": ["BOTTOM", "TOP", "LEFT", "RIGHT"],
+      "description": "Rail where system is expected to end (before target)"
+    },
+
+    "allowed_tracks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"]
+      },
+      "description": "Optional alternative tracks"
+    },
+
+    "entry_zone": {
+      "type": "string",
+      "enum": ["SHORT", "LONG", "ANY"],
+      "default": "ANY",
+      "description": "Which rail length is expected for entry"
+    },
+
+    "exit_zone": {
+      "type": "string",
+      "enum": ["SHORT", "LONG", "ANY"],
+      "default": "ANY",
+      "description": "Which rail length is expected for exit"
+    },
+
+    "difficulty": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Relative difficulty (1=easy, 5=hard)"
+    },
+
+    "notes": {
+      "type": "string",
+      "description": "Free text notes (not used by resolver)"
+    }
+  }
+}

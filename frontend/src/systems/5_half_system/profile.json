@@ -1,0 +1,63 @@
+{
+  "system": "5_half_system",
+
+  "formula": {
+    "expr": "C1_f = CO_f - C3_r",
+    "description": "5&half 기본식은 1C와 3C의 합을 기준으로 하며, CO 기준 보정(residual)을 포함한다."
+  },
+
+  "value_domains": {
+    "CO_f": [0, 90],
+    "C1_f": [0, 90],
+    "C3_r": [0, 90],
+    "C4_r": [-30, 90],
+    "C5_r": [20, 90],
+    "C6_r": [20, 90]
+  },
+
+  "safety": {
+    "offset_fg2rg": 2.25,
+    "fg_extension_long": 2.25,
+    "fg_extension_short": 2.25,
+    "m_min": 0.05,
+    "theta_t_max": 68,
+    "no_extrapolation": true
+  },
+
+  "space_rule": {
+    "frame_constants": [-2.25, 42.25, 82.25],
+    "tolerance": 0.02,
+    "rule": "if coordinate matches frame_constants => Fg, else Rg"
+  },
+
+  "mappings": null,
+
+  "display": {
+    "name_key": "system.5_half.name",
+    "short_name_key": "system.5_half.short",
+    "description_key": "system.5_half.desc",
+    "category": "composite",
+    "difficulty": "hard",
+    "tags": ["five_and_half", "multi_cushion", "correction", "advanced"],
+    "overlay_keys": {
+      "how_to_use": "system.5_half.how_to_use",
+      "caution": "system.5_half.caution",
+      "tip": "system.5_half.tip"
+    }
+  },
+
+  "meta": {
+    "version": "1.0",
+    "generator": "3Cushion AI",
+    "canonical_track": "B2T_L",
+
+    "notes": [
+      "5&half 시스템은 1C + 3C 계열을 확장하여 4C, C5, C6까지 포함하는 복합 시스템이다.",
+      "계산의 기준은 항상 CO_sys=50을 중심으로 한 보정(residual) 구조를 갖는다.",
+      "C3_sys 값에 따라 타점(HP_n)과 C4 보정 곡선이 달라진다.",
+      "4C 이후에 단쿠션을 맞고 선회하는 경우에만 C5, C6가 생성된다.",
+      "이 시스템은 공식보다 규칙과 예외 조건의 비중이 크므로 rules.json이 핵심이다.",
+      "profile.json은 시스템의 정체성과 사용 범위만 정의하며 계산을 포함하지 않는다."
+    ]
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "system": "3tip_across",
+
+  "logic_type": "spin_parallel_decision",
+
+  "inputs_required": [
+    "CO_xy",
+    "C1_xy",
+    "first_cushion",
+    "target_parallel",
+    "tip"
+  ],
+
+  "decision_steps": [
+    {
+      "step": "classify_cushion_type",
+      "description": "Determine whether the first cushion is long or short",
+      "input": "first_cushion",
+      "output": "cushion_type",
+      "rules": {
+        "long_top": "LONG",
+        "long_bottom": "LONG",
+        "short_left": "SHORT",
+        "short_right": "SHORT"
+      }
+    },
+
+    {
+      "step": "select_parallel_goal",
+      "description": "Select desired post-cushion parallel direction",
+      "input": "target_parallel",
+      "output": "parallel_goal",
+      "rules": {
+        "long_parallel": "PARALLEL_TO_LONG",
+        "short_parallel": "PARALLEL_TO_SHORT"
+      }
+    },
+
+    {
+      "step": "assign_spin_factor",
+      "description": "Assign spin contribution factor based on cushion type",
+      "input": "cushion_type",
+      "output": "spin_factor",
+      "rules": {
+        "LONG": 10,
+        "SHORT": 5
+      }
+    },
+
+    {
+      "step": "validate_tip_range",
+      "description": "Ensure tip value is within allowed domain",
+      "input": "tip",
+      "guards": {
+        "min": 0.0,
+        "max": 4.0
+      },
+      "on_failure": "error"
+    },
+
+    {
+      "step": "validate_parallel_feasibility",
+      "description": "Check whether the chosen parallel goal is feasible for the given cushion",
+      "inputs": ["cushion_type", "parallel_goal"],
+      "rules": {
+        "LONG": ["PARALLEL_TO_LONG", "PARALLEL_TO_SHORT"],
+        "SHORT": ["PARALLEL_TO_SHORT"]
+      },
+      "on_failure": "warn"
+    }
+  ],
+
+  "outputs": [
+    "cushion_type",
+    "parallel_goal",
+    "spin_factor"
+  ],
+
+  "safety": {
+    "no_extrapolation": true,
+    "tip_required": true,
+    "ambiguity_policy": "warn"
+  },
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_logic",
+    "notes": [
+      "Logic determines which spin factor to apply based on cushion length",
+      "Long cushion uses factor 10 per tip; short cushion uses factor 5 per tip",
+      "This file performs no geometric or numeric slope calculation",
+      "Parallel feasibility is validated but not forcibly rejected",
+      "Actual residual and angle computation is delegated to simulator layer"
+    ]
+  }
+}

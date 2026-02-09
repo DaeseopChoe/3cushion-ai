@@ -1,0 +1,13 @@
+{
+  "system_id": "3tip_across",
+  "family": "other",
+  "required_cushions": 2,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 2,
+  "notes": "reviewed"
+}

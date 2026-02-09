@@ -1,0 +1,47 @@
+{
+  "system": "Spread30 System",
+  "category": "geometry_fixed_rule",
+
+  "description": {
+    "ko": "Spread30 시스템은 고정된 벌림 규칙(30/15)을 사용하여 특정 상황에서의 쿠션 경로를 빠르게 산출하는 보조 기하 시스템이다.",
+    "en": "Spread30 system computes cushion paths using fixed spread rules (30/15) for specific practical situations."
+  },
+
+  "system_characteristics": {
+    "type": "geometry",
+    "continuous_calculation": true,
+    "anchor_based": false,
+    "sys_formula": false,
+    "interpolation": false,
+    "extrapolation": false
+  },
+
+  "ui": {
+    "category": "geometry",
+    "input_marks": ["START"],
+    "output_marks": ["C1", "C2"],
+    "modes": ["short", "long"],
+    "display_hint": {
+      "spread": ["30", "15"]
+    }
+  },
+
+  "notes": [
+    "이 시스템은 sys 계산 시스템이 아니다.",
+    "anchors를 사용하지 않는다.",
+    "고정 벌림 규칙(30/15)을 좌표 계산으로 적용한다.",
+    "실전에서 빠른 판단을 위한 보조 시스템이다."
+  ],
+
+  "safety": {
+    "coordinate_domain": "Fg",
+    "allowed_error": 0.5
+  },
+
+  "meta": {
+    "spec_version": "v1.3",
+    "generator": "PM-direct",
+    "geometry_exception": true,
+    "last_updated": "2026-01-13"
+  }
+}

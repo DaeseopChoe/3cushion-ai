@@ -8,7 +8,7 @@
   "ui": {
     "balls": {
       "cue": {
-        "x": 40,
+        "x": 20,
         "y": 30
       },
       "target_center": {

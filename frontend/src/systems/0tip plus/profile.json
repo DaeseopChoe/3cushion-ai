@@ -1,0 +1,78 @@
+{
+    "system": "otip_plus",
+    "display": {
+        "name_key": "system.otip_plus.name",
+        "short_name_key": "system.otip_plus.short",
+        "description_key": "system.otip_plus.desc",
+        "category": "reflection",
+        "difficulty": "easy",
+        "tags": [
+            "zero_tip",
+            "reflection",
+            "no_spin"
+        ],
+        "overlay_keys": {
+            "how_to_use": "system.otip_plus.howto",
+            "caution": "system.otip_plus.caution",
+            "tip": "system.otip_plus.tip"
+        }
+    },
+    "formula": {
+        "expr": "C2_f = is_left * ((40 - C1_f) / C1_f) * CO_f + (1 - is_left) * (80 - ((40 - C1_f) / C1_f) * (80 - CO_f))"
+    },
+    "value_domains": {
+        "CO_f": [
+            0,
+            80
+        ],
+        "C1_f": [
+            0.05,
+            40
+        ],
+        "is_left": [
+            0,
+            1
+        ],
+        "C2_f": [
+            0,
+            80
+        ],
+        "C3_f": [
+            0,
+            80
+        ],
+        "C4_f": [
+            0,
+            40
+        ]
+    },
+    "safety": {
+        "fixed_hit": 0,
+        "pattern": "long-short-long",
+        "no_extrapolation": true,
+        "sys_identity_strict": true,
+        "ambiguity_policy": "error"
+    },
+    "space_rule": {
+        "grid": "frame",
+        "snap_tolerance": 0.02,
+        "frame_constants": {
+            "BOTTOM": -2.25,
+            "TOP": 42.25,
+            "LEFT": -2.25,
+            "RIGHT": 82.25
+        }
+    },
+    "mappings": null,
+    "meta": {
+        "version": "1.1",
+        "role": "system_definition",
+        "notes": [
+            "Otip Plus is a zero-tip (center hit) reflection system (calc-space only).",
+            "C2 on TOP rail is the primary output.",
+            "C1, C3, C4 are optional marks used for validation or reverse solving.",
+            "Use is_left (1=LEFT, 0=RIGHT) to disambiguate path in the expression without branching.",
+            "All calculations are performed in calc-space; rendering/projection handled separately."
+        ]
+    }
+}

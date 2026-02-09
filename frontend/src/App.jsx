@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
+import { useShotSlots } from "./hooks/useShotSlots";
+import { useTrajectoryState } from "./hooks/useTrajectoryState";
+import { SYSTEM_PROFILES } from "./systems";
+import { calculateByProfileExpr } from "./utils/systemCalculator";
 
 const ADMIN_BUTTONS = ["SYS", "HPT", "STR", "AI"];
 
@@ -39,6 +43,51 @@ const POINT_OFFSET_RG = POINT_OFFSET_MM / RG_UNIT_MM;
 
 function toPx({ x, y }) {
   return { x: x * SCALE, y: TABLE_H - y * SCALE };
+}
+
+/*
+-------------------------------------------------------
+Overlay: STR (Striking parameter adjust)
+@useTrajectoryState.ts 참고하여 시스템 1C 보정값과 3C 입력값 표시 및 입력 제어 구현
+-------------------------------------------------------
+*/
+
+function STRContent({ trajectoryState }) {
+  const { state, updateAdjusted } = trajectoryState;
+  const threeC = state?.adjusted?.sys?.threeC ?? '';
+  const oneC = state?.adjusted?.sys?.oneC ?? '';
+
+  // 3C 입력창 핸들러 (input type=number)
+  const handleThreeCChange = e => {
+    const value = e.target.value;
+    // 숫자로 변환. 빈 값이면 바로 처리
+    const num = value === '' ? '' : Number(value);
+    updateAdjusted({ threeC: num });
+  };
+
+  // 비어있을 때도 허용, 아니면 고정소수점
+  const displayOneC = oneC === '' ? '' : Number(oneC).toFixed(2);
+  const displayThreeC = threeC === '' ? '' : Number(threeC);
+
+  return (
+    <div style={{ padding: 20, fontSize: 16 }}>
+      <div style={{ marginBottom: 10 }}>
+        <strong>3C 입력값:</strong>
+        <input
+          type="number"
+          value={threeC}
+          onChange={handleThreeCChange}
+          min={0}
+          step="0.01"
+          style={{ marginLeft: 10, width: 80 }}
+        />
+      </div>
+      <div>
+        <strong>1C 보정값 (실시간 0.75× 보정):</strong>
+        <span style={{ marginLeft: 10, fontWeight: 'bold' }}>{displayOneC}</span>
+      </div>
+    </div>
+  );
 }
 
 // Rg 역변환 (px → Rg)
@@ -451,53 +500,106 @@ function SysOverlay({ data, onSave, onCancel }) {
   // v1 적용 시스템 (내부 상수 고정)
   // ==========================================
   const SYSTEM_OPTIONS = [
-    { id: "5_half_system", label: "5½ 시스템" },
-    { id: "rodriguez", label: "로드리게스 시스템" },
+    { id: "5_half_system", label: "파이브 앤드 하프 시스템" },
+    { id: "rodriguez", label: "로드리게스" },
     { id: "ball_system", label: "볼 시스템" },
     { id: "sunrise_sunset", label: "일출·일몰 시스템" },
     { id: "plus_system", label: "플러스 시스템" },
     { id: "plus2_system", label: "플러스2 시스템" },
     { id: "3tip_plus", label: "3팁 플러스" },
-    { id: "2_3_system", label: "2/3 시스템" },
-    { id: "35_half", label: "3½ 시스템" },
+    { id: "2_3_system", label: "3분의 2 시스템" },
+    { id: "35half", label: "35와 ½ 시스템" },
     { id: "double_rail", label: "더블 레일" },
-    { id: "peruvian_system", label: "페루비안 시스템" },
+    { id: "peruvian_system", label: "페루 시스템" },
     { id: "reverse_end_system", label: "리버스 엔드" },
-    { id: "zigzag_system", label: "지그재그 시스템" },
+    { id: "zigzag_system", label: "지그재그" },
     { id: "7_system", label: "7 시스템" },
-    { id: "99_to_1", label: "99 to 1" },
-    { id: "clay_shooting", label: "클레이 슈팅" },
-    { id: "long_plate_system", label: "롱 플레이트" },
+    { id: "99 to 1", label: "99 to 1" },
+    { id: "clay_shooting", label: "클레이 사격" },
+    { id: "long_plate_system", label: "긴각 접시" },
     { id: "long_wedge", label: "롱 웨지" },
     { id: "reverse_system", label: "리버스 시스템" },
     { id: "schaefer_system", label: "쉐퍼 시스템" },
     { id: "tokyo_system", label: "도쿄 시스템" },
-    { id: "turkish_angle_system", label: "터키 앵글" },
-    { id: "short_plate_system", label: "숏 플레이트" },
+    { id: "turkish_angle_system", label: "터키 시스템" },
+    { id: "short_plate_system", label: "짧은각 접시" },
     { id: "short_wedge", label: "숏 웨지" },
-    { id: "spider_web", label: "스파이더 웹" },
-    { id: "0tip_plus", label: "0팁 플러스" },
-    { id: "1byhalf", label: "1½ 시스템" },
-    { id: "3and4_system", label: "3&4 시스템" },
-    { id: "3tip_across", label: "3팁 어크로스" },
-    { id: "Plus_5_system", label: "플러스 5 시스템" },
-    { id: "minus_5_system", label: "마이너스 5 시스템" },
-    { id: "n_across", label: "N 어크로스" },
-    { id: "n_across_short", label: "N 어크로스 숏" },
-    { id: "spread_30", label: "스프레드 30" },
-    { id: "split", label: "스플릿" },
-    { id: "accordion", label: "아코디언 시스템" },
+    { id: "spider_web", label: "거미줄 시스템" },
+    { id: "0tip plus", label: "0팁 플러스" },
+    { id: "1byhalf", label: "반팁 시스템" },
+    { id: "3and4_system", label: "3과4 시스템" },
+    { id: "3tip_across", label: "3팁 횡단" },
+    { id: "Plus_5_system", label: "플러스 5" },
+    { id: "minus_5_system", label: "마이너스 5" },
+    { id: "n_across", label: "N자 횡단" },
+    { id: "n_across_short", label: "짧은 N자 횡단" },
+    { id: "spread30", label: "스프레드 30" },
+    { id: "split", label: "분열" },
+    { id: "accordion", label: "아코디언" },
     { id: "florida_system", label: "플로리다 시스템" }
   ];
 
   // ==========================================
-  // 상태 관리 (로컬 state)
+  // HP_n 드롭다운 옵션
+  // ==========================================
+  const HP_OPTIONS = [
+    { label: "좌 4팁 (-4)", value: -4 },
+    { label: "좌 3팁 (-3)", value: -3 },
+    { label: "좌 2팁 (-2)", value: -2 },
+    { label: "좌 1팁 (-1)", value: -1 },
+    { label: "무회전 (0)", value: 0 },
+    { label: "우 1팁 (1)", value: 1 },
+    { label: "우 2팁 (2)", value: 2 },
+    { label: "우 3팁 (3)", value: 3 },
+    { label: "우 4팁 (4)", value: 4 },
+  ];
+
+  // ==========================================
+  // 공식 파서 함수
+  // ==========================================
+  function parseExpr(expr) {
+    if (!expr) return { forced: {}, neededKeys: new Set(), needsHP: false, needsAn: false };
+    
+    // 예: CO_f, C3_r, C1_f ...
+    const rx = /\b(CO|C1|C2|C3|C4)_(f|r)\b/g;
+    const forced = { CO: null, C1: null, C2: null, C3: null, C4: null };
+    const neededKeys = new Set();
+
+    let m;
+    while ((m = rx.exec(expr)) !== null) {
+      const mark = m[1];     // CO..C4
+      const sp = m[2];       // f/r
+      forced[mark] = sp;     // 이 시스템은 이 mark의 space가 고정임
+      neededKeys.add(`${mark}_${sp}`);
+    }
+
+    const needsHP = /\bHP_n\b/.test(expr);
+    const needsAn = /\bAn\b/.test(expr);
+
+    return { forced, neededKeys, needsHP, needsAn };
+  }
+
+  // ==========================================
+  // 상태 관리 (완성 키 방식)
   // ==========================================
   const [formData, setFormData] = useState({
     shotType: data?.shotType || '뒤돌리기',
     system: data?.system || SYSTEM_OPTIONS[0]?.id || '5_half_system',
-    coBase: data?.coBase || 40,
-    c3Base: data?.c3Base || 20,
+    // 완성 키 방식: CO_f, CO_r, C1_f, C1_r, ..., C4_f, C4_r, HP_n, An
+    inputs: {
+      CO_f: data?.inputs?.CO_f ?? "",
+      CO_r: data?.inputs?.CO_r ?? "",
+      C1_f: data?.inputs?.C1_f ?? "",
+      C1_r: data?.inputs?.C1_r ?? "",
+      C2_f: data?.inputs?.C2_f ?? "",
+      C2_r: data?.inputs?.C2_r ?? "",
+      C3_f: data?.inputs?.C3_f ?? "",
+      C3_r: data?.inputs?.C3_r ?? "",
+      C4_f: data?.inputs?.C4_f ?? "",
+      C4_r: data?.inputs?.C4_r ?? "",
+      HP_n: data?.inputs?.HP_n ?? 0,
+      An: data?.inputs?.An ?? 0.0
+    },
     corrections: {
       slide: data?.corrections?.slide || 0,
       draw: data?.corrections?.draw || 0,
@@ -506,76 +608,71 @@ function SysOverlay({ data, onSave, onCancel }) {
     }
   });
 
+  // UI 토글 상태 (표시용) - 계산키와 분리
+  const [spaceSel, setSpaceSel] = useState({
+    CO: data?.spaceSel?.CO || "f",
+    C1: data?.spaceSel?.C1 || "f",
+    C2: data?.spaceSel?.C2 || "f",
+    C3: data?.spaceSel?.C3 || "f",
+    C4: data?.spaceSel?.C4 || "f"
+  });
+
   // ==========================================
-  // 자동 계산 (실제 계산)
+  // 공식 로딩 및 파싱
   // ==========================================
-  const formula = "CO - 3C = 1C";
+  const profile = SYSTEM_PROFILES?.[formData.system];
+  const expr = typeof profile?.formula === "string"
+    ? profile.formula
+    : profile?.formula?.expr || "";
   
-  // 기준 계산값 (1C) 실제 계산
-  const oneC = formData.coBase - formData.c3Base;
-  const baseCalc = `CO_${formData.coBase} - 3C_${formData.c3Base} = 1C_${oneC}`;
-  
+  const { forced, neededKeys, needsHP, needsAn } = parseExpr(expr);
+
+  // 공식 로딩 시 f/r 스위치 자동 고정
+  useEffect(() => {
+    const { forced: forcedSpaces } = parseExpr(expr);
+    setSpaceSel(prev => {
+      const next = { ...prev };
+      (["CO", "C1", "C2", "C3", "C4"]).forEach(k => {
+        if (forcedSpaces[k]) next[k] = forcedSpaces[k]; // 공식이 강제하면 자동 세팅
+      });
+      return next;
+    });
+  }, [expr]);
+
   // ==========================================
-  // 물리 보정 적용 (단계별)
+  // 계산 엔진 연결 (실시간 업데이트)
   // ==========================================
-  
-  // ① 보정한 CO값 (밀림 또는 끌림)
-  const slideValue = formData.corrections.slide || 0;
-  const drawValue = formData.corrections.draw || 0;
-  const coCorrection = slideValue !== 0 ? slideValue : -drawValue;
-  const adjustedCO = formData.coBase + coCorrection;
-  
-  // ② 보정한 3C값 (스핀)
-  const spinValue = formData.corrections.spin || 0;
-  const adjustedC3 = formData.c3Base + spinValue;
-  
-  // ③ 보정한 타겟값 (출발 - 0.75 환산)
-  const departureInput = formData.corrections.departure || 0;
-  const departureEff = departureInput * 0.75;
-  const targetValue = adjustedC3 + departureEff;
-  
-  // ④ 실제 1쿠션 겨냥점 (최종)
-  const finalOneCValue = adjustedCO - targetValue;
-  
-  // ==========================================
-  // UI 표시 문자열 생성
-  // ==========================================
-  
-  // 보정한 CO값 표시
-  let adjustedCODisplay = '';
-  if (slideValue !== 0) {
-    adjustedCODisplay = `CO' = CO(${formData.coBase}) + 밀림(${slideValue}) = ${adjustedCO}`;
-  } else if (drawValue !== 0) {
-    adjustedCODisplay = `CO' = CO(${formData.coBase}) - 끌림(${drawValue}) = ${adjustedCO}`;
-  } else {
-    adjustedCODisplay = `CO' = ${adjustedCO} (보정 없음)`;
-  }
-  
-  // 보정한 3C값 표시
-  let adjustedC3Display = '';
-  if (spinValue !== 0) {
-    adjustedC3Display = `3C' = 3C(${formData.c3Base}) + 스핀(${spinValue >= 0 ? '+' : ''}${spinValue}) = ${adjustedC3}`;
-  } else {
-    adjustedC3Display = `3C' = ${adjustedC3} (보정 없음)`;
-  }
-  
-  // 보정한 타겟값 표시
-  let adjustedTargetDisplay = '';
-  if (departureInput !== 0) {
-    const departureSign = departureEff >= 0 ? '+' : '';
-    adjustedTargetDisplay = `Target = 3C'(${adjustedC3}) + 출발(${departureSign}${departureEff.toFixed(2)}) = ${targetValue.toFixed(2)}`;
-  } else {
-    adjustedTargetDisplay = `Target = ${targetValue.toFixed(2)} (보정 없음)`;
-  }
-  
-  // 실제 1쿠션 겨냥점 표시
-  const finalAimDisplay = `1C = CO'(${adjustedCO}) - Target(${targetValue.toFixed(2)}) = ${finalOneCValue.toFixed(2)}`;
+  const [calcResult, setCalcResult] = useState({});
+
+  useEffect(() => {
+    if (!expr) {
+      setCalcResult({});
+      return;
+    }
+
+    // 공식에 필요한 변수만 뽑아서 전달
+    const payload = {};
+    neededKeys.forEach(k => {
+      const val = formData.inputs[k];
+      payload[k] = val === "" || val === null || val === undefined ? 0 : Number(val);
+    });
+    if (needsHP) payload.HP_n = Number(formData.inputs.HP_n || 0);
+    if (needsAn) payload.An = Number(formData.inputs.An || 0);
+
+    const result = calculateByProfileExpr(expr, payload);
+    setCalcResult(result);
+  }, [expr, formData.inputs, neededKeys, needsHP, needsAn]);
 
   // ==========================================
   // 저장 핸들러
   // ==========================================
   const handleSave = () => {
-    onSave(formData);
+    const saveData = {
+      ...formData,
+      spaceSel,
+      calculated: calcResult
+    };
+    onSave(saveData);
   };
 
   return (
@@ -712,7 +809,7 @@ function SysOverlay({ data, onSave, onCancel }) {
             textAlign: 'center',
             letterSpacing: '1px'
           }}>
-            {formula}
+            {expr || "(공식 없음)"}
           </div>
         </div>
       </div>
@@ -748,86 +845,209 @@ function SysOverlay({ data, onSave, onCancel }) {
           }}>
             기준 입력값
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div>
+          
+          {/* CO~C4 입력 (동적) */}
+          {(["CO", "C1", "C2", "C3", "C4"]).map(mark => {
+            const sel = spaceSel[mark];
+            const key = `${mark}_${sel}`;
+            const enabled = neededKeys.has(key);
+            const lock = !!forced[mark];
+
+            return (
+              <div
+                key={mark}
+                style={{
+                  marginBottom: '12px',
+                  padding: '12px',
+                  backgroundColor: enabled ? '#f0fdf4' : '#f9fafb',
+                  borderRadius: '6px',
+                  border: enabled ? '2px solid #10b981' : '1px solid #e5e7eb',
+                  opacity: enabled ? 1 : 0.6
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <label style={{ 
+                    minWidth: '60px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    color: enabled ? '#374151' : '#9ca3af'
+                  }}>
+                    {mark}
+                  </label>
+                  
+                  <input
+                    type="number"
+                    value={formData.inputs[key] || ""}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      inputs: { ...formData.inputs, [key]: e.target.value }
+                    })}
+                    disabled={!enabled}
+                    style={{
+                      flex: 1,
+                      height: '38px',
+                      padding: '0 12px',
+                      border: enabled ? '1px solid #10b981' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '15px',
+                      backgroundColor: enabled ? '#ffffff' : '#f3f4f6',
+                      color: enabled ? '#1f2937' : '#9ca3af',
+                      cursor: enabled ? 'text' : 'not-allowed'
+                    }}
+                  />
+                  
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                      type="button"
+                      disabled={lock || !enabled}
+                      onClick={() => setSpaceSel(p => ({ ...p, [mark]: "f" }))}
+                      style={{
+                        width: '36px',
+                        height: '38px',
+                        padding: 0,
+                        border: sel === "f" ? '2px solid #3b82f6' : '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        backgroundColor: sel === "f" ? '#3b82f6' : '#ffffff',
+                        color: sel === "f" ? '#ffffff' : '#6b7280',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: (lock || !enabled) ? 'not-allowed' : 'pointer',
+                        opacity: (lock || !enabled) ? 0.5 : 1
+                      }}
+                    >
+                      f
+                    </button>
+                    <button
+                      type="button"
+                      disabled={lock || !enabled}
+                      onClick={() => setSpaceSel(p => ({ ...p, [mark]: "r" }))}
+                      style={{
+                        width: '36px',
+                        height: '38px',
+                        padding: 0,
+                        border: sel === "r" ? '2px solid #ef4444' : '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        backgroundColor: sel === "r" ? '#ef4444' : '#ffffff',
+                        color: sel === "r" ? '#ffffff' : '#6b7280',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: (lock || !enabled) ? 'not-allowed' : 'pointer',
+                        opacity: (lock || !enabled) ? 0.5 : 1
+                      }}
+                    >
+                      r
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* HP_n 드롭다운 */}
+          {needsHP && (
+            <div style={{ marginBottom: '12px' }}>
               <label style={{ 
                 display: 'block', 
                 marginBottom: '6px', 
                 fontSize: '13px',
-                fontWeight: '500',
-                color: '#6b7280'
+                fontWeight: '600',
+                color: '#374151'
               }}>
-                CO 기준값
+                HP_n (팁)
               </label>
-              <input
-                type="number"
-                value={formData.coBase}
-                onChange={(e) => setFormData({ ...formData, coBase: Number(e.target.value) })}
+              <select
+                value={formData.inputs.HP_n}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  inputs: { ...formData.inputs, HP_n: Number(e.target.value) }
+                })}
                 style={{
                   width: '100%',
                   height: '42px',
                   padding: '0 12px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid #10b981',
+                  borderRadius: '6px',
+                  fontSize: '15px',
+                  backgroundColor: '#ffffff',
+                  cursor: 'pointer'
+                }}
+              >
+                {HP_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* An 입력 */}
+          {needsAn && (
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '6px', 
+                fontSize: '13px',
+                fontWeight: '600',
+                color: '#374151'
+              }}>
+                An
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.inputs.An}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setFormData({
+                    ...formData,
+                    inputs: { ...formData.inputs, An: isNaN(v) ? 0 : Math.round(v * 10) / 10 }
+                  });
+                }}
+                style={{
+                  width: '100%',
+                  height: '42px',
+                  padding: '0 12px',
+                  border: '1px solid #10b981',
                   borderRadius: '6px',
                   fontSize: '15px',
                   backgroundColor: '#ffffff'
                 }}
               />
             </div>
-            <div>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '6px', 
-                fontSize: '13px',
-                fontWeight: '500',
-                color: '#6b7280'
-              }}>
-                3C 기준값
-              </label>
-              <input
-                type="number"
-                value={formData.c3Base}
-                onChange={(e) => setFormData({ ...formData, c3Base: Number(e.target.value) })}
-                style={{
-                  width: '100%',
-                  height: '42px',
-                  padding: '0 12px',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '6px',
-                  fontSize: '15px',
-                  backgroundColor: '#ffffff'
-                }}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
         {/* ⑤ 기준 계산값 */}
-        <div>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '8px', 
-            fontWeight: '600', 
-            fontSize: '14px',
-            color: '#374151'
-          }}>
-            기준 계산값 (이론값)
-          </label>
-          <div style={{
-            padding: '14px 16px',
-            backgroundColor: '#fef3c7',
-            borderRadius: '6px',
-            border: '1px solid #fbbf24',
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '15px',
-            fontWeight: '600',
-            color: '#92400e',
-            textAlign: 'center',
-            letterSpacing: '0.5px'
-          }}>
-            {baseCalc}
+        {Object.keys(calcResult).length > 0 && (
+          <div>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '8px', 
+              fontWeight: '600', 
+              fontSize: '14px',
+              color: '#374151'
+            }}>
+              기준 계산값 (이론값)
+            </label>
+            <div style={{
+              padding: '14px 16px',
+              backgroundColor: '#fef3c7',
+              borderRadius: '6px',
+              border: '1px solid #fbbf24',
+              fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+              fontSize: '15px',
+              fontWeight: '600',
+              color: '#92400e',
+              textAlign: 'center',
+              letterSpacing: '0.5px'
+            }}>
+              {Object.entries(calcResult).map(([key, value]) => (
+                <div key={key}>
+                  {key} = {typeof value === 'number' ? value.toFixed(2) : value}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ========================================
@@ -975,129 +1195,53 @@ function SysOverlay({ data, onSave, onCancel }) {
       {/* ========================================
           SECTION 5: 결과 요약
       ======================================== */}
-      <div style={{ 
-        marginBottom: '24px',
-        padding: '20px',
-        backgroundColor: '#ecfdf5',
-        borderRadius: '8px',
-        border: '2px solid #10b981'
-      }}>
-        <h3 style={{ 
-          fontSize: '15px', 
-          fontWeight: '700', 
-          marginBottom: '16px',
-          color: '#1f2937',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px'
+      {Object.keys(calcResult).length > 0 && (
+        <div style={{ 
+          marginBottom: '24px',
+          padding: '20px',
+          backgroundColor: '#ecfdf5',
+          borderRadius: '8px',
+          border: '2px solid #10b981'
         }}>
-          결과 요약
-        </h3>
+          <h3 style={{ 
+            fontSize: '15px', 
+            fontWeight: '700', 
+            marginBottom: '16px',
+            color: '#1f2937',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            계산 결과 ⭐
+          </h3>
 
-        {/* 보정한 CO값 */}
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '6px', 
-            fontWeight: '600', 
-            fontSize: '13px',
-            color: '#374151'
-          }}>
-            보정한 CO값
-          </label>
-          <div style={{
-            padding: '10px 14px',
-            backgroundColor: '#d1fae5',
-            borderRadius: '6px',
-            border: '1px solid #10b981',
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '14px',
-            fontWeight: '600',
-            color: '#065f46',
-            textAlign: 'center'
-          }}>
-            {adjustedCODisplay}
-          </div>
+          {Object.entries(calcResult).map(([key, value]) => (
+            <div key={key} style={{ marginBottom: '12px' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '6px', 
+                fontWeight: '600', 
+                fontSize: '13px',
+                color: '#374151'
+              }}>
+                {key}
+              </label>
+              <div style={{
+                padding: '10px 14px',
+                backgroundColor: '#d1fae5',
+                borderRadius: '6px',
+                border: '1px solid #10b981',
+                fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#065f46',
+                textAlign: 'center'
+              }}>
+                {typeof value === 'number' ? value.toFixed(2) : value}
+              </div>
+            </div>
+          ))}
         </div>
-
-        {/* 보정한 3C값 */}
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '6px', 
-            fontWeight: '600', 
-            fontSize: '13px',
-            color: '#374151'
-          }}>
-            보정한 3C값
-          </label>
-          <div style={{
-            padding: '10px 14px',
-            backgroundColor: '#d1fae5',
-            borderRadius: '6px',
-            border: '1px solid #10b981',
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '14px',
-            fontWeight: '600',
-            color: '#065f46',
-            textAlign: 'center'
-          }}>
-            {adjustedC3Display}
-          </div>
-        </div>
-
-        {/* ⑦ 보정한 타겟값 */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '6px', 
-            fontWeight: '600', 
-            fontSize: '13px',
-            color: '#374151'
-          }}>
-            보정한 타겟값
-          </label>
-          <div style={{
-            padding: '10px 14px',
-            backgroundColor: '#d1fae5',
-            borderRadius: '6px',
-            border: '1px solid #10b981',
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '14px',
-            fontWeight: '600',
-            color: '#065f46',
-            textAlign: 'center'
-          }}>
-            {adjustedTargetDisplay}
-          </div>
-        </div>
-
-        {/* ⑧ 실제 1쿠션 겨냥점 (강조) */}
-        <div>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '8px', 
-            fontWeight: '600', 
-            fontSize: '14px',
-            color: '#374151'
-          }}>
-            실제 1쿠션 겨냥점 ⭐
-          </label>
-          <div style={{
-            padding: '14px 18px',
-            backgroundColor: '#059669',
-            borderRadius: '8px',
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '18px',
-            fontWeight: '700',
-            color: '#ffffff',
-            textAlign: 'center',
-            letterSpacing: '0.5px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-          }}>
-            {finalAimDisplay}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* ========================================
           버튼 영역
@@ -2154,6 +2298,12 @@ export default function App({ currentButtonId }) {
   const [overlayContent, setOverlayContent] = useState(null);
   
   // ============================================
+  // ShotSlots & TrajectoryState 훅 연결
+  // ============================================
+  const { shotEditor, actions } = useShotSlots();
+  const trajectory = useTrajectoryState();
+  
+  // ============================================
   // 관리자 모드 상태 (v0)
   // ============================================
   const [appMode, setAppMode] = useState("USER"); // "USER" | "ADMIN"
@@ -3133,8 +3283,7 @@ function handlePointerCancel(e) {
           />
         );
       })()}
-      <SystemValueLabels railGroups={railGroups} />
-    </svg>
+     </svg>
   );
 
   return (
@@ -3242,7 +3391,60 @@ function handlePointerCancel(e) {
               <SysOverlay
                 data={adminState.sys}
                 onSave={(newData) => {
-                  setAdminState({ ...adminState, sys: newData });
+                  const { system_id, calculated, ...rest } = newData;
+                  
+                  // 1. adminState 업데이트
+                  setAdminState(prev => ({
+                    ...prev,
+                    sys: {
+                      ...prev.sys,
+                      ...rest,
+                      system: newData.system || system_id
+                    }
+                  }));
+                  
+                  // 2. ShotSlots에 draft 업데이트 (시스템 계산 결과 반영)
+                  const activeSlot = shotEditor.activeSlot;
+                  if (calculated && calculated.finalOneCValue !== undefined) {
+                    // draft.sys 업데이트를 위해 updateDraftSys 호출
+                    // 입력값: CO, C3, 시스템ID
+                    actions.updateDraftSys(activeSlot, newData.system || system_id, {
+                      CO: calculated.adjustedCO,
+                      C3: calculated.adjustedC3,
+                      baseOneC: calculated.finalOneCValue,
+                      baseThreeC: calculated.adjustedC3
+                    });
+                    
+                    // 3. Draft를 Applied로 확정
+                    const applyResult = actions.applyDraftSys(activeSlot);
+                    
+                    if (applyResult.ok) {
+                      // 4. 확정된 결과를 TrajectoryState에 주입 (화면 갱신)
+                      const appliedSlot = actions.getActiveSlot();
+                      const appliedResult = appliedSlot?.applied?.sys?.outputs?.result;
+                      
+                      if (appliedResult) {
+                        // TrajectoryState 초기화 (필요시)
+                        if (!trajectory.state.adjusted) {
+                          trajectory.setAdjusting({
+                            sys: {
+                              oneC: appliedResult.oneC || 0,
+                              threeC: appliedResult.threeC || 0
+                            }
+                          });
+                        }
+                        
+                        // 결과값 주입
+                        trajectory.applySysResult(appliedResult);
+                        console.log('🚀 [STEP7] applySysResult 데이터 주입 완료:', appliedResult);
+                      } else {
+                        console.warn('⚠️ [STEP7] appliedResult가 없습니다.');
+                      }
+                    } else {
+                      console.error('❌ [STEP7] applyDraftSys 실패:', applyResult.reason);
+                    }
+                  }
+                  
                   closeOverlay();
                 }}
                 onCancel={closeOverlay}
@@ -3364,14 +3566,7 @@ function handlePointerCancel(e) {
               )}
               
               {overlayContent === 'STR' && (
-                <div>
-                  <div style={{ marginBottom: '12px' }}>
-                    <span style={{ fontWeight: '600' }}>속도:</span> {opts.speed || '-'}
-                  </div>
-                  <div>
-                    <span style={{ fontWeight: '600' }}>전략:</span> {view.pattern || '-'}
-                  </div>
-                </div>
+                <STRContent trajectoryState={trajectory} />
               )}
               
               {overlayContent === 'AI' && (

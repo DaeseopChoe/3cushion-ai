@@ -1,0 +1,106 @@
+{
+  "system": "3tip_across",
+
+  "display": {
+    "name_key": "system.3tip_across.name",
+    "short_name_key": "system.3tip_across.short",
+    "description_key": "system.3tip_across.desc",
+
+    "category": "spin",
+    "difficulty": "medium",
+
+    "tags": [
+      "spin",
+      "tip_based",
+      "parallel_control",
+      "ship_across",
+      "angle_control"
+    ],
+
+    "overlay_keys": {
+      "how_to_use": "system.3tip_across.howto",
+      "caution": "system.3tip_across.caution",
+      "tip": "system.3tip_across.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "K + factor * tip = residual",
+    "notes": {
+      "long": "K_long + 10 * tip = 0 → long parallel",
+      "short": "K_short + 5 * tip = 0 → short parallel"
+    }
+  },
+
+  "value_domains": {
+    "CO_xy": {
+      "type": "point",
+      "range": {
+        "x": [0.5, 79.5],
+        "y": [0.5, 39.5]
+      },
+      "notes": "Cue ball center position (physical coordinates)"
+    },
+    "C1_xy": {
+      "type": "point",
+      "range": {
+        "x": [0.0, 80.0],
+        "y": [0.0, 40.0]
+      },
+      "notes": "First cushion impact point (rail grid)"
+    },
+    "first_cushion": {
+      "type": "enum",
+      "values": ["long_top", "long_bottom", "short_left", "short_right"],
+      "notes": "First cushion rail"
+    },
+    "tip": {
+      "unit": "tip",
+      "range": [0.0, 4.0],
+      "step": 0.5,
+      "notes": "Spin amount; positive in rotation direction"
+    },
+    "target_parallel": {
+      "type": "enum",
+      "values": ["long_parallel", "short_parallel"],
+      "notes": "Desired post-cushion parallel direction"
+    },
+    "residual": {
+      "unit": "delta",
+      "range": [-80, 80],
+      "notes": "Remaining deviation from perfect parallel (0 = exact)"
+    }
+  },
+
+  "safety": {
+    "tip_max": 4.0,
+    "no_extrapolation": true,
+    "parallel_tolerance_default": 2.0,
+    "pattern": "spin_control",
+    "ambiguity_policy": "warn"
+  },
+
+  "space_rule": {
+    "grid": "rail",
+    "rail_units": {
+      "long": 80,
+      "short": 40
+    },
+    "snap_tolerance": 0.02
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "3tip_across system controls post-cushion direction using spin (tip)",
+      "Core principle: slope(K) plus spin contribution equals zero for 90-degree reflection",
+      "Long cushion: 1 tip contributes +10; short cushion: +5",
+      "System supports intentional residual to create controlled non-parallel angles",
+      "Spin direction sign must be consistent with chosen rotation convention",
+      "System is robust for ship-across and short-path position control"
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "system": "1byhalf",
+
+  "display": {
+    "name_key": "system.1byhalf.name",
+    "short_name_key": "system.1byhalf.short",
+    "description_key": "system.1byhalf.desc",
+
+    "category": "ratio",
+    "difficulty": "medium",
+
+    "tags": ["ratio", "half", "correction", "3c_target"],
+
+    "overlay_keys": {
+      "how_to_use": "system.1byhalf.howto",
+      "caution": "system.1byhalf.caution",
+      "tip": "system.1byhalf.tip"
+    }
+  },
+
+  "formula": {
+    "expr": "C1_f = base(CO_f) + correction(C3_y)"
+  },
+
+  "value_domains": {
+    "CO_f": [0, 80],
+    "C3_y": [11, 19],
+    "C1_f": [0, 80]
+  },
+
+  "safety": {
+    "pattern": "long-short-long",
+    "no_extrapolation": true,
+    "sys_identity_strict": true,
+    "ambiguity_policy": "error"
+  },
+
+  "space_rule": {
+    "grid": "frame",
+    "snap_tolerance": 0.02,
+    "frame_constants": {
+      "BOTTOM": -2.25,
+      "TOP": 42.25,
+      "LEFT": -2.25,
+      "RIGHT": 82.25
+    }
+  },
+
+  "mappings": null,
+
+  "meta": {
+    "version": "1.0",
+    "role": "system_definition",
+    "notes": [
+      "1byhalf system combines a base value from CO with a correction derived from C3 target",
+      "Third cushion y must be one of the discrete allowed values (11, 15, 19)",
+      "Spin and correction values are defined in derivations layer",
+      "Primary output is the first cushion position (C1)",
+      "All calculations are performed strictly in system space"
+    ]
+  }
+}
