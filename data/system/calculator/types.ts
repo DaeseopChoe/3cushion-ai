@@ -20,6 +20,7 @@ export interface SystemCalcInputV1 {
   anchors_input: {
     CO: Point;                // 기초 CO 앵커 (관리자 드래그)
     C1: Point;                // 1쿠션 근사 위치
+    C2?: Point;               // 2쿠션 (로드리게스 등)
     C3: Point;                // 3쿠션 근사 위치
     C4?: Point;
     C5?: Point;

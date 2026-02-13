@@ -1,53 +1,101 @@
-// frontend/src/hooks/useSysCalculation.ts
+// frontend/admin/sys/useSysCalculation.ts
+// Admin SYS 전용: formula.expr 기반 순수 수식 계산기
+// 좌표(anchors) 의존성 없음. 시스템값(system_values) 직접 입력만 사용.
+
 import { useMemo } from "react";
+import { SYSTEM_PROFILES } from "../../src/systems";
 
-// (1) 시스템 프로파일 레지스트리에서 systemId → profile 로딩
-// 프로젝트 구조에 맞게 경로를 조정하세요.
-import OTIP_PLUS_PROFILE from "../systems/otip_plus/profile.json";
-
-/** 시스템 레지스트리: 필요 시 다른 시스템도 추가 */
-const SYSTEM_PROFILES: Record<string, any> = {
-  otip_plus: OTIP_PLUS_PROFILE
-};
-
-/** 외부 수식 계산기(프로젝트에 이미 존재한다면 아래 import를 주석 해제)
- *  import { calculateByProfileExpr } from "@/utils/calculateByProfileExpr";
- */
 type Values = Record<string, number>;
 
-type CalcResult = {
+export type SysCalcInput = {
+  system_id: string;
+  system_values: Record<string, number>;
+};
+
+export type SysCalcResult = {
   expr: string;
   output: Values;
   error?: string;
 };
 
-/** (2) Fallback evaluator: "LHS = <arithmetic RHS>" 만 지원 */
-function fallbackCalculateByProfileExpr(expr: string, values: Values): Values {
-  // 분해: "C2_f = <RHS>"
-  const parts = expr.split("=");
-  if (parts.length !== 2) {
-    throw new Error(`Unsupported expr: expected "LHS = RHS", got "${expr}"`);
-  }
-  const lhs = parts[0].trim();
-  const rhs = parts[1].trim();
+/** system_id → SYSTEM_PROFILES 키 매핑 */
+const SYSTEM_ID_TO_PROFILE_KEY: Record<string, string> = {
+  "5_HALF": "5_half_system",
+  "PLUS": "plus_system",
+  "DIAMOND": "rodriguez",
+  "RODRIGUEZ": "rodriguez",
+  "3TIP_PLUS": "3tip_plus",
+  "SUNRISE_SUNSET": "sunrise_sunset",
+};
 
-  // 변수 치환: 안전하게 토큰 단위로 치환
-  // 허용 토큰: 변수명(\w+), 숫자, 연산자, 괄호, 공백, 소수점
-  // 정규화: 변수 테이블에서 값 가져오기
+/** Math 객체 함수/상수 — 변수 목록에서 제외 */
+const MATH_TOKENS = new Set([
+  "Math", "floor", "ceil", "round", "sqrt", "sin", "cos", "tan",
+  "asin", "acos", "atan", "exp", "log", "abs", "min", "max",
+  "sign", "trunc", "PI", "E", "pow", "atan2",
+]);
+
+/**
+ * formula.expr에서 등호 기준으로 좌변(LHS)을 정확히 추출
+ */
+function extractLhsFromExpr(expr: string): { lhs: string; rhs: string } {
+  const idx = expr.indexOf("=");
+  if (idx < 0) {
+    throw new Error(`Unsupported expr: no "=" found, got "${expr}"`);
+  }
+  const lhs = expr.slice(0, idx).trim();
+  const rhs = expr.slice(idx + 1).trim();
+  if (!lhs || !rhs) {
+    throw new Error(`Unsupported expr: empty LHS or RHS, got "${expr}"`);
+  }
+  return { lhs, rhs };
+}
+
+/**
+ * expr에서 변수 토큰 추출 (LHS 제외, Math 객체 함수/상수 제외)
+ */
+function getRhsTokens(expr: string): string[] {
+  const tokens = expr.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [];
+  const [lhsPart] = expr.split("=");
+  const lhs = lhsPart?.trim() ?? "";
+  return [...new Set(tokens.filter((t) => t !== lhs && !MATH_TOKENS.has(t)))];
+}
+
+/**
+ * buildValuesFromInput — 좌표 의존성 완전 제거
+ * 1) expr에서 토큰 자동 추출
+ * 2) LHS 제외
+ * 3) system_values에서 expr에 등장한 토큰만 할당
+ * anchors.x, anchors.y 참조 금지
+ */
+function buildValuesFromInput(expr: string, systemValues: Record<string, number>): Values {
+  const rhsTokens = getRhsTokens(expr);
+  const vals: Values = {};
+
+  for (const token of rhsTokens) {
+    const v = systemValues[token];
+    vals[token] =
+      typeof v === "number" && !Number.isNaN(v) ? v : 0;
+  }
+
+  return vals;
+}
+
+/** RHS 수식 평가 → LHS 키로 output 저장 */
+function evaluateExpr(expr: string, values: Values): Values {
+  const { lhs, rhs } = extractLhsFromExpr(expr);
+
   const tokens = rhs.match(/[A-Za-z_][A-Za-z0-9_]*|\d+\.\d+|\d+|[\+\-\*\/\(\)]/g);
   if (!tokens) {
     throw new Error(`Failed to tokenize RHS: "${rhs}"`);
   }
-
+  
   const rhsJs = tokens
     .map((t) => {
       if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(t)) {
-        if (!(t in values)) throw new Error(`Missing variable: ${t}`);
-        const v = values[t];
-        if (typeof v !== "number" || Number.isNaN(v)) {
-          throw new Error(`Invalid number for ${t}: ${v}`);
-        }
-        return String(v);
+        if (MATH_TOKENS.has(t)) return t;
+        const v = t in values ? values[t] : 0;
+        return typeof v === "number" && !Number.isNaN(v) ? String(v) : "0";
       }
       if (/^\d+(\.\d+)?$/.test(t)) return t;
       if (/^[\+\-\*\/\(\)]$/.test(t)) return t;
@@ -55,8 +103,6 @@ function fallbackCalculateByProfileExpr(expr: string, values: Values): Values {
     })
     .join(" ");
 
-  // 평가: Math만 허용된 안전한 함수 스코프
-  // (연산자/숫자만 존재하므로 실제로 Math는 쓰지 않음)
   // eslint-disable-next-line no-new-func
   const fn = new Function("Math", `return (${rhsJs});`);
   const result = fn(Math);
@@ -65,16 +111,29 @@ function fallbackCalculateByProfileExpr(expr: string, values: Values): Values {
   }
 
   const out: Values = { ...values };
-  out[lhs] = result;
+  out[lhs] = result; // LHS 반드시 output에 포함 (화면 ${LHS}_${값} 출력용)
   return out;
 }
 
-/** (3) 실제 훅: 프로파일 로딩 → expr 해석 → 계산 */
-export function useSysCalculation(systemId: string, input: Values): CalcResult {
-  const res = useMemo<CalcResult>(() => {
-    const profile = SYSTEM_PROFILES[systemId];
+/**
+ * useSysCalculation(input)
+ * - input: { system_id, system_values } | null
+ * - 반환: { expr, output, error }
+ * 좌표 엔진(calculateSystemV1, trajectory) 미참조
+ */
+export function useSysCalculation(input: SysCalcInput | null): SysCalcResult {
+  const res = useMemo<SysCalcResult>(() => {
+    if (!input || !input.system_values) {
+      return { expr: "", output: {}, error: "입력 없음" };
+    }
+
+    const profileKey =
+      SYSTEM_ID_TO_PROFILE_KEY[input.system_id] ??
+      input.system_id.toLowerCase().replace(/-/g, "_");
+    const profile = SYSTEM_PROFILES[profileKey];
+
     if (!profile) {
-      return { expr: "", output: {}, error: `Unknown systemId: ${systemId}` };
+      return { expr: "", output: {}, error: `Unknown systemId: ${input.system_id}` };
     }
 
     const expr: string = profile?.formula?.expr;
@@ -82,37 +141,37 @@ export function useSysCalculation(systemId: string, input: Values): CalcResult {
       return { expr: "", output: {}, error: "profile.formula.expr not found" };
     }
 
-    // 값 준비: 도메인 범위 체크(하드 클램프는 프로젝트 정책에 따라 조정)
-    const values: Values = { ...input };
-
-    // 권장: C1_f 하한 0.05 (분모 0 방지) — 프로필에도 range로 명시됨.
-    if (typeof values.C1_f === "number" && values.C1_f < 0.05) {
-      values.C1_f = 0.05;
-    }
-    // is_left 정규화: {0,1} 이외 값이 오면 0/1로 스냅
-    if (typeof values.is_left === "number") {
-      values.is_left = values.is_left >= 0.5 ? 1 : 0;
-    }
+    const values = buildValuesFromInput(expr, input.system_values);
 
     try {
-      // (A) 프로젝트 기본 계산기 사용 (있다면)
-      // const out = calculateByProfileExpr(expr, values);
+      let out = evaluateExpr(expr, values);
 
-      // (B) Fallback 계산기 사용 (상단 import 부재 시)
-      const out = fallbackCalculateByProfileExpr(expr, values);
+      // 3️⃣ 5_half 분기: profile.system 기준 (profileKey 미사용)
+      if (profile?.system === "5_half_system") {
+        const CO_f = out.CO_f ?? 0;
+        const C3_r = out.C3_r ?? 0;
+        const Sn = (CO_f - 50) * 0.5;
+        const C4_f = C3_r + Sn;
+        out = {
+          ...out,
+          Sn,
+          C4_f,
+          C5_f: C4_f,
+          C6_f: C4_f,
+        };
+      }
 
       return { expr, output: out };
-    } catch (e: any) {
-      return { expr, output: {}, error: e?.message ?? String(e) };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { expr, output: {}, error: msg };
     }
-  }, [systemId, JSON.stringify(input)]); // 입력 변경 시 재계산
+  }, [input ? JSON.stringify(input) : null]);
 
   return res;
 }
 
-/** 사용 예:
- * const { expr, output, error } = useSysCalculation("otip_plus", {
- *   CO_f: 6, C1_f: 17.78, is_left: 1
- * });
- * // output.C2_f ≈ 7.5
- */
+/** expr의 RHS 토큰 목록 추출 (동적 입력 UI용) */
+export function getInputTokensFromExpr(expr: string): string[] {
+  return getRhsTokens(expr);
+}

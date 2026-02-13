@@ -19,25 +19,24 @@ export function LayoutProvider({ children }) {
   // ============================================
   useEffect(() => {
     const updateLayout = () => {
-      // PC/Mobile 구분 없이 항상 실제 viewport 사용
       const availableW = window.innerWidth;
       const availableH = window.innerHeight;
-
-      // Stage 크기 계산
       const newLayout = calculateLayout(availableW, availableH);
-      setLayout(newLayout);
 
-      console.log('🎨 LayoutContext 업데이트:', {
-        viewport: `${availableW}×${availableH}`,
-        stage: `${newLayout.stageWidth.toFixed(0)}×${newLayout.stageHeight.toFixed(0)}`,
-        mode: newLayout.mode,
+      setLayout((prev) => {
+        if (!prev) return newLayout;
+        if (
+          prev.stageWidth === newLayout.stageWidth &&
+          prev.stageHeight === newLayout.stageHeight &&
+          prev.mode === newLayout.mode
+        ) {
+          return prev;
+        }
+        return newLayout;
       });
     };
 
-    // 초기 계산
     updateLayout();
-
-    // resize + orientationchange 이벤트 리스닝
     window.addEventListener('resize', updateLayout);
     window.addEventListener('orientationchange', updateLayout);
 
@@ -45,7 +44,7 @@ export function LayoutProvider({ children }) {
       window.removeEventListener('resize', updateLayout);
       window.removeEventListener('orientationchange', updateLayout);
     };
-  }, []); // isPC, isMobile 의존성 제거
+  }, []);
 
   // ============================================
   // Context 제공

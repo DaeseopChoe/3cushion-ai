@@ -3,7 +3,6 @@ import { useState } from "react";
 
 // SYS
 import { SysOverlay } from "./sys/SysOverlay";
-import { useSysCalculation } from "./sys/useSysCalculation";
 
 // HP/T
 import { HptOverlay } from "./hpt/HptOverlay";
@@ -35,10 +34,6 @@ export default function AdminContainer() {
      SYS
   ========================= */
   const [sys, setSys] = useState<any>(null);
-  const sysCalc = useSysCalculation({
-    sys,
-    onChange: setSys,
-  });
 
   /* =========================
      HP/T

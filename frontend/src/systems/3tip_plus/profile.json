@@ -2,7 +2,7 @@
   "system": "3tip_plus",
 
   "formula": {
-    "expr": "CO_f - C1_f = C3_r"
+    "expr": "C3_r = CO_f - C1_f"
   },
 
   "value_domains": {

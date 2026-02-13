@@ -1,4 +1,4 @@
-import zeroTipPlus from "./0tip plus/profile.json";
+import zeroTipPlus from "./0tip_plus/profile.json";
 import oneByHalf from "./1byhalf/profile.json";
 import twoThreeSystem from "./2_3_system/profile.json";
 import threeFiveHalf from "./35half/profile.json";
@@ -7,7 +7,7 @@ import threeTipAcross from "./3tip_across/profile.json";
 import threeTipPlus from "./3tip_plus/profile.json";
 import fiveHalfSystem from "./5_half_system/profile.json";
 import sevenSystem from "./7_system/profile.json";
-import ninetyNineToOne from "./99 to 1/profile.json";
+import ninetyNineToOne from "./99_to_1/profile.json";
 import accordion from "./accordion/profile.json";
 import backsideUmbrella from "./backside_umbrella/profile.json";
 import ballSystem from "./ball_system/profile.json";
@@ -38,7 +38,7 @@ import turkishAngleSystem from "./turkish_angle_system/profile.json";
 import zigzagSystem from "./zigzag_system/profile.json";
 
 export const SYSTEM_PROFILES: Record<string, any> = {
-  "0tip plus": zeroTipPlus,
+  "0_tip plus": zeroTipPlus,
   "1byhalf": oneByHalf,
   "2_3_system": twoThreeSystem,
   "35half": threeFiveHalf,
@@ -47,7 +47,7 @@ export const SYSTEM_PROFILES: Record<string, any> = {
   "3tip_plus": threeTipPlus,
   "5_half_system": fiveHalfSystem,
   "7_system": sevenSystem,
-  "99 to 1": ninetyNineToOne,
+  "99_to_1": ninetyNineToOne,
   "accordion": accordion,
   "backside_umbrella": backsideUmbrella,
   "ball_system": ballSystem,

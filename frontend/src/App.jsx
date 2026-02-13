@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
 import { useShotSlots } from "./hooks/useShotSlots";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
@@ -618,18 +618,27 @@ function SysOverlay({ data, onSave, onCancel }) {
   });
 
   // ==========================================
-  // 공식 로딩 및 파싱
+  // 공식 로딩 및 파싱 (expr 변경 시에만 재계산 — 매 렌더 새 참조 방지)
   // ==========================================
   const profile = SYSTEM_PROFILES?.[formData.system];
   const expr = typeof profile?.formula === "string"
     ? profile.formula
     : profile?.formula?.expr || "";
-  
-  const { forced, neededKeys, needsHP, needsAn } = parseExpr(expr);
+
+  const parsed = useMemo(() => parseExpr(expr), [expr]);
+  const { forced, neededKeys, needsHP, needsAn } = parsed;
+
+  // rhsKeys: expr에 의존, neededKeys는 parsed 내부이므로 expr과 동기화
+  const rhsKeys = useMemo(() => {
+    const keyList = Array.from(neededKeys || []);
+    if (!expr || !expr.trim()) return keyList;
+    const lhs = expr.trim().split('=')[0].trim();
+    return keyList.filter((k) => k !== lhs);
+  }, [expr, neededKeys]);
 
   // 공식 로딩 시 f/r 스위치 자동 고정
   useEffect(() => {
-    const { forced: forcedSpaces } = parseExpr(expr);
+    const { forced: forcedSpaces } = parsed;
     setSpaceSel(prev => {
       const next = { ...prev };
       (["CO", "C1", "C2", "C3", "C4"]).forEach(k => {
@@ -639,8 +648,29 @@ function SysOverlay({ data, onSave, onCancel }) {
     });
   }, [expr]);
 
+  // 공식에 필요한 입력: 우변(RHS) 변수만 검사, 좌변(목표 변수)은 제외. HP_n/An은 0도 유효.
+  const hasAllInputs = useMemo(() => {
+    if (!rhsKeys || rhsKeys.length === 0) return false;
+
+    const ok = rhsKeys.every((k) => {
+      const v = formData.inputs && formData.inputs[k];
+      return v !== '' && v !== null && v !== undefined;
+    });
+    if (!ok) return false;
+
+    if (needsHP) {
+      const v = formData.inputs.HP_n;
+      if (v === '' || v === null || v === undefined) return false;
+    }
+    if (needsAn) {
+      const v = formData.inputs.An;
+      if (v === '' || v === null || v === undefined) return false;
+    }
+    return true;
+  }, [formData.inputs, rhsKeys, needsHP, needsAn]);
+
   // ==========================================
-  // 계산 엔진 연결 (실시간 업데이트)
+  // 계산 엔진 연결 (실시간 업데이트) — 입력값 부족 시 계산 안 함
   // ==========================================
   const [calcResult, setCalcResult] = useState({});
 
@@ -649,19 +679,103 @@ function SysOverlay({ data, onSave, onCancel }) {
       setCalcResult({});
       return;
     }
+    if (!hasAllInputs) {
+      setCalcResult({});
+      return;
+    }
 
-    // 공식에 필요한 변수만 뽑아서 전달
     const payload = {};
-    neededKeys.forEach(k => {
+    rhsKeys.forEach((k) => {
       const val = formData.inputs[k];
-      payload[k] = val === "" || val === null || val === undefined ? 0 : Number(val);
+      payload[k] = val === '' || val === null || val === undefined ? 0 : Number(val);
+    });
+    if (needsHP) payload.HP_n = Number(formData.inputs.HP_n ?? 0);
+    if (needsAn) payload.An = Number(formData.inputs.An ?? 0);
+
+    const result = calculateByProfileExpr(expr, payload);
+    setCalcResult((prev) => {
+      const prevKey = Object.keys(prev)[0];
+      const nextKey = Object.keys(result)[0];
+      if (prevKey === nextKey && prev[prevKey] === result[nextKey]) return prev;
+      return result;
+    });
+  }, [expr, hasAllInputs, formData.inputs, rhsKeys, needsHP, needsAn]);
+
+  const baseResultValue = Object.keys(calcResult).length > 0 ? Object.values(calcResult)[0] : null;
+  const baseResultKey = Object.keys(calcResult).length > 0 ? Object.keys(calcResult)[0] : null;
+
+  // 소수점 제거: 정수면 정수로, 아니면 그대로 (동기화·노란/초록 박스 공통)
+  const formatResultNum = (n) => {
+    const x = Number(n);
+    if (Number.isNaN(x)) return '0';
+    return x % 1 === 0 ? String(Math.round(x)) : String(x);
+  };
+
+  // 기준 계산값 → inputs[baseResultKey] 강제 동기화 (계산되면 무조건 주입, 숫자 같을 때만 스킵)
+  useEffect(() => {
+    if (!baseResultKey || baseResultValue == null) return;
+
+    setFormData(prev => {
+      if (Number(prev.inputs[baseResultKey]) === Number(baseResultValue)) return prev;
+      return {
+        ...prev,
+        inputs: { ...prev.inputs, [baseResultKey]: formatResultNum(baseResultValue) }
+      };
+    });
+  }, [baseResultValue, baseResultKey]);
+
+  // 물리 보정 매핑: p_push→CO, p_pull/p_spin→C3, p_start→C4/C5/C6 (입력 변수 선반영 후 재계산)
+  const p_push = Number(formData.corrections.slide) || 0;
+  const p_pull = Number(formData.corrections.draw) || 0;
+  const p_spin = Number(formData.corrections.spin) || 0;
+  const snFor5Half = useMemo(() => {
+    if (formData.system !== '5_half_system') return null;
+    const CO_f = Number(formData.inputs?.CO_f) || 0;
+    const C3_r = Number(formData.inputs?.C3_r) || 0;
+    return { Sn: (CO_f - 50) * 0.5, C4_f: C3_r + (CO_f - 50) * 0.5 };
+  }, [formData.system, formData.inputs?.CO_f, formData.inputs?.C3_r]);
+  const p_start = formData.system === '5_half_system' && snFor5Half
+    ? snFor5Half.Sn
+    : (Number(formData.corrections.departure) || 0);
+
+  const { adjustedInputs, finalCalc, lhsKey } = useMemo(() => {
+    if (!expr || !expr.trim()) return { adjustedInputs: {}, finalCalc: {}, lhsKey: null };
+    if (!hasAllInputs) return { adjustedInputs: {}, finalCalc: {}, lhsKey: null };
+    const payload = {};
+    rhsKeys.forEach((k) => {
+      const val = formData.inputs[k];
+      payload[k] = val === '' || val === null || val === undefined ? 0 : Number(val);
     });
     if (needsHP) payload.HP_n = Number(formData.inputs.HP_n || 0);
     if (needsAn) payload.An = Number(formData.inputs.An || 0);
 
-    const result = calculateByProfileExpr(expr, payload);
-    setCalcResult(result);
-  }, [expr, formData.inputs, neededKeys, needsHP, needsAn]);
+    const adjusted = { ...payload };
+    if ('CO_f' in adjusted) adjusted['CO_f'] += p_push;
+    if ('CO_r' in adjusted) adjusted['CO_r'] += p_push;
+    const pullSpin = p_pull + p_spin;
+    if ('C3_f' in adjusted) adjusted['C3_f'] -= pullSpin;
+    if ('C3_r' in adjusted) adjusted['C3_r'] -= pullSpin;
+    ['C4_f', 'C4_r', 'C5_f', 'C5_r', 'C6_f', 'C6_r'].forEach((k) => {
+      if (k in adjusted) adjusted[k] += p_start;
+    });
+
+    const final = calculateByProfileExpr(expr, adjusted);
+    const keys = Object.keys(final);
+    return { adjustedInputs: adjusted, finalCalc: final, lhsKey: keys.length > 0 ? keys[0] : null };
+  }, [expr, hasAllInputs, formData.inputs, rhsKeys, p_push, p_pull, p_spin, p_start, needsHP, needsAn]);
+
+  const finalResultDisplay = (() => {
+    if (!lhsKey) return null;
+    const v = finalCalc[lhsKey];
+    return v != null ? v : null;
+  })();
+
+  const handleInputChange = (key, value) => {
+    setFormData(prev => ({
+      ...prev,
+      inputs: { ...prev.inputs, [key]: value }
+    }));
+  };
 
   // ==========================================
   // 저장 핸들러
@@ -670,602 +784,410 @@ function SysOverlay({ data, onSave, onCancel }) {
     const saveData = {
       ...formData,
       spaceSel,
-      calculated: calcResult
+      calculated: calcResult,
+      finalResult: finalResultDisplay,
+      adjustedInputs
     };
     onSave(saveData);
   };
 
-  return (
-    <div style={{ color: '#334155', fontSize: '16px' }}>
-      
-      {/* ========================================
-          SECTION 1: 샷 개요
-      ======================================== */}
-      <div style={{ 
-        marginBottom: '24px',
-        padding: '20px',
-        backgroundColor: '#ffffff',
-        borderRadius: '8px',
-        border: '1px solid #e5e7eb'
-      }}>
-        <h3 style={{ 
-          fontSize: '15px', 
-          fontWeight: '700', 
-          marginBottom: '16px',
-          color: '#1f2937',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px'
-        }}>
-          샷 개요
-        </h3>
+  // 기준 계산값 치환 문자열 (입력값 부족 시 계산/표시 안 함)
+  const substitutionDisplay = useMemo(() => {
+    if (!expr || !expr.trim()) return { text: '입력 대기 중...' };
+    if (!hasAllInputs) return { text: '입력 대기 중...' };
+    const trimmed = expr.trim();
+    const parts = trimmed.split('=').map((p) => p.trim());
+    if (parts.length < 2 || !parts[0] || !parts[1]) return { text: '입력 대기 중...' };
+    const rawLhs = parts[0];
+    const rawRhs = parts[1];
+    const resultVal = calcResult[rawLhs];
+    const numVal = resultVal != null && typeof resultVal === 'number' ? resultVal : 0;
 
-        {/* ① 공략 유형 */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '8px', 
-            fontWeight: '600', 
-            fontSize: '15px',
-            color: '#374151'
-          }}>
-            공략 유형
-          </label>
+    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let substitutedRhs = rawRhs;
+    for (const k of (rhsKeys || [])) {
+      const v = formData.inputs[k];
+      const num = v === '' || v === null || v === undefined ? 0 : Number(v);
+      substitutedRhs = substitutedRhs.replace(new RegExp('\\b' + escapeRegExp(k) + '\\b', 'g'), formatResultNum(num));
+    }
+    if (needsHP) {
+      const v = formData.inputs.HP_n;
+      substitutedRhs = substitutedRhs.replace(/\bHP_n\b/g, formatResultNum(v === '' || v === null || v === undefined ? 0 : Number(v)));
+    }
+    if (needsAn) {
+      const v = formData.inputs.An;
+      substitutedRhs = substitutedRhs.replace(/\bAn\b/g, formatResultNum(v === '' || v === null || v === undefined ? 0 : Number(v)));
+    }
+
+    const base = rawLhs.replace(/_f$|_r$/, '');
+    const lhsDisplay = base + '_' + formatResultNum(numVal);
+    return { text: lhsDisplay + ' = ' + substitutedRhs };
+  }, [expr, hasAllInputs, formData.inputs, calcResult, rhsKeys, needsHP, needsAn]);
+
+  // 최종 결과 치환 문자열: C1_35 = (50 + 5) - 20 형태, 괄호는 기본값+보정, 소수점 제거
+  const finalResultSubstitution = useMemo(() => {
+    if (!lhsKey || !expr || !expr.trim()) return null;
+    if (!hasAllInputs) return null;
+    const parts = expr.trim().split('=').map((p) => p.trim());
+    if (parts.length < 2 || !parts[1]) return null;
+    const rawRhs = parts[1];
+    const resultVal = finalCalc[lhsKey];
+    const numVal = resultVal != null && typeof resultVal === 'number' ? resultVal : 0;
+    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pullSpin = p_pull + p_spin;
+    let substitutedRhs = rawRhs;
+    for (const k of (rhsKeys || [])) {
+      const baseVal = Number(formData.inputs[k]) || 0;
+      const adjVal = adjustedInputs[k] != null ? Number(adjustedInputs[k]) : 0;
+      let disp;
+      if ((k === 'CO_f' || k === 'CO_r') && p_push !== 0) disp = `(${formatResultNum(baseVal)} + ${formatResultNum(p_push)})`;
+      else if ((k === 'C3_f' || k === 'C3_r') && pullSpin !== 0) disp = `(${formatResultNum(baseVal)} - ${formatResultNum(pullSpin)})`;
+      else if (['C4_f', 'C4_r', 'C5_f', 'C5_r', 'C6_f', 'C6_r'].includes(k) && p_start !== 0) disp = `(${formatResultNum(baseVal)} + ${formatResultNum(p_start)})`;
+      else disp = formatResultNum(adjVal);
+      substitutedRhs = substitutedRhs.replace(new RegExp('\\b' + escapeRegExp(k) + '\\b', 'g'), disp);
+    }
+    if (needsHP) substitutedRhs = substitutedRhs.replace(/\bHP_n\b/g, formatResultNum(adjustedInputs.HP_n != null ? adjustedInputs.HP_n : 0));
+    if (needsAn) substitutedRhs = substitutedRhs.replace(/\bAn\b/g, formatResultNum(adjustedInputs.An != null ? adjustedInputs.An : 0));
+    const base = lhsKey.replace(/_f$|_r$/, '');
+    return base + '_' + formatResultNum(numVal) + ' = ' + substitutedRhs;
+  }, [expr, lhsKey, hasAllInputs, finalCalc, adjustedInputs, formData.inputs, rhsKeys, p_push, p_pull, p_spin, p_start, needsHP, needsAn]);
+
+  return (
+    <div
+      style={{
+        color: '#334155',
+        fontSize: '14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+        flexWrap: 'wrap',
+        maxHeight: '95vh',
+        overflow: 'hidden',
+        overflowX: 'hidden'
+      }}
+    >
+      {/* [B] 상단 설정: 공략 유형(고정폭) | 적용 시스템(남은 공간) */}
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: '0 0 auto' }}>
+        <div style={{ flex: '0 0 160px' }}>
           <select
             value={formData.shotType}
             onChange={(e) => setFormData({ ...formData, shotType: e.target.value })}
             style={{
               width: '100%',
-              height: '42px',
-              padding: '0 12px',
+              height: '36px',
+              padding: '0 10px',
               border: '1px solid #cbd5e1',
               borderRadius: '6px',
-              fontSize: '15px',
-              backgroundColor: '#ffffff',
+              fontSize: '14px',
+              backgroundColor: '#fff',
               cursor: 'pointer'
             }}
           >
             {SHOT_TYPE_OPTIONS.map(type => (
-              <option key={type} value={type}>
-                {type}
-              </option>
+              <option key={type} value={type}>{type}</option>
             ))}
           </select>
         </div>
-
-        {/* ② 적용 시스템 */}
-        <div style={{ marginBottom: '0' }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '8px', 
-            fontWeight: '600', 
-            fontSize: '15px',
-            color: '#374151'
-          }}>
-            적용 시스템
-          </label>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <select
             value={formData.system}
             onChange={(e) => setFormData({ ...formData, system: e.target.value })}
             style={{
               width: '100%',
-              height: '42px',
-              padding: '0 12px',
+              height: '36px',
+              padding: '0 10px',
               border: '1px solid #cbd5e1',
               borderRadius: '6px',
-              fontSize: '15px',
-              backgroundColor: '#ffffff',
+              fontSize: '14px',
+              backgroundColor: '#fff',
               cursor: 'pointer'
             }}
           >
             {SYSTEM_OPTIONS.map(sys => (
-              <option key={sys.id} value={sys.id}>
-                {sys.label}
-              </option>
+              <option key={sys.id} value={sys.id}>{sys.label}</option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* ========================================
-          SECTION 2: 계산 구조
-      ======================================== */}
-      <div style={{ 
-        marginBottom: '24px',
-        padding: '20px',
-        backgroundColor: '#f9fafb',
-        borderRadius: '8px',
-        border: '1px solid #e5e7eb'
-      }}>
-        <h3 style={{ 
-          fontSize: '15px', 
-          fontWeight: '700', 
-          marginBottom: '12px',
-          color: '#1f2937',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px'
-        }}>
-          계산 구조
-        </h3>
+      {/* [C] 계산 공식 표시 */}
+      <div
+        style={{
+          padding: '8px',
+          backgroundColor: '#f1f5f9',
+          borderRadius: '6px',
+          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+          fontSize: '13px',
+          border: '1px solid #e2e8f0'
+        }}
+      >
+        계산 공식 : {expr || "(공식 없음)"}
+      </div>
 
-        {/* ③ 계산 공식 */}
-        <div>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '8px', 
-            fontWeight: '600', 
-            fontSize: '14px',
-            color: '#6b7280'
-          }}>
-            계산 공식
-          </label>
-          <div style={{
-            padding: '12px 16px',
-            backgroundColor: '#e5e7eb',
-            borderRadius: '6px',
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '15px',
-            fontWeight: '600',
-            color: '#1f2937',
-            textAlign: 'center',
-            letterSpacing: '1px'
-          }}>
-            {expr || "(공식 없음)"}
-          </div>
+      {/* [D] 기준 입력값: flex-wrap, 폭 하드 지정 */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '10px',
+          alignItems: 'center'
+        }}
+      >
+        {["CO", "C1", "C2", "C3", "C4"].map(mark => {
+          const sel = spaceSel[mark];
+          const key = `${mark}_${sel}`;
+          const enabled = neededKeys.has(key);
+          const lock = !!forced[mark];
+          return (
+            <div
+              key={mark}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                opacity: enabled ? 1 : 0.3,
+                pointerEvents: enabled ? 'auto' : 'none'
+              }}
+            >
+              <label style={{ minWidth: '22px', fontSize: '12px', fontWeight: '600' }}>{mark}</label>
+              <input
+                type="number"
+                step="0.5"
+                value={formData.inputs[key] ?? ''}
+                onChange={(e) => handleInputChange(key, e.target.value)}
+                style={{
+                  width: '70px',
+                  height: '32px',
+                  padding: '0 6px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '4px',
+                  fontSize: '13px',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '1px' }}>
+                <button
+                  type="button"
+                  disabled={lock}
+                  onClick={() => setSpaceSel(p => ({ ...p, [mark]: "f" }))}
+                  style={{
+                    width: '24px',
+                    height: '32px',
+                    padding: 0,
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    cursor: lock ? 'not-allowed' : 'pointer',
+                    backgroundColor: sel === "f" ? '#3b82f6' : '#fff',
+                    color: sel === "f" ? '#fff' : '#64748b'
+                  }}
+                >
+                  f
+                </button>
+                <button
+                  type="button"
+                  disabled={lock}
+                  onClick={() => setSpaceSel(p => ({ ...p, [mark]: "r" }))}
+                  style={{
+                    width: '24px',
+                    height: '32px',
+                    padding: 0,
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    cursor: lock ? 'not-allowed' : 'pointer',
+                    backgroundColor: sel === "r" ? '#ef4444' : '#fff',
+                    color: sel === "r" ? '#fff' : '#64748b'
+                  }}
+                >
+                  r
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ opacity: needsHP ? 1 : 0.3, pointerEvents: needsHP ? 'auto' : 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <label style={{ fontSize: '12px', fontWeight: '600' }}>HP_n</label>
+          <select
+            value={formData.inputs.HP_n}
+            onChange={(e) => handleInputChange('HP_n', Number(e.target.value))}
+            style={{
+              width: '110px',
+              height: '32px',
+              padding: '0 6px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '4px',
+              fontSize: '13px',
+              backgroundColor: '#fff',
+              cursor: 'pointer',
+              boxSizing: 'border-box'
+            }}
+          >
+            {HP_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ opacity: needsAn ? 1 : 0.3, pointerEvents: needsAn ? 'auto' : 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <label style={{ fontSize: '12px', fontWeight: '600' }}>An</label>
+          <input
+            type="number"
+            step="0.1"
+            value={formData.inputs.An}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              handleInputChange('An', isNaN(v) ? 0 : Math.round(v * 10) / 10);
+            }}
+            style={{
+              width: '70px',
+              height: '32px',
+              padding: '0 6px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '4px',
+              fontSize: '13px',
+              backgroundColor: '#fff',
+              boxSizing: 'border-box'
+            }}
+          />
         </div>
       </div>
 
-      {/* ========================================
-          SECTION 3: 기준값 입력 & 결과 (핵심)
-      ======================================== */}
-      <div style={{ 
-        marginBottom: '24px',
-        padding: '20px',
-        backgroundColor: '#fefce8',
-        borderRadius: '8px',
-        border: '2px solid #fde047'
-      }}>
-        <h3 style={{ 
-          fontSize: '15px', 
-          fontWeight: '700', 
-          marginBottom: '16px',
-          color: '#1f2937',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px'
-        }}>
-          기준값 입력 & 결과
-        </h3>
+      {/* [E] 기준 계산값 (이론값, 자동 계산만 / 연노랑) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexWrap: 'wrap',
+          padding: '8px 10px',
+          backgroundColor: '#fff3bf',
+          borderRadius: '6px',
+          fontWeight: '700',
+          fontSize: '13px',
+          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+          overflow: 'hidden',
+          minHeight: '36px'
+        }}
+      >
+        <span style={{ flex: '0 0 auto' }}>기준 계산값 :</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {substitutionDisplay.text}
+        </span>
+      </div>
 
-        {/* ④ 기준 입력값 */}
-        <div style={{ marginBottom: '20px' }}>
-          <p style={{ 
-            fontWeight: '600', 
-            fontSize: '14px', 
-            marginBottom: '12px',
-            color: '#374151'
-          }}>
-            기준 입력값
-          </p>
-          
-          {/* CO~C4 입력 (동적) */}
-          {(["CO", "C1", "C2", "C3", "C4"]).map(mark => {
-            const sel = spaceSel[mark];
-            const key = `${mark}_${sel}`;
-            const enabled = neededKeys.has(key);
-            const lock = !!forced[mark];
-
-            return (
-              <div
-                key={mark}
-                style={{
-                  marginBottom: '12px',
-                  padding: '12px',
-                  backgroundColor: enabled ? '#f0fdf4' : '#f9fafb',
-                  borderRadius: '6px',
-                  border: enabled ? '2px solid #10b981' : '1px solid #e5e7eb',
-                  opacity: enabled ? 1 : 0.6
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <label style={{ 
-                    minWidth: '60px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    color: enabled ? '#374151' : '#9ca3af'
-                  }}>
-                    {mark}
-                  </label>
-                  
-                  <input
-                    type="number"
-                    value={formData.inputs[key] || ""}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      inputs: { ...formData.inputs, [key]: e.target.value }
-                    })}
-                    disabled={!enabled}
-                    style={{
-                      flex: 1,
-                      height: '38px',
-                      padding: '0 12px',
-                      border: enabled ? '1px solid #10b981' : '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '15px',
-                      backgroundColor: enabled ? '#ffffff' : '#f3f4f6',
-                      color: enabled ? '#1f2937' : '#9ca3af',
-                      cursor: enabled ? 'text' : 'not-allowed'
-                    }}
-                  />
-                  
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button
-                      type="button"
-                      disabled={lock || !enabled}
-                      onClick={() => setSpaceSel(p => ({ ...p, [mark]: "f" }))}
-                      style={{
-                        width: '36px',
-                        height: '38px',
-                        padding: 0,
-                        border: sel === "f" ? '2px solid #3b82f6' : '1px solid #cbd5e1',
-                        borderRadius: '6px',
-                        backgroundColor: sel === "f" ? '#3b82f6' : '#ffffff',
-                        color: sel === "f" ? '#ffffff' : '#6b7280',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        cursor: (lock || !enabled) ? 'not-allowed' : 'pointer',
-                        opacity: (lock || !enabled) ? 0.5 : 1
-                      }}
-                    >
-                      f
-                    </button>
-                    <button
-                      type="button"
-                      disabled={lock || !enabled}
-                      onClick={() => setSpaceSel(p => ({ ...p, [mark]: "r" }))}
-                      style={{
-                        width: '36px',
-                        height: '38px',
-                        padding: 0,
-                        border: sel === "r" ? '2px solid #ef4444' : '1px solid #cbd5e1',
-                        borderRadius: '6px',
-                        backgroundColor: sel === "r" ? '#ef4444' : '#ffffff',
-                        color: sel === "r" ? '#ffffff' : '#6b7280',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        cursor: (lock || !enabled) ? 'not-allowed' : 'pointer',
-                        opacity: (lock || !enabled) ? 0.5 : 1
-                      }}
-                    >
-                      r
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* HP_n 드롭다운 */}
-          {needsHP && (
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '6px', 
-                fontSize: '13px',
-                fontWeight: '600',
-                color: '#374151'
-              }}>
-                HP_n (팁)
-              </label>
-              <select
-                value={formData.inputs.HP_n}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  inputs: { ...formData.inputs, HP_n: Number(e.target.value) }
-                })}
-                style={{
-                  width: '100%',
-                  height: '42px',
-                  padding: '0 12px',
-                  border: '1px solid #10b981',
-                  borderRadius: '6px',
-                  fontSize: '15px',
-                  backgroundColor: '#ffffff',
-                  cursor: 'pointer'
-                }}
-              >
-                {HP_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* An 입력 */}
-          {needsAn && (
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '6px', 
-                fontSize: '13px',
-                fontWeight: '600',
-                color: '#374151'
-              }}>
-                An
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                value={formData.inputs.An}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setFormData({
-                    ...formData,
-                    inputs: { ...formData.inputs, An: isNaN(v) ? 0 : Math.round(v * 10) / 10 }
-                  });
-                }}
-                style={{
-                  width: '100%',
-                  height: '42px',
-                  padding: '0 12px',
-                  border: '1px solid #10b981',
-                  borderRadius: '6px',
-                  fontSize: '15px',
-                  backgroundColor: '#ffffff'
-                }}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* ⑤ 기준 계산값 */}
-        {Object.keys(calcResult).length > 0 && (
-          <div>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '8px', 
-              fontWeight: '600', 
-              fontSize: '14px',
-              color: '#374151'
-            }}>
-              기준 계산값 (이론값)
-            </label>
-            <div style={{
-              padding: '14px 16px',
-              backgroundColor: '#fef3c7',
+      {/* [E-1] 5_half 전용 출발값 보정 (Sn = (CO_f - 50) * 0.5) */}
+      {formData.system === '5_half_system' && snFor5Half && (() => {
+        const { Sn, C4_f } = snFor5Half;
+        const CO_f = Number(formData.inputs?.CO_f) || 0;
+        const C3_r = Number(formData.inputs?.C3_r) || 0;
+        const fmt = (n) => (n % 1 === 0 ? String(Math.round(n)) : String(Math.round(n * 10) / 10));
+        return (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '12px 16px',
+              backgroundColor: '#f0fdf4',
               borderRadius: '6px',
-              border: '1px solid #fbbf24',
+              border: '1px solid #bbf7d0',
+              fontSize: '13px',
+              lineHeight: '1.7',
               fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-              fontSize: '15px',
-              fontWeight: '600',
-              color: '#92400e',
-              textAlign: 'center',
-              letterSpacing: '0.5px'
-            }}>
-              {Object.entries(calcResult).map(([key, value]) => (
-                <div key={key}>
-                  {key} = {typeof value === 'number' ? value.toFixed(2) : value}
-                </div>
-              ))}
+              color: '#166534',
+            }}
+          >
+            <div style={{ fontWeight: '700', fontSize: '16px', marginBottom: '10px' }}>
+              최종 도착값 : {fmt(C4_f)}
+            </div>
+            <div>C4_f = C5_f = C6_f = C3_r_{fmt(C3_r)} + Sn_{fmt(Sn)} = C4_f_{fmt(C4_f)}</div>
+            <div style={{ marginTop: '6px' }}>
+              Sn = (CO_f_{fmt(CO_f)} - 50) × 0.5 = Sn_{fmt(Sn)}
             </div>
           </div>
+        );
+      })()}
+
+      {/* [E] 물리 보정: 밀림 끌림 출발값 보정 스핀 한 줄 */}
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        {[
+          { key: 'slide', label: '밀림' },
+          { key: 'draw', label: '끌림' },
+          { key: 'departure', label: '출발값 보정' },
+          { key: 'spin', label: '스핀' }
+        ].map(({ key, label }) => {
+          const isDeparture = key === 'departure';
+          const displayValue = isDeparture && snFor5Half
+            ? snFor5Half.Sn
+            : formData.corrections[key];
+          return (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label style={{ fontSize: '12px', minWidth: isDeparture ? '70px' : '32px' }}>{label}</label>
+            <input
+              type="number"
+              step="0.5"
+              value={displayValue}
+              readOnly={isDeparture && !!snFor5Half}
+              onChange={(e) => !(isDeparture && snFor5Half) && setFormData({
+                ...formData,
+                corrections: { ...formData.corrections, [key]: Number(e.target.value) }
+              })}
+              style={{
+                width: '70px',
+                height: '32px',
+                padding: '0 6px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                fontSize: '13px',
+                backgroundColor: '#fff',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+          );
+        })}
+      </div>
+
+      {/* [F] 최종 결과 (보정 입력변수 반영 후 재계산, 연초록 / 정수 표시) */}
+      <div
+        style={{
+          padding: '8px 12px',
+          backgroundColor: '#d3f9d8',
+          borderRadius: '6px',
+          fontWeight: '700',
+          fontSize: '15px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexWrap: 'wrap',
+          overflow: 'hidden'
+        }}
+      >
+        <span style={{ flex: '0 0 auto' }}>최종 결과 :</span>
+        {finalResultSubstitution != null ? (
+          <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {finalResultSubstitution}
+          </span>
+        ) : (
+          <span style={{ color: '#64748b' }}>—</span>
         )}
       </div>
 
-      {/* ========================================
-          SECTION 4: 물리 보정
-      ======================================== */}
-      <div style={{ 
-        marginBottom: '24px',
-        padding: '20px',
-        backgroundColor: '#ffffff',
-        borderRadius: '8px',
-        border: '1px solid #e5e7eb'
-      }}>
-        <h3 style={{ 
-          fontSize: '15px', 
-          fontWeight: '700', 
-          marginBottom: '16px',
-          color: '#1f2937',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px'
-        }}>
-          물리 보정
-        </h3>
-
-        {/* ⑥ 물리 보정 입력 필드 */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '6px', 
-              fontSize: '13px',
-              fontWeight: '500',
-              color: '#6b7280'
-            }}>
-              밀림 (+)
-            </label>
-            <input
-              type="number"
-              value={formData.corrections.slide}
-              onChange={(e) => setFormData({
-                ...formData,
-                corrections: { ...formData.corrections, slide: Number(e.target.value) }
-              })}
-              step="0.5"
-              style={{
-                width: '100%',
-                height: '42px',
-                padding: '0 12px',
-                border: '1px solid #cbd5e1',
-                borderRadius: '6px',
-                fontSize: '15px',
-                backgroundColor: '#ffffff'
-              }}
-            />
-          </div>
-          <div>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '6px', 
-              fontSize: '13px',
-              fontWeight: '500',
-              color: '#6b7280'
-            }}>
-              끌림 (-)
-            </label>
-            <input
-              type="number"
-              value={formData.corrections.draw}
-              onChange={(e) => setFormData({
-                ...formData,
-                corrections: { ...formData.corrections, draw: Number(e.target.value) }
-              })}
-              step="0.5"
-              style={{
-                width: '100%',
-                height: '42px',
-                padding: '0 12px',
-                border: '1px solid #cbd5e1',
-                borderRadius: '6px',
-                fontSize: '15px',
-                backgroundColor: '#ffffff'
-              }}
-            />
-          </div>
-          <div>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '6px', 
-              fontSize: '13px',
-              fontWeight: '500',
-              color: '#6b7280'
-            }}>
-              출발 (±)
-            </label>
-            <input
-              type="number"
-              value={formData.corrections.departure}
-              onChange={(e) => setFormData({
-                ...formData,
-                corrections: { ...formData.corrections, departure: Number(e.target.value) }
-              })}
-              step="0.5"
-              style={{
-                width: '100%',
-                height: '42px',
-                padding: '0 12px',
-                border: '1px solid #cbd5e1',
-                borderRadius: '6px',
-                fontSize: '15px',
-                backgroundColor: '#ffffff'
-              }}
-            />
-          </div>
-          <div>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '6px', 
-              fontSize: '13px',
-              fontWeight: '500',
-              color: '#6b7280'
-            }}>
-              스핀 (±)
-            </label>
-            <input
-              type="number"
-              value={formData.corrections.spin}
-              onChange={(e) => setFormData({
-                ...formData,
-                corrections: { ...formData.corrections, spin: Number(e.target.value) }
-              })}
-              step="0.5"
-              style={{
-                width: '100%',
-                height: '42px',
-                padding: '0 12px',
-                border: '1px solid #cbd5e1',
-                borderRadius: '6px',
-                fontSize: '15px',
-                backgroundColor: '#ffffff'
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================
-          SECTION 5: 결과 요약
-      ======================================== */}
-      {Object.keys(calcResult).length > 0 && (
-        <div style={{ 
-          marginBottom: '24px',
-          padding: '20px',
-          backgroundColor: '#ecfdf5',
-          borderRadius: '8px',
-          border: '2px solid #10b981'
-        }}>
-          <h3 style={{ 
-            fontSize: '15px', 
-            fontWeight: '700', 
-            marginBottom: '16px',
-            color: '#1f2937',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}>
-            계산 결과 ⭐
-          </h3>
-
-          {Object.entries(calcResult).map(([key, value]) => (
-            <div key={key} style={{ marginBottom: '12px' }}>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '6px', 
-                fontWeight: '600', 
-                fontSize: '13px',
-                color: '#374151'
-              }}>
-                {key}
-              </label>
-              <div style={{
-                padding: '10px 14px',
-                backgroundColor: '#d1fae5',
-                borderRadius: '6px',
-                border: '1px solid #10b981',
-                fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-                fontSize: '14px',
-                fontWeight: '600',
-                color: '#065f46',
-                textAlign: 'center'
-              }}>
-                {typeof value === 'number' ? value.toFixed(2) : value}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ========================================
-          버튼 영역
-      ======================================== */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '12px', 
-        marginTop: '28px',
-        paddingTop: '20px',
-        borderTop: '2px solid #e5e7eb'
-      }}>
+      {/* 버튼 */}
+      <div style={{ display: 'flex', gap: '10px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
         <button
           onClick={handleSave}
           style={{
             flex: 1,
-            padding: '14px 20px',
+            height: '36px',
+            padding: '0 16px',
             backgroundColor: '#3b82f6',
             color: 'white',
             border: 'none',
-            borderRadius: '8px',
-            fontWeight: '700',
-            fontSize: '16px',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
+            borderRadius: '6px',
+            fontWeight: '600',
+            fontSize: '14px',
+            cursor: 'pointer'
           }}
         >
           적용
@@ -1274,15 +1196,15 @@ function SysOverlay({ data, onSave, onCancel }) {
           onClick={onCancel}
           style={{
             flex: 1,
-            padding: '14px 20px',
-            backgroundColor: '#e5e7eb',
-            color: '#374151',
+            height: '36px',
+            padding: '0 16px',
+            backgroundColor: '#e2e8f0',
+            color: '#475569',
             border: 'none',
-            borderRadius: '8px',
-            fontWeight: '700',
-            fontSize: '16px',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
+            borderRadius: '6px',
+            fontWeight: '600',
+            fontSize: '14px',
+            cursor: 'pointer'
           }}
         >
           취소

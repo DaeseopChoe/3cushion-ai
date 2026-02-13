@@ -36,7 +36,6 @@ function calculateHeightBased(availableW, availableH) {
   
   // 🔴 PM 수정 1: stageWidth 초과 검증
   if (stageWidth > availableW) {
-    console.log('⚠️ Height-based 초과, Width-based로 fallback');
     return calculateWidthBased(availableW);
   }
   
@@ -129,20 +128,10 @@ export function calculateLayout(availableW, availableH) {
     layout = calculateWidthBased(availableW);
   }
   
-  // 수학적 검증 (개발 모드)
   if (process.env.NODE_ENV === 'development') {
     validateLayout(layout);
   }
-  
-  console.log('📐 Phase G-2 Layout:', {
-    viewport: `${availableW.toFixed(0)}×${availableH.toFixed(0)}`,
-    aspect: currentAspect.toFixed(2),
-    mode: layout.mode,
-    stage: `${layout.stageWidth.toFixed(0)}×${layout.stageHeight.toFixed(0)}`,
-    table: `${layout.tableWidth.toFixed(0)}×${layout.tableHeight.toFixed(0)}`,
-    control: layout.controlWidth.toFixed(0),
-  });
-  
+
   return layout;
 }
 
@@ -190,11 +179,4 @@ function validateLayout(layout) {
   if (verticalError > 1) {
     console.warn(`⚠️ 세로 합산 오차: ${verticalError.toFixed(2)}px`);
   }
-  
-  console.log('✅ Layout 검증 완료:', {
-    stageAspect: stageAspect.toFixed(3),
-    tableAspect: tableAspect.toFixed(3),
-    horizontalError: horizontalError.toFixed(2),
-    verticalError: verticalError.toFixed(2),
-  });
 }

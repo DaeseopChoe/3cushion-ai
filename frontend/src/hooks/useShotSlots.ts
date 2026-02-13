@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { TrajectoryState, TrajectoryPhase } from './useTrajectoryState';
+import { TrajectoryPhase } from './useTrajectoryState';
 import { SYSTEM_PROFILES } from '../systems';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
-import { buildTrajectorySample } from '../utils/trajectorySampleBuilder';
+import { buildTrajectorySamples } from '../utils/trajectorySampleBuilder';
 
 // ==========================================
 // Types (중복 없이 정리)
@@ -131,22 +131,9 @@ export function useShotSlots() {
         baseOneC,
       };
 
-      // -------- [3] SYSTEM_PROFILES + calculateByProfileExpr 기반 계산 --------
+      // -------- [3] SYSTEM_PROFILES + calculateByProfileExpr 기반 계산 (시스템 공통) --------
       const profile = SYSTEM_PROFILES[nextSystemId];
-
-      // profile.formula.expr 에 들어가는 inputs 매핑
-      //  - 5_half_system: "CO_f = 1C_f + 3C_r + residual"
-      //  - 나머지 시스템은 우선 nextInputs 그대로 전달 (키 미스매치 시 0으로 계산됨)
-      let exprInputs: Record<string, number> = { ...nextInputs } as any;
-
-      if (nextSystemId === "5_half_system") {
-        exprInputs = {
-          CO_f: typeof nextInputs.CO === "number" ? nextInputs.CO : 0,
-          "1C_f": typeof nextInputs.baseOneC === "number" ? nextInputs.baseOneC : 0,
-          "3C_r": typeof nextInputs.C3 === "number" ? nextInputs.C3 : 0,
-          residual: 0,
-        };
-      }
+      const exprInputs: Record<string, number> = { ...nextInputs } as Record<string, number>;
 
       let calcResult: Record<string, number> = {};
       if (profile?.formula?.expr) {
@@ -204,7 +191,7 @@ export function useShotSlots() {
     (유의: structuredClone은 최신 브라우저/런타임 표준입니다.)
   */
 
-  // Draft 검증 함수
+  // Draft 검증 함수 (expr/output 기반, 하드코딩 키 미사용)
   const validateDraft = (slotId: SlotId): { ok: true } | { ok: false; reason: string } => {
     const slot = shotEditor.slots[slotId];
     const draft = slot.draft;
@@ -212,14 +199,13 @@ export function useShotSlots() {
       return { ok: false, reason: "Draft 데이터가 없습니다." };
     }
 
-    if (
-      !draft.sys ||
-      !draft.sys.outputs ||
-      !draft.sys.outputs.result ||
-      typeof draft.sys.outputs.result.oneC !== "number" ||
-      Number.isNaN(draft.sys.outputs.result.oneC)
-    ) {
-      return { ok: false, reason: "draft.sys.outputs.result.oneC 값이 숫자가 아닙니다." };
+    const result = draft.sys?.outputs?.result;
+    if (!result || typeof result !== "object") {
+      return { ok: false, reason: "draft.sys.outputs.result가 없습니다." };
+    }
+    const firstVal = Object.values(result)[0];
+    if (typeof firstVal !== "number" || Number.isNaN(firstVal)) {
+      return { ok: false, reason: "계산 결과값이 숫자가 아닙니다." };
     }
     return { ok: true };
   };
@@ -301,7 +287,14 @@ export function useShotSlots() {
     // Step 2. trajectory_samples 생성 유틸 호출
     let trajectorySamples;
     try {
-      trajectorySamples = trajectorySampleBuilder(shotRecord.slots);
+      const slotList = (
+        ["S1", "S2", "S3"] as const
+      ).flatMap((id) => (shotEditor.slots[id].applied ? [shotEditor.slots[id]] : []));
+      trajectorySamples = buildTrajectorySamples(
+        slotList,
+        `pos_${shotRecord.meta.createdAt}`,
+        slotList[0]?.applied?.sys?.systemId ?? "5_half_system"
+      );
     } catch (e) {
       alert("trajectory_samples 생성 오류: " + String(e));
       return { ok: false, reason: "trajectory_samples error" };

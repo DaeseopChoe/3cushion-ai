@@ -1,11 +1,45 @@
 // /frontend/admin/sys/SysOverlay.tsx
-// ⚠️ 이 파일은 연결 예시입니다. 실제 프로젝트 구조에 맞게 조정하세요.
+// Admin SYS: formula.expr 기반 순수 수식 계산기
+// - 좌표(anchors) 미사용. 시스템값(CO_f, C1_f 등) 직접 입력만 사용
+// - formatFormulaDisplay: ${LHS}_${값} = ${치환된_RHS}
 
-import { useState, useMemo } from "react";
-import { useSysCalculation } from "./useSysCalculation";
-import type { SystemCalcInputV1 } from "@/data/system/calculator/types";
-import type { Point } from "@/data/system/calculator/types";
+import React, { useState, useMemo } from "react";
+import { useSysCalculation, getInputTokensFromExpr } from "./useSysCalculation";
 import { SYSTEM_PROFILES } from "../../src/systems";
+
+/** 정수 출력 (포맷 표준) */
+function formatResultNum(n: number): number {
+  return Math.round(n);
+}
+
+/** 출발 보정 영역용 — 소수 있으면 1자리 표시 (Sn, C4_f 검증용) */
+function formatDepartureNum(n: number): string {
+  const x = Number(n);
+  if (Number.isNaN(x)) return "0";
+  return x % 1 === 0 ? String(Math.round(x)) : String(Math.round(x * 10) / 10);
+}
+
+/**
+ * 표시 형식 통일: ${LHS}_${결과값} = ${치환된_RHS}
+ * LHS/RHS 모두 ${token}_${값} 형식
+ */
+function formatFormulaDisplay(expr: string, output: Record<string, number>): string {
+  const idx = expr.indexOf("=");
+  if (idx < 0) return expr;
+  const lhs = expr.slice(0, idx).trim();
+  const rhs = expr.slice(idx + 1).trim();
+  const lhsVal = lhs in output ? formatResultNum(output[lhs]) : "?";
+  const rhsSubstituted = rhs.replace(
+    /[A-Za-z_][A-Za-z0-9_]*/g,
+    (token) => {
+      if (token in output) {
+        return `${token}_${formatResultNum(output[token])}`;
+      }
+      return token;
+    }
+  );
+  return `${lhs}_${lhsVal} = ${rhsSubstituted}`;
+}
 
 /* ===============================
  * SysOverlay 상태 타입
@@ -14,18 +48,7 @@ import { SYSTEM_PROFILES } from "../../src/systems";
 interface SysOverlayState {
   systemId: string;
   strategyType: string;
-  
-  anchors: {
-    CO?: Point;
-    C1?: Point;
-    C3?: Point;
-    target_ball?: Point;
-    C4?: Point;
-    C5?: Point;
-    C6?: Point;
-    C7?: Point;
-  };
-  
+  systemValues: Record<string, number>;
   corrections: {
     curve_ratio: number;
     slide: number;
@@ -40,203 +63,263 @@ interface SysOverlayState {
 
 interface SysOverlayProps {
   initialState?: Partial<SysOverlayState>;
-  onSave: (result: any) => void;
-  onClose: () => void;
+  sys?: any;
+  onSave?: (result: any) => void;
+  onClose?: () => void;
+  onApply?: (next: any) => void;
+  onCancel?: () => void;
 }
 
-export function SysOverlay({ initialState, onSave, onClose }: SysOverlayProps) {
-  // ==========================================
-  // 1️⃣ SysOverlay 상태 관리
-  // ==========================================
+const PROFILE_KEY_MAP: Record<string, string> = {
+  "5_HALF": "5_half_system",
+  "PLUS": "plus_system",
+  "3TIP_PLUS": "3tip_plus",
+  "RODRIGUEZ": "rodriguez",
+  "DIAMOND": "rodriguez",
+  "SUNRISE_SUNSET": "sunrise_sunset",
+};
+
+/** 보정값을 systemValues에 반영 (slide→CO, draw→C3 등) */
+function applyCorrections(
+  values: Record<string, number>,
+  corrections: SysOverlayState["corrections"]
+): Record<string, number> {
+  const out = { ...values };
+  if (corrections.slide !== 0) {
+    if ("CO_f" in out) out.CO_f = (out.CO_f ?? 0) + corrections.slide;
+    if ("CO_r" in out) out.CO_r = (out.CO_r ?? 0) + corrections.slide;
+  }
+  if (corrections.draw !== 0) {
+    if ("C3_f" in out) out.C3_f = (out.C3_f ?? 0) - corrections.draw;
+    if ("C3_r" in out) out.C3_r = (out.C3_r ?? 0) - corrections.draw;
+  }
+  if (corrections.curve_ratio !== 0) {
+    if ("CO_f" in out) out.CO_f = (out.CO_f ?? 0) + corrections.curve_ratio;
+  }
+  if (corrections.departure !== 0) {
+    if ("C4_f" in out) out.C4_f = (out.C4_f ?? 0) + corrections.departure;
+  }
+  return out;
+}
+
+/** 시스템별 기본 시스템값 */
+function getDefaultSystemValues(tokens: string[]): Record<string, number> {
+  const defaults: Record<string, number> = {};
+  for (const t of tokens) {
+    defaults[t] = 0;
+  }
+  // 자주 쓰는 기본값
+  if (tokens.includes("CO_f")) defaults["CO_f"] = 50;
+  if (tokens.includes("C1_f")) defaults["C1_f"] = 20;
+  if (tokens.includes("C3_r")) defaults["C3_r"] = 20;
+  if (tokens.includes("C3_f")) defaults["C3_f"] = 40;
+  if (tokens.includes("CO_r")) defaults["CO_r"] = 10;
+  return defaults;
+}
+
+export function SysOverlay({
+  initialState,
+  sys,
+  onSave,
+  onClose,
+  onApply,
+  onCancel,
+}: SysOverlayProps) {
+  const handleSaveExternal = onApply ?? onSave;
+  const handleCloseExternal = onCancel ?? onClose;
+  const initial = initialState ?? sys;
+
   const [sysState, setSysState] = useState<SysOverlayState>({
-    systemId: initialState?.systemId || "5_HALF",
-    strategyType: initialState?.strategyType || "뒤돌리기",
-    
-    anchors: {
-      CO: initialState?.anchors?.CO || { x: 40, y: 10 },
-      C1: initialState?.anchors?.C1 || { x: 20, y: 5 },
-      C3: initialState?.anchors?.C3 || { x: 15, y: 8 },
-      target_ball: initialState?.anchors?.target_ball,
-      ...initialState?.anchors
+    systemId: initial?.systemId || "5_HALF",
+    strategyType: initial?.strategyType || "뒤돌리기",
+    systemValues: initial?.systemValues ?? {
+      CO_f: 50,
+      C1_f: 20,
+      C3_r: 20,
     },
-    
     corrections: {
-      curve_ratio: initialState?.corrections?.curve_ratio || 0,
-      slide: initialState?.corrections?.slide || 0,
-      draw: initialState?.corrections?.draw || 0,
-      departure: initialState?.corrections?.departure || 0
-    }
+      curve_ratio: initial?.corrections?.curve_ratio || 0,
+      slide: initial?.corrections?.slide || 0,
+      draw: initial?.corrections?.draw || 0,
+      departure: initial?.corrections?.departure || 0,
+    },
   });
-  
-  // ==========================================
-  // 2️⃣ SystemCalcInputV1 생성 (자동)
-  // ==========================================
-  const sysCalcInput: SystemCalcInputV1 | null = useMemo(() => {
-    // 필수 앵커 검증
-    if (!sysState.anchors.CO || !sysState.anchors.C1 || !sysState.anchors.C3) {
-      return null;
+
+  const profileKey = PROFILE_KEY_MAP[sysState.systemId] ?? sysState.systemId;
+  const profile = SYSTEM_PROFILES[profileKey];
+  const formulaExpr = profile?.formula?.expr ?? "";
+  const inputTokens = useMemo(
+    () => (formulaExpr ? getInputTokensFromExpr(formulaExpr) : []),
+    [formulaExpr]
+  );
+
+
+  const systemValuesWithDefaults = useMemo(() => {
+    const base = { ...sysState.systemValues };
+    const defaults = getDefaultSystemValues(inputTokens);
+    for (const t of inputTokens) {
+      if (!(t in base) || typeof base[t] !== "number") {
+        base[t] = defaults[t] ?? 0;
+      }
     }
-    
-    return {
-      system_id: sysState.systemId,
-      system_version: "v1",
-      
-      anchors_input: {
-        CO: sysState.anchors.CO,
-        C1: sysState.anchors.C1,
-        C3: sysState.anchors.C3,
-        C4: sysState.anchors.C4,
-        C5: sysState.anchors.C5,
-        C6: sysState.anchors.C6,
-        C7: sysState.anchors.C7
-      },
-      
-      hpt: {
-        T: "8/8",  // v1에서는 SYS 계산에 T값 미사용
-        hit_point: { x: 0, y: 0 }
-      },
-      
-      corrections: sysState.corrections
-    };
-  }, [sysState]);
-  
-  // ==========================================
-  // 3️⃣ 계산 실행 (자동)
-  // ==========================================
-  const { result, error } = useSysCalculation(sysCalcInput);
-  
-  // ==========================================
-  // 4️⃣ 상태 업데이트 함수
-  // ==========================================
+    return base;
+  }, [sysState.systemValues, inputTokens]);
+
+  const systemValuesWithCorrections = useMemo(
+    () => applyCorrections(systemValuesWithDefaults, sysState.corrections),
+    [systemValuesWithDefaults, sysState.corrections]
+  );
+
+  const sysCalcInput = useMemo(
+    () =>
+      formulaExpr
+        ? {
+            system_id: sysState.systemId,
+            system_values: systemValuesWithCorrections,
+          }
+        : null,
+    [sysState.systemId, systemValuesWithCorrections, formulaExpr]
+  );
+
+  const { expr, output, error } = useSysCalculation(sysCalcInput);
+  const hasResult = output && Object.keys(output).length > 0;
+
   function updateSystemId(systemId: string) {
-    setSysState(prev => ({ ...prev, systemId }));
+    const nextProfileKey = PROFILE_KEY_MAP[systemId] ?? systemId;
+    const nextProfile = SYSTEM_PROFILES[nextProfileKey];
+    const nextExpr = nextProfile?.formula?.expr ?? "";
+    const nextTokens = nextExpr ? getInputTokensFromExpr(nextExpr) : [];
+    const defaults = getDefaultSystemValues(nextTokens);
+    setSysState((prev) => {
+      const nextVals = { ...defaults };
+      for (const t of nextTokens) {
+        if (t in prev.systemValues) nextVals[t] = prev.systemValues[t];
+      }
+      return { ...prev, systemId, systemValues: nextVals };
+    });
   }
-  
+
   function updateStrategyType(strategyType: string) {
-    setSysState(prev => ({ ...prev, strategyType }));
+    setSysState((prev) => ({ ...prev, strategyType }));
   }
-  
-  function updateCorrection(key: keyof SysOverlayState['corrections'], value: number) {
-    setSysState(prev => ({
+
+  function updateSystemValue(token: string, value: number) {
+    setSysState((prev) => ({
       ...prev,
-      corrections: { ...prev.corrections, [key]: value }
+      systemValues: { ...prev.systemValues, [token]: value },
     }));
   }
-  
-  // ==========================================
-  // 5️⃣ SAVE 버튼 핸들러
-  // ==========================================
+
+  function updateCorrection(key: keyof SysOverlayState["corrections"], value: number) {
+    setSysState((prev) => ({
+      ...prev,
+      corrections: { ...prev.corrections, [key]: value },
+    }));
+  }
+
   function handleSave() {
-    if (!result) {
+    if (!output || Object.keys(output).length === 0) {
       alert("계산 결과가 없습니다. 입력값을 확인해주세요.");
       return;
     }
-    
-    // shot_record.sys에 저장할 데이터
-    const sysData = {
-      input: sysCalcInput,      // 재현용
-      output: result,           // SystemCalcOutputV1 (SSOT)
-      system_id: sysState.systemId,
-      strategy_type: sysState.strategyType
-    };
-    
-    console.log("💾 [SYS_SAVE]", sysData);
-    onSave(sysData);
-  }
-  
-  // 선택된 시스템의 profile에서 계산 공식(expr) 추출 (표시용)
-  const profileKey =
-    { "5_HALF": "5_half_system", "PLUS": "plus_system" }[sysState.systemId] ?? sysState.systemId;
-  const profile = SYSTEM_PROFILES[profileKey];
-  const formulaExpr = profile?.formula?.expr ?? "-";
 
-  // ==========================================
-  // 6️⃣ UI 렌더링
-  // ==========================================
+    const sysData = {
+      expr,
+      output,
+      system_id: sysState.systemId,
+      strategy_type: sysState.strategyType,
+      system_values: sysState.systemValues,
+    };
+
+    console.log("💾 [SYS_SAVE]", sysData);
+    handleSaveExternal?.(sysData);
+  }
+
   return (
-    <div 
+    <div
       className="sys-overlay"
       style={{
-        minWidth: '520px',
-        maxWidth: '90vw',
-        width: '560px',
-        padding: '24px',
-        backgroundColor: '#ffffff',
-        borderRadius: '12px',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
-        maxHeight: '85vh',
-        overflowY: 'auto'
+        minWidth: "520px",
+        maxWidth: "90vw",
+        width: "560px",
+        padding: "24px",
+        backgroundColor: "#ffffff",
+        borderRadius: "12px",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)",
+        maxHeight: "85vh",
+        overflowY: "auto",
       }}
     >
-      <h2 style={{
-        fontSize: '20px',
-        fontWeight: '600',
-        marginBottom: '24px',
-        color: '#1f2937'
-      }}>
+      <h2
+        style={{
+          fontSize: "20px",
+          fontWeight: "600",
+          marginBottom: "24px",
+          color: "#1f2937",
+        }}
+      >
         SYS 설정
       </h2>
-      
-      {/* 시스템 선택 */}
-      <div 
-        className="input-group"
-        style={{ marginBottom: '16px' }}
-      >
-        <label style={{
-          display: 'block',
-          fontSize: '14px',
-          fontWeight: '500',
-          marginBottom: '8px',
-          color: '#374151'
-        }}>
-          시스템
-        </label>
-        <select 
-          value={sysState.systemId} 
-          onChange={(e) => updateSystemId(e.target.value)}
+
+      <div className="input-group" style={{ marginBottom: "16px" }}>
+        <label
           style={{
-            width: '100%',
-            height: '40px',
-            fontSize: '15px',
-            padding: '0 12px',
-            border: '1px solid #d1d5db',
-            borderRadius: '6px',
-            backgroundColor: '#ffffff',
-            cursor: 'pointer'
+            display: "block",
+            fontSize: "14px",
+            fontWeight: "500",
+            marginBottom: "8px",
+            color: "#374151",
           }}
         >
-          <option value="5_HALF">5&half</option>
+          시스템
+        </label>
+        <select
+          value={sysState.systemId}
+          onChange={(e) => updateSystemId(e.target.value)}
+          style={{
+            width: "100%",
+            height: "40px",
+            fontSize: "15px",
+            padding: "0 12px",
+            border: "1px solid #d1d5db",
+            borderRadius: "6px",
+            backgroundColor: "#ffffff",
+            cursor: "pointer",
+          }}
+        >
+          <option value="5_HALF">5&amp;half</option>
           <option value="PLUS">PLUS</option>
+          <option value="3TIP_PLUS">3팁 플러스</option>
+          <option value="RODRIGUEZ">로드리게스</option>
           <option value="DIAMOND">DIAMOND</option>
+          <option value="SUNRISE_SUNSET">일출·일몰</option>
         </select>
       </div>
-      
-      {/* 공격 유형 */}
-      <div 
-        className="input-group"
-        style={{ marginBottom: '16px' }}
-      >
-        <label style={{
-          display: 'block',
-          fontSize: '14px',
-          fontWeight: '500',
-          marginBottom: '8px',
-          color: '#374151'
-        }}>
+
+      <div className="input-group" style={{ marginBottom: "16px" }}>
+        <label
+          style={{
+            display: "block",
+            fontSize: "14px",
+            fontWeight: "500",
+            marginBottom: "8px",
+            color: "#374151",
+          }}
+        >
           공격 유형
         </label>
-        <select 
-          value={sysState.strategyType} 
+        <select
+          value={sysState.strategyType}
           onChange={(e) => updateStrategyType(e.target.value)}
           style={{
-            width: '100%',
-            height: '40px',
-            fontSize: '15px',
-            padding: '0 12px',
-            border: '1px solid #d1d5db',
-            borderRadius: '6px',
-            backgroundColor: '#ffffff',
-            cursor: 'pointer'
+            width: "100%",
+            height: "40px",
+            fontSize: "15px",
+            padding: "0 12px",
+            border: "1px solid #d1d5db",
+            borderRadius: "6px",
+            backgroundColor: "#ffffff",
+            cursor: "pointer",
           }}
         >
           <option value="뒤돌리기">뒤돌리기</option>
@@ -244,357 +327,299 @@ export function SysOverlay({ initialState, onSave, onClose }: SysOverlayProps) {
           <option value="옆돌리기">옆돌리기</option>
         </select>
       </div>
-      
-      {/* 계산 공식 (선택된 시스템의 profile.formula.expr) */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{
-          display: 'block',
-          fontSize: '14px',
-          fontWeight: '500',
-          marginBottom: '8px',
-          color: '#374151'
-        }}>
-          계산 공식
-        </label>
-        <div style={{
-          padding: '12px 16px',
-          backgroundColor: '#e5e7eb',
-          borderRadius: '6px',
-          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-          fontSize: '15px',
-          fontWeight: '600',
-          color: '#1f2937',
-          textAlign: 'center',
-          letterSpacing: '1px'
-        }}>
-          {formulaExpr}
-        </div>
-      </div>
-      
-      {/* 보정값들 */}
-      <div 
-        className="corrections-section"
-        style={{
-          marginTop: '24px',
-          marginBottom: '24px',
-          padding: '20px',
-          backgroundColor: '#f9fafb',
-          borderRadius: '8px',
-          border: '1px solid #e5e7eb'
-        }}
-      >
-        <h3 style={{
-          fontSize: '16px',
-          fontWeight: '600',
-          marginBottom: '16px',
-          color: '#1f2937'
-        }}>
-          보정값
-        </h3>
-        
-        <div 
-          className="input-group"
-          style={{ marginBottom: '14px' }}
-        >
-          <label style={{
-            display: 'block',
-            fontSize: '14px',
-            fontWeight: '500',
-            marginBottom: '8px',
-            color: '#374151'
-          }}>
-            Curve (곡구)
-          </label>
-          <input 
-            type="number" 
-            value={sysState.corrections.curve_ratio}
-            onChange={(e) => updateCorrection('curve_ratio', Number(e.target.value))}
-            step="0.5"
-            style={{
-              width: '100%',
-              height: '40px',
-              fontSize: '15px',
-              padding: '0 12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '6px',
-              backgroundColor: '#ffffff'
-            }}
-          />
-        </div>
-        
-        <div 
-          className="input-group"
-          style={{ marginBottom: '14px' }}
-        >
-          <label style={{
-            display: 'block',
-            fontSize: '14px',
-            fontWeight: '500',
-            marginBottom: '8px',
-            color: '#374151'
-          }}>
-            Slide (밀림)
-          </label>
-          <input 
-            type="number" 
-            value={sysState.corrections.slide}
-            onChange={(e) => updateCorrection('slide', Number(e.target.value))}
-            step="0.5"
-            style={{
-              width: '100%',
-              height: '40px',
-              fontSize: '15px',
-              padding: '0 12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '6px',
-              backgroundColor: '#ffffff'
-            }}
-          />
-        </div>
-        
-        <div 
-          className="input-group"
-          style={{ marginBottom: '14px' }}
-        >
-          <label style={{
-            display: 'block',
-            fontSize: '14px',
-            fontWeight: '500',
-            marginBottom: '8px',
-            color: '#374151'
-          }}>
-            Draw (끌림)
-          </label>
-          <input 
-            type="number" 
-            value={sysState.corrections.draw}
-            onChange={(e) => updateCorrection('draw', Number(e.target.value))}
-            step="0.5"
-            style={{
-              width: '100%',
-              height: '40px',
-              fontSize: '15px',
-              padding: '0 12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '6px',
-              backgroundColor: '#ffffff'
-            }}
-          />
-        </div>
-        
-        <div 
-          className="input-group"
-          style={{ marginBottom: '0' }}
-        >
-          <label style={{
-            display: 'block',
-            fontSize: '14px',
-            fontWeight: '500',
-            marginBottom: '8px',
-            color: '#374151'
-          }}>
-            Departure (출발)
-          </label>
-          <input 
-            type="number" 
-            value={sysState.corrections.departure}
-            onChange={(e) => updateCorrection('departure', Number(e.target.value))}
-            step="0.5"
-            style={{
-              width: '100%',
-              height: '40px',
-              fontSize: '15px',
-              padding: '0 12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '6px',
-              backgroundColor: '#ffffff'
-            }}
-          />
-        </div>
-      </div>
-      
-      {/* 계산 결과 표시 (draft) */}
-      {result && (
-        <div 
-          className="result-section"
+
+      <div style={{ marginBottom: "16px" }}>
+        <label
           style={{
-            marginTop: '24px',
-            padding: '20px',
-            backgroundColor: '#eff6ff',
-            borderRadius: '8px',
-            border: '1px solid #bfdbfe'
+            display: "block",
+            fontSize: "14px",
+            fontWeight: "500",
+            marginBottom: "8px",
+            color: "#374151",
           }}
         >
-          <h3 style={{
-            fontSize: '16px',
-            fontWeight: '600',
-            marginBottom: '16px',
-            color: '#1e40af'
-          }}>
-            계산 결과 (미저장)
+          계산 공식
+        </label>
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#e5e7eb",
+            borderRadius: "6px",
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: "15px",
+            fontWeight: "600",
+            color: "#1f2937",
+            textAlign: "center",
+            letterSpacing: "1px",
+          }}
+        >
+          {formulaExpr || "-"}
+        </div>
+      </div>
+
+      {/* 시스템값 입력 — expr RHS 토큰 기반 동적 생성 */}
+      {inputTokens.length > 0 && (
+        <div
+          style={{
+            marginBottom: "16px",
+            padding: "20px",
+            backgroundColor: "#f9fafb",
+            borderRadius: "8px",
+            border: "1px solid #e5e7eb",
+          }}
+        >
+          <h3
+            style={{
+              fontSize: "16px",
+              fontWeight: "600",
+              marginBottom: "16px",
+              color: "#1f2937",
+            }}
+          >
+            시스템값 입력
           </h3>
-          
-          {/* 시스템 값 */}
-          <div 
-            className="values"
-            style={{
-              marginBottom: '16px',
-              fontSize: '14px',
-              lineHeight: '1.8'
-            }}
-          >
-            <p style={{ marginBottom: '8px' }}>
-              <strong>CO_sys:</strong> {result.values.CO_sys}
-            </p>
-            <p style={{ marginBottom: '8px' }}>
-              <strong>C1_sys:</strong> {result.values.C1_sys}
-            </p>
-            <p style={{ marginBottom: '8px' }}>
-              <strong>C3_sys:</strong> {result.values.C3_sys}
-            </p>
-            {result.values.arrival_sys !== undefined && (
-              <p style={{ marginBottom: '8px' }}>
-                <strong>Arrival:</strong> {result.values.arrival_sys}
-              </p>
-            )}
-          </div>
-          
-          {/* 공식 표시 */}
-          <div 
-            className="formula"
-            style={{
-              marginBottom: '16px',
-              fontSize: '13px',
-              lineHeight: '1.8',
-              padding: '12px',
-              backgroundColor: '#ffffff',
-              borderRadius: '6px',
-              border: '1px solid #dbeafe'
-            }}
-          >
-            <p style={{ marginBottom: '6px' }}>
-              <strong>[공식]</strong> {result.breakdown.formula.original}
-            </p>
-            <p style={{ marginBottom: '6px' }}>
-              <strong>[보정]</strong> {result.breakdown.formula.withCorrections}
-            </p>
-            <p style={{ marginBottom: '0' }}>
-              <strong>[대입]</strong> {result.breakdown.formula.substituted}
-            </p>
-          </div>
-          
-          {/* 계산 단계 */}
-          <details style={{ fontSize: '14px' }}>
-            <summary style={{
-              cursor: 'pointer',
-              fontWeight: '500',
-              padding: '8px 0',
-              color: '#1e40af'
-            }}>
-              계산 과정 보기
-            </summary>
-            {result.breakdown.steps.map((step, i) => (
-              <div 
-                key={i} 
-                className="step"
+          {inputTokens.map((token) => (
+            <div key={token} className="input-group" style={{ marginBottom: "14px" }}>
+              <label
                 style={{
-                  marginTop: '12px',
-                  padding: '12px',
-                  backgroundColor: '#ffffff',
-                  borderRadius: '6px',
-                  border: '1px solid #dbeafe',
-                  fontSize: '13px',
-                  lineHeight: '1.6'
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  marginBottom: "8px",
+                  color: "#374151",
                 }}
               >
-                <p style={{ marginBottom: '4px' }}>
-                  <strong>{step.stage}:</strong> {step.description}
-                </p>
-                <p style={{ marginBottom: '4px' }}>
-                  {step.formula} = {step.value}
-                </p>
-                {step.corrections_applied && (
-                  <p 
-                    className="corrections"
-                    style={{
-                      marginTop: '8px',
-                      fontSize: '12px',
-                      color: '#6b7280',
-                      marginBottom: '0'
-                    }}
-                  >
-                    보정: {JSON.stringify(step.corrections_applied)}
-                  </p>
-                )}
-              </div>
-            ))}
-          </details>
+                {token}
+              </label>
+              <input
+                type="number"
+                value={
+                  sysState.systemValues[token] ??
+                  getDefaultSystemValues(inputTokens)[token] ??
+                  0
+                }
+                onChange={(e) => updateSystemValue(token, Number(e.target.value))}
+                step="0.5"
+                style={{
+                  width: "100%",
+                  height: "40px",
+                  fontSize: "15px",
+                  padding: "0 12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  backgroundColor: "#ffffff",
+                }}
+              />
+            </div>
+          ))}
         </div>
       )}
-      
-      {/* 에러 표시 */}
+
+      {/* 보정값 */}
+      <div
+        style={{
+          marginTop: "24px",
+          marginBottom: "24px",
+          padding: "20px",
+          backgroundColor: "#f9fafb",
+          borderRadius: "8px",
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <h3
+          style={{
+            fontSize: "16px",
+            fontWeight: "600",
+            marginBottom: "16px",
+            color: "#1f2937",
+          }}
+        >
+          보정값
+        </h3>
+        {(
+          [
+            ["curve_ratio", "Curve (곡구)"],
+            ["slide", "Slide (밀림)"],
+            ["draw", "Draw (끌림)"],
+            ["departure", "Departure (출발값 보정)"],
+          ] as const
+        ).map(([key, label]) => {
+          const isDeparture = key === "departure";
+          const displayValue =
+            isDeparture && output?.Sn !== undefined
+              ? output.Sn
+              : sysState.corrections[key];
+          return (
+          <div key={key} className="input-group" style={{ marginBottom: "14px" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: "500",
+                marginBottom: "8px",
+                color: "#374151",
+              }}
+            >
+              {label}
+            </label>
+            <input
+              type="number"
+              value={displayValue}
+              readOnly={isDeparture && output?.Sn !== undefined}
+              onChange={(e) =>
+                !(isDeparture && output?.Sn !== undefined) &&
+                updateCorrection(key, Number(e.target.value))
+              }
+              step="0.5"
+              style={{
+                width: "100%",
+                height: "40px",
+                fontSize: "15px",
+                padding: "0 12px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                backgroundColor: "#ffffff",
+              }}
+            />
+          </div>
+          );
+        })}
+      </div>
+
+      {/* 계산 결과 — formatFormulaDisplay(expr, output) */}
+      {hasResult && (
+        <div
+          className="result-section"
+          style={{
+            marginTop: "24px",
+            padding: "20px",
+            backgroundColor: "#eff6ff",
+            borderRadius: "8px",
+            border: "1px solid #bfdbfe",
+          }}
+        >
+          <h3
+            style={{
+              fontSize: "16px",
+              fontWeight: "600",
+              marginBottom: "16px",
+              color: "#1e40af",
+            }}
+          >
+            계산 결과 (미저장)
+          </h3>
+          <div
+            className="formula-display"
+            style={{
+              fontSize: "15px",
+              lineHeight: "1.8",
+              padding: "12px 16px",
+              backgroundColor: "#ffffff",
+              borderRadius: "6px",
+              border: "1px solid #dbeafe",
+              fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+              fontWeight: "600",
+              color: "#1f2937",
+              textAlign: "center",
+            }}
+          >
+            {formatFormulaDisplay(expr, output)}
+          </div>
+          {/* 5_half 전용 출발값 보정 표시 — output.Sn 있으면 표시 (systemId 비교 제거) */}
+          {hasResult &&
+            output.Sn !== undefined &&
+            output.C4_f !== undefined && (
+              <div
+                className="departure-correction"
+                style={{
+                  marginTop: "16px",
+                  padding: "12px 16px",
+                  backgroundColor: "#f0fdf4",
+                  borderRadius: "6px",
+                  border: "1px solid #bbf7d0",
+                  fontSize: "14px",
+                  lineHeight: "1.8",
+                  fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                  color: "#166534",
+                }}
+              >
+                <div style={{ fontWeight: "700", fontSize: "16px", marginBottom: "10px" }}>
+                  최종 도착값 : {formatDepartureNum(output.C4_f)}
+                </div>
+                <div>
+                  C4_f = C5_f = C6_f = C3_r_{formatDepartureNum(output.C3_r ?? 0)} + Sn_
+                  {formatDepartureNum(output.Sn)} = C4_f_{formatDepartureNum(output.C4_f)}
+                </div>
+                <div style={{ marginTop: "6px" }}>
+                  Sn = (CO_f_{formatDepartureNum(output.CO_f ?? 0)} - 50) × 0.5 = Sn_
+                  {formatDepartureNum(output.Sn)}
+                </div>
+              </div>
+            )}
+        </div>
+      )}
+
       {error && (
-        <div 
-          className="error-section" 
-          style={{ 
-            color: '#dc2626',
-            backgroundColor: '#fee2e2',
-            padding: '16px',
-            borderRadius: '8px',
-            marginTop: '16px',
-            fontSize: '14px',
-            border: '1px solid #fecaca'
+        <div
+          className="error-section"
+          style={{
+            color: "#dc2626",
+            backgroundColor: "#fee2e2",
+            padding: "16px",
+            borderRadius: "8px",
+            marginTop: "16px",
+            fontSize: "14px",
+            border: "1px solid #fecaca",
           }}
         >
           <strong>⚠️ 계산 오류:</strong> {error}
         </div>
       )}
-      
-      {/* 버튼들 */}
-      <div 
+
+      <div
         className="button-group"
         style={{
-          display: 'flex',
-          gap: '12px',
-          justifyContent: 'flex-end',
-          marginTop: '28px',
-          paddingTop: '20px',
-          borderTop: '1px solid #e5e7eb'
+          display: "flex",
+          gap: "12px",
+          justifyContent: "flex-end",
+          marginTop: "28px",
+          paddingTop: "20px",
+          borderTop: "1px solid #e5e7eb",
         }}
       >
-        <button 
+        <button
           onClick={handleSave}
-          disabled={!result}
+          disabled={!hasResult}
           className="save-button"
           style={{
-            height: '40px',
-            padding: '0 24px',
-            fontSize: '15px',
-            fontWeight: '600',
-            color: '#ffffff',
-            backgroundColor: result ? '#3b82f6' : '#9ca3af',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: result ? 'pointer' : 'not-allowed',
-            transition: 'all 0.2s'
+            height: "40px",
+            padding: "0 24px",
+            fontSize: "15px",
+            fontWeight: "600",
+            color: "#ffffff",
+            backgroundColor: hasResult ? "#3b82f6" : "#9ca3af",
+            border: "none",
+            borderRadius: "6px",
+            cursor: hasResult ? "pointer" : "not-allowed",
+            transition: "all 0.2s",
           }}
         >
           SAVE
         </button>
-        <button 
-          onClick={onClose}
+        <button
+          onClick={handleCloseExternal}
           className="cancel-button"
           style={{
-            height: '40px',
-            padding: '0 24px',
-            fontSize: '15px',
-            fontWeight: '600',
-            color: '#374151',
-            backgroundColor: '#f3f4f6',
-            border: '1px solid #d1d5db',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
+            height: "40px",
+            padding: "0 24px",
+            fontSize: "15px",
+            fontWeight: "600",
+            color: "#374151",
+            backgroundColor: "#f3f4f6",
+            border: "1px solid #d1d5db",
+            borderRadius: "6px",
+            cursor: "pointer",
+            transition: "all 0.2s",
           }}
         >
           닫기

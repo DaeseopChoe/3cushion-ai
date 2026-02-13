@@ -1,9 +1,9 @@
 {
-    "system": "99to1_system",
+    "system": "99_to_1_system",
     "display": {
-        "name_key": "system.99to1.name",
-        "short_name_key": "system.99to1.short",
-        "description_key": "system.99to1.desc",
+        "name_key": "system.99_to_1.name",
+        "short_name_key": "system.99_to_1.short",
+        "description_key": "system.99_to_1.desc",
         "category": "calculation",
         "difficulty": "easy",
         "tags": [
@@ -13,9 +13,9 @@
             "4c_based"
         ],
         "overlay_keys": {
-            "how_to_use": "system.99to1.howto",
-            "caution": "system.99to1.caution",
-            "tip": "system.99to1.tip"
+            "how_to_use": "system.99_to_1.howto",
+            "caution": "system.99_to_1.caution",
+            "tip": "system.99_to_1.tip"
         }
     },
     "formula": {
@@ -57,7 +57,7 @@
         "version": "1.0",
         "role": "system_definition",
         "notes": [
-            "99to1 is a reverse-calculation system",
+            "99_to_1 is a reverse-calculation system",
             "First cushion (C1) is always derived, never an input",
             "System assumes center hit with no side spin",
             "Accuracy depends primarily on 4C anchor precision",
