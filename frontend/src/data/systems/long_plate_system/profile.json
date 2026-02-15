@@ -1,6 +1,6 @@
 {
   "system": "Plate System",
-  "formula": "1C_f = CO_f - 4C_r",
+  "formula": { "expr": "C1_f = CO_f - C4_r" },
   "value_domains": {
     "CO_sys": [
       50,
@@ -10,7 +10,7 @@
       90,
       100
     ],
-    "1C_sys": [
+    "C1_sys": [
       0,
       10,
       20,
@@ -22,7 +22,7 @@
       80,
       90
     ],
-    "4C_sys": [
+    "C4_sys": [
       50,
       60,
       70,
@@ -37,7 +37,7 @@
     "m_min": 0.05,
     "theta_t_max": 68,
     "no_extrapolation": true,
-    "valid_4C_range": [
+    "valid_C4_range": [
       50,
       90
     ]

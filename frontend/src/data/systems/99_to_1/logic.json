@@ -1,11 +1,11 @@
 {
-  "system": "99to1_system",
+  "system": "99_to_1_system",
 
   "applicability": {
-    "required_marks": ["CO", "4C"],
+    "required_marks": ["CO", "C4"],
     "notes": [
       "99 to 1 system is a reverse-calculation system",
-      "Used when 4C arrival point is known and 1C is to be derived"
+      "Used when 4C arrival point is known and C1 is to be derived"
     ]
   },
 
@@ -39,8 +39,8 @@
     }
   },
 
-  "required_marks": ["CO", "4C"],
-  "optional_marks": ["1C"],
+  "required_marks": ["CO", "C4"],
+  "optional_marks": ["C1"],
 
   "hp_policy": {
     "co_required": true,
@@ -61,7 +61,7 @@
   "notes": [
     "Track is determined solely by CO rail position",
     "No left/right ambiguity handling is required",
-    "1C is always a derived value, never an input",
+    "C1 is always a derived value, never an input",
     "System identity is resolved in profile and derivations layers"
   ],
 

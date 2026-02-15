@@ -2,10 +2,10 @@
   "system": "1byhalf",
 
   "applicability": {
-    "required_marks": ["CO", "3C"],
+    "required_marks": ["CO", "C3"],
     "notes": [
-      "1byhalf system is used to reach specific 3C y targets",
-      "System combines base tip from CO with correction from 3C"
+      "1byhalf system is used to reach specific C3 y targets",
+      "System combines base tip from CO with correction from C3"
     ]
   },
 
@@ -17,16 +17,16 @@
   },
 
   "input_constraints": {
-    "3C_y_allowed": [11, 15, 19],
+    "C3_y_allowed": [11, 15, 19],
     "corner_allowed": ["LEFT", "RIGHT"]
   },
 
-  "required_marks": ["CO", "3C"],
-  "optional_marks": ["1C"],
+  "required_marks": ["CO", "C3"],
+  "optional_marks": ["C1"],
 
   "result_policy": {
-    "primary_result": "1C",
-    "description": "Primary output is first cushion position (1C)"
+    "primary_result": "C1",
+    "description": "Primary output is first cushion position (C1)"
   },
 
   "hp_policy": {
@@ -35,8 +35,8 @@
   },
 
   "notes": [
-    "3C target y determines correction tip value",
-    "Corner RIGHT mirrors 1C x-coordinate after derivation",
+    "C3 target y determines correction tip value",
+    "Corner RIGHT mirrors C1 x-coordinate after derivation",
     "Track choice does not depend on numeric comparison; it is canonical"
   ],
 

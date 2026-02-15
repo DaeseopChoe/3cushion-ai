@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TrajectoryPhase } from './useTrajectoryState';
-import { SYSTEM_PROFILES } from '../systems';
+import { SYSTEM_PROFILES } from '../data/systems';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
 import { buildTrajectorySamples } from '../utils/trajectorySampleBuilder';
 

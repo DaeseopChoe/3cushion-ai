@@ -7,44 +7,44 @@
 
     "ruleset": [
       {
-        "if": "CO.rail == BOTTOM && 1C.known && 1C.side == RIGHT",
+        "if": "CO.rail == BOTTOM && C1.known && C1.side == RIGHT",
         "then": "B2T_L"
       },
       {
-        "if": "CO.rail == BOTTOM && 1C.known && 1C.side == LEFT",
+        "if": "CO.rail == BOTTOM && C1.known && C1.side == LEFT",
         "then": "B2T_R"
       },
       {
-        "if": "CO.rail == TOP && 1C.known && 1C.side == RIGHT",
+        "if": "CO.rail == TOP && C1.known && C1.side == RIGHT",
         "then": "T2B_R"
       },
       {
-        "if": "CO.rail == TOP && 1C.known && 1C.side == LEFT",
+        "if": "CO.rail == TOP && C1.known && C1.side == LEFT",
         "then": "T2B_L"
       },
 
       {
-        "if": "CO.rail == BOTTOM && !1C.known && CO.x > 3C.x",
+        "if": "CO.rail == BOTTOM && !C1.known && CO.x > C3.x",
         "then": "B2T_L"
       },
       {
-        "if": "CO.rail == BOTTOM && !1C.known && CO.x < 3C.x",
+        "if": "CO.rail == BOTTOM && !C1.known && CO.x < C3.x",
         "then": "B2T_R"
       },
       {
-        "if": "CO.rail == TOP && !1C.known && CO.x > 3C.x",
+        "if": "CO.rail == TOP && !C1.known && CO.x > C3.x",
         "then": "T2B_R"
       },
       {
-        "if": "CO.rail == TOP && !1C.known && CO.x < 3C.x",
+        "if": "CO.rail == TOP && !C1.known && CO.x < C3.x",
         "then": "T2B_L"
       }
     ],
 
     "tie_breaker": {
-      "condition": "|CO.x - 3C.x| <= 0.02",
+      "condition": "|CO.x - C3.x| <= 0.02",
       "priority": [
-        "prefer_3C_side_rail",
+        "prefer_C3_side_rail",
         "prefer_existing_anchor"
       ]
     }
@@ -52,12 +52,12 @@
 
   "required_marks": ["CO"],
 
-  "optional_marks": ["1C", "3C"],
+  "optional_marks": ["C1", "C3"],
 
   "hp_policy": {
     "co_required": true,
     "pattern": "long-short-long",
-    "description": "CO_sys + 1C_sys = 3C_sys"
+    "description": "CO_sys + C1_sys = C3_sys"
   },
 
   "space_assumptions": {
@@ -71,9 +71,9 @@
 
   "notes": [
     "Plus system uses CO as mandatory reference mark",
-    "If 1C is known, track is decided immediately by side rail",
-    "If 1C is unknown, CO.x vs 3C.x comparison is used",
-    "Tie cases are resolved by 3C side rail, then anchor existence",
+    "If C1 is known, track is decided immediately by side rail",
+    "If C1 is unknown, CO.x vs C3.x comparison is used",
+    "Tie cases are resolved by C3 side rail, then anchor existence",
     "All sys calculations are performed outside logic.json"
   ],
 

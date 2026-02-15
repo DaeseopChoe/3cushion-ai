@@ -1,5 +1,13 @@
 {
-  "id": "rodriguez",
-  "로드리게스 시스템",
-  "description": "장쿠션 근처의 앞 공을 선택하여 옆 돌리기할 때 매우 유용"
+  "system_id": "rodriguez",
+  "family": "plus",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 2,
+  "notes": "reviewed"
 }

@@ -1,5 +1,13 @@
 {
-  "id": "ball_system",
-  "label": "볼 시스템",
-  "description": "옆 돌리기할 때 두께와 타점 선정이 자유로워 득점과 포지션 플레이할 때 유용"
+  "system_id": "ball_system",
+  "family": "5_half",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 4,
+  "notes": "reviewed"
 }

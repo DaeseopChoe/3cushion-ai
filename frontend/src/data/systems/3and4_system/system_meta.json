@@ -1,5 +1,13 @@
 {
-  "id": "3and4_system",
-  "label": "3과 4 시스템",
-  "description": "4쿠션 도착값을 계산하는 유일한 긴 각 앞돌려치기 시스템"
+  "system_id": "3and4_system",
+  "family": "other",
+  "required_cushions": 4,
+  "canonical_track": "B2T_L",
+  "entry_rail": "ANY",
+  "exit_rail": "ANY",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 3,
+  "notes": "reviewed"
 }

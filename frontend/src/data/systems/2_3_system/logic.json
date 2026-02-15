@@ -2,9 +2,9 @@
   "system": "2_3_system",
 
   "applicability": {
-    "required_marks": ["CO", "3C"],
+    "required_marks": ["CO", "C3"],
     "notes": [
-      "Two-Thirds system derives 1C from CO and 3C",
+      "Two-Thirds system derives C1 from CO and C3",
       "System supports spin adjustment via discrete tip values"
     ]
   },
@@ -19,12 +19,12 @@
     "tip_allowed": [0, 1, 2, 3, 4]
   },
 
-  "required_marks": ["CO", "3C"],
-  "optional_marks": ["1C"],
+  "required_marks": ["CO", "C3"],
+  "optional_marks": ["C1"],
 
   "result_policy": {
-    "primary_result": "1C",
-    "description": "Primary output is first cushion position (1C)"
+    "primary_result": "C1",
+    "description": "Primary output is first cushion position (C1)"
   },
 
   "hp_policy": {
@@ -33,7 +33,7 @@
   },
 
   "notes": [
-    "Track is detected from CO and 3C rail positions",
+    "Track is detected from CO and C3 rail positions",
     "System operates strictly in system-value space (sys-only)",
     "Coordinate symmetry is applied only after calculation"
   ],

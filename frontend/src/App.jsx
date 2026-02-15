@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
 import { useShotSlots } from "./hooks/useShotSlots";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
-import { SYSTEM_PROFILES } from "./systems";
+import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
 
 const ADMIN_BUTTONS = ["SYS", "HPT", "STR", "AI"];

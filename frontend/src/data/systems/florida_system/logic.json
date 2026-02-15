@@ -48,8 +48,8 @@
     "source_reference": "Florida_system_track_selector.py"
   },
 
-  "required_marks": ["CO", "4C"],
-  "optional_marks": ["1C"],
+  "required_marks": ["CO", "C4"],
+  "optional_marks": ["C1"],
 
   "input_validation": {
     "rail_required": true,
@@ -57,7 +57,7 @@
     "error_on_missing": true,
     "error_messages": {
       "missing_CO": "CO 입력이 필요합니다.",
-      "missing_4C": "4C 입력이 필요합니다.",
+      "missing_C4": "4C 입력이 필요합니다.",
       "invalid_CO_position": "CO는 TOP 또는 BOTTOM 레일 상수선에 있어야 합니다."
     }
   },
@@ -73,7 +73,7 @@
 
   "meta": {
     "spec_version": "v1.3",
-    "generator": "3Cushion AI (PM)",
+    "generator": "C3ushion AI (PM)",
     "no_calc_in_logic": true,
     "last_updated": "2026-01-11",
     "source": "Florida_system_track_selector.py"

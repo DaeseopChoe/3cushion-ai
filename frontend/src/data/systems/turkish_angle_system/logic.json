@@ -4,9 +4,9 @@
   "role": "track_selection_only",
 
   "input_policy": {
-    "required_marks": ["CO", "3C"],
+    "required_marks": ["CO", "C3"],
     "optional_marks": ["track"],
-    "note": "track이 명시되면 그대로 사용하고, 없으면 CO/3C 좌표 힌트로 추론한다."
+    "note": "track이 명시되면 그대로 사용하고, 없으면 CO/C3 좌표 힌트로 추론한다."
   },
 
   "track_policy": {
@@ -20,19 +20,19 @@
 
     "ruleset": [
       {
-        "if": "(CO.x≈-2.25 OR CO.y≈-2.25) AND 3C.y≈-2.25 AND (CO.x < 3C.x)",
+        "if": "(CO.x≈-2.25 OR CO.y≈-2.25) AND C3.y≈-2.25 AND (CO.x < C3.x)",
         "then": "B2T_R"
       },
       {
-        "if": "(CO.x≈82.25 OR CO.y≈-2.25) AND 3C.y≈-2.25 AND (CO.x > 3C.x)",
+        "if": "(CO.x≈82.25 OR CO.y≈-2.25) AND C3.y≈-2.25 AND (CO.x > C3.x)",
         "then": "B2T_L"
       },
       {
-        "if": "(CO.x≈82.25 OR CO.y≈42.25) AND 3C.y≈42.25 AND (CO.x > 3C.x)",
+        "if": "(CO.x≈82.25 OR CO.y≈42.25) AND C3.y≈42.25 AND (CO.x > C3.x)",
         "then": "T2B_R"
       },
       {
-        "if": "(CO.x≈-2.25 OR CO.y≈42.25) AND 3C.y≈42.25 AND (CO.x < 3C.x)",
+        "if": "(CO.x≈-2.25 OR CO.y≈42.25) AND C3.y≈42.25 AND (CO.x < C3.x)",
         "then": "T2B_L"
       }
     ],

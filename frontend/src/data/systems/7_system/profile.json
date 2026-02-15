@@ -11,17 +11,18 @@
     "ko": {
       "title": "7 시스템 (터키식 앵글)",
       "short_title": "7 System",
-      "description": "CO와 3C의 시스템값을 이용해 1C를 산출하는 등각 계열 시스템. 타점은 중앙 고정."
+      "description": "CO와 C3의 시스템값을 이용해 C1를 산출하는 등각 계열 시스템. 타점은 중앙 고정."
     },
     "en": {
       "title": "Seven System (Turkish Angle)",
       "short_title": "7 System",
-      "description": "An angle-family system that derives 1C from CO and 3C system values. Tip (spin/english) fixed to center."
+      "description": "An angle-family system that derives C1 from CO and C3 system values. Tip (spin/english) fixed to center."
     }
   },
-  "formula_concept": {
-    "text": "1C is determined by the product of CO and 3C (conceptual).",
-    "symbols": ["CO", "3C", "1C"],
+  "formula": {
+    "expr": "C1_f = CO_f * C3_f",
+    "text": "C1 is determined by the product of CO and C3 (conceptual).",
+    "symbols": ["CO", "C3", "C1"],
     "note": "This is a concept statement for UI/notes only. Actual computation rules live in derivations/7_system.rules.json."
   },
   "aim_policy": {
@@ -34,10 +35,10 @@
   "ui": {
     "inputs": [
       { "id": "CO", "label_ko": "CO", "label_en": "CO" },
-      { "id": "3C", "label_ko": "3C", "label_en": "3C" }
+      { "id": "C3", "label_ko": "C3", "label_en": "C3" }
     ],
     "outputs": [
-      { "id": "1C", "label_ko": "1C", "label_en": "1C" }
+      { "id": "C1", "label_ko": "C1", "label_en": "C1" }
     ],
     "hints_ko": [
       "계산은 sys 도메인 전용이며, 좌표(Fg/Rg)는 입력/표시용입니다.",
@@ -54,7 +55,7 @@
   },
   "meta": {
     "rule_version": "v1.3",
-    "generator": "3Cushion AI (PM)",
+    "generator": "C3ushion AI (PM)",
     "no_calc_in_profile": true,
     "last_updated": "2026-01-11",
     "source_hint": "7_system_base_manual.txt"

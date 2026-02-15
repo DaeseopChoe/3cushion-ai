@@ -11,22 +11,22 @@
     "ko": {
       "title": "클레이 슈팅 시스템",
       "short_title": "Clay Shooting",
-      "description": "트랙을 먼저 선택한 뒤, sys-only 공식 1C = CO - 3C로 1C_sys를 계산하고, 선택 트랙의 1C 앵커로 좌표를 매핑한다."
+      "description": "트랙을 먼저 선택한 뒤, sys-only 공식 C1 = CO - C3로 C1_sys를 계산하고, 선택 트랙의 C1 앵커로 좌표를 매핑한다."
     },
     "en": {
       "title": "Clay Shooting System",
       "short_title": "Clay Shooting",
-      "description": "Select track first, compute 1C_sys by sys-only formula 1C = CO - 3C, then map to coordinates via 1C anchors of the selected track."
+      "description": "Select track first, compute C1_sys by sys-only formula C1 = CO - C3, then map to coordinates via C1 anchors of the selected track."
     }
   },
-  "formula_concept": {
-    "canonical": "1C_f = CO_f - 3C_f",
+  "formula": {
+    "expr": "C1_f = CO_f - C3_r",
     "note": "Concept only. All computation and mapping rules are defined in derivations/clay_shooting.rules.json."
   },
   "value_domains": {
     "CO_sys": { "min": -20, "max": 80, "step": 10 },
-    "3C_sys": { "min": -20, "max": 80, "step": 10 },
-    "1C_sys": { "min": -20, "max": 60, "step": 5 }
+    "C3_sys": { "min": -20, "max": 80, "step": 10 },
+    "C1_sys": { "min": -20, "max": 60, "step": 5 }
   },
   "aim_policy": {
     "tip": {
@@ -40,12 +40,12 @@
     "requires_track": true,
     "supported": [
       "B2T_L/R, T2B_L/R tracks",
-      "sys-only formula 1C = CO - 3C",
-      "sys -> coordinate mapping via 1C anchors"
+      "sys-only formula C1 = CO - C3",
+      "sys -> coordinate mapping via C1 anchors"
     ],
     "not_supported": [
       "systems requiring iterative solving",
-      "systems that compute 3C from CO dynamically"
+      "systems that compute C3 from CO dynamically"
     ]
   },
   "notes": {
@@ -58,7 +58,7 @@
   },
   "meta": {
     "spec_version": "v1.3",
-    "generator": "3Cushion AI (PM)",
+    "generator": "C3ushion AI (PM)",
     "no_calc_in_profile": true,
     "last_updated": "2026-01-11",
     "source": "Clay_shooting_system_profile.json"

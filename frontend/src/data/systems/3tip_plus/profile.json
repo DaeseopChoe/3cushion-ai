@@ -2,7 +2,7 @@
   "system": "3tip_plus",
 
   "formula": {
-    "expr": "CO_f - 1C_f = 3C_r"
+    "expr": "C3_r = CO_f - C1_f"
   },
 
   "value_domains": {
@@ -44,15 +44,15 @@
 
   "meta": {
     "version": "1.0",
-    "generator": "3Cushion AI",
+    "generator": "C3ushion AI",
     "no_preset_autofill": true,
 
     "notes": [
       "3tip_plus는 3팁 어크로스 계열에서 파생된 플러스형 시스템이다.",
       "회전은 고정이며 우선회(3시), 좌선회(9시)만 사용한다.",
       "공식은 단순하지만 CO_x 유효 범위가 제한적이므로 트랙 선택이 핵심이다.",
-      "CO와 1C는 프레임 기준, 3C는 레일 기준 시스템값이다.",
-      "실전에서는 1C를 직접 보지 않고 CO와 3C로 역산 활용하는 경우가 많다."
+      "CO와 C1는 프레임 기준, C3는 레일 기준 시스템값이다.",
+      "실전에서는 C1를 직접 보지 않고 CO와 C3로 역산 활용하는 경우가 많다."
     ]
   }
 }

@@ -1,5 +1,13 @@
 {
-  "id": "0tip_plus",
-  "label": "0팁 플러스",
-  "description": "큐볼이 단쿠션에 1포인트 이내에 있을 때 사용"
+  "system_id": "0tip plus",
+  "family": "plus",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 4,
+  "notes": "reviewed"
 }

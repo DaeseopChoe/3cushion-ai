@@ -1,5 +1,13 @@
 {
-  "id": "99_to_1",
-  "label": "99에서 1까지",
-  "description": "긴 각 세워치기할 때 매우 유용"
+  "system_id": "99 to 1",
+  "family": "other",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 2,
+  "notes": "reviewed"
 }

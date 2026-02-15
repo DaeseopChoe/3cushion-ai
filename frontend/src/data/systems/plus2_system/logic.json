@@ -12,44 +12,44 @@
 
     "ruleset": [
       {
-        "if": "CO.rail == BOTTOM && 1C.side == RIGHT",
+        "if": "CO.rail == BOTTOM && C1.side == RIGHT",
         "then": "B2T_L"
       },
       {
-        "if": "CO.rail == BOTTOM && 1C.side == LEFT",
+        "if": "CO.rail == BOTTOM && C1.side == LEFT",
         "then": "B2T_R"
       },
       {
-        "if": "CO.rail == TOP && 1C.side == RIGHT",
+        "if": "CO.rail == TOP && C1.side == RIGHT",
         "then": "T2B_R"
       },
       {
-        "if": "CO.rail == TOP && 1C.side == LEFT",
+        "if": "CO.rail == TOP && C1.side == LEFT",
         "then": "T2B_L"
       },
 
       {
-        "if": "CO.rail == BOTTOM && CO.x > 3C.x",
+        "if": "CO.rail == BOTTOM && CO.x > C3.x",
         "then": "B2T_L"
       },
       {
-        "if": "CO.rail == BOTTOM && CO.x < 3C.x",
+        "if": "CO.rail == BOTTOM && CO.x < C3.x",
         "then": "B2T_R"
       },
       {
-        "if": "CO.rail == TOP && CO.x > 3C.x",
+        "if": "CO.rail == TOP && CO.x > C3.x",
         "then": "T2B_R"
       },
       {
-        "if": "CO.rail == TOP && CO.x < 3C.x",
+        "if": "CO.rail == TOP && CO.x < C3.x",
         "then": "T2B_L"
       }
     ],
 
     "tie_breaker": {
-      "condition": "|CO.x - 3C.x| <= 0.02",
+      "condition": "|CO.x - C3.x| <= 0.02",
       "priority": [
-        "prefer_3C_side_rail",
+        "prefer_C3_side_rail",
         "prefer_existing_anchor"
       ]
     }
@@ -66,14 +66,14 @@
     }
   },
 
-  "required_marks": ["CO", "3C"],
-  "optional_marks": ["1C"],
+  "required_marks": ["CO", "C3"],
+  "optional_marks": ["C1"],
 
   "hp_policy": {
     "co_required": true,
     "pattern": "long-short-long",
     "fixed_plus": 20,
-    "description": "3C_sys = CO_sys + 1C_sys + 20"
+    "description": "C3_sys = CO_sys + C1_sys + 20"
   },
 
   "space_assumptions": {
@@ -88,7 +88,7 @@
   "notes": [
     "Plus2 system requires CO_sys < 20",
     "Spin direction is fixed by selected track",
-    "1C_sys is derived from CO_sys and target SFG lines",
+    "C1_sys is derived from CO_sys and target SFG lines",
     "All numeric derivations are handled outside logic.json"
   ],
 

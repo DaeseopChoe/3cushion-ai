@@ -1,5 +1,13 @@
 {
-  "id": "double_rail",
-  "label": "더블 레일",
-  "description": "접시 시스템과 비슷, 1쿠션 지점을 코너로 고정한다는 점이 다름"
+  "system_id": "double_rail",
+  "family": "plate",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 4,
+  "notes": "reviewed"
 }

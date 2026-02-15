@@ -1,5 +1,13 @@
 {
-  "id": "accordion",
-  "label": "아코디언",
-  "description": "횡단 샷, 각도가 없는 뱅크 샷에 유용"
+  "system_id": "accordion",
+  "family": "other",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 4,
+  "notes": "reviewed"
 }

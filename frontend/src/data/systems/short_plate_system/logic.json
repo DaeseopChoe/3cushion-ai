@@ -12,8 +12,8 @@
         "id": "B2T_R",
         "condition": {
           "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "short", "value": -2.25 },
-          "1C": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 81.5 },
-          "4C": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
+          "C1": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 81.5 },
+          "C4": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
         },
         "result": "B2T_R"
       },
@@ -21,8 +21,8 @@
         "id": "B2T_L",
         "condition": {
           "CO": { "space": "Fg", "rail": "BOTTOM", "axis": "short", "value": -2.25 },
-          "1C": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -1.5 },
-          "4C": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
+          "C1": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -1.5 },
+          "C4": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
         },
         "result": "B2T_L"
       },
@@ -30,8 +30,8 @@
         "id": "T2B_R",
         "condition": {
           "CO": { "space": "Fg", "rail": "TOP", "axis": "short", "value": 42.25 },
-          "1C": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -1.5 },
-          "4C": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
+          "C1": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -1.5 },
+          "C4": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
         },
         "result": "T2B_R"
       },
@@ -39,8 +39,8 @@
         "id": "T2B_L",
         "condition": {
           "CO": { "space": "Fg", "rail": "TOP", "axis": "short", "value": 42.25 },
-          "1C": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 81.5 },
-          "4C": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
+          "C1": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 81.5 },
+          "C4": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
         },
         "result": "T2B_L"
       }
@@ -52,7 +52,7 @@
     }
   },
 
-  "required_marks": ["CO", "1C", "4C"],
+  "required_marks": ["CO", "C1", "C4"],
 
   "input_validation": {
     "rail_required": true,
@@ -79,7 +79,7 @@
 
   "meta": {
     "spec_version": "v1.3",
-    "generator": "3Cushion AI (PM)",
+    "generator": "C3ushion AI (PM)",
     "no_calc_in_logic": true,
     "last_updated": "2026-01-12"
   }

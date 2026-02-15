@@ -1,5 +1,13 @@
 {
-  "id": "florida_system",
-  "label": "플로리다 시스템",
-  "description": "플러스5는 단쿠션 영역 커버하지만, 플로리다 시스템은 장쿠션 영역 커버"
+  "system_id": "florida_system",
+  "family": "other",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 5,
+  "notes": "reviewed"
 }
