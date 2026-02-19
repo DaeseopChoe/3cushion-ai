@@ -1,0 +1,217 @@
+본 문서는 3Cushion AI의 **계산 구조와 시스템 데이터 계층**만 다룬다.
+UI 구조, 렌더 구조, 리팩터링 청사진은 FRONTEND_ARCHITECTURE 문서에서 관리한다.
+
+1️⃣ 현재 실제 폴더 구조 (2026-02 기준)
+frontend/src/
+ ├── admin/
+ │   ├── sys/
+ │   ├── hpt/
+ │   ├── str/
+ │   ├── ai/
+ │   ├── save/
+ │   └── AdminContainer.tsx
+ │
+ ├── components/
+ ├── contexts/
+ ├── data/
+ │   └── systems/ (39 systems)
+ │
+ ├── hooks/
+ │   ├── useShotSlots.ts
+ │   └── useTrajectoryState.ts
+ │
+ ├── utils/
+ │   ├── systemCalculator.ts
+ │   ├── trajectorySampleBuilder.ts
+ │   └── layoutCalculator.js
+ │
+ ├── App.jsx
+ └── main.jsx
+
+
+✔ src/systems 제거 완료
+✔ src/data/systems 단일화 완료
+
+2️⃣ 시스템 데이터 계층 (Data Driven Architecture)
+
+모든 시스템은 JSON 기반으로 정의된다.
+
+frontend/src/data/systems/<systemId>/
+ ├── profile.json
+ ├── anchors.json
+ ├── logic.json
+ └── system_meta.json
+
+2.1 profile.json
+
+formula.expr 정의
+
+value_domains 정의
+
+출력 항목 정의
+
+UI 입력 구조 정의
+
+2.2 anchors.json
+
+기준 앵커 데이터
+
+Canonical 좌표 샘플
+
+궤적 검증 기준점
+
+2.3 logic.json
+
+시스템 특수 분기
+
+보정 로직 정의
+
+5_half 특수 처리 등
+
+3️⃣ 시스템 등록 방식
+
+파일:
+
+frontend/src/data/systems/index.ts
+
+const modules = import.meta.glob("./*/profile.json", { eager: true });
+
+
+✔ profile.json만 존재하면 자동 등록
+✔ 수동 import 금지
+✔ 코드 수정 없이 시스템 확장 가능
+
+4️⃣ 계산 모드 구분
+4.1 Admin Mode (실험/검증 모드)
+
+파일:
+
+admin/sys/useSysCalculation.ts
+
+
+특징:
+
+anchors 비의존
+
+expr 기반 순수 계산
+
+디버깅/검증 목적
+
+흐름:
+
+expr 파싱
+   ↓
+RHS 토큰화
+   ↓
+값 치환
+   ↓
+new Function 실행
+   ↓
+LHS 결과 반환
+
+4.2 App Mode (실제 시뮬레이션 모드)
+
+파일:
+
+utils/systemCalculator.ts
+utils/trajectorySampleBuilder.ts
+
+
+특징:
+
+anchors 기반 보정
+
+value_domains 검증
+
+trajectory 샘플 생성
+
+Stage 렌더 반영
+
+5️⃣ Draft / Applied 설계 원칙 (공식 선언)
+
+전략 상태는 반드시 이중 구조를 따른다.
+
+Slot
+ ├── draft
+ └── applied
+
+Draft
+
+실시간 계산
+
+수정 중 상태
+
+Preview
+
+Applied
+
+확정 상태
+
+저장 대상
+
+trajectory 계산 기준
+
+✔ Draft는 저장하지 않는다
+✔ Applied만 저장한다
+
+6️⃣ 전략 → 궤적 → 물리 연결 구조 (공식 파이프라인)
+SysOverlay 입력
+   ↓
+useShotSlots.updateDraftSys()
+   ↓
+calculateByProfileExpr()
+   ↓
+draft.sys.outputs.result
+   ↓
+useShotSlots.applyDraftSys()
+   ↓
+applied.sys
+   ↓
+useTrajectoryState.applySysResult()
+   ↓
+Trajectory adjusted
+   ↓
+Physics Engine (Impact 계산)
+   ↓
+Stage Rendering (SVG)
+
+7️⃣ App.jsx 현재 상태 요약 (계산 관점)
+
+App.jsx는 계산 관점에서:
+
+좌표 변환 엔진 (Fg/Rg/px)
+
+물리 계산 엔진 (calcImpactBall, determineRotation, calculateImpact, adjustSystemLine)
+
+관리자 모드 분기
+
+상태 연결 허브
+
+을 담당한다. Physics 로직은 App.jsx 내부에 존재.
+
+8️⃣ 5_half 특수 구조
+
+CO_f 기준 보정
+
+Sn 계산
+
+C4_f 재정의
+
+C5_f, C6_f 동기화
+
+해당 분기는 logic.json 및 계산 엔진에서 처리된다.
+
+9️⃣ 상태 관리 원칙
+
+계산은 순수 함수로 유지
+
+useEffect에서 재계산 최소화
+
+파생 상태는 useMemo 사용
+
+Draft/Applied 분리 유지
+
+📌 최종 선언
+
+이 문서는 3Cushion AI 시스템 구조의 공식 명세서이다.
+구조 변경은 반드시 본 문서 대비 변경점으로 기록한다.

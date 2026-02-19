@@ -41,6 +41,12 @@ const CUSHION_RG = CUSHION_MM / RG_UNIT_MM;
 const FRAME_RG = FRAME_MM / RG_UNIT_MM;
 const POINT_OFFSET_RG = POINT_OFFSET_MM / RG_UNIT_MM;
 
+// ==================================================
+// 🔵 Physics Engine Block (Phase 2 분리 대상)
+// - 좌표 변환, 물리 계산, ImpactBall 등
+// - 외부 상태 의존 금지, 순수 함수 유지
+// ==================================================
+
 function toPx({ x, y }) {
   return { x: x * SCALE, y: TABLE_H - y * SCALE };
 }
@@ -367,6 +373,10 @@ function adjustSystemLine(CO_rg, C1_rg, impact) {
     C1_adj: { x: C1_rg.x + perp_x, y: C1_rg.y + perp_y },
   };
 }
+
+// ==================================================
+// 🔵 Physics Engine Block (끝)
+// ==================================================
 
 function groupSystemValuesByRail(anchors, systemValues, lastCushion) {
   const groups = { BOTTOM: [], TOP: [], LEFT: [], RIGHT: [] };
@@ -1214,11 +1224,73 @@ function SysOverlay({ data, onSave, onCancel }) {
   );
 }
 
-function HptOverlay({ data, onSave, onCancel }) {
+function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
   const [tempData, setTempData] = useState(data);
   const [lastChanged, setLastChanged] = useState(null); // 'x' or 'y'
   const [isClamped, setIsClamped] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [hpN, setHpN] = useState(0); // UI 전용, data 구조 없음, SYS HP_n 결과 반영용
+
+  // HP_n 방향 (UI 전용, 계산 미연결)
+  const [hpDirection, setHpDirection] = useState("right"); // "right" | "left"
+
+  // 회전 필드 Collapsed/Expanded (회전만)
+  const [isEditingRotation, setIsEditingRotation] = useState(false);
+  const [rotationDir, setRotationDir] = useState('left');
+
+  // 당점 필드 Collapsed/Expanded (당점만)
+  const [isEditingVertical, setIsEditingVertical] = useState(false);
+  const [verticalDir, setVerticalDir] = useState('top');
+
+  // HP_n → 타점 X/Y 변환 (3/5 반지름, 0.5 단위 각도)
+  function hpToTipXY(direction, hpN) {
+    const r = 4; // 4팁 = 점선 원 (3/5 지점)
+    const degPerTip = 22.5;
+    const deg = hpN * degPerTip;
+    const thetaDeg = direction === "right" ? deg : -deg;
+    const thetaRad = (thetaDeg * Math.PI) / 180;
+    const x = r * Math.sin(thetaRad);
+    const y = r * Math.cos(thetaRad);
+    return {
+      x: Number(x.toFixed(1)),
+      y: Number(y.toFixed(1)),
+    };
+  }
+
+  useEffect(() => {
+    if (sysHpNResult != null) {
+      setHpN(sysHpNResult);
+    }
+  }, [sysHpNResult]);
+
+  useEffect(() => {
+    if (hpN == null || sysHpNResult == null) return;
+    const { x, y } = hpToTipXY(hpDirection, hpN);
+    setTempData(prev => ({
+      ...prev,
+      hit_point: { x, y },
+    }));
+  }, [hpN, hpDirection, sysHpNResult]);
+
+  useEffect(() => {
+    const rawX = safeNum(tempData.hit_point?.x);
+    const mag = Math.abs(rawX);
+    if (mag === 0) {
+      setIsEditingRotation(false);
+    } else {
+      setRotationDir(rawX < 0 ? 'left' : 'right');
+    }
+  }, [tempData.hit_point?.x]);
+
+  useEffect(() => {
+    const rawY = safeNum(tempData.hit_point?.y);
+    const mag = Math.abs(rawY);
+    if (mag === 0) {
+      setIsEditingVertical(false);
+    } else {
+      setVerticalDir(rawY > 0 ? 'top' : 'bottom');
+    }
+  }, [tempData.hit_point?.y]);
 
   // T값 옵션 (0/8 ~ 8/8, 17개)
   const T_OPTIONS = [
@@ -1247,15 +1319,27 @@ function HptOverlay({ data, onSave, onCancel }) {
   const MAX_VALUE = 4.0;
   const CLAMP_RADIUS = 4.0; // 점선 원 = 입력값 4까지
 
+  const safeNum = (v) => (typeof v === 'number' && !isNaN(v) ? v : 0);
+
   const handleHitPointChange = (axis, rawValue) => {
+    // 입력 도중 상태 허용 (-, "", . 등)
+    if (rawValue === '' || rawValue === '-' || rawValue === '.' || rawValue === '-.') {
+      setTempData(prev => ({
+        ...prev,
+        hit_point: { ...prev.hit_point, [axis]: rawValue },
+      }));
+      return;
+    }
+
+    const num = parseFloat(rawValue);
+    if (isNaN(num)) return;
+
     // 1차 제한: ±4, 소수점 1자리
-    let value = parseFloat(rawValue);
-    if (isNaN(value)) value = 0;
-    value = Math.max(-MAX_VALUE, Math.min(MAX_VALUE, value));
+    let value = Math.max(-MAX_VALUE, Math.min(MAX_VALUE, num));
     value = Math.round(value * 10) / 10;
 
-    const currentX = axis === 'x' ? value : (tempData.hit_point?.x ?? 0);
-    const currentY = axis === 'y' ? value : (tempData.hit_point?.y ?? 0);
+    const currentX = axis === 'x' ? value : safeNum(tempData.hit_point?.x);
+    const currentY = axis === 'y' ? value : safeNum(tempData.hit_point?.y);
 
     // 2차 제한: 원형 클램프 (한계 반지름 4)
     const distance = Math.sqrt(currentX ** 2 + currentY ** 2);
@@ -1511,8 +1595,8 @@ function HptOverlay({ data, onSave, onCancel }) {
           
           {/* 타점 마커 */}
           {(() => {
-            const hitX = tempData.hit_point?.x ?? 0;
-            const hitY = tempData.hit_point?.y ?? 0;
+            const hitX = safeNum(tempData.hit_point?.x);
+            const hitY = safeNum(tempData.hit_point?.y);
             
             // 타점 좌표를 픽셀로 변환 (±4 → 볼 반지름 60%)
             const scale = limit60Radius / MAX_VALUE;
@@ -1535,73 +1619,235 @@ function HptOverlay({ data, onSave, onCancel }) {
       </div>
 
       {/* ========================================
-          입력 필드
+          상단 2줄 × 3등분: 두께 | 회전 | 당점
       ======================================== */}
-      {/* T값 선택 */}
       <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
-          두께 (Thickness)
-        </label>
-        <select
-          value={tempData.T ?? "8/8"}
-          onChange={(e) => setTempData({ ...tempData, T: e.target.value })}
-          style={{
-            width: '100%',
-            padding: '8px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-        >
-          {T_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+        {/* 필드명 줄 */}
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '4px' }}>
+          <div style={{ flex: 1, fontWeight: '600' }}>두께</div>
+          <div style={{ flex: 1, fontWeight: '600' }}>회전</div>
+          <div style={{ flex: 1, fontWeight: '600' }}>당점</div>
+        </div>
+        {/* 필드값 줄 */}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <select
+              value={tempData.T ?? "8/8"}
+              onChange={(e) => setTempData({ ...tempData, T: e.target.value })}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            >
+              {T_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          {/* 회전 (hit_point.x): Collapsed / Expanded */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {(() => {
+              const rawX = safeNum(tempData.hit_point?.x);
+              const rotationMag = Math.abs(rawX);
+              const displayDir = rawX < 0 ? 'left' : 'right';
+
+              const handleRotationChange = (value) => {
+                const num = Number(value);
+                if (isNaN(num)) return;
+                const mag = clamp(num, 0, 4);
+                const newX = rotationDir === 'left' ? -mag : mag;
+                handleHitPointChange('x', String(newX));
+                if (mag === 0) setIsEditingRotation(false);
+              };
+
+              if (!isEditingRotation) {
+                return (
+                  <div
+                    onClick={() => setIsEditingRotation(true)}
+                    style={{
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      padding: '6px 10px',
+                      width: '100%',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    {rotationMag === 0
+                      ? '회전 0팁'
+                      : `${displayDir === 'left' ? '좌측' : '우측'} ${rotationMag.toFixed(1)}팁`}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    width: '100%'
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRotationDir(prev => prev === 'left' ? 'right' : 'left');
+                      const newDir = rotationDir === 'left' ? 'right' : 'left';
+                      const newX = newDir === 'left' ? -rotationMag : rotationMag;
+                      handleHitPointChange('x', String(newX));
+                    }}
+                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}
+                  >
+                    {rotationDir === 'left' ? '좌측' : '우측'}
+                  </button>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="4"
+                    value={rotationMag}
+                    onChange={(e) => handleRotationChange(e.target.value)}
+                    style={{
+                      width: '48px',
+                      padding: '4px 6px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
+                  <span style={{ fontSize: '14px' }}>팁</span>
+                </div>
+              );
+            })()}
+          </div>
+          {/* 당점 (hit_point.y): Collapsed / Expanded (회전과 동일 구조) */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {(() => {
+              const rawY = safeNum(tempData.hit_point?.y);
+              const verticalMag = Math.abs(rawY);
+              const displayDir = rawY > 0 ? 'top' : 'bottom';
+
+              const handleVerticalChange = (value) => {
+                const num = Number(value);
+                if (isNaN(num)) return;
+                const mag = clamp(num, 0, 4);
+                const newY = verticalDir === 'top' ? mag : -mag;
+                handleHitPointChange('y', String(newY));
+                if (mag === 0) setIsEditingVertical(false);
+              };
+
+              if (!isEditingVertical) {
+                return (
+                  <div
+                    onClick={() => setIsEditingVertical(true)}
+                    style={{
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      padding: '6px 10px',
+                      width: '100%',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    {verticalMag === 0
+                      ? '당점 0팁'
+                      : `${displayDir === 'top' ? '상단' : '하단'} ${verticalMag.toFixed(1)}팁`}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    width: '100%'
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerticalDir(prev => prev === 'top' ? 'bottom' : 'top');
+                      const newDir = verticalDir === 'top' ? 'bottom' : 'top';
+                      const newY = newDir === 'top' ? verticalMag : -verticalMag;
+                      handleHitPointChange('y', String(newY));
+                    }}
+                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}
+                  >
+                    {verticalDir === 'top' ? '상단' : '하단'}
+                  </button>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="4"
+                    value={verticalMag}
+                    onChange={(e) => handleVerticalChange(e.target.value)}
+                    style={{
+                      width: '48px',
+                      padding: '4px 6px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
+                  <span style={{ fontSize: '14px' }}>팁</span>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
       </div>
 
-      {/* 타점 X */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
-          타점 X (Rg)
-        </label>
-        <input
-          type="number"
-          step="0.1"
-          min="-4"
-          max="4"
-          value={tempData.hit_point?.x ?? 0}
-          onChange={(e) => handleHitPointChange('x', e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-        />
-      </div>
-
-      {/* 타점 Y */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '600' }}>
-          타점 Y (Rg)
-        </label>
-        <input
-          type="number"
-          step="0.1"
-          min="-4"
-          max="4"
-          value={tempData.hit_point?.y ?? 0}
-          onChange={(e) => handleHitPointChange('y', e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-        />
-      </div>
+      {/* HP_n 별도 줄 (sysHpNResult 있을 때만) */}
+      {sysHpNResult != null && (
+        <div style={{ marginTop: '16px' }}>
+          <span style={{ marginRight: '8px', fontWeight: '600' }}>HP_n :</span>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              border: '1px solid #cbd5e1',
+              borderRadius: '6px',
+              padding: '6px 10px',
+              marginTop: '4px'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setHpN(prev => Math.max(0, Number((prev - 0.5).toFixed(1))))}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}
+            >
+              −
+            </button>
+            <span
+              onClick={() => setHpDirection(prev => (prev === 'left' ? 'right' : 'left'))}
+              style={{ cursor: 'pointer', fontSize: '14px', margin: '0 8px' }}
+            >
+              {hpDirection === 'left' ? '좌측' : '우측'} {hpN}팁
+            </span>
+            <button
+              type="button"
+              onClick={() => setHpN(prev => Math.min(4, Number((prev + 0.5).toFixed(1))))}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}
+            >
+              +
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 버튼 */}
       <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
@@ -2264,6 +2510,9 @@ export default function App({ currentButtonId }) {
     open: false,
     type: null // "SYS" | "HPT" | "STR" | "AI" | null
   });
+
+  /** SYS에서 계산된 HP_n 결과 임시 저장 (HP/T 열릴 때만 반영, UI 동기화용) */
+  const [sysHpNResult, setSysHpNResult] = useState(null);
   
   // ============================================
   // ImpactBall 모드 상태
@@ -3366,6 +3615,12 @@ function handlePointerCancel(e) {
                       console.error('❌ [STEP7] applyDraftSys 실패:', applyResult.reason);
                     }
                   }
+
+                  if (newData.calculated?.HP_n != null) {
+                    setSysHpNResult(newData.calculated.HP_n);
+                  } else {
+                    setSysHpNResult(null);
+                  }
                   
                   closeOverlay();
                 }}
@@ -3376,6 +3631,7 @@ function handlePointerCancel(e) {
             {overlayState.type === 'HPT' && (
               <HptOverlay
                 data={adminState.hpt}
+                sysHpNResult={sysHpNResult}
                 onSave={(newData) => {
                   setAdminState({ ...adminState, hpt: newData });
                   closeOverlay();

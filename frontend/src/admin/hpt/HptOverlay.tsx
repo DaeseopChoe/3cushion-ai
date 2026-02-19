@@ -2,13 +2,45 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useHptController } from "./useHptController";
-import type { Point } from "@/data/system/calculator/types";
+
+/** HP_n 입력 필드 (UI만, sys 연결 없음) */
+function HpNInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: "64px" }}>
+      <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>
+        HP_n
+      </label>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => {
+          const v = e.target.value === "" ? 0 : Number(e.target.value);
+          onChange(Number.isNaN(v) ? 0 : v);
+        }}
+        style={{
+          padding: "8px 12px",
+          fontSize: "14px",
+          border: "1px solid #cbd5e1",
+          borderRadius: "6px",
+          backgroundColor: "white",
+          width: "100%",
+        }}
+      />
+    </div>
+  );
+}
 
 interface Props {
-  cue: Point | null;
-  target: Point | null;
+  cue: { x: number; y: number } | null;
+  target: { x: number; y: number } | null;
   value: {
-    hp: Point;
+    hp: { x: number; y: number };
     T: string;
   };
   onChange: (next: Props["value"]) => void;
@@ -26,8 +58,8 @@ function HpJoystick({
   hp,
   onHpChange,
 }: {
-  hp: Point;
-  onHpChange: (next: Point) => void;
+  hp: { x: number; y: number };
+  onHpChange: (next: { x: number; y: number }) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -41,7 +73,7 @@ function HpJoystick({
   /**
    * 픽셀 좌표 → Rg 좌표 변환
    */
-  const pixelToRg = useCallback((px: number, py: number): Point => {
+  const pixelToRg = useCallback((px: number, py: number): { x: number; y: number } => {
     const rgX = (px - JOYSTICK_SIZE / 2) / SCALE;
     const rgY = (py - JOYSTICK_SIZE / 2) / SCALE;
     
@@ -60,7 +92,7 @@ function HpJoystick({
   /**
    * Rg 좌표 → 픽셀 좌표 변환
    */
-  const rgToPixel = useCallback((rg: Point): { x: number; y: number } => {
+  const rgToPixel = useCallback((rg: { x: number; y: number }): { x: number; y: number } => {
     return {
       x: rg.x * SCALE + JOYSTICK_SIZE / 2,
       y: rg.y * SCALE + JOYSTICK_SIZE / 2,
@@ -257,7 +289,10 @@ export function HptOverlay({
     hpt: value,
     onChange,
   });
-  
+
+  /** HP_n (UI 전용, 기본값 0, sys 미연결) */
+  const [hpN, setHpN] = useState(0);
+
   // T값 옵션 (17개 전체)
   const T_OPTIONS = [
     { value: "8/8", label: "정면 (8/8)" },
@@ -294,37 +329,98 @@ export function HptOverlay({
         HP / T 설정
       </h3>
 
-      {/* HP 조이스틱 영역 */}
+      {/* HPT 입력 1줄: [두께] [HP_n] [타점X] [타점Y] */}
+      <div
+        className="hpt-row"
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "flex-end",
+          gap: "12px",
+          marginBottom: "24px",
+        }}
+      >
+        {/* 두께 */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", flex: 1, minWidth: 0 }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>
+            두께
+          </label>
+          <select
+            value={hpt.T}
+            onChange={(e) => hpt.setT(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              fontSize: "14px",
+              border: "1px solid #cbd5e1",
+              borderRadius: "6px",
+              backgroundColor: "white",
+              cursor: "pointer",
+            }}
+          >
+            {T_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* HP_n (신규, UI만) */}
+        <HpNInput value={hpN} onChange={setHpN} />
+
+        {/* 타점X */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: "64px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>
+            타점X
+          </label>
+          <input
+            type="number"
+            value={hpt.hp.x}
+            onChange={(e) => {
+              const v = e.target.value === "" ? 0 : Number(e.target.value);
+              hpt.setHp({ ...hpt.hp, x: Number.isNaN(v) ? 0 : v });
+            }}
+            step="0.01"
+            style={{
+              padding: "8px 12px",
+              fontSize: "14px",
+              border: "1px solid #cbd5e1",
+              borderRadius: "6px",
+              backgroundColor: "white",
+            }}
+          />
+        </div>
+
+        {/* 타점Y */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: "64px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>
+            타점Y
+          </label>
+          <input
+            type="number"
+            value={hpt.hp.y}
+            onChange={(e) => {
+              const v = e.target.value === "" ? 0 : Number(e.target.value);
+              hpt.setHp({ ...hpt.hp, y: Number.isNaN(v) ? 0 : v });
+            }}
+            step="0.01"
+            style={{
+              padding: "8px 12px",
+              fontSize: "14px",
+              border: "1px solid #cbd5e1",
+              borderRadius: "6px",
+              backgroundColor: "white",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* HP 조이스틱 (타점 시각 입력 보조) */}
       <HpJoystick
         hp={hpt.hp}
         onHpChange={hpt.setHp}
       />
-
-      {/* 두께 선택 */}
-      <div style={{ marginBottom: "24px" }}>
-        <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>
-          두께 (Thickness)
-        </label>
-        <select
-          value={hpt.T}
-          onChange={(e) => hpt.setT(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "8px 12px",
-            fontSize: "14px",
-            border: "1px solid #cbd5e1",
-            borderRadius: "6px",
-            backgroundColor: "white",
-            cursor: "pointer",
-          }}
-        >
-          {T_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
       
       {/* ImpactBall 위치 표시 (참고용) */}
       {hpt.impactBall && (
