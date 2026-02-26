@@ -41,6 +41,7 @@ export default function AdminContainer() {
   const [hpt, setHpt] = useState<any>({
     hp: { x: 0, y: 0 },
     T: "8/8",
+    mode: "TIP",
   });
   const hptCtrl = useHptController({
     hpt,
@@ -112,10 +113,7 @@ export default function AdminContainer() {
       {open === "HPT" && (
         <HptOverlay
           hpt={hpt}
-          onApply={(next) => {
-            setHpt(next);
-            setOpen(null);
-          }}
+          onChange={(next) => setHpt(next)}
           onCancel={() => setOpen(null)}
         />
       )}

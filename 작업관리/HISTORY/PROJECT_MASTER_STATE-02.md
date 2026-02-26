@@ -1,360 +1,234 @@
+# PROJECT_MASTER_STATE (2026-02 공식 기준)
+
 본 문서는 3Cushion AI 프로젝트의
-현재 구조, 계산 체계, 안정 상태, 남은 이슈를 통합 기록하는
-운영 기준 문서이다.
+현재 구조, 상태 모델, 전략 출력 체계,
+HPT 설계 상태를 통합 정의하는 공식 기준 문서이다.
 
-이 문서는 월 단위로 업데이트하며,
-새 채팅창 작업의 기준점으로 사용한다.
-
----
-
-# 1️⃣ 현재 실제 폴더 구조 (Frontend 기준)
-
-frontend/
- ├── src/
- │    ├── admin/
- │    │    ├── ai/
- │    │    ├── hpt/
- │    │    ├── str/
- │    │    ├── sys/
- │    │    ├── save/
- │    │    ├── tests/
- │    │    └── AdminContainer.tsx
- │    │
- │    ├── assets/
- │    ├── components/
- │    ├── contexts/
- │    ├── data/
- │    │    └── systems/   (39개 시스템)
- │    │
- │    ├── hooks/
- │    │    ├── useShotSlots.ts
- │    │    └── useTrajectoryState.ts
- │    │
- │    ├── lib/
- │    ├── styles/
- │    ├── utils/
- │    │    ├── systemCalculator.ts
- │    │    ├── trajectorySampleBuilder.ts
- │    │    └── layoutCalculator.js
- │    │
- │    ├── App.jsx
- │    └── main.jsx
- │
- └── docs/
-      ├── PROJECT_MASTER_INDEX.md
-      ├── FRONTEND_ARCHITECTURE_BASELINE_v1.md
-      ├── SYSTEM_ARCHITECTURE.md
-      ├── CALCULATION_RULES.md
-      └── PROJECT_MASTER_STATE-02.md
+이 문서는 월 단위 기준선으로 사용한다.
 
 ---
 
-# 2️⃣ 구조 정리 완료 사항
+# 1️⃣ 현재 프로젝트 상태 요약 (2026-02)
 
-## ✅ 1. 시스템 폴더 단일화
+| 항목 | 상태 |
+|------|------|
+| 폴더 구조 | 안정 |
+| SYSTEM_PROFILES | 동적 로딩(import.meta.glob) |
+| Admin/App 계산 분리 | 완료 |
+| HPT 모델 | 극좌표 기반 모델 도입 |
+| SYS → HPT 투영 | 부호 기반 방향 결정으로 안정화 |
+| AI 전략 출력 체계 | 확정 |
+| STR 기본값 | 확정 |
+| 원 포인트 레슨 | 도입 완료 |
+| Drag & Drop | 도입 완료 |
+| App.jsx 구조 | 슈퍼 컨트롤러 상태 유지 |
+| 물리 엔진 분리 | 미완료 |
 
-단일 기준 경로:
-
-frontend/src/data/systems/
-
-- src/systems 제거 완료
-- 루트 data 제거 완료
-- 중복 systems 제거 완료
-
----
-
-## ✅ 2. SYSTEM_PROFILES 로딩 방식 통일
-
-기존 (정적 import 방식) 제거
-
-현재:
-
-const modules = import.meta.glob("./*/profile.json", { eager: true });
-
-✔ profile.json만 존재하면 자동 등록
-✔ index.ts 수정 필요 없음
+현재 상태는 **구조 안정화 1차 완료 단계**이다.
 
 ---
 
-## ✅ 3. Admin/App 계산 분리 완료
+# 2️⃣ 계산 구조 (변경 없음)
 
-Admin 계산:
-src/admin/sys/useSysCalculation.ts
+## 🔵 Admin 계산
 
-App 계산:
-src/utils/systemCalculator.ts
-src/utils/trajectorySampleBuilder.ts
-
----
-
-## ✅ 4. import 경로 전면 정리 완료
-
-현재 정상 기준:
-
-./data/systems
-../data/systems
-../../data/systems
-
-src/systems 참조 0건
-린트 에러 없음
-화면 정상 동작
-
----
-
-# 3️⃣ 계산 흐름 구조 (현재 실제 동작 기준)
-
-## 🔵 Admin 계산 흐름
-
+```
 SysOverlay
    ↓
 useSysCalculation
    ↓
-SYSTEM_PROFILES[systemId]
-   ↓
 profile.formula.expr
    ↓
-RHS 토큰 파싱
-   ↓
 new Function 실행
-   ↓
-(5_half 특수 보정 포함)
+```
 
-특징:
-- 좌표 비의존
-- 순수 수식 계산
-- 실험/디버깅 목적
+좌표 비의존 순수 수식 계산.
 
 ---
 
-## 🔵 App 계산 흐름
+## 🔵 App 계산
 
+```
 LayoutContext
    ↓
 systemCalculator
    ↓
 calculateByProfileExpr
    ↓
-profile.formula.expr
-   ↓
-value_domains 검증
-   ↓
-anchors 기반 보정
-   ↓
 trajectorySampleBuilder
    ↓
 Stage 렌더링
+```
 
-특징:
-- 좌표 기반
-- 시뮬레이션 목적
-- trajectory 생성 포함
+좌표 기반 시뮬레이션 구조.
 
----
-
-# 4️⃣ Draft / Applied 설계 원칙
-
-useShotSlots 기반 전략 상태 엔진
-
-ShotEditorState
- ├── activeSlot
- └── slots:
-      ├── draft
-      └── applied
-
-## Draft
-
-- 실시간 계산 상태
-- 자유 수정 가능
-- 저장 대상 아님
-
-## Applied
-
-- 검증 완료 전략
-- 저장 대상
-- trajectory 계산 대상
-
-원칙:
-
-1. Draft는 절대 저장하지 않는다.
-2. Applied는 structuredClone으로 깊은 복사한다.
-3. 계산 엔진은 시스템 독립적으로 유지한다.
+계산 엔진 자체는 이번 세션에서 변경 없음.
 
 ---
 
-# 5️⃣ 전략 → 궤적 → 물리 연결 구조
+# 3️⃣ HPT 모델 (2026-02 기준)
 
-현재 실제 연결 구조:
+## 🔴 핵심 변화
 
-StrategyEngine (useShotSlots)
-      ↓
-applyDraftSys()
-      ↓
-useTrajectoryState.applySysResult()
-      ↓
-Trajectory adjusted 상태 갱신
-      ↓
-App.jsx 내부 Impact 계산
-      ↓
-Stage SVG 렌더링
+기존 좌표 기반 관리 → 극좌표 기반 모델로 전환.
 
-⚠ 현재 문제:
+```ts
+type HptState = {
+  hp: { x: number; y: number };
+  T: string;
+  mode: "TIP" | "SPIN";
+};
+```
 
-물리 엔진(calcImpactBall, calculateImpact 등)이
-App.jsx 내부에 존재함.
+**내부 파생 구조**
 
-즉,
+- theta
+- tipLevel (0~4)
+- hpN (파생값)
+- clockText (파생값)
 
-App.jsx가
+---
+
+## 🔵 SYS → HPT 투영 구조 확정
+
+**기존 문제:**
+
+- hpt.hpDirection 기준 방향 적용
+- SYS 결과와 충돌 가능
+
+**현재 확정 구조:**
+
+```ts
+dir = sysHpNResult >= 0 ? "right" : "left"
+tip = clamp(abs(sysHpNResult), 0, 4)
+setHpFromTip(dir, tip)
+```
+
+- ✔ 방향 충돌 해결
+- ✔ 음수 clamp 문제 해결
+- ✔ SYS 계산값 정확히 투영
+
+---
+
+## 🟡 HPT 남은 과제
+
+- SYSTEM / FREE 모드 완전 분리
+- 외곽 강제 투영 SYSTEM 전용화
+- RG ↔ TIP 변환 기준 문서화
+- clock 매핑 확정
+
+현재는 "안정화 진행 중" 상태.
+
+---
+
+# 4️⃣ AI 전략 출력 체계 (확정)
+
+AI 문장은 템플릿 기반으로 고정되었다.
+
+## 🔵 SYS 기반 시스템
+
+- 도착값/1쿠션 존재 시 문장 삽입
+- 값이 null이면 해당 문장 제거
+
+## 🟢 HP_n 기반 시스템
+
+- 도착/1쿠션 문장 생략
+- 타점 문장 필수 출력
+
+## 🔵 타점 표현 규칙
+
+**형식:**
+
+- 우측 3팁 (2시 15분)
+- HP_n 약어 사용자 노출 금지
+- 소수 1자리 허용
+- 시침 기준 표현
+
+## 🔵 STR 기본값 확정
+
+- 스트로크 타입: null (출력하지 않음)
+- 가속 패턴: 부드러운 등속
+- 목표 속도: 2.5 레일
+- 스트로크 깊이: 1.5 Ball
+- 타격 강도: 평범한
+
+STR 문장은 항상 출력.
+
+---
+
+# 5️⃣ 전략 출력 UI 구조
+
+전략 출력은 textarea 기반에서 문서형 div 구조로 변경되었다.
+
+**출력 구조:**
+
+- AI 코멘트
+- 원 포인트 레슨 (다중 지원)
+
+출력 계층과 입력 계층 분리 완료.
+
+---
+
+# 6️⃣ 원 포인트 레슨 시스템
+
+```ts
+type LessonItem = {
+  id: string;
+  text: string;
+};
+
+onePointLessons: LessonItem[];
+```
+
+**기능**
+
+- 다중 레슨 지원
+- localStorage 라이브러리 저장
+- Drag & Drop 정렬
+- Delete 키 삭제
+- hover 시 핸들 표시
+
+관리자 인터랙션은 사용자 UI에 영향 없이 분리 설계됨.
+
+---
+
+# 7️⃣ App.jsx 현재 평가
+
+App.jsx는 여전히:
+
 - 전략 연결 허브
 - 물리 엔진
 - 렌더 엔진
 - 인터랙션 엔진
 
-모두 담당하는 상태.
+을 모두 담당하는 슈퍼 컨트롤러 상태.
+
+기술 부채는 유지 중이나 현재 세션에서는 구조 안정화에 집중.
 
 ---
 
-# 6️⃣ App.jsx 현재 상태 평가
+# 8️⃣ Phase 2 준비 상태
 
-현재 App.jsx는:
+**현재 시점은:**
 
-슈퍼 컨트롤러
+- HPT 모델 전환 시작
+- AI 전략 체계 확정
+- 출력 구조 확정
 
-담당 기능:
+**다음 단계는:**
 
-1. SVG 렌더링
-2. 좌표계 변환(Fg / Rg / px)
-3. ImpactBall 계산
-4. 물리 보정
-5. Admin 모드 라우팅
-6. 드래그/조이스틱 엔진
-7. 전략/궤적 연결 브리지
-
-⚠ 기술 부채:
-
-- 3000+ 라인 집중
-- 물리/기하 로직 분리 미완성
-- Admin/User 분기 내부 혼재
-- 계산 계층과 렌더 계층 혼합
+- HPT SYSTEM/FREE 모드 완전 분리
+- 물리 엔진 분리
+- 계산 계층과 렌더 계층 분리
 
 ---
 
-# 7️⃣ 아직 검증 필요 이슈
+# 🔥 최종 판단 (2026-02 기준)
 
-## ⚠ fg → rg 투영 로직
+현재 구조는:
 
-실제 코드 존재 여부 확인 필요:
+- 계산 엔진 안정
+- 전략 출력 체계 확정
+- HPT 구조 1차 안정화
 
-fg
-rg
-projection
-compensate
-
-CALCULATION_RULES.md와 코드 대조 필요.
-
----
-
-## ⚠ 0.75 보정 로직
-
-존재 위치 확인 필요:
-
-profile?
-useSysCalculation?
-systemCalculator?
-
-대화 기반 설계인지,
-실제 코드 구현인지 확인 필요.
-
----
-
-# 8️⃣ Knowledge 운영 전략 (확정)
-
-Knowledge에는 다음 3문서만 유지:
-
-1️⃣ PROJECT_MASTER_INDEX.md  
-2️⃣ SYSTEM_ARCHITECTURE.md  
-3️⃣ CALCULATION_RULES.md  
-
-이 문서(PROJECT_MASTER_STATE)는
-상태 기록/월별 통합 문서로 유지.
-
-❌ 저장 금지:
-- 임시 스크립트
-- 생성기 python
-- preset JSON
-- schema 파일
-
----
-
-# 9️⃣ 현재 프로젝트 상태 요약 (2026-02)
-
-항목 | 상태
------|------
-폴더 구조 | 안정
-SYSTEM_PROFILES | 동적 로딩
-Admin/App 분리 | 명확
-중복 systems | 제거 완료
-문서 체계 | 1차 정비 완료
-계산 로직 정밀 검증 | 진행 필요
-물리 엔진 분리 | 미완료
-
----
-
-# 🔥 최종 판단
-
-현재 상태는:
-
-구조 정리 80% 완료
-계산 체계 정밀화 30%
-아키텍처 리팩터링 대기 상태
-
-이 문서를 기준으로
-Phase 2 리팩터링을 진행한다.
-
----
-
-# 9️⃣ 문서 체계 안정화 완료 (2026-02 추가 기록)
-
-2026-02 시점에서 문서 체계 v1이 공식 확정되었다.
-
-## 확정된 문서 체계 (6문서 구조)
-
-| 문서 | 역할 |
-|------|------|
-| PROJECT_MASTER_INDEX | 프로젝트 헌법 |
-| FRONTEND_ARCHITECTURE_BASELINE | UI/레이어 구조 기준선 |
-| SYSTEM_ARCHITECTURE | 계산 구조 및 데이터 계층 |
-| CALCULATION_RULES | expr / 수식 표준 |
-| PROJECT_MASTER_STATE_CURRENT | 현재 코드 상태 스냅샷 |
-| CURRENT_CODE_SNAPSHOT_SUMMARY | 경미 변경 기록 |
-
----
-
-## 운영 프로토콜 확정
-
-SESSION CHANGE DECISION PROTOCOL 도입:
-
-다음 중 하나라도 발생하면  
-→ PROJECT_MASTER_STATE_CURRENT 전면 재작성
-
-□ 폴더/파일 구조 변경  
-□ 계산 흐름 변경  
-□ Draft/Applied 구조 변경  
-□ 전략 → 궤적 → 물리 파이프라인 변경  
-□ 저장 포맷 변경  
-□ 물리 계산 로직 변경  
-
-위 항목이 없으면  
-→ CURRENT_CODE_SNAPSHOT_SUMMARY만 업데이트
-
----
-
-## 의미
-
-이 시점부터:
-
-- HISTORY 문서는 "기록"
-- CURRENT는 "현재 코드 스냅샷"
-- SUMMARY는 "경미 변경 로그"
-
-역할이 명확히 분리되었다.
+이 시점을 Phase 2 리팩터링의 기준선으로 사용한다.

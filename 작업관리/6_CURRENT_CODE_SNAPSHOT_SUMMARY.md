@@ -233,3 +233,157 @@ SYSTEM_ARCHITECTURE	계산 설계	구조 변경 시
 CALCULATION_RULES	수식 규칙	규칙 변경 시
 PROJECT_MASTER_STATE_CURRENT	현재 코드 상태	구조 변경 시 전면 재작성
 CURRENT_CODE_SNAPSHOT_SUMMARY	세션 변경 요약	세션마다 생성
+
+------------------------------------------------------------
+
+## 🔄 2026-02 코드 스냅샷 업데이트 (AI/HPT 구조 안정화)
+
+### 1. HPT 구조 리팩터링 및 안정화
+
+#### 1-1. mode(TIP / SPIN) 구조 도입
+
+- HptState에 `mode: "TIP" | "SPIN"` 필드 추가
+- useHptController ↔ parent 간 mode 동기화 확정
+- buildPlayStrategy에 mode 전달
+- TIP / SPIN 모드 기반 문장 분기 처리
+
+현재 HPT는 단일 책임 구조(SSOT) 기반으로 안정화된 상태이다.
+
+---
+
+#### 1-2. SYS → HPT 방향성 오류 수정
+
+**기존:**
+
+- `hpt.hpDirection` 기반으로 방향 결정
+- SYS 계산값과 현재 hp 방향이 충돌하는 문제 존재
+
+**수정:**
+
+- `sysHpNResult`의 부호 기준으로 방향 결정
+  - ≥ 0 → right
+  - < 0 → left
+- `Math.abs(sysHpNResult)` 기반 tip 계산
+- 0~4 범위 clamp 적용
+
+이로 인해 SYS 계산값이 HPT UI에 정확히 반영되도록 수정 완료.
+
+---
+
+### 2. AI 코멘트 생성 로직 리팩터링
+
+#### 2-1. buildPlayStrategy 구조 개선
+
+- 값 존재 시에만 문장 생성 (조건부 삽입)
+- SYS 도착값 / 1쿠션 개별 분기 처리
+- TIP / SPIN 모드 기반 타점 문장 분기
+- BANK 두께 처리 추가 (`T === "BANK"` → "뱅크 샷")
+
+AI 코멘트는 현재 구조적으로 안정된 상태.
+
+---
+
+### 3. STR 기본값 구조 정리
+
+**기본값 재정의:**
+
+- strokeType: null
+- accelPattern: "부드러운 등속"
+- speedRails: 2.5
+- strokeDepth: 1.5 Ball
+- impactStrength: "평범한"
+
+"미디엄 팔로우" 제거.
+
+---
+
+### 4. 원 포인트 레슨 시스템 도입
+
+#### 4-1. 데이터 구조
+
+```ts
+type LessonItem = {
+  id: string;
+  text: string;
+};
+
+onePointLessons: LessonItem[];
+```
+
+#### 4-2. 라이브러리
+
+- localStorage 기반 누적 저장 (key: `ONE_POINT_LESSON_LIBRARY_V1`)
+- 빈도(count) 기반 정렬 유지
+- count UI 표시 제거
+- 적용 버튼 클릭 시 라이브러리에 해당 항목 있으면 count++
+- 저장 버튼: 중복 시 text 덮어쓰기, 신규 시 count=0 추가
+- 드롭다운 선택 시 draft에만 반영 (count 변화 없음)
+
+---
+
+### 5. 전략 문서형 UI 구조로 전환
+
+**기존:**
+
+- textarea 기반 편집형 UI
+
+**변경:**
+
+- 전략 문서형 div 출력 구조
+- 자동 높이 조절
+- AI 코멘트 + 원 포인트 레슨 통합 박스
+- 출력은 읽기 전용 문서 형태로 유지
+
+---
+
+### 6. 숨김 인터랙션 관리 구조
+
+**관리자 기능:**
+
+- 클릭 → 선택 (하이라이트)
+- Delete 키 → 즉시 삭제
+- Drag handle (☰) → 순서 변경
+- 핸들은 hover 시에만 표시
+- 사용자 화면에서는 관리 기능을 숨길 수 있는 구조로 설계됨 (CSS `display:none` 가능)
+
+---
+
+### 7. Drag & Drop 의존성 추가
+
+**신규 패키지:**
+
+- @dnd-kit/core
+- @dnd-kit/sortable
+- @dnd-kit/utilities
+
+---
+
+### 8. UI 미세 조정
+
+- 전체 적용 / 취소 버튼 높이 축소 (padding 18px → 10px 16px)
+- 상단 적용/저장 버튼과 시각적 일관성 유지
+
+---
+
+### 9. 변경 파일 목록
+
+| 파일 | 변경 내용 |
+|------|----------|
+| App.jsx | HPT mode, 원 포인트 레슨, 전략 박스 UI, LessonRow, DndContext |
+| index.css | .drag-handle 스타일 추가 |
+| admin/save/saveShotRecord.ts | onePointLessons `LessonItem[]` 저장 |
+| package.json | @dnd-kit 패키지 추가 |
+
+---
+
+### 📌 현재 상태 요약
+
+현재 프론트엔드 구조는:
+
+- HPT mode(TIP/SPIN) 기반 단일 책임 구조 안정화
+- SYS 계산값 방향성 오류 수정 완료
+- AI 코멘트 시스템 구조 리팩터링 완료
+- 원 포인트 레슨 라이브러리 + 드래그 정렬 기능 도입
+- 전략 문서형 출력 구조 완성
+
+본 스냅샷은 UI/상태 흐름이 안정화된 기준 버전이다.

@@ -1,50 +1,93 @@
 // /frontend/admin/hpt/HptOverlay.tsx
 
 import { useState, useRef, useCallback } from "react";
-import { useHptController } from "./useHptController";
+import { useHptController, MAX_HP_RADIUS_RG, RG_TO_TIP_SCALE, TIP_TO_RG_SCALE } from "./useHptController";
 
-/** HP_n 입력 필드 (UI만, sys 연결 없음) */
-function HpNInput({
+/** 타점 입력 - displayTip 기반 (0~4, 0.1 step), TIP 모드에서만 실제값 표시 */
+function TipRow({
   value,
-  onChange,
+  hpDirection,
+  onTipChange,
 }: {
   value: number;
-  onChange: (v: number) => void;
+  hpDirection: "left" | "right";
+  onTipChange: (dir: "left" | "right", tip: number) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: "64px" }}>
-      <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>
-        HP_n
-      </label>
-      <input
-        type="number"
-        value={value}
-        onChange={(e) => {
-          const v = e.target.value === "" ? 0 : Number(e.target.value);
-          onChange(Number.isNaN(v) ? 0 : v);
-        }}
+      <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>타점</label>
+      <div
         style={{
-          padding: "8px 12px",
-          fontSize: "14px",
+          display: "inline-flex",
+          alignItems: "center",
           border: "1px solid #cbd5e1",
           borderRadius: "6px",
+          padding: "6px 10px",
           backgroundColor: "white",
-          width: "100%",
+          gap: "8px",
         }}
-      />
+      >
+        <button
+          type="button"
+          onClick={() => {
+            const next = Number((value - 0.1).toFixed(1));
+            onTipChange(hpDirection, next);
+          }}
+          style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "16px" }}
+        >
+          −
+        </button>
+        <span
+          onClick={() => onTipChange(hpDirection === "left" ? "right" : "left", value)}
+          style={{ minWidth: "24px", textAlign: "center", fontSize: "14px", cursor: "pointer" }}
+        >
+          {hpDirection === "left" ? "좌" : "우"}
+        </span>
+        <input
+          type="number"
+          step="0.1"
+          min="0"
+          max="4"
+          value={value}
+          onChange={(e) => {
+            if (e.target.value === "") return;
+            const raw = Number(e.target.value);
+            if (isNaN(raw)) return;
+            onTipChange(hpDirection, raw);
+          }}
+          style={{
+            width: "40px",
+            padding: "4px 4px",
+            border: "1px solid #cbd5e1",
+            borderRadius: "4px",
+            fontSize: "14px",
+            textAlign: "center",
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const next = Number((value + 0.1).toFixed(1));
+            onTipChange(hpDirection, next);
+          }}
+          style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "16px" }}
+        >
+          +
+        </button>
+      </div>
     </div>
   );
 }
 
 interface Props {
-  cue: { x: number; y: number } | null;
-  target: { x: number; y: number } | null;
-  value: {
-    hp: { x: number; y: number };
-    T: string;
-  };
-  onChange: (next: Props["value"]) => void;
-  onClose: () => void;
+  cue?: { x: number; y: number } | null;
+  target?: { x: number; y: number } | null;
+  value?: { hp: { x: number; y: number }; T: string };
+  hpt?: { hp: { x: number; y: number }; T: string };
+  onChange?: (next: { hp: { x: number; y: number }; T: string }) => void;
+  onApply?: (next: { hp: { x: number; y: number }; T: string }) => void;
+  onClose?: () => void;
+  onCancel?: () => void;
 }
 
 /**
@@ -64,30 +107,31 @@ function HpJoystick({
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // 조이스틱 파라미터
-  const BALL_RADIUS_RG = 1.43; // 당구공 반지름 (Rg)
-  const MAX_HP_RADIUS = BALL_RADIUS_RG * 0.9;
+  // 조이스틱 파라미터 (타점 한계선 = 3/5R, 내부 ±4와 동일 물리 기준)
+  const BALL_RADIUS_RG = 1.43;
   const JOYSTICK_SIZE = 200; // 픽셀
   const SCALE = JOYSTICK_SIZE / (2 * BALL_RADIUS_RG);
-  
+
   /**
    * 픽셀 좌표 → Rg 좌표 변환
+   * clamp 기준: MAX_HP_RADIUS_RG (3/5R = 0.858)
+   * 화면상 0.9R까지 드래그 가능하더라도, 내부 hp는 3/5 한계선에서 clamp
    */
   const pixelToRg = useCallback((px: number, py: number): { x: number; y: number } => {
     const rgX = (px - JOYSTICK_SIZE / 2) / SCALE;
     const rgY = (py - JOYSTICK_SIZE / 2) / SCALE;
-    
-    // Clamp to MAX_HP_RADIUS
-    const dist = Math.hypot(rgX, rgY);
-    if (dist > MAX_HP_RADIUS) {
+
+    const rgRadius = Math.hypot(rgX, rgY);
+    if (rgRadius > MAX_HP_RADIUS_RG) {
+      const ratio = MAX_HP_RADIUS_RG / rgRadius;
       return {
-        x: (rgX / dist) * MAX_HP_RADIUS,
-        y: (rgY / dist) * MAX_HP_RADIUS,
+        x: rgX * ratio,
+        y: rgY * ratio,
       };
     }
-    
+
     return { x: rgX, y: rgY };
-  }, [SCALE, MAX_HP_RADIUS]);
+  }, [SCALE]);
   
   /**
    * Rg 좌표 → 픽셀 좌표 변환
@@ -189,15 +233,15 @@ function HpJoystick({
           }}
         />
         
-        {/* 최대 범위 표시 (0.9R) */}
+        {/* 최대 범위 표시 (3/5R = 타점 한계선) */}
         <div
           style={{
             position: "absolute",
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: `${MAX_HP_RADIUS * 2 * SCALE}px`,
-            height: `${MAX_HP_RADIUS * 2 * SCALE}px`,
+            width: `${MAX_HP_RADIUS_RG * 2 * SCALE}px`,
+            height: `${MAX_HP_RADIUS_RG * 2 * SCALE}px`,
             borderRadius: "50%",
             border: "1px dashed #cbd5e1",
             pointerEvents: "none",
@@ -277,21 +321,30 @@ function HpJoystick({
  * HP/T 설정 오버레이
  */
 export function HptOverlay({
-  cue,
-  target,
+  cue = null,
+  target = null,
   value,
+  hpt: hptProp,
   onChange,
+  onApply,
   onClose,
+  onCancel,
 }: Props) {
+  const resolvedValue = value ?? hptProp ?? { hp: { x: 0, y: 0 }, T: "8/8", mode: "TIP" };
+  const resolvedOnChange = onChange ?? onApply ?? (() => {});
+
   const hpt = useHptController({
-    cue,
-    target,
-    hpt: value,
-    onChange,
+    hpt: resolvedValue,
+    onChange: resolvedOnChange,
   });
 
-  /** HP_n (UI 전용, 기본값 0, sys 미연결) */
-  const [hpN, setHpN] = useState(0);
+  const hpRg = { x: hpt.hp.x * TIP_TO_RG_SCALE, y: hpt.hp.y * TIP_TO_RG_SCALE };
+  const handleJoystickChange = useCallback(
+    (rg: { x: number; y: number }) => {
+      hpt.setJoystick(rg.x * RG_TO_TIP_SCALE, rg.y * RG_TO_TIP_SCALE);
+    },
+    [hpt.setJoystick]
+  );
 
   // T값 옵션 (17개 전체)
   const T_OPTIONS = [
@@ -312,6 +365,7 @@ export function HptOverlay({
     { value: "-5/8", label: "좌측 5/8" },
     { value: "-6/8", label: "좌측 6/8" },
     { value: "-7/8", label: "좌측 7/8" },
+    { value: "BANK", label: "뱅크 샷" },
   ];
 
   return (
@@ -329,22 +383,20 @@ export function HptOverlay({
         HP / T 설정
       </h3>
 
-      {/* HPT 입력 1줄: [두께] [HP_n] [타점X] [타점Y] */}
+      {/* 1줄: 두께 | 타점 | 시침 값 */}
       <div
-        className="hpt-row"
+        className="hpt-row-1"
         style={{
           display: "flex",
           flexDirection: "row",
           alignItems: "flex-end",
           gap: "12px",
-          marginBottom: "24px",
+          marginBottom: "12px",
+          flexWrap: "wrap",
         }}
       >
-        {/* 두께 */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", flex: 1, minWidth: 0 }}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>
-            두께
-          </label>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>두께</label>
           <select
             value={hpt.T}
             onChange={(e) => hpt.setT(e.target.value)}
@@ -365,87 +417,149 @@ export function HptOverlay({
             ))}
           </select>
         </div>
-
-        {/* HP_n (신규, UI만) */}
-        <HpNInput value={hpN} onChange={setHpN} />
-
-        {/* 타점X */}
+        <TipRow value={hpt.displayTip} hpDirection={hpt.hpDirection} onTipChange={hpt.setSystemTip} />
         <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: "64px" }}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>
-            타점X
-          </label>
-          <input
-            type="number"
-            value={hpt.hp.x}
-            onChange={(e) => {
-              const v = e.target.value === "" ? 0 : Number(e.target.value);
-              hpt.setHp({ ...hpt.hp, x: Number.isNaN(v) ? 0 : v });
-            }}
-            step="0.01"
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>시침 값</label>
+          <div
             style={{
               padding: "8px 12px",
-              fontSize: "14px",
               border: "1px solid #cbd5e1",
               borderRadius: "6px",
-              backgroundColor: "white",
-            }}
-          />
-        </div>
-
-        {/* 타점Y */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: "64px" }}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>
-            타점Y
-          </label>
-          <input
-            type="number"
-            value={hpt.hp.y}
-            onChange={(e) => {
-              const v = e.target.value === "" ? 0 : Number(e.target.value);
-              hpt.setHp({ ...hpt.hp, y: Number.isNaN(v) ? 0 : v });
-            }}
-            step="0.01"
-            style={{
-              padding: "8px 12px",
+              backgroundColor: "#f8fafc",
               fontSize: "14px",
-              border: "1px solid #cbd5e1",
-              borderRadius: "6px",
-              backgroundColor: "white",
             }}
-          />
+          >
+            {hpt.displayClock}
+          </div>
         </div>
       </div>
 
-      {/* HP 조이스틱 (타점 시각 입력 보조) */}
+      {/* 2줄: 회전 | 당점 */}
+      <div
+        className="hpt-row-2"
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "flex-end",
+          gap: "12px",
+          marginBottom: "24px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: "120px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>회전</label>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              border: "1px solid #cbd5e1",
+              borderRadius: "6px",
+              padding: "6px 10px",
+              backgroundColor: "white",
+              gap: "8px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => hpt.setRotationTip(hpt.rotationTip - 0.1)}
+              style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "16px" }}
+            >
+              −
+            </button>
+            <span
+              onClick={() => hpt.setRotationTip(-hpt.rotationTip)}
+              style={{ minWidth: "32px", textAlign: "center", fontSize: "14px", cursor: "pointer" }}
+            >
+              {hpt.displayRotation >= 0 ? "우측" : "좌측"}
+            </span>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="4"
+              value={Number(Math.abs(hpt.displayRotation).toFixed(1))}
+              onChange={(e) => {
+                if (e.target.value === "") return;
+                const raw = Number(e.target.value);
+                if (isNaN(raw)) return;
+                const sign = hpt.rotationTip >= 0 ? 1 : -1;
+                hpt.setRotationTip(sign * Number(Math.min(4, Math.max(0, raw)).toFixed(1)));
+              }}
+              style={{ width: "80px", padding: "4px", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "14px", textAlign: "center" }}
+            />
+            <span style={{ fontSize: "14px" }}>팁</span>
+            <button
+              type="button"
+              onClick={() => hpt.setRotationTip(hpt.rotationTip + 0.1)}
+              style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "16px" }}
+            >
+              +
+            </button>
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: "120px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>당점</label>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              border: "1px solid #cbd5e1",
+              borderRadius: "6px",
+              padding: "6px 10px",
+              backgroundColor: "white",
+              gap: "8px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => hpt.setVerticalTip(hpt.verticalTip - 0.1)}
+              style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "16px" }}
+            >
+              −
+            </button>
+            <span
+              onClick={() => hpt.setVerticalTip(-hpt.verticalTip)}
+              style={{ minWidth: "32px", textAlign: "center", fontSize: "14px", cursor: "pointer" }}
+            >
+              {hpt.displayVertical >= 0 ? "상단" : "하단"}
+            </span>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="4"
+              value={Number(Math.abs(hpt.displayVertical).toFixed(1))}
+              onChange={(e) => {
+                if (e.target.value === "") return;
+                const raw = Number(e.target.value);
+                if (isNaN(raw)) return;
+                const sign = hpt.verticalTip >= 0 ? 1 : -1;
+                hpt.setVerticalTip(sign * Number(Math.min(4, Math.max(0, raw)).toFixed(1)));
+              }}
+              style={{ width: "80px", padding: "4px", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "14px", textAlign: "center" }}
+            />
+            <span style={{ fontSize: "14px" }}>팁</span>
+            <button
+              type="button"
+              onClick={() => hpt.setVerticalTip(hpt.verticalTip + 0.1)}
+              style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "16px" }}
+            >
+              +
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* HP 조이스틱 (SPIN 모드, 회전/당점 실시간 반영) */}
       <HpJoystick
-        hp={hpt.hp}
-        onHpChange={hpt.setHp}
+        hp={hpRg}
+        onHpChange={handleJoystickChange}
       />
       
-      {/* ImpactBall 위치 표시 (참고용) */}
-      {hpt.impactBall && (
-        <div 
-          style={{ 
-            marginBottom: "24px", 
-            padding: "12px", 
-            backgroundColor: "#f0fdf4", 
-            borderRadius: "6px",
-            fontSize: "12px",
-            color: "#166534"
-          }}
-        >
-          <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-            ✓ ImpactBall 위치
-          </div>
-          <div>X: {hpt.impactBall.x.toFixed(2)} Rg</div>
-          <div>Y: {hpt.impactBall.y.toFixed(2)} Rg</div>
-        </div>
-      )}
-
       {/* 액션 버튼 */}
       <div className="actions" style={{ display: "flex", gap: "8px" }}>
         <button 
-          onClick={onClose}
+          onClick={onClose ?? onCancel}
           style={{
             flex: 1,
             padding: "10px 16px",

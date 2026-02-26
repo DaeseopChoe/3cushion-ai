@@ -176,3 +176,148 @@ Geometry 로직 분리
 AdminContainer 완전 분리
 
 App.jsx 슬림화
+
+------------------------------------------------------------
+
+## 🔄 2026-02 프론트엔드 구조 업데이트 (HPT/AI 구조 안정화)
+
+### 1. HPT 상태 구조 확정 (SSOT 기반)
+
+HPT는 단일 책임 상태 구조로 확정되었다.
+
+```ts
+type HptState = {
+  hp: { x: number; y: number };
+  T: string;
+  mode: "TIP" | "SPIN";
+};
+```
+
+**구조 원칙**
+
+- mode는 HPT의 표현 방식(TIP / SPIN)을 결정한다.
+- hp는 항상 실제 좌표값을 기준으로 관리한다.
+- parent ↔ controller 간 역주입 시 clamp는 controller 책임으로 한정한다.
+- 단일 clamp 책임 구조 유지.
+
+---
+
+### 2. SYS → HPT 데이터 흐름 정리
+
+**기존 문제**
+
+- SYS 계산 결과 적용 시 hpt.hpDirection을 사용
+- 현재 hp 방향과 SYS 결과 방향이 충돌 가능
+
+**수정 구조**
+
+```ts
+const dir = sysHpNResult >= 0 ? "right" : "left";
+const tip = clamp(Math.abs(sysHpNResult), 0, 4);
+hpt.setHpFromTip(dir, tip);
+```
+
+**결과**
+
+- SYS 계산값이 HPT UI에 정확히 투영됨
+- 방향성 충돌 제거
+- 음수 tip clamp 문제 해결
+
+---
+
+### 3. AI 코멘트 계층 구조 정리
+
+AI 코멘트는 다음 계층 구조를 따른다:
+
+```
+HPT 상태 → buildPlayStrategyText()
+        → buildPlayStrategy()
+        → 전략 문장 생성
+```
+
+**개선 사항**
+
+- 값 존재 시에만 문장 삽입
+- SYS 도착값 / 1쿠션 개별 분기
+- TIP / SPIN 모드 기반 문장 분기
+- BANK 두께 처리 추가
+
+AI 생성 로직은 현재 안정된 상태이다.
+
+---
+
+### 4. 전략 문서형 출력 계층 도입
+
+**기존:**
+
+- textarea 기반 편집형 출력
+
+**변경:**
+
+- div 기반 문서형 출력
+- 자동 높이
+- 읽기 전용 전략 박스 구조
+  - AI 코멘트
+  - 원 포인트 레슨
+
+출력 계층과 입력 계층이 명확히 분리되었다.
+
+---
+
+### 5. 원 포인트 레슨 관리 계층 추가
+
+```ts
+type LessonItem = {
+  id: string;
+  text: string;
+};
+
+onePointLessons: LessonItem[];
+```
+
+**기능**
+
+- 라이브러리 기반 누적 저장 (localStorage)
+- 빈도 기반 정렬 유지
+- 전략 문서 출력 계층에 통합
+- 다중 레슨 지원
+
+---
+
+### 6. 관리자 전용 인터랙션 계층
+
+관리 기능은 문서 UI를 변경하지 않는 방식으로 설계되었다.
+
+- 클릭 → 선택 (하이라이트)
+- Delete 키 → 삭제
+- Drag handle → 정렬
+- hover 시 핸들 표시
+
+사용자 UI에서는 관리 기능을 숨길 수 있는 구조로 설계됨.
+
+---
+
+### 7. Drag & Drop 계층 추가
+
+**신규 의존성:**
+
+- @dnd-kit/core
+- @dnd-kit/sortable
+- @dnd-kit/utilities
+
+Drag 계층은 전략 문서 레벨에 영향을 주지 않고 상태 정렬에만 영향을 준다.
+
+---
+
+### 📌 현재 프론트엔드 구조 상태
+
+현재 프론트엔드는 다음과 같은 계층으로 안정화되었다:
+
+1. **계산 계층** (SYS / HPT)
+2. **상태 계층** (HptState + mode)
+3. **전략 생성 계층** (AI 코멘트)
+4. **전략 출력 계층** (문서형 UI)
+5. **관리자 인터랙션 계층** (삭제/정렬)
+6. **라이브러리 저장 계층** (localStorage)
+
+본 구조는 2026-02 기준 안정화된 아키텍처 베이스라인이다.

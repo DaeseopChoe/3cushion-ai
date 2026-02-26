@@ -1,3 +1,15 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 원 포인트 레슨 드래그 핸들 (hover 시에만 표시) */
+.drag-handle {
+  opacity: 0;
+  cursor: grab;
+  user-select: none;
+  font-size: 14px;
+  color: #9ca3af;
+}
+.strategy-box .section-body > div:hover .drag-handle {
+  opacity: 1;
+}

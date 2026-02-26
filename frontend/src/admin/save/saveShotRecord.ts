@@ -20,6 +20,7 @@ export interface SaveShotRecordInput {
   hpt?: {
     hp: Point;        // 타점 (큐볼 기준, Rg 좌표)
     T: string;        // 두께값 예: "+3/8"
+    mode?: "TIP" | "SPIN";  // 없으면 "TIP"
   };
 
   // STR
@@ -32,6 +33,7 @@ export interface SaveShotRecordInput {
   // AI (텍스트)
   ai?: {
     text: string;
+    onePointLessons?: Array<{ id: string; text: string }>;
   };
 }
 
@@ -77,12 +79,11 @@ export function saveShotRecord(input: SaveShotRecordInput) {
      ⚠️ impactBall은 저장하지 않음 (계산값)
   ===================== */
   if (hpt) {
+    const hpCoords = hpt.hp ?? (hpt as { hit_point?: Point }).hit_point;
     shotRecord.hpt = {
-      hp: {
-        x: hpt.hp.x,
-        y: hpt.hp.y
-      },
-      T: hpt.T
+      hp: hpCoords ? { x: hpCoords.x, y: hpCoords.y } : { x: 0, y: 0 },
+      T: hpt.T,
+      mode: hpt.mode ?? "TIP"
     };
   }
 
@@ -103,6 +104,15 @@ export function saveShotRecord(input: SaveShotRecordInput) {
   if (ai) {
     shotRecord.ai = {
       text: ai.text,
+      onePointLessons: Array.isArray(ai.onePointLessons)
+        ? ai.onePointLessons.map((x, idx) =>
+            typeof x === "string"
+              ? { id: `legacy-${idx}`, text: x }
+              : x && typeof x === "object" && x.id != null && x.text != null
+                ? { id: x.id, text: x.text }
+                : { id: `fix-${idx}`, text: String(x?.text ?? x ?? "") }
+          )
+        : [],
       updated_at: new Date().toISOString()
     };
   }

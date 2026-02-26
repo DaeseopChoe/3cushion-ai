@@ -1,9 +1,37 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
 import { useShotSlots } from "./hooks/useShotSlots";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
+import { convertThetaToClock } from "./utils/tipClockConverter";
+import {
+  buildPlayStrategy,
+  hitPointToTipDisplay,
+  hitPointToRotationText,
+  hitPointToVerticalText,
+  formatThickness,
+  getSystemNameKo,
+  strengthToKo,
+} from "./utils/aiPlayStrategyBuilder";
+import { useHptController, clampHpToRadius } from "./admin/hpt/useHptController";
+import { calcImpactBall } from "./data/system/calculator";
 
 const ADMIN_BUTTONS = ["SYS", "HPT", "STR", "AI"];
 
@@ -161,154 +189,7 @@ function getImpactDirection(rotation, pattern) {
 // ============================================
 // ImpactBall / HP-T 함수들
 // ============================================
-
-/**
- * T값 파싱
- * @param {string} T - "8/8", "+3/8", "-0/8" 등
- * @returns {{ direction: -1|0|1, numerator: number, denominator: number }}
- */
-function parseT(T) {
-  // [1] T 없으면 "8/8" fallback
-  if (!T) {
-    console.warn("parseT: T값 없음, 기본값 8/8 사용");
-    return { direction: 0, numerator: 8, denominator: 8 };
-  }
-  
-  // [2] "8/8"은 direction = 0
-  if (T === "8/8") {
-    return { direction: 0, numerator: 8, denominator: 8 };
-  }
-  
-  // [3] + / - 부호 파싱
-  const sign = T[0];
-  if (sign !== '+' && sign !== '-') {
-    console.warn("parseT: 부호 없음, fallback 8/8", T);
-    return { direction: 0, numerator: 8, denominator: 8 };
-  }
-  
-  const direction = sign === '+' ? 1 : -1;
-  
-  // [4] numerator / denominator 파싱
-  const fraction = T.slice(1);
-  if (!fraction.includes('/')) {
-    console.warn("parseT: 분수 형식 아님, fallback 8/8", T);
-    return { direction: 0, numerator: 8, denominator: 8 };
-  }
-  
-  const parts = fraction.split('/');
-  const numerator = Number(parts[0]);
-  const denominator = Number(parts[1]);
-  
-  // [5] 잘못된 값은 console.warn 후 8/8 fallback
-  if (isNaN(numerator) || isNaN(denominator) || denominator === 0) {
-    console.warn("parseT: 숫자 파싱 실패, fallback 8/8", T);
-    return { direction: 0, numerator: 8, denominator: 8 };
-  }
-  
-  return { direction, numerator, denominator };
-}
-
-/**
- * 타겟볼 기준 임팩트볼 위치 계산
- * 
- * 개념 고정:
- * - 순서: cue → impact → target
- * - 타겟볼이 주체
- * - 접점이 먼저, ImpactBall은 결과
- * - ImpactBall = 접점에서 큐볼 방향으로 BALL_RADIUS 이동
- */
-function calcImpactBall(cue, target, T) {
-  // [1] 입력 검증
-  if (!cue || !target) {
-    console.warn("calcImpactBall: 큐볼 또는 타겟볼 없음");
-    return null;
-  }
-
-  // [2] T 파싱
-  const { direction, numerator, denominator } = parseT(T);
-
-  // [3] 큐 → 타겟 진행 방향 단위벡터 계산
-  const dx = target.x - cue.x;
-  const dy = target.y - cue.y;
-  const dist = Math.hypot(dx, dy);
-  
-  if (dist < 1e-6) {
-    console.warn("calcImpactBall: 큐볼과 타겟볼이 겹침");
-    return { x: target.x, y: target.y };
-  }
-  
-  const ux = dx / dist;
-  const uy = dy / dist;
-
-  // [4] 8/8 특수 처리
-  if (T === "8/8") {
-    // 접점 = target - (진행방향 × BALL_RADIUS)
-    const contactX = target.x - ux * BALL_RADIUS_RG;
-    const contactY = target.y - uy * BALL_RADIUS_RG;
-    
-    // ImpactBall = 접점 - (진행방향 × BALL_RADIUS)
-    return {
-      x: contactX - ux * BALL_RADIUS_RG,
-      y: contactY - uy * BALL_RADIUS_RG
-    };
-  }
-
-  // [5] 일반 두께 (0/8 ~ 7/8)
-  // [5-1] 접선 방향 단위벡터
-  const vx = direction * uy;
-  const vy = direction * (-ux);
-
-  // [5-2] 접선 이동량
-  // ⚠️ numerator === 0 → offset = 0, direction 계산에는 영향 없음
-  const offset = (numerator / denominator) * BALL_DIAMETER_RG;
-
-  // [5-3] 타겟볼 표면 시작점
-  const surfaceX = target.x - ux * BALL_RADIUS_RG;
-  const surfaceY = target.y - uy * BALL_RADIUS_RG;
-
-  // [5-4] 접선 이동 (raw contact)
-  const rawContactX = surfaceX + vx * offset;
-  const rawContactY = surfaceY + vy * offset;
-
-  // [5-5] 접점 정규화 (타겟볼 원 위)
-  const dcx = rawContactX - target.x;
-  const dcy = rawContactY - target.y;
-  const distContact = Math.hypot(dcx, dcy);
-  
-  if (distContact < 1e-6) {
-    console.warn("calcImpactBall: 접점이 타겟볼 중심과 겹침");
-    return {
-      x: target.x - ux * BALL_RADIUS_RG * 2,
-      y: target.y - uy * BALL_RADIUS_RG * 2
-    };
-  }
-  
-  const contactX = target.x + (dcx / distContact) * BALL_RADIUS_RG;
-  const contactY = target.y + (dcy / distContact) * BALL_RADIUS_RG;
-
-  // [6] ImpactBall 위치 계산
-  // 접점 → 큐볼 방향 단위벡터 계산
-  const towardsCueX = cue.x - contactX;
-  const towardsCueY = cue.y - contactY;
-  const distToCue = Math.hypot(towardsCueX, towardsCueY);
-  
-  if (distToCue < 1e-6) {
-    console.warn("calcImpactBall: 접점이 큐볼과 겹침");
-    return {
-      x: contactX - ux * BALL_RADIUS_RG,
-      y: contactY - uy * BALL_RADIUS_RG
-    };
-  }
-  
-  const ucx = towardsCueX / distToCue;
-  const ucy = towardsCueY / distToCue;
-  
-  // ImpactBall = 접점 + (큐방향 × BALL_RADIUS)
-  return {
-    x: contactX + ucx * BALL_RADIUS_RG,
-    y: contactY + ucy * BALL_RADIUS_RG
-  };
-}
+// calcImpactBall → data/system/calculator 로 분리됨
 
 function calculateImpact(cue, target, CO_fg, C1_fg, thicknessStr, pattern) {
   let t = 0.5;
@@ -1229,68 +1110,52 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
   const [lastChanged, setLastChanged] = useState(null); // 'x' or 'y'
   const [isClamped, setIsClamped] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [hpN, setHpN] = useState(0); // UI 전용, data 구조 없음, SYS HP_n 결과 반영용
 
-  // HP_n 방향 (UI 전용, 계산 미연결)
-  const [hpDirection, setHpDirection] = useState("right"); // "right" | "left"
-
-  // 회전 필드 Collapsed/Expanded (회전만)
-  const [isEditingRotation, setIsEditingRotation] = useState(false);
-  const [rotationDir, setRotationDir] = useState('left');
-
-  // 당점 필드 Collapsed/Expanded (당점만)
-  const [isEditingVertical, setIsEditingVertical] = useState(false);
-  const [verticalDir, setVerticalDir] = useState('top');
-
-  // HP_n → 타점 X/Y 변환 (3/5 반지름, 0.5 단위 각도)
-  function hpToTipXY(direction, hpN) {
-    const r = 4; // 4팁 = 점선 원 (3/5 지점)
-    const degPerTip = 22.5;
-    const deg = hpN * degPerTip;
-    const thetaDeg = direction === "right" ? deg : -deg;
-    const thetaRad = (thetaDeg * Math.PI) / 180;
-    const x = r * Math.sin(thetaRad);
-    const y = r * Math.cos(thetaRad);
-    return {
-      x: Number(x.toFixed(1)),
-      y: Number(y.toFixed(1)),
-    };
+  // STEP A: useHptController 어댑터 (hit_point ↔ hp)
+  // hit_point는 항상 hp(±4) 저장. Rg 오해석 제거 → 내부로 드래그 시 바깥으로 튐 방지
+  const rawX = Number.isFinite(tempData.hit_point?.x) ? tempData.hit_point.x : 0;
+  const rawY = Number.isFinite(tempData.hit_point?.y) ? tempData.hit_point.y : 0;
+  const hpClamped = clampHpToRadius(rawX, rawY, 4);
+  const rCv = Math.hypot(hpClamped.x, hpClamped.y);
+  if (rCv > 4.0001) {
+    console.error("[CLAMP BREAK - controllerValue]", { rawX: hpClamped.x, rawY: hpClamped.y, r: rCv });
   }
+  const controllerValue = {
+    T: tempData.T ?? "8/8",
+    hp: { x: hpClamped.x, y: hpClamped.y },
+    mode: tempData.mode ?? "TIP",
+  };
+  const onControllerChange = (next) => {
+    const rx = next.hp?.x ?? 0;
+    const ry = next.hp?.y ?? 0;
+    const r = Math.hypot(rx, ry);
+    if (r > 4.0001) {
+      console.error("[CLAMP BREAK - parent store]", next.hp);
+    }
+    const c = clampHpToRadius(rx, ry, 4);
+    const toSave = { ...next, hit_point: { x: c.x, y: c.y }, mode: next.mode ?? "TIP" };
+    console.warn("[HPT_VERIFY A] onControllerChange 저장 직전", { nextHpt: toSave, mode: toSave.mode });
+    setTempData((prev) => ({
+      ...prev,
+      T: next.T,
+      hit_point: { x: c.x, y: c.y },
+      mode: next.mode ?? "TIP",
+    }));
+  };
+  const hpt = useHptController({
+    cue: null,
+    target: null,
+    hpt: controllerValue,
+    onChange: onControllerChange,
+  });
 
   useEffect(() => {
     if (sysHpNResult != null) {
-      setHpN(sysHpNResult);
+      const dir = sysHpNResult >= 0 ? "right" : "left";
+      const tip = Math.min(4, Math.max(0, Number(Math.abs(sysHpNResult).toFixed(1))));
+      hpt.setHpFromTip(dir, tip);
     }
   }, [sysHpNResult]);
-
-  useEffect(() => {
-    if (hpN == null || sysHpNResult == null) return;
-    const { x, y } = hpToTipXY(hpDirection, hpN);
-    setTempData(prev => ({
-      ...prev,
-      hit_point: { x, y },
-    }));
-  }, [hpN, hpDirection, sysHpNResult]);
-
-  useEffect(() => {
-    const rawX = safeNum(tempData.hit_point?.x);
-    const mag = Math.abs(rawX);
-    if (mag === 0) {
-      setIsEditingRotation(false);
-    } else {
-      setRotationDir(rawX < 0 ? 'left' : 'right');
-    }
-  }, [tempData.hit_point?.x]);
-
-  useEffect(() => {
-    const rawY = safeNum(tempData.hit_point?.y);
-    const mag = Math.abs(rawY);
-    if (mag === 0) {
-      setIsEditingVertical(false);
-    } else {
-      setVerticalDir(rawY > 0 ? 'top' : 'bottom');
-    }
-  }, [tempData.hit_point?.y]);
 
   // T값 옵션 (0/8 ~ 8/8, 17개)
   const T_OPTIONS = [
@@ -1310,7 +1175,8 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
     { value: "-4/8", label: "좌측 4/8" },
     { value: "-5/8", label: "좌측 5/8" },
     { value: "-6/8", label: "좌측 6/8" },
-    { value: "-7/8", label: "좌측 7/8" }
+    { value: "-7/8", label: "좌측 7/8" },
+    { value: "BANK", label: "뱅크 샷" }
   ];
 
   // ==========================================
@@ -1322,15 +1188,6 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
   const safeNum = (v) => (typeof v === 'number' && !isNaN(v) ? v : 0);
 
   const handleHitPointChange = (axis, rawValue) => {
-    // 입력 도중 상태 허용 (-, "", . 등)
-    if (rawValue === '' || rawValue === '-' || rawValue === '.' || rawValue === '-.') {
-      setTempData(prev => ({
-        ...prev,
-        hit_point: { ...prev.hit_point, [axis]: rawValue },
-      }));
-      return;
-    }
-
     const num = parseFloat(rawValue);
     if (isNaN(num)) return;
 
@@ -1338,8 +1195,8 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
     let value = Math.max(-MAX_VALUE, Math.min(MAX_VALUE, num));
     value = Math.round(value * 10) / 10;
 
-    const currentX = axis === 'x' ? value : safeNum(tempData.hit_point?.x);
-    const currentY = axis === 'y' ? value : safeNum(tempData.hit_point?.y);
+    const currentX = axis === 'x' ? value : hpt.hp.x;
+    const currentY = axis === 'y' ? value : hpt.hp.y;
 
     // 2차 제한: 원형 클램프 (한계 반지름 4)
     const distance = Math.sqrt(currentX ** 2 + currentY ** 2);
@@ -1369,10 +1226,8 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
       }
     }
 
-    setTempData({
-      ...tempData,
-      hit_point: { x: finalX, y: finalY }
-    });
+    // STEP A: 컨트롤러 경유 → onControllerChange → tempData
+    hpt.setHp({ x: finalX, y: finalY });
     setLastChanged(axis);
     setIsClamped(clamped);
 
@@ -1413,7 +1268,8 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
   const CENTER_X = CANVAS_WIDTH / 2;
   
   // 두께에 따른 X 위치 (지름 기준)
-  const thicknessValue = Math.abs(thickness); // 0~8 (표기의 n)
+  // 뱅크샷: 두께 불필요 → 정면(8/8)으로 시각화
+  const thicknessValue = tempData.T === "BANK" ? 8 : Math.abs(thickness); // 0~8 (표기의 n)
   const thicknessFraction = thicknessValue / 8; // n/8 그대로 사용
   const centerDistance = (1 - thicknessFraction) * (2 * BALL_RADIUS); // 지름 기준
   
@@ -1471,14 +1327,11 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
       finalY = logicalY * clampScale;
     }
     
-    // 소수점 1자리로 반올림
+    // 소수점 1자리로 반올림 (STEP A: 컨트롤러 경유 → onControllerChange → tempData)
     finalX = Math.round(finalX * 10) / 10;
     finalY = Math.round(finalY * 10) / 10;
-    
-    setTempData({
-      ...tempData,
-      hit_point: { x: finalX, y: finalY }
-    });
+
+    hpt.setHp({ x: finalX, y: finalY });
   };
 
   return (
@@ -1593,10 +1446,10 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
             />
           )}
           
-          {/* 타점 마커 */}
+          {/* 타점 마커 (STEP B: hpt.hp) */}
           {(() => {
-            const hitX = safeNum(tempData.hit_point?.x);
-            const hitY = safeNum(tempData.hit_point?.y);
+            const hitX = hpt.hp.x;
+            const hitY = hpt.hp.y;
             
             // 타점 좌표를 픽셀로 변환 (±4 → 볼 반지름 60%)
             const scale = limit60Radius / MAX_VALUE;
@@ -1618,22 +1471,14 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
         </svg>
       </div>
 
-      {/* ========================================
-          상단 2줄 × 3등분: 두께 | 회전 | 당점
-      ======================================== */}
-      <div style={{ marginBottom: '16px' }}>
-        {/* 필드명 줄 */}
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '4px' }}>
-          <div style={{ flex: 1, fontWeight: '600' }}>두께</div>
-          <div style={{ flex: 1, fontWeight: '600' }}>회전</div>
-          <div style={{ flex: 1, fontWeight: '600' }}>당점</div>
-        </div>
-        {/* 필드값 줄 */}
-        <div style={{ display: 'flex', gap: '12px' }}>
+      {/* 1줄: 두께 | 타점 | 시침 값 */}
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '14px' }}>두께</label>
             <select
               value={tempData.T ?? "8/8"}
-              onChange={(e) => setTempData({ ...tempData, T: e.target.value })}
+              onChange={(e) => hpt.setT(e.target.value)}
               style={{
                 width: '100%',
                 padding: '8px',
@@ -1647,207 +1492,72 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
               ))}
             </select>
           </div>
-          {/* 회전 (hit_point.x): Collapsed / Expanded */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {(() => {
-              const rawX = safeNum(tempData.hit_point?.x);
-              const rotationMag = Math.abs(rawX);
-              const displayDir = rawX < 0 ? 'left' : 'right';
-
-              const handleRotationChange = (value) => {
-                const num = Number(value);
-                if (isNaN(num)) return;
-                const mag = clamp(num, 0, 4);
-                const newX = rotationDir === 'left' ? -mag : mag;
-                handleHitPointChange('x', String(newX));
-                if (mag === 0) setIsEditingRotation(false);
-              };
-
-              if (!isEditingRotation) {
-                return (
-                  <div
-                    onClick={() => setIsEditingRotation(true)}
-                    style={{
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '6px',
-                      padding: '6px 10px',
-                      width: '100%',
-                      cursor: 'pointer',
-                      fontSize: '14px'
-                    }}
-                  >
-                    {rotationMag === 0
-                      ? '회전 0팁'
-                      : `${displayDir === 'left' ? '좌측' : '우측'} ${rotationMag.toFixed(1)}팁`}
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    padding: '6px 10px',
-                    width: '100%'
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRotationDir(prev => prev === 'left' ? 'right' : 'left');
-                      const newDir = rotationDir === 'left' ? 'right' : 'left';
-                      const newX = newDir === 'left' ? -rotationMag : rotationMag;
-                      handleHitPointChange('x', String(newX));
-                    }}
-                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}
-                  >
-                    {rotationDir === 'left' ? '좌측' : '우측'}
-                  </button>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="4"
-                    value={rotationMag}
-                    onChange={(e) => handleRotationChange(e.target.value)}
-                    style={{
-                      width: '48px',
-                      padding: '4px 6px',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '4px',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <span style={{ fontSize: '14px' }}>팁</span>
-                </div>
-              );
-            })()}
+          <div style={{ flex: 1, minWidth: '120px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '14px' }}>타점</label>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 10px', width: '100%', boxSizing: 'border-box' }}>
+              <button type="button" onClick={() => { const next = Number((hpt.displayTip - 0.1).toFixed(1)); hpt.setSystemTip(hpt.hpDirection, next); }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}>−</button>
+              <span onClick={() => hpt.setSystemTip(hpt.hpDirection === "left" ? "right" : "left", hpt.displayTip)} style={{ cursor: 'pointer', fontSize: '14px', margin: '0 4px' }}>{hpt.hpDirection === "left" ? "좌측" : "우측"}</span>
+              <input type="number" step="0.1" min="0" max="4" value={hpt.displayTip}
+                onChange={(e) => { if (e.target.value === "") return; const raw = Number(e.target.value); if (isNaN(raw)) return; hpt.setSystemTip(hpt.hpDirection, raw); }}
+                style={{ width: '48px', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '14px', textAlign: 'center' }} />
+              <span style={{ fontSize: '14px' }}>팁</span>
+              <button type="button" onClick={() => { const next = Number((hpt.displayTip + 0.1).toFixed(1)); hpt.setSystemTip(hpt.hpDirection, next); }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}>+</button>
+            </div>
           </div>
-          {/* 당점 (hit_point.y): Collapsed / Expanded (회전과 동일 구조) */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {(() => {
-              const rawY = safeNum(tempData.hit_point?.y);
-              const verticalMag = Math.abs(rawY);
-              const displayDir = rawY > 0 ? 'top' : 'bottom';
-
-              const handleVerticalChange = (value) => {
-                const num = Number(value);
-                if (isNaN(num)) return;
-                const mag = clamp(num, 0, 4);
-                const newY = verticalDir === 'top' ? mag : -mag;
-                handleHitPointChange('y', String(newY));
-                if (mag === 0) setIsEditingVertical(false);
-              };
-
-              if (!isEditingVertical) {
-                return (
-                  <div
-                    onClick={() => setIsEditingVertical(true)}
-                    style={{
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '6px',
-                      padding: '6px 10px',
-                      width: '100%',
-                      cursor: 'pointer',
-                      fontSize: '14px'
-                    }}
-                  >
-                    {verticalMag === 0
-                      ? '당점 0팁'
-                      : `${displayDir === 'top' ? '상단' : '하단'} ${verticalMag.toFixed(1)}팁`}
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    padding: '6px 10px',
-                    width: '100%'
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVerticalDir(prev => prev === 'top' ? 'bottom' : 'top');
-                      const newDir = verticalDir === 'top' ? 'bottom' : 'top';
-                      const newY = newDir === 'top' ? verticalMag : -verticalMag;
-                      handleHitPointChange('y', String(newY));
-                    }}
-                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}
-                  >
-                    {verticalDir === 'top' ? '상단' : '하단'}
-                  </button>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="4"
-                    value={verticalMag}
-                    onChange={(e) => handleVerticalChange(e.target.value)}
-                    style={{
-                      width: '48px',
-                      padding: '4px 6px',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '4px',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <span style={{ fontSize: '14px' }}>팁</span>
-                </div>
-              );
-            })()}
+          <div style={{ flex: 1, minWidth: '80px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '14px' }}>시침 값</label>
+            <div style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#f8fafc', fontSize: '14px', textAlign: 'center' }}>
+              {hpt.displayClock}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* HP_n 별도 줄 (sysHpNResult 있을 때만) */}
-      {sysHpNResult != null && (
-        <div style={{ marginTop: '16px' }}>
-          <span style={{ marginRight: '8px', fontWeight: '600' }}>HP_n :</span>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              border: '1px solid #cbd5e1',
-              borderRadius: '6px',
-              padding: '6px 10px',
-              marginTop: '4px'
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setHpN(prev => Math.max(0, Number((prev - 0.5).toFixed(1))))}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}
-            >
-              −
-            </button>
-            <span
-              onClick={() => setHpDirection(prev => (prev === 'left' ? 'right' : 'left'))}
-              style={{ cursor: 'pointer', fontSize: '14px', margin: '0 8px' }}
-            >
-              {hpDirection === 'left' ? '좌측' : '우측'} {hpN}팁
-            </span>
-            <button
-              type="button"
-              onClick={() => setHpN(prev => Math.min(4, Number((prev + 0.5).toFixed(1))))}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}
-            >
-              +
-            </button>
+      {/* 2줄: 회전 | 당점 */}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: 1, minWidth: '120px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '14px' }}>회전</label>
+            <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 10px', backgroundColor: 'white', gap: '8px' }}>
+              <button type="button" onClick={() => hpt.setRotationTip(hpt.rotationTip - 0.1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}>−</button>
+              <span onClick={() => hpt.setRotationTip(-hpt.rotationTip)} style={{ minWidth: '32px', textAlign: 'center', fontSize: '14px', cursor: 'pointer' }}>
+                {hpt.displayRotation >= 0 ? '우측' : '좌측'}
+              </span>
+              <input type="number" step="0.1" min="0" max="4" value={Number(Math.abs(hpt.displayRotation).toFixed(1))}
+                onChange={(e) => {
+                  if (e.target.value === '') return;
+                  const raw = Number(e.target.value);
+                  if (isNaN(raw)) return;
+                  const sign = hpt.rotationTip >= 0 ? 1 : -1;
+                  hpt.setRotationTip(sign * Number(Math.min(4, Math.max(0, raw)).toFixed(1)));
+                }}
+                style={{ width: '80px', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '14px', textAlign: 'center' }} />
+              <span style={{ fontSize: '14px' }}>팁</span>
+              <button type="button" onClick={() => hpt.setRotationTip(hpt.rotationTip + 0.1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}>+</button>
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: '120px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '14px' }}>당점</label>
+            <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 10px', backgroundColor: 'white', gap: '8px' }}>
+              <button type="button" onClick={() => hpt.setVerticalTip(hpt.verticalTip - 0.1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}>−</button>
+              <span onClick={() => hpt.setVerticalTip(-hpt.verticalTip)} style={{ minWidth: '32px', textAlign: 'center', fontSize: '14px', cursor: 'pointer' }}>
+                {hpt.displayVertical >= 0 ? '상단' : '하단'}
+              </span>
+              <input type="number" step="0.1" min="0" max="4" value={Number(Math.abs(hpt.displayVertical).toFixed(1))}
+                onChange={(e) => {
+                  if (e.target.value === '') return;
+                  const raw = Number(e.target.value);
+                  if (isNaN(raw)) return;
+                  const sign = hpt.verticalTip >= 0 ? 1 : -1;
+                  hpt.setVerticalTip(sign * Number(Math.min(4, Math.max(0, raw)).toFixed(1)));
+                }}
+                style={{ width: '80px', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '14px', textAlign: 'center' }} />
+              <span style={{ fontSize: '14px' }}>팁</span>
+              <button type="button" onClick={() => hpt.setVerticalTip(hpt.verticalTip + 0.1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}>+</button>
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* 버튼 */}
       <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
@@ -1888,17 +1598,17 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
 
 function StrOverlay({ data, onSave, onCancel }) {
   const [tempData, setTempData] = useState({
-    type: data?.type || 'medium_follow',
+    type: data?.type ?? null,
     acceleration: data?.acceleration || 'smooth_const',
-    speed: data?.speed || 3.0,
-    depth: data?.depth || 2.0,
+    speed: data?.speed ?? 2.5,
+    depth: data?.depth ?? 2,
     impact: data?.impact || 'medium'
   });
 
-  // 스트로크 타입 옵션
+  // 스트로크 타입 옵션 (null = 선택 안함)
   const STROKE_TYPES = [
+    { value: null, label: '선택 안함' },
     { value: 'long_follow', label: '롱 팔로우' },
-    { value: 'medium_follow', label: '미디엄 팔로우' },
     { value: 'through_shot', label: '관통 샷' },
     { value: 'stop_shot', label: '스톱 샷' },
     { value: 'short_shot', label: '숏 샷' }
@@ -1914,10 +1624,10 @@ function StrOverlay({ data, onSave, onCancel }) {
 
   // 타격 강도 옵션
   const IMPACT_STRENGTHS = [
-    { value: 'soft', label: 'Soft' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'hard', label: 'Hard' },
-    { value: 'sharp', label: 'Sharp' }
+    { value: 'soft', label: '부드러운' },
+    { value: 'medium', label: '평범한' },
+    { value: 'hard', label: '강한' },
+    { value: 'sharp', label: '날카로운' }
   ];
 
   return (
@@ -1933,8 +1643,8 @@ function StrOverlay({ data, onSave, onCancel }) {
           스트로크 타입
         </label>
         <select
-          value={tempData.type}
-          onChange={(e) => setTempData({ ...tempData, type: e.target.value })}
+          value={tempData.type ?? ""}
+          onChange={(e) => setTempData({ ...tempData, type: e.target.value === "" ? null : e.target.value })}
           style={{
             width: '100%',
             padding: '10px',
@@ -1945,7 +1655,7 @@ function StrOverlay({ data, onSave, onCancel }) {
           }}
         >
           {STROKE_TYPES.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value ?? "null"} value={opt.value ?? ""}>{opt.label}</option>
           ))}
         </select>
       </div>
@@ -2123,202 +1833,351 @@ function StrOverlay({ data, onSave, onCancel }) {
   );
 }
 
-function AiOverlay({ data, onSave, onCancel }) {
-  // ==========================================
-  // AI 코멘트 자동 생성
-  // ==========================================
-  
-  // 타점 좌표 → 팁 표현 변환
-  const formatHitPoint = (x, y) => {
-    const parts = [];
-    
-    // X축
-    if (x === 0) {
-      parts.push('중앙');
-    } else if (x > 0) {
-      parts.push(`우측 ${Math.abs(x).toFixed(1)}팁`);
-    } else {
-      parts.push(`왼쪽 ${Math.abs(x).toFixed(1)}팁`);
+function ensureLessonItems(items) {
+  if (!items || !Array.isArray(items)) return [];
+  return items.map((item, idx) => {
+    if (typeof item === "string") {
+      return { id: `legacy-${idx}-${item.slice(0, 40).replace(/\s/g, "_")}`, text: item };
     }
-    
-    // Y축
-    if (y === 0) {
-      parts.push('중단');
-    } else if (y > 0) {
-      parts.push(`상단 ${Math.abs(y).toFixed(1)}팁`);
-    } else {
-      parts.push(`하단 ${Math.abs(y).toFixed(1)}팁`);
+    if (item && typeof item === "object" && item.id != null && item.text != null) {
+      return item;
     }
-    
-    // 중심 타점 특수 처리
-    if (Math.abs(x) <= 0.3 && Math.abs(y) <= 0.3) {
-      return '중심 타점';
-    }
-    
-    return parts.join(', ');
+    const t = String(item?.text ?? item ?? "");
+    return { id: `fix-${idx}-${t.slice(0, 20)}`, text: t };
+  });
+}
+
+function LessonRow({ lesson, selected, onSelect }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: lesson.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
   };
 
-  // AI 코멘트 생성
-  const generateAiComment = () => {
-    const sys = data?.sys || {};
-    const hpt = data?.hpt || {};
-    const str = data?.str || {};
-    
-    // 기본값 처리
-    const shotType = sys.shotType || '뒤돌리기';
-    const system = sys.system || '5_half_system';
-    const coBase = sys.coBase || 40;
-    const c3Base = sys.c3Base || 20;
-    
-    const thickness = hpt.T || '8/8';
-    const hitX = hpt.hit_point?.x || 0;
-    const hitY = hpt.hit_point?.y || 0;
-    const hitPointText = formatHitPoint(hitX, hitY);
-    
-    const strokeType = str.type || 'medium_follow';
-    const acceleration = str.acceleration || 'smooth_const';
-    const speed = str.speed || 3.0;
-    const depth = str.depth || 2.0;
-    
-    // 스트로크 타입 한글 변환
-    const strokeTypeMap = {
-      'long_follow': '롱 팔로우',
-      'medium_follow': '미디엄 팔로우',
-      'through_shot': '관통 샷',
-      'stop_shot': '스톱 샷',
-      'short_shot': '숏 샷'
-    };
-    
-    const accelPatternMap = {
-      'smooth_accel': '부드러운 가속',
-      'sharp_accel': '날카로운 가속',
-      'smooth_const': '부드러운 등속',
-      'intentional_decel': '의도적 감속'
-    };
-    
-    const strokeTypeKr = strokeTypeMap[strokeType] || strokeType;
-    const accelPatternKr = accelPatternMap[acceleration] || acceleration;
-    
-    // ① 플레이 전략
-    let strategy = `💡 **플레이 전략**
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        ...style,
+        display: "flex",
+        alignItems: "center",
+        padding: "4px 0",
+        background: selected ? "#eef2ff" : "transparent",
+        opacity: isDragging ? 0.5 : 1,
+      }}
+      onClick={onSelect}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="drag-handle"
+        style={{ marginRight: 8, flexShrink: 0 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        ☰
+      </div>
+      <div style={{ fontSize: 14, lineHeight: 1.6, flex: 1 }}>
+        - {lesson.text}
+      </div>
+    </div>
+  );
+}
 
-`;
-    
-    // 타점 기반 해석
-    if (Math.abs(hitX) > 2 || Math.abs(hitY) > 2) {
-      strategy += '타점이 중심에서 벗어나 있어 회전을 적극 활용하는 구성입니다. ';
-    } else if (Math.abs(hitX) <= 0.5 && Math.abs(hitY) <= 0.5) {
-      strategy += '중심 타점으로 회전을 최소화하고 정확한 방향 전달을 목표로 합니다. ';
-    } else {
-      strategy += '적절한 타점 조절로 균형잡힌 회전을 활용하는 설정입니다. ';
-    }
-    
-    // 스트로크 깊이 기반 해석
-    if (depth >= 2.5) {
-      strategy += '스트로크 깊이가 깊어 관통력을 강조한 설정입니다. ';
-    } else if (depth <= 1.5) {
-      strategy += '스트로크 깊이가 얕아 섬세한 터치를 의도한 설정입니다. ';
-    }
-    
-    // 가속 패턴 기반 해석
-    if (acceleration === 'smooth_const') {
-      strategy += `${accelPatternKr}로 공의 움직임을 예측 가능하게 제어하려는 구성입니다.`;
-    } else if (acceleration === 'sharp_accel') {
-      strategy += `${accelPatternKr}로 빠른 힘 전달을 노린 설정입니다.`;
-    } else if (acceleration === 'smooth_accel') {
-      strategy += `${accelPatternKr}로 안정적인 힘 전달을 추구하는 설정입니다.`;
-    } else {
-      strategy += `${accelPatternKr}로 특수한 효과를 노린 설정입니다.`;
-    }
-    
-    // ② 주의 사항
-    let caution = `
+function AiOverlay({
+  data,
+  sysData,
+  hptData,
+  strData,
+  appliedSys,
+  sysHpNResult,
+  onSave,
+  onCancel,
+  // 원 포인트 레슨
+  onePointLibrary,
+  sortedOnePointLibrary,
+  onePointSelectedId,
+  onePointDraft,
+  setOnePointDraft,
+  onSelectOnePoint,
+  applyOnePointToShot,
+  saveDraftAsNewLesson,
+  onePointLessons,
+  onDeleteLesson,
+  onReorderLessons,
+}) {
+  const sys = sysData || data?.sys || {};
+  const hpt = hptData || data?.hpt || {};
+  const str = strData || data?.str || {};
 
-⚠️ **주의 사항**
+  // 플레이 전략 자동 생성 (adminState 기반, overlay open 시 항상 최신값 반영)
+  const buildPlayStrategyText = () => {
+    const systemId = sys.system || sys.system_id || "5_half_system";
+    const systemName = getSystemNameKo(systemId);
+    const shotType = sys.shotType || "뒤돌리기";
+    const thicknessText = formatThickness(hpt.T);
+    const mode = hpt.mode ?? "TIP";
+    const hitPoint = hpt.hit_point ?? hpt.hp ?? { x: 0, y: 0 };
 
-`;
-    
-    // 경고 조건 체크
-    const needsWarning = speed > 3.0 || acceleration === 'sharp_accel';
-    
-    if (needsWarning) {
-      if (speed > 3.0) {
-        caution += `목표 속도가 ${speed.toFixed(1)}레일로 기준(3레일)을 초과합니다. `;
+    let tipText = "";
+    let tipClockText = "";
+    if (mode === "TIP") {
+      if (sysHpNResult != null && typeof sysHpNResult === "number") {
+        const dir = sysHpNResult >= 0 ? "right" : "left";
+        const n = Math.abs(sysHpNResult);
+        tipText = n === 0 ? "중앙(12시)" : dir === "right" ? `우측 ${n}팁` : `좌측 ${n}팁`;
+        const theta = (dir === "right" ? 1 : -1) * (Math.PI / 2) * (1 - n / 4);
+        tipClockText = convertThetaToClock(theta);
+      } else {
+        const tip = hitPointToTipDisplay(hitPoint);
+        tipText = tip.tipText;
+        tipClockText = tip.tipClockText;
       }
-      if (acceleration === 'sharp_accel') {
-        caution += '날카로운 가속 패턴이 적용되어 있습니다. ';
-      }
-      caution += `쿠션에서의 회전 전달이 증가하여 공이 예상보다 길어질 수 있으니 스트로크 안정성에 특히 유의하세요.`;
-    } else {
-      caution += `현재 설정은 기준 속도(3레일) 내에서 안정적인 구성입니다. 설정한 시스템 값에 맞춰 쿠션 반응이 예측 가능할 것으로 보입니다.`;
     }
-    
-    return strategy + caution;
+
+    const rotationText = hitPointToRotationText(hitPoint);
+    const verticalText = hitPointToVerticalText(hitPoint);
+
+    const res = appliedSys?.outputs?.result || {};
+    const toNum = (v) => (typeof v === "number" && !isNaN(v) ? v : null);
+
+    // SYS: applied.sys.outputs.result에서만 읽기 (AI는 계산하지 않음, 출력된 값만 사용)
+    const arrivalValue = toNum(res.threeC) ?? toNum(res.C4_f) ?? toNum(res.C4_r) ?? toNum(res.arrival) ?? null;
+    const firstCushionValue = toNum(res.oneC) ?? toNum(res.C1_f) ?? toNum(res.C1_r) ?? null;
+
+    const STROKE_TYPE_KO = {
+      long_follow: "롱 팔로우",
+      medium_follow: "미디엄 팔로우",
+      standard: "미디엄 팔로우",
+      through_shot: "관통 샷",
+      stop_shot: "스톱 샷",
+      short_shot: "숏 샷",
+    };
+    const ACCEL_PATTERN_KO = {
+      smooth_accel: "부드러운 가속",
+      sharp_accel: "날카로운 가속",
+      smooth_const: "부드러운 등속",
+      intentional_decel: "의도적 감속",
+    };
+
+    const strokeTypeText = (str.type && (STROKE_TYPE_KO[str.type] || str.type)) || null;
+    const accelPatternText = ACCEL_PATTERN_KO[str.acceleration] || str.acceleration || "부드러운 등속";
+    const passBalls = typeof str.depth === "number" ? str.depth : 2;
+    const speedRails = typeof str.speed === "number" ? str.speed : 3;
+    const impactStrengthKo = strengthToKo(str.impact) || "평범한";
+
+    return buildPlayStrategy({
+      systemName,
+      shotType,
+      arrivalValue,
+      firstCushionValue,
+      thicknessText,
+      tipText,
+      tipClockText,
+      rotationText,
+      verticalText,
+      mode,
+      passBalls,
+      speedRails,
+      accelPatternText,
+      strokeTypeText,
+      impactStrengthKo,
+    });
   };
 
-  // 상태 관리: AI 텍스트 (초기값은 자동 생성)
-  const [aiText, setAiText] = useState('');
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [aiText, setAiText] = useState(() => buildPlayStrategyText());
+  const [selectedLessonId, setSelectedLessonId] = useState(null);
 
-  // data 변경 시 AI 코멘트 재생성
   useEffect(() => {
-    const newComment = generateAiComment();
-    setAiText(newComment);
-    setIsInitialized(true);
-  }, [data]);
+    setAiText(buildPlayStrategyText());
+  }, [sysData, hptData, strData, appliedSys, sysHpNResult]);
+
+  const lessons = useMemo(() => ensureLessonItems(onePointLessons), [onePointLessons]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = lessons.findIndex((l) => l.id === active.id);
+    const newIndex = lessons.findIndex((l) => l.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const next = arrayMove(lessons, oldIndex, newIndex);
+    onReorderLessons?.(next);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Delete" && selectedLessonId) {
+        onDeleteLesson?.(selectedLessonId);
+        setSelectedLessonId(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedLessonId, onDeleteLesson]);
 
   return (
     <div style={{ color: '#334155', fontSize: '18px', maxWidth: '1200px' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <textarea
-          value={aiText}
-          onChange={(e) => setAiText(e.target.value)}
-          style={{
-            width: '100%',
-            minHeight: '420px',
-            padding: '30px',
-            border: '3px solid #cbd5e1',
-            borderRadius: '12px',
-            fontSize: '18px',
-            fontFamily: 'inherit',
-            backgroundColor: '#ffffff',
-            whiteSpace: 'pre-wrap',
-            lineHeight: '1.6',
-            color: '#374151',
-            resize: 'vertical'
-          }}
-        />
+      <div
+        className="strategy-box"
+        style={{
+          border: '1px solid #d0d7de',
+          borderRadius: 8,
+          padding: 20,
+          background: '#ffffff',
+        }}
+      >
+        <div className="section-title" style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>
+          AI 코멘트
+        </div>
+        <div className="section-body" style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+          {aiText}
+        </div>
+        {lessons.length > 0 && (
+          <>
+            <div style={{ height: 24 }} />
+            <div className="section-title" style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>
+              원 포인트 레슨
+            </div>
+            <div className="section-body" style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={lessons.map((l) => l.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {lessons.map((lesson) => (
+                    <LessonRow
+                      key={lesson.id}
+                      lesson={lesson}
+                      selected={selectedLessonId === lesson.id}
+                      onSelect={() => setSelectedLessonId(lesson.id)}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* 버튼 */}
-      <div style={{ display: 'flex', gap: '12px', marginTop: '36px' }}>
+      <div style={{ marginTop: 24, marginBottom: '24px' }}>
+        <select
+          value={onePointSelectedId}
+          onChange={(e) => {
+            const id = e.target.value;
+            if (id) onSelectOnePoint(id);
+          }}
+          style={{
+            width: '100%',
+            padding: '10px 12px',
+            fontSize: '14px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '6px',
+            marginBottom: 8,
+            backgroundColor: '#fff',
+          }}
+        >
+          <option value="">선택하세요</option>
+          {(sortedOnePointLibrary || onePointLibrary || []).map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.text}
+            </option>
+          ))}
+        </select>
+        <textarea
+          value={onePointDraft}
+          onChange={(e) => setOnePointDraft?.(e.target.value)}
+          placeholder="문장 입력 또는 수정"
+          rows={3}
+          style={{
+            width: '100%',
+            padding: '10px 12px',
+            fontSize: '14px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '6px',
+            marginBottom: 10,
+            fontFamily: 'inherit',
+            resize: 'vertical',
+          }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => applyOnePointToShot?.()}
+            style={{
+              padding: '10px 16px',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#334155',
+              backgroundColor: '#e2e8f0',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            적용
+          </button>
+          <button
+            onClick={() => saveDraftAsNewLesson?.()}
+            style={{
+              padding: '10px 16px',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#fff',
+              backgroundColor: '#3b82f6',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            저장
+          </button>
+        </div>
+      </div>
+
+      {/* 전체 적용 / 취소 */}
+      <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
         <button
-          onClick={() => onSave({ ...data, aiComment: aiText })}
+          onClick={() => onSave({ ...data, text: aiText, onePointLessons: data?.onePointLessons ?? [] })}
           style={{
             flex: 1,
-            padding: '18px',
+            padding: '10px 16px',
             backgroundColor: '#2563eb',
             color: 'white',
             border: 'none',
-            borderRadius: '9px',
+            borderRadius: '6px',
             fontWeight: '600',
-            fontSize: '18px',
+            fontSize: '14px',
             cursor: 'pointer'
           }}
         >
-          적용
+          전체 적용
         </button>
         <button
           onClick={onCancel}
           style={{
             flex: 1,
-            padding: '18px',
+            padding: '10px 16px',
             backgroundColor: '#e2e8f0',
             color: '#334155',
             border: 'none',
-            borderRadius: '9px',
+            borderRadius: '6px',
             fontWeight: '600',
-            fontSize: '18px',
+            fontSize: '14px',
             cursor: 'pointer'
           }}
         >
@@ -2489,15 +2348,20 @@ export default function App({ currentButtonId }) {
     },
     hpt: {
       T: "8/8",  // ⚠️ SSOT - 두께·방향의 유일한 기준
-      hit_point: { x: 0, y: 0 }  // ⚠️ Rg 좌표계 (타점)
+      hit_point: { x: 0, y: 0 },  // ⚠️ Rg 좌표계 (타점)
+      mode: "TIP"
     },
     str: {
       curve: "constant",
-      type: "standard",
-      speed: 5
+      type: null,
+      acceleration: "smooth_const",
+      speed: 2.5,
+      depth: 2,
+      impact: "medium"
     },
     ai: {
-      text: ""
+      text: "",
+      onePointLessons: []
     },
     balls: {
       cue: { x: 10, y: 10 },
@@ -2513,7 +2377,101 @@ export default function App({ currentButtonId }) {
 
   /** SYS에서 계산된 HP_n 결과 임시 저장 (HP/T 열릴 때만 반영, UI 동기화용) */
   const [sysHpNResult, setSysHpNResult] = useState(null);
-  
+
+  // 원 포인트 레슨 라이브러리 (로컬스토리지)
+  const ONE_POINT_KEY = "ONE_POINT_LESSON_LIBRARY_V1";
+  const [onePointLibrary, setOnePointLibrary] = useState([]);
+  const [onePointSelectedId, setOnePointSelectedId] = useState("");
+  const [onePointDraft, setOnePointDraft] = useState("");
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ONE_POINT_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) setOnePointLibrary(parsed);
+    } catch (e) {
+      console.warn("Failed to load onePointLibrary", e);
+    }
+  }, []);
+  const saveOnePointLibrary = (next) => {
+    setOnePointLibrary(next);
+    try {
+      localStorage.setItem(ONE_POINT_KEY, JSON.stringify(next));
+    } catch (e) {
+      console.warn("Failed to save onePointLibrary", e);
+    }
+  };
+  const sortedOnePointLibrary = useMemo(() => {
+    return [...onePointLibrary].sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
+  }, [onePointLibrary]);
+  const normalizeLesson = (s) => (s || "").trim();
+  const onSelectOnePoint = (id) => {
+    const item = onePointLibrary.find(x => x.id === id);
+    if (!item) return;
+    setOnePointSelectedId(id);
+    setOnePointDraft(item.text);
+  };
+  const applyOnePointToShot = () => {
+    const text = normalizeLesson(onePointDraft);
+    if (!text) return;
+    const newItem = { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, text };
+    setAdminState(prev => ({
+      ...prev,
+      ai: {
+        ...prev.ai,
+        onePointLessons: [...ensureLessonItems(prev.ai?.onePointLessons || []), newItem]
+      }
+    }));
+    const existing = onePointLibrary.find(x => normalizeLesson(x.text) === text);
+    if (existing) {
+      const now = Date.now();
+      const nextLib = onePointLibrary.map(x =>
+        x.id === existing.id ? { ...x, count: (x.count || 0) + 1, updatedAt: now } : x
+      );
+      saveOnePointLibrary(nextLib);
+    }
+  };
+  const deleteLesson = (id) => {
+    setAdminState(prev => {
+      const items = ensureLessonItems(prev.ai?.onePointLessons || []);
+      return {
+        ...prev,
+        ai: { ...prev.ai, onePointLessons: items.filter((l) => l.id !== id) }
+      };
+    });
+  };
+  const reorderLessons = (newItems) => {
+    setAdminState(prev => ({
+      ...prev,
+      ai: { ...prev.ai, onePointLessons: newItems }
+    }));
+  };
+  const saveDraftAsNewLesson = () => {
+    const text = normalizeLesson(onePointDraft);
+    if (!text) return;
+    const now = Date.now();
+    const existing = onePointLibrary.find(x => normalizeLesson(x.text) === text);
+    if (existing) {
+      const nextLib = onePointLibrary.map(x =>
+        x.id === existing.id ? { ...x, text } : x
+      );
+      saveOnePointLibrary(nextLib);
+      setOnePointSelectedId(existing.id);
+      return;
+    }
+    const newItem = {
+      id: `${now}-${Math.random().toString(16).slice(2)}`,
+      text,
+      count: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const nextLib = [newItem, ...onePointLibrary];
+    saveOnePointLibrary(nextLib);
+    setOnePointSelectedId(newItem.id);
+  };
   // ============================================
   // ImpactBall 모드 상태
   // ============================================
@@ -2628,7 +2586,8 @@ export default function App({ currentButtonId }) {
       sys_input: adminState.sys,
       hpt_input: adminState.hpt,
       str_input: adminState.str,
-      ai_text: adminState.ai.text
+      ai_text: adminState.ai.text,
+      onePointLessons: adminState.ai.onePointLessons ?? []
     };
 
     console.log("💾 SAVED:", record);
@@ -3653,12 +3612,29 @@ function handlePointerCancel(e) {
 
             {overlayState.type === 'AI' && (
               <AiOverlay
+                key={`ai-${adminState.hpt?.hit_point?.x ?? 0}-${adminState.hpt?.hit_point?.y ?? 0}-${adminState.str?.speed ?? 0}`}
                 data={adminState.ai}
+                sysData={adminState.sys}
+                hptData={adminState.hpt}
+                strData={adminState.str}
+                appliedSys={actions?.getActiveSlot?.()?.applied?.sys}
+                sysHpNResult={sysHpNResult}
                 onSave={(newData) => {
                   setAdminState({ ...adminState, ai: newData });
                   closeOverlay();
                 }}
                 onCancel={closeOverlay}
+                onePointLibrary={onePointLibrary}
+                sortedOnePointLibrary={sortedOnePointLibrary}
+                onePointSelectedId={onePointSelectedId}
+                onePointDraft={onePointDraft}
+                setOnePointDraft={setOnePointDraft}
+                onSelectOnePoint={onSelectOnePoint}
+                applyOnePointToShot={applyOnePointToShot}
+                saveDraftAsNewLesson={saveDraftAsNewLesson}
+                onePointLessons={adminState.ai?.onePointLessons ?? []}
+                onDeleteLesson={deleteLesson}
+                onReorderLessons={reorderLessons}
               />
             )}
           </div>
