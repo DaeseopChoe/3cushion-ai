@@ -1,0 +1,8 @@
+export const TABLE_CONFIG = {
+  SCALE: 10,
+  TABLE_W_UNITS: 80,
+  TABLE_H_UNITS: 40,
+  TABLE_W: 80 * 10, // TABLE_W_UNITS * SCALE
+  TABLE_H: 40 * 10, // TABLE_H_UNITS * SCALE
+  PADDING: 30,
+} as const;
