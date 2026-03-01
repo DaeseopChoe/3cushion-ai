@@ -44,13 +44,6 @@ const SHOTS = [
   { id: "H001_05_SB5", label: "H001 – B2T_R / 4C - SB5", file: "B2T_R/H001_05_SB5.json" },
  ];
 
-const SCALE = 10;
-const TABLE_W_UNITS = 80;
-const TABLE_H_UNITS = 40;
-const TABLE_W = TABLE_W_UNITS * SCALE;
-const TABLE_H = TABLE_H_UNITS * SCALE;
-const PADDING = 30;  // 100 → 30 (여백 축소)
-
 const BALL_DIAMETER_MM = 61.5;
 const RG_UNIT_MM = 35.55;
 const BALL_DIAMETER_RG = BALL_DIAMETER_MM / RG_UNIT_MM;
@@ -74,10 +67,6 @@ const POINT_OFFSET_RG = POINT_OFFSET_MM / RG_UNIT_MM;
 // - 좌표 변환, 물리 계산, ImpactBall 등
 // - 외부 상태 의존 금지, 순수 함수 유지
 // ==================================================
-
-function toPx({ x, y }) {
-  return { x: x * SCALE, y: TABLE_H - y * SCALE };
-}
 
 /*
 -------------------------------------------------------
@@ -122,165 +111,6 @@ function STRContent({ trajectoryState }) {
       </div>
     </div>
   );
-}
-
-// Rg 역변환 (px → Rg)
-function toRg({ x, y }) {
-  return {
-    x: x / SCALE,
-    y: (TABLE_H - y) / SCALE
-  };
-}
-
-// 포인터 → Rg 좌표 변환
-function pointerToRg(e, svgEl) {
-  const pt = svgEl.createSVGPoint();
-  pt.x = e.clientX;
-  pt.y = e.clientY;
-  const ctm = svgEl.getScreenCTM();
-  if (!ctm) return null;
-
-  const p = pt.matrixTransform(ctm.inverse());
-  const px = { x: p.x - PADDING, y: p.y - PADDING };
-  return toRg(px);
-}
-
-// Clamp 함수
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-/* -------------------------------------------------------
-   선회 방향 자동 판단 (앵커 좌표 기반)
-------------------------------------------------------- */
-function determineRotation(CO, C1) {
-  if (!CO || !C1) return "RIGHT";
-  
-  const isB2T = Math.abs(CO.y - (-2.25)) < 0.5;
-  const isT2B = Math.abs(CO.y - 42.25) < 0.5;
-  
-  if (isB2T) {
-    // B2T: CO_x > 1C_x → 좌선회
-    return CO.x > C1.x ? "LEFT" : "RIGHT";
-  } else if (isT2B) {
-    // T2B: CO_x > 1C_x → 우선회
-    return CO.x > C1.x ? "RIGHT" : "LEFT";
-  }
-  
-  return "RIGHT";
-}
-
-/* -------------------------------------------------------
-   패턴별 impact 방향
-------------------------------------------------------- */
-function getImpactDirection(rotation, pattern) {
-  if (pattern === "뒤돌리기" || pattern === "BACKDOUBLE") {
-    // 뒤돌리기: 선회 반대로 겨냥
-    return rotation === "LEFT" ? 1 : -1;  // 좌선회→우측(+1), 우선회→좌측(-1)
-  } else if (pattern === "옆돌리기" || pattern === "SIDEDOUBLE") {
-    // 옆돌리기: 선회 그대로 겨냥
-    return rotation === "LEFT" ? -1 : 1;  // 좌선회→좌측(-1), 우선회→우측(+1)
-  }
-  
-  // 기본값 (뒤돌리기와 동일)
-  return rotation === "LEFT" ? 1 : -1;
-}
-
-// ============================================
-// ImpactBall / HP-T 함수들
-// ============================================
-// calcImpactBall → data/system/calculator 로 분리됨
-
-function calculateImpact(cue, target, CO_fg, C1_fg, thicknessStr, pattern) {
-  let t = 0.5;
-  if (typeof thicknessStr === "string" && thicknessStr.includes("/")) {
-    const [a, b] = thicknessStr.split("/").map(Number);
-    if (b !== 0) t = a / b;
-  }
-  if (!cue || !target) return null;
-
-  const dx_ct = target.x - cue.x;
-  const dy_ct = target.y - cue.y;
-  const dist_ct = Math.sqrt(dx_ct * dx_ct + dy_ct * dy_ct);
-  if (dist_ct < 1e-6) return { ...target };
-
-  const ux = dx_ct / dist_ct;
-  const uy = dy_ct / dist_ct;
-  
-  // 앵커로 선회 방향 자동 판단
-  const rotation = determineRotation(CO_fg, C1_fg);
-  const impactSign = getImpactDirection(rotation, pattern);
-  
-  console.log("🎯 Impact 상세:", {
-    "큐볼": cue,
-    "타겟볼": target,
-    "CO_fg": CO_fg,
-    "C1_fg": C1_fg,
-    "진행방향(ux,uy)": { ux, uy },
-    "rotation": rotation,
-    "pattern": pattern,
-    "impactSign": impactSign,
-    "겨냥": impactSign === 1 ? "우측(+1)" : "좌측(-1)",
-    "수직벡터(vx,vy)": { vx: impactSign * uy, vy: impactSign * -ux }
-  });
-  
-  const vx = impactSign * uy;
-  const vy = impactSign * -ux;
-  const offset = (1 - t) * BALL_DIAMETER_RG;
-
-  return {
-    x: target.x - ux * BALL_RADIUS_RG + vx * offset,
-    y: target.y - uy * BALL_RADIUS_RG + vy * offset,
-  };
-}
-
-function adjustSystemLine(CO_rg, C1_rg, impact) {
-  if (!CO_rg || !C1_rg || !impact) return { CO_adj: null, C1_adj: null };
-  const dx = C1_rg.x - CO_rg.x;
-  const dy = C1_rg.y - CO_rg.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist < 1e-6) return { CO_adj: CO_rg, C1_adj: C1_rg };
-
-  const ux = dx / dist;
-  const uy = dy / dist;
-  const to_x = impact.x - CO_rg.x;
-  const to_y = impact.y - CO_rg.y;
-  const proj = to_x * ux + to_y * uy;
-  const perp_x = to_x - proj * ux;
-  const perp_y = to_y - proj * uy;
-
-  return {
-    CO_adj: { x: CO_rg.x + perp_x, y: CO_rg.y + perp_y },
-    C1_adj: { x: C1_rg.x + perp_x, y: C1_rg.y + perp_y },
-  };
-}
-
-// ==================================================
-// 🔵 Physics Engine Block (끝)
-// ==================================================
-
-function groupSystemValuesByRail(anchors, systemValues, lastCushion) {
-  const groups = { BOTTOM: [], TOP: [], LEFT: [], RIGHT: [] };
-  if (!anchors || !systemValues) return groups;
-
-  const markOrder = ["CO", "1C", "2C", "3C", "4C", "5C", "6C"];
-  const lastIndex = markOrder.indexOf(lastCushion);
-  const visibleMarks = lastIndex >= 0 ? markOrder.slice(0, lastIndex + 1) : markOrder;
-
-  visibleMarks.forEach((mark) => {
-    const coord = anchors[mark];
-    if (!coord) return;
-    const sys = systemValues?.[mark];
-    if (sys == null) return;
-    const { x, y } = coord;
-
-    if (Math.abs(y - 0) < 0.5) groups.BOTTOM.push({ mark, x, sys });
-    if (Math.abs(y - 40) < 0.5) groups.TOP.push({ mark, x, sys });
-    if (Math.abs(x - 0) < 0.5) groups.LEFT.push({ mark, y, sys });
-    if (Math.abs(x - 80) < 0.5) groups.RIGHT.push({ mark, y, sys });
-  });
-
-  return groups;
 }
 
 function Ball({ x, y, color, opacity = 1, ...eventProps }) {
@@ -595,13 +425,6 @@ function SysOverlay({ data, onSave, onCancel }) {
   const baseResultValue = Object.keys(calcResult).length > 0 ? Object.values(calcResult)[0] : null;
   const baseResultKey = Object.keys(calcResult).length > 0 ? Object.keys(calcResult)[0] : null;
 
-  // 소수점 제거: 정수면 정수로, 아니면 그대로 (동기화·노란/초록 박스 공통)
-  const formatResultNum = (n) => {
-    const x = Number(n);
-    if (Number.isNaN(x)) return '0';
-    return x % 1 === 0 ? String(Math.round(x)) : String(x);
-  };
-
   // 기준 계산값 → inputs[baseResultKey] 강제 동기화 (계산되면 무조건 주입, 숫자 같을 때만 스킵)
   useEffect(() => {
     if (!baseResultKey || baseResultValue == null) return;
@@ -694,7 +517,6 @@ function SysOverlay({ data, onSave, onCancel }) {
     const resultVal = calcResult[rawLhs];
     const numVal = resultVal != null && typeof resultVal === 'number' ? resultVal : 0;
 
-    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     let substitutedRhs = rawRhs;
     for (const k of (rhsKeys || [])) {
       const v = formData.inputs[k];
@@ -724,7 +546,6 @@ function SysOverlay({ data, onSave, onCancel }) {
     const rawRhs = parts[1];
     const resultVal = finalCalc[lhsKey];
     const numVal = resultVal != null && typeof resultVal === 'number' ? resultVal : 0;
-    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const pullSpin = p_pull + p_spin;
     let substitutedRhs = rawRhs;
     for (const k of (rhsKeys || [])) {
@@ -973,7 +794,6 @@ function SysOverlay({ data, onSave, onCancel }) {
         const { Sn, C4_f } = snFor5Half;
         const CO_f = Number(formData.inputs?.CO_f) || 0;
         const C3_r = Number(formData.inputs?.C3_r) || 0;
-        const fmt = (n) => (n % 1 === 0 ? String(Math.round(n)) : String(Math.round(n * 10) / 10));
         return (
           <div
             style={{
@@ -3318,7 +3138,7 @@ function handlePointerCancel(e) {
   const jx = clamp(bp.x + ux * 10, 3, 77);
   const jy = clamp(bp.y + uy * 10, 3, 37);
 
-  const jp = toPx({ x: jx, y: jy });
+  const jp = toPx({ x: jx, y: jy }, SCALE, TABLE_H);
   const cx = jp.x + PADDING;
   const cy = jp.y + PADDING;
 
