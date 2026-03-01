@@ -10,15 +10,37 @@ frontend/src/
  ├── admin/
  ├── assets/
  ├── components/
+ │   └── table/
+ │       ├── AnchorPoint.jsx
+ │       ├── SystemValueLabels.jsx
+ │       ├── ImpactLines.jsx
+ │       ├── CoachingOverlay.jsx
+ │       ├── TableGrid.jsx
+ │       ├── RailFrame.jsx
+ │       └── Ball.jsx
+ ├── config/
+ │   └── tableConfig.ts
  ├── contexts/
  ├── data/
  │   └── systems/ (39 systems)
+ ├── domain/
+ │   ├── railEngine.ts
+ │   ├── strategyEngine.ts
+ │   └── index.ts
  ├── hooks/
  │   ├── useShotSlots.ts
- │   └── useTrajectoryState.ts
+ │   ├── useTrajectoryState.ts
+ │   ├── useCoachingController.ts
+ │   ├── useSystemController.ts
+ │   └── useDisplayController.ts
  ├── lib/
  ├── styles/
  ├── utils/
+ │   ├── geometry/coords.ts
+ │   ├── physics/
+ │   │   ├── impact.ts
+ │   │   ├── systemLine.ts
+ │   │   └── index.ts
  │   ├── systemCalculator.ts
  │   ├── trajectorySampleBuilder.ts
  │   └── layoutCalculator.js
@@ -28,20 +50,22 @@ frontend/src/
 
 ✔ src/systems 제거 완료
 ✔ src/data/systems 단일화 완료
+✔ Geometry/Physics/Rendering/Controllers/Domain 분리 완료 (2026-03)
 
 2️⃣ 핵심 아키텍처 개념 – 6 Layer 모델
 
 현재 프론트엔드는 기능적으로 6개의 레이어가 존재한다.
 
 Layer	역할	현재 위치
-Rendering	SVG 테이블/공/가이드	App.jsx
-Geometry	Fg/Rg/px 변환	App.jsx + lib
-Physics	ImpactBall 계산	App.jsx
+Rendering	SVG 테이블/공/가이드	components/table/* + App.jsx
+Geometry	Fg/Rg/px 변환	utils/geometry/coords.ts
+Physics	ImpactBall 계산	utils/physics/*
 System	Expr 기반 계산	utils/systemCalculator
 State	Draft/Applied, Trajectory	hooks
 Interaction	Drag/Joystick	App.jsx
 
-⚠ 현재는 대부분이 App.jsx에 결합되어 있다.
+⚠ Before(과거): 대부분 App.jsx에 결합.
+✔ After(현재): geometry/physics/table rendering/controllers/domain/config 분리 완료.
 
 3️⃣ Draft / Applied 설계 원칙 (공식 선언)
 
@@ -86,31 +110,19 @@ Stage 렌더링
 
 5️⃣ App.jsx 현재 상태 진단 (중요)
 
-App.jsx는 현재:
+**Before (과거):**
+- 렌더/좌표변환/Impact 물리/관리자 모드/전략 연결/인터랙션을 모두 App.jsx가 담당하는 슈퍼 컨트롤러 상태
 
-렌더 엔진
-
-좌표 변환 엔진
-
-Impact 물리 계산 엔진
-
-관리자 모드 엔진
-
-전략 연결 허브
-
-인터랙션 엔진
-
-을 모두 담당하는 슈퍼 컨트롤러 상태이다.
+**After (현재):**
+- App.jsx 역할: Orchestrator(조립), State Bridge, Event Handler, Stage Layout
+- 이미 분리됨: geometry / physics / table rendering / controllers / domain / config
+- 아직 남음: Ball 렌더 일부, pointer handlers, Joystick, Overlay 분기
 
 기술 부채:
 
-파일 규모 과대 (3000+ 라인)
-
-물리 엔진이 UI 내부에 존재
-
-ADMIN / USER 분기 혼합
-
-계산 계층과 렌더 계층 혼합
+- 파일 규모 여전히 대형
+- ADMIN / USER 분기 혼합
+- Ball, Joystick 블록 추가 분리 여지
 
 6️⃣ useShotSlots – 전략 엔진 정의
 
@@ -154,28 +166,29 @@ IDLE → ADJUSTING → APPLIED
 
 SYSTEM_PROFILES 기반 계산. 구조도상 “System Engine Core” 위치. 계산 규칙 상세는 SYSTEM_ARCHITECTURE 참조.
 
-🔟 Phase 2 리팩터링 청사진
+🔟 Phase 2 리팩터링 청사진 (현재 구조 반영)
 
-목표:
+목표 (경로 명시):
 
-StrategyEngine
+domain/strategyEngine (runStrategyEngine)
    ↓
-TrajectoryEngine
+utils/trajectorySampleBuilder (TrajectoryEngine)
    ↓
-PhysicsEngine
+utils/physics/* (PhysicsEngine)
    ↓
-RenderEngine
+components/table/* (RenderEngine)
 
+완료된 단계:
+- Physics 로직 분리: utils/physics/*
+- Geometry 로직 분리: utils/geometry/coords.ts
+- Render 분리: components/table/*
+- Controllers: hooks/useCoachingController, useSystemController, useDisplayController
+- Config: config/tableConfig.ts
+- Domain: domain/railEngine, domain/strategyEngine
 
-실행 순서:
-
-Physics 로직 분리
-
-Geometry 로직 분리
-
-AdminContainer 완전 분리
-
-App.jsx 슬림화
+잔여:
+- AdminContainer 완전 분리
+- App.jsx 추가 슬림화 (Ball, Joystick, Overlay)
 
 ------------------------------------------------------------
 

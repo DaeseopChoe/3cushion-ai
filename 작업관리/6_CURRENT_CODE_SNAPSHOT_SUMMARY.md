@@ -1,7 +1,7 @@
 # CURRENT_CODE_SNAPSHOT_SUMMARY
 3Cushion AI – Session Change Summary
-Version: v0.1
-Date: 2026-02-20
+Version: v0.2
+Date: 2026-03-01
 Author: 목계님
 
 ------------------------------------------------------------
@@ -387,3 +387,68 @@ onePointLessons: LessonItem[];
 - 전략 문서형 출력 구조 완성
 
 본 스냅샷은 UI/상태 흐름이 안정화된 기준 버전이다.
+
+------------------------------------------------------------
+
+## 🔄 2026-03 App Slim화 세션 (Geometry/Physics/Render/Controllers/Domain 분리)
+
+### 1. 변경 사항 요약
+
+#### 1-1. Geometry 분리
+- `utils/geometry/coords.ts` 신규 생성
+- toPx, toRg, pointerToRg, clamp, formatResultNum, fmt, escapeRegExp 이동
+- SCALE/PADDING/TABLE_H 등 상수는 파일 내 정의 금지, 호출부에서 인자 전달
+
+#### 1-2. Physics 분리
+- `utils/physics/impact.ts`: calculateImpact, determineRotation, getImpactDirection
+- `utils/physics/systemLine.ts`: adjustSystemLine
+- BALL_DIAMETER_RG, BALL_RADIUS_RG는 인자로 주입
+
+#### 1-3. Rendering 컴포넌트 분리
+- `components/table/AnchorPoint.jsx` (순수 렌더)
+- `components/table/SystemValueLabels.jsx` (앵커 라벨 계산 + AnchorPoint 호출)
+- `components/table/ImpactLines.jsx` (CO-1C 라인 + 쿠션 경로)
+- `components/table/CoachingOverlay.jsx` (가이드라인 + 임팩트볼 렌더)
+
+#### 1-4. Controller 훅 도입
+- `hooks/useCoachingController.ts`: T, impactBall, guideLine 등 (early return 이전 호출 원칙으로 hook order 이슈 해결)
+- `hooks/useSystemController.ts`: T, system, onChangeT
+- `hooks/useDisplayController.ts`: anchors, displayOptions, strategy 추출
+
+#### 1-5. Config 추출
+- `config/tableConfig.ts`: TABLE 관련 상수 (SCALE, TABLE_W, TABLE_H, PADDING 등) 단일 출처
+
+#### 1-6. Domain(전략) 엔진 분리
+- `domain/railEngine.ts`: groupSystemValuesByRail
+- `domain/strategyEngine.ts`: runStrategyEngine (rail grouping + strategy 가공)
+- App에서는 runStrategyEngine만 호출
+
+### 2. 변경 파일 목록
+
+| 파일 | 유형 | 내용 |
+|------|------|------|
+| utils/geometry/coords.ts | 신규 | 좌표·클램프·포맷 유틸 |
+| utils/physics/impact.ts | 신규 | Impact 계산 |
+| utils/physics/systemLine.ts | 신규 | adjustSystemLine |
+| utils/physics/index.ts | 신규 | re-export |
+| components/table/AnchorPoint.jsx | 신규 | 앵커 점 렌더 |
+| components/table/SystemValueLabels.jsx | 신규 | 앵커 라벨 |
+| components/table/ImpactLines.jsx | 신규 | CO-1C/쿠션 라인 |
+| components/table/CoachingOverlay.jsx | 신규 | 가이드라인·임팩트볼 |
+| hooks/useCoachingController.ts | 신규 | 코칭 오버레이 컨트롤 |
+| hooks/useSystemController.ts | 신규 | T, system |
+| hooks/useDisplayController.ts | 신규 | anchors, displayOptions |
+| config/tableConfig.ts | 신규 | 테이블 상수 |
+| domain/railEngine.ts | 신규 | 레일 그룹핑 |
+| domain/strategyEngine.ts | 신규 | runStrategyEngine |
+| domain/index.ts | 신규 | re-export |
+| App.jsx | 수정 | 위 모듈/훅 조립, orchestrator 전환 |
+
+### 3. 구조 영향 판정
+
+□ 폴더 구조 변경: ✅
+□ 계산 파이프라인 변경: ✅ (domain/physics 분리)
+□ Draft/Applied 구조 변경: ❌
+□ 전략→궤적→물리 연결 변경: ✅ (레이어 분리)
+
+→ PROJECT_MASTER_STATE_CURRENT 전면 재작성 완료

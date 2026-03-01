@@ -1,7 +1,7 @@
 # PROJECT_MASTER_STATE_CURRENT
 3Cushion AI – Current Code State Snapshot
-Version: vX.X
-Last Updated: YYYY-MM-DD
+Version: v2.0
+Last Updated: 2026-03-01
 Owner: 목계님
 
 ------------------------------------------------------------
@@ -63,16 +63,48 @@ admin/
   AdminContainer.tsx
 
 components/
+  table/
+    AnchorPoint.jsx
+    SystemValueLabels.jsx
+    ImpactLines.jsx
+    CoachingOverlay.jsx
+    TableGrid.jsx
+    RailFrame.jsx
+    Ball.jsx
+
+config/
+  tableConfig.ts
+
 contexts/
 data/
   systems/ (39개 시스템)
+  system/calculator/
+
+domain/
+  railEngine.ts
+  strategyEngine.ts
+  index.ts
+
 hooks/
   useShotSlots.ts
   useTrajectoryState.ts
+  useCoachingController.ts
+  useSystemController.ts
+  useDisplayController.ts
+
+lib/
 utils/
+  geometry/
+    coords.ts
+  physics/
+    impact.ts
+    systemLine.ts
+    index.ts
   systemCalculator.ts
   trajectorySampleBuilder.ts
   layoutCalculator.js
+  tipClockConverter.ts
+  aiPlayStrategyBuilder.ts
 
 App.jsx
 main.jsx
@@ -83,22 +115,31 @@ main.jsx
 
 # 2. App.jsx 현재 상태 평가
 
-App.jsx는 현재:
+App.jsx 역할 (Orchestrator 전환 완료):
 
-□ 슈퍼 컨트롤러 상태
-□ 물리 엔진 포함
-□ Geometry 변환 포함
-□ Admin 모드 분기 포함
-□ Drag/Interaction 포함
+✔ State Bridge (ballsState, dragState, overlayState, adminState)
+✔ Event Handler (pointer, joystick, overlay)
+✔ Stage Layout (SVG 조립)
+✔ 훅 호출·데이터 조립 (useSystemController, useCoachingController, useDisplayController, runStrategyEngine)
 
-현재 상태 설명:
+이미 분리된 것:
 
-- Rendering / Geometry / Physics / Admin Routing / State Bridge가 한 파일에 결합
-- calcImpactBall, determineRotation 등 물리 로직이 App 내부 존재
-- TrajectoryState는 상태 관리만 수행 (물리 계산 미연결)
-- derived.track는 아직 하드코딩 상태
+- Geometry: utils/geometry/coords.ts (toPx, toRg, clamp, pointerToRg 등)
+- Physics: utils/physics/* (calculateImpact, adjustSystemLine)
+- Rendering: components/table/* (AnchorPoint, SystemValueLabels, ImpactLines, CoachingOverlay)
+- Controllers: hooks/useCoachingController, useSystemController, useDisplayController
+- Config: config/tableConfig.ts
+- Domain: domain/strategyEngine, domain/railEngine
 
-※ App.jsx가 분리되면 이 항목은 반드시 갱신
+아직 App에 남은 것:
+
+- Ball 렌더 (로컬 Ball 컴포넌트)
+- Pointer handlers (handlePointerDown, handlePointerMove 등)
+- Joystick 블록
+- Overlay 모달 분기 (SysOverlay, HptOverlay, StrOverlay, AiOverlay)
+- groupSystemValuesByRail 등 rail 계산 로직 → domain으로 이전됨 (2026-03)
+
+※ 구조 변경 시 이 항목은 반드시 갱신
 
 ------------------------------------------------------------
 
@@ -150,21 +191,30 @@ applyDraftSys
    ↓
 useTrajectoryState.applySysResult
    ↓
-App.jsx 물리 계산
+domain/runStrategyEngine (전략·레일 가공)
    ↓
-Stage 렌더
+utils/physics/* (Impact 계산)
+   ↓
+hooks/useCoachingController (T, impactBall, guideLine)
+   ↓
+components/table/* (렌더)
+   ↓
+Stage (App.jsx 조립)
 
-※ 파이프라인 분리 미완성 상태
+※ Strategy 가공·Physics·Render는 분리 완료. Config는 config/tableConfig.
 
 ------------------------------------------------------------
 
 # 6. 현재 기술 부채 (Technical Debt)
 
-□ App.jsx 과대 집중
-□ Physics 모듈 분리 필요
+□ App.jsx 여전히 대형 (Orchestrator + Overlay + Ball + pointer handlers)
 □ derived.track 미구현
-□ Geometry/Physics 혼합
-□ Admin/User 분기 통합
+□ Admin/User 분기 통합 (Overlay 블록 일부 혼합)
+□ Ball, Joystick 블록 추가 분리 여지
+
+해소됨:
+
+- Geometry/physics/render/controllers/config/domain 분리 완료
 
 ------------------------------------------------------------
 

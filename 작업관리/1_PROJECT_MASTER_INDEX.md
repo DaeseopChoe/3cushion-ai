@@ -25,7 +25,7 @@ Frontend: React (Vite)
 Admin 계산: useSysCalculation
 App 계산: systemCalculator + trajectorySampleBuilder
 
-2. 현재 실제 폴더 구조 (2026-02 기준)
+2. 현재 실제 폴더 구조 (2026-03 기준)
 frontend/src/
  ├── admin/
  │   ├── sys/
@@ -36,15 +36,28 @@ frontend/src/
  │   └── AdminContainer.tsx
  │
  ├── components/
+ │   └── table/ (AnchorPoint, SystemValueLabels, ImpactLines, CoachingOverlay, TableGrid, RailFrame, Ball)
+ ├── config/
+ │   └── tableConfig.ts
  ├── contexts/
  ├── data/
  │   └── systems/   (39개 시스템)
  │
+ ├── domain/
+ │   ├── railEngine.ts
+ │   ├── strategyEngine.ts
+ │   └── index.ts
+ │
  ├── hooks/
  │   ├── useShotSlots.ts
- │   └── useTrajectoryState.ts
+ │   ├── useTrajectoryState.ts
+ │   ├── useCoachingController.ts
+ │   ├── useSystemController.ts
+ │   └── useDisplayController.ts
  │
  ├── utils/
+ │   ├── geometry/coords.ts
+ │   ├── physics/ (impact.ts, systemLine.ts, index.ts)
  │   ├── systemCalculator.ts
  │   ├── trajectorySampleBuilder.ts
  │   └── layoutCalculator.js
@@ -55,6 +68,14 @@ frontend/src/
 
 src/systems는 제거되었으며,
 src/data/systems 단일 구조로 확정되었다.
+
+추가된 레이어 (2026-03):
+- config/tableConfig.ts
+- hooks/useCoachingController, useSystemController, useDisplayController
+- domain/railEngine, domain/strategyEngine
+- utils/geometry/coords.ts
+- utils/physics/*
+- components/table/*
 
 3. 시스템 데이터 구조 (Data Driven Architecture)
 
@@ -158,21 +179,18 @@ Strategy 결과를 UI 반영 상태로 변환
 
 현재 위치:
 
-App.jsx 내부
-
+utils/physics/ (impact.ts, systemLine.ts)
 
 주요 함수:
 
-calcImpactBall
+- calculateImpact, determineRotation, getImpactDirection (impact.ts)
+- adjustSystemLine (systemLine.ts)
 
-calculateImpact
-
-determineRotation
-
-adjustSystemLine
-
-⚠ App.jsx 내부에 직접 존재
-⚠ 향후 utils/physics로 분리 대상
+config/tableConfig.ts: 테이블 상수
+utils/geometry/coords.ts: 좌표 변환
+components/table/*: SVG 렌더
+hooks/*Controller: T, coaching, display 상태
+domain/*: 전략·레일 가공 (runStrategyEngine)
 
 6. Admin 계산 구조
 6.1 Admin 계산 (순수 수식 엔진)
@@ -198,6 +216,8 @@ RHS 토큰 파싱 후 evaluate
 
 systemCalculator.ts
 trajectorySampleBuilder.ts
+domain/strategyEngine.ts (runStrategyEngine)
+utils/physics/* (Impact 계산)
 
 
 흐름:
@@ -248,29 +268,17 @@ Stage 렌더링 연동
 
 9. App.jsx 현재 상태 진단
 
-App.jsx는 현재:
+App.jsx 역할 (Orchestrator 전환 완료):
 
-SVG 렌더 엔진
+- State Bridge, Event Handler, Stage Layout
+- 훅·domain·physics·table 컴포넌트 조립
 
-좌표 변환 엔진
+이미 분리됨: geometry, physics, table rendering, controllers, domain, config
 
-Impact 물리 계산
+⚠ 남은 문제점:
 
-관리자 모드 분기
-
-Strategy → Trajectory 연결 허브
-
-을 모두 담당하는 슈퍼 컨트롤러 상태이다.
-
-⚠ 문제점:
-
-파일 규모 과대
-
-계산/렌더/상태 혼합
-
-Physics 분리 필요
-
-Orchestrator 분리 필요
+- 파일 규모 여전히 대형
+- Ball, Joystick, Overlay 분기 추가 분리 여지
 
 10. 데이터 표기 규칙
 
@@ -320,11 +328,9 @@ Save 포맷 v1.4 확정
 
 13. 향후 작업 (Roadmap)
 
-PhysicsEngine 분리
-
 TrajectoryEngine 순수 함수화
 
-App.jsx 슬림화
+App.jsx 추가 슬림화 (Ball, Joystick, Overlay)
 
 계산 파이프라인 완전 분리
 
@@ -333,6 +339,8 @@ SYSTEM_ARCHITECTURE.md 고도화
 CALCULATION_RULES.md 정밀화
 
 trajectory 파이프라인 도식화
+
+완료 (2026-03): PhysicsEngine 분리, Geometry 분리, Render 분리, Controllers/Domain/Config 분리
 
 🔒 최종 선언
 

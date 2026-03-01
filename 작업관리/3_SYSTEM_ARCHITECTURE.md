@@ -1,7 +1,7 @@
 본 문서는 3Cushion AI의 **계산 구조와 시스템 데이터 계층**만 다룬다.
 UI 구조, 렌더 구조, 리팩터링 청사진은 FRONTEND_ARCHITECTURE 문서에서 관리한다.
 
-1️⃣ 현재 실제 폴더 구조 (2026-02 기준)
+1️⃣ 현재 실제 폴더 구조 (2026-03 기준)
 frontend/src/
  ├── admin/
  │   ├── sys/
@@ -12,15 +12,28 @@ frontend/src/
  │   └── AdminContainer.tsx
  │
  ├── components/
+ │   └── table/ (AnchorPoint, SystemValueLabels, ImpactLines, CoachingOverlay, TableGrid, RailFrame, Ball)
+ ├── config/
+ │   └── tableConfig.ts
  ├── contexts/
  ├── data/
  │   └── systems/ (39 systems)
  │
+ ├── domain/
+ │   ├── railEngine.ts
+ │   ├── strategyEngine.ts
+ │   └── index.ts
+ │
  ├── hooks/
  │   ├── useShotSlots.ts
- │   └── useTrajectoryState.ts
+ │   ├── useTrajectoryState.ts
+ │   ├── useCoachingController.ts
+ │   ├── useSystemController.ts
+ │   └── useDisplayController.ts
  │
  ├── utils/
+ │   ├── geometry/coords.ts
+ │   ├── physics/ (impact.ts, systemLine.ts, index.ts)
  │   ├── systemCalculator.ts
  │   ├── trajectorySampleBuilder.ts
  │   └── layoutCalculator.js
@@ -31,6 +44,7 @@ frontend/src/
 
 ✔ src/systems 제거 완료
 ✔ src/data/systems 단일화 완료
+✔ Geometry/Physics/Domain/Controllers 분리 완료
 
 2️⃣ 시스템 데이터 계층 (Data Driven Architecture)
 
@@ -155,6 +169,23 @@ trajectory 계산 기준
 ✔ Applied만 저장한다
 
 6️⃣ 전략 → 궤적 → 물리 연결 구조 (공식 파이프라인)
+
+**전체 레이어:**
+```
+UI (App.jsx)
+   ↓
+Controllers (hooks: useSystemController, useCoachingController, useDisplayController)
+   ↓
+Domain (domain/strategyEngine, domain/railEngine)
+   ↓
+Calculator/Trajectory (utils/systemCalculator, data/system/calculator)
+   ↓
+Physics (utils/physics/*)
+   ↓
+Rendering (components/table/*)
+```
+
+**상세 흐름:**
 SysOverlay 입력
    ↓
 useShotSlots.updateDraftSys()
@@ -169,25 +200,24 @@ applied.sys
    ↓
 useTrajectoryState.applySysResult()
    ↓
+domain/runStrategyEngine (전략·레일 가공)
+   ↓
 Trajectory adjusted
    ↓
-Physics Engine (Impact 계산)
+utils/physics/* (Impact 계산)
    ↓
-Stage Rendering (SVG)
+components/table/* (Stage Rendering)
 
 7️⃣ App.jsx 현재 상태 요약 (계산 관점)
 
-App.jsx는 계산 관점에서:
+App.jsx는 Orchestrator로 전환됨. 계산·물리·좌표는 분리 완료:
 
-좌표 변환 엔진 (Fg/Rg/px)
+- 좌표 변환: utils/geometry/coords.ts
+- 물리 계산: utils/physics/* (calculateImpact, adjustSystemLine)
+- 전략 가공: domain/runStrategyEngine
+- 렌더: components/table/*
 
-물리 계산 엔진 (calcImpactBall, determineRotation, calculateImpact, adjustSystemLine)
-
-관리자 모드 분기
-
-상태 연결 허브
-
-을 담당한다. Physics 로직은 App.jsx 내부에 존재.
+App.jsx는 관리자 모드 분기, 상태 연결 허브, Event Handler, Stage 조립만 담당.
 
 8️⃣ 5_half 특수 구조
 
@@ -210,6 +240,10 @@ useEffect에서 재계산 최소화
 파생 상태는 useMemo 사용
 
 Draft/Applied 분리 유지
+
+훅은 early return 이전에 항상 호출 (React 규칙 준수)
+
+table 관련 상수는 config/tableConfig 단일 출처
 
 📌 최종 선언
 
