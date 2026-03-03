@@ -210,6 +210,67 @@ export function useShotSlots() {
     return { ok: true };
   };
 
+  // Draft.hpt/str/ai -> Applied.hpt/str/ai 확정 (오버레이 "적용" 시 호출)
+  const applyHptToSlot = (slotId: SlotId, data: DraftState['hpt']) => {
+    if (data == null) return;
+    setShotEditor((s) => {
+      const slot = s.slots[slotId];
+      const prevApplied = slot.applied ?? {};
+      const cloned = structuredClone(data);
+      return {
+        ...s,
+        slots: {
+          ...s.slots,
+          [slotId]: {
+            ...slot,
+            draft: { ...(slot.draft ?? {}), hpt: cloned },
+            applied: { ...prevApplied, hpt: cloned },
+          },
+        },
+      };
+    });
+  };
+
+  const applyStrToSlot = (slotId: SlotId, data: DraftState['str']) => {
+    if (data == null) return;
+    setShotEditor((s) => {
+      const slot = s.slots[slotId];
+      const prevApplied = slot.applied ?? {};
+      const cloned = structuredClone(data);
+      return {
+        ...s,
+        slots: {
+          ...s.slots,
+          [slotId]: {
+            ...slot,
+            draft: { ...(slot.draft ?? {}), str: cloned },
+            applied: { ...prevApplied, str: cloned },
+          },
+        },
+      };
+    });
+  };
+
+  const applyAiToSlot = (slotId: SlotId, data: DraftState['ai']) => {
+    if (data == null) return;
+    setShotEditor((s) => {
+      const slot = s.slots[slotId];
+      const prevApplied = slot.applied ?? {};
+      const cloned = structuredClone(data);
+      return {
+        ...s,
+        slots: {
+          ...s.slots,
+          [slotId]: {
+            ...slot,
+            draft: { ...(slot.draft ?? {}), ai: cloned },
+            applied: { ...prevApplied, ai: cloned },
+          },
+        },
+      };
+    });
+  };
+
   // Draft.sys -> Applied.sys 확정 함수
   const applyDraftSys = (slotId: SlotId): { ok: true } | { ok: false; reason: string } => {
     const slot = shotEditor.slots[slotId];
@@ -377,6 +438,9 @@ export function useShotSlots() {
       updateDraftSys,
       validateDraft,
       applyDraftSys,
+      applyHptToSlot,
+      applyStrToSlot,
+      applyAiToSlot,
       saveShot,
       deleteSlot,
       getActiveSlot,

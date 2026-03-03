@@ -32,6 +32,35 @@ import {
 } from "./utils/aiPlayStrategyBuilder";
 import { useHptController, clampHpToRadius } from "./admin/hpt/useHptController";
 import { calcImpactBall } from "./data/system/calculator";
+import {
+  clamp,
+  toPx,
+  toRg,
+  fmt,
+  formatResultNum,
+  escapeRegExp,
+  pointerToRg,
+} from "./utils/geometry/coords";
+import { calculateImpact, adjustSystemLine } from "./utils/physics";
+import SystemValueLabels from "./components/table/SystemValueLabels";
+import ImpactLines from "./components/table/ImpactLines";
+import CoachingOverlay from "./components/table/CoachingOverlay";
+import { useCoachingController } from "./hooks/useCoachingController";
+import { useSystemController } from "./hooks/useSystemController";
+import { useDisplayController } from "./hooks/useDisplayController";
+import { TABLE_CONFIG } from "./config/tableConfig";
+import { runStrategyEngine } from "./domain/strategyEngine";
+import {
+  createPositionRecord,
+  createStrategyEntry,
+  appendPositionToDataset,
+} from "./domain/adminSaveEngine";
+import { evaluateStrategy } from "./domain/evaluateStrategy";
+import { makeSignature } from "./domain/strategySignature";
+import { inferTrackFromBalls } from "./domain/finalCoordinateEngine";
+import anchors5Half from "./data/systems/5_half_system/anchors.json";
+
+const { SCALE, TABLE_W_UNITS, TABLE_H_UNITS, TABLE_W, TABLE_H, PADDING } = TABLE_CONFIG;
 
 const ADMIN_BUTTONS = ["SYS", "HPT", "STR", "AI"];
 
@@ -114,7 +143,7 @@ function STRContent({ trajectoryState }) {
 }
 
 function Ball({ x, y, color, opacity = 1, ...eventProps }) {
-  const p = toPx({ x, y });
+  const p = toPx({ x, y }, SCALE, TABLE_H);
   return (
     <circle
       cx={p.x + PADDING}
@@ -128,64 +157,6 @@ function Ball({ x, y, color, opacity = 1, ...eventProps }) {
     />
   );
 }
-
-function AnchorPoint({ x, y, label, isFg = false, systemValues }) {
-  let dotX = x;
-  let dotY = y;
-
-  if (isFg) {
-    if (Math.abs(y - 42.25) < 0.5) dotY = 40;
-    else if (Math.abs(y - (-2.25)) < 0.5) dotY = 0;
-  }
-
-  const p = toPx({ x: dotX, y: dotY });
-
-  let dx = 0, dy = 0, anchor = "middle";
-  if (Math.abs(dotY - 40) < 0.5) dy = -10;
-  else if (Math.abs(dotY - 0) < 0.5) dy = 17.5;
-
-  if (Math.abs(dotX - 0) < 0.5) {
-    dx = -10;
-    anchor = "end";
-  } else if (Math.abs(dotX - 80) < 0.5) {
-    dx = 10;
-    anchor = "start";
-  }
-
-  const systemValue =
-    typeof label === "string" && systemValues?.[label] != null
-      ? systemValues[label]
-      : null;
-
-  return (
-    <g>
-      <circle
-        cx={p.x + PADDING}
-        cy={p.y + PADDING}
-        r={2.5}
-        fill="#facc15"
-      />
-      <text
-        x={p.x + PADDING + dx}
-        y={p.y + PADDING + dy}
-        fill="#facc15"
-        textAnchor={anchor}
-        dominantBaseline="middle"
-        fontWeight="bold"
-      >
-        {/* 메인 C 포인트 (크게) */}
-        <tspan fontSize={20}>{label}</tspan>
-
-        {/* 시스템 값 (_20, _40 등) — 살짝 작게 */}
-        {systemValue !== null && (
-          <tspan fontSize={20}>{" "}_{systemValue}</tspan>
-        )}
-      </text>
-    </g>
-  );
-}
-
-
 
 // ============================================
 // 관리자 모드 오버레이 컴포넌트들
@@ -1719,6 +1690,7 @@ function AiOverlay({
   appliedSys,
   sysHpNResult,
   onSave,
+  onSaveStrategy,
   onCancel,
   // 원 포인트 레슨
   onePointLibrary,
@@ -1972,7 +1944,11 @@ function AiOverlay({
       {/* 전체 적용 / 취소 */}
       <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
         <button
-          onClick={() => onSave({ ...data, text: aiText, onePointLessons: data?.onePointLessons ?? [] })}
+          onClick={() => {
+            const newData = { ...data, text: aiText, onePointLessons: data?.onePointLessons ?? [] };
+            onSave(newData);
+            onSaveStrategy?.(newData);
+          }}
           style={{
             flex: 1,
             padding: '10px 16px',
@@ -2074,70 +2050,11 @@ function RailFrame() {
   );
 }
 
-function SystemValueLabels({ railGroups }) {
-  return (
-    <g>
-      {railGroups.BOTTOM.map(({ mark, x, sys }, i) => (
-        <text 
-          key={`b-${i}`} 
-          x={x * SCALE + PADDING} 
-          y={TABLE_H + PADDING + 45} 
-          fontSize={13} 
-          fontWeight="bold"
-          fill="#fff" 
-          textAnchor="middle"
-        >
-          {mark}: {sys}
-        </text>
-      ))}
-      {railGroups.TOP.map(({ mark, x, sys }, i) => (
-        <text 
-          key={`t-${i}`} 
-          x={x * SCALE + PADDING} 
-          y={PADDING - 35} 
-          fontSize={13} 
-          fontWeight="bold"
-          fill="#fff" 
-          textAnchor="middle"
-        >
-          {mark}: {sys}
-        </text>
-      ))}
-      {railGroups.LEFT.map(({ mark, y, sys }, i) => (
-        <text 
-          key={`l-${i}`} 
-          x={PADDING - 45} 
-          y={TABLE_H - y * SCALE + PADDING + 3} 
-          fontSize={13} 
-          fontWeight="bold"
-          fill="#fff" 
-          textAnchor="end"
-        >
-          {mark}: {sys}
-        </text>
-      ))}
-      {railGroups.RIGHT.map(({ mark, y, sys }, i) => (
-        <text 
-          key={`r-${i}`} 
-          x={TABLE_W + PADDING + 45} 
-          y={TABLE_H - y * SCALE + PADDING + 3} 
-          fontSize={13} 
-          fontWeight="bold"
-          fill="#fff" 
-          textAnchor="start"
-        >
-          {mark}: {sys}
-        </text>
-      ))}
-    </g>
-  );
-}
-
 // ============================================
 // Phase B-1 Step 1: MobileWrapper (완전 투명)
 // ============================================
 
-export default function App({ currentButtonId }) {
+export default function App({ currentButtonId, onActiveSlotChange }) {
   const [currentId, setCurrentId] = useState(SHOTS[0].id);
   const [view, setView] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2193,6 +2110,16 @@ export default function App({ currentButtonId }) {
   const [overlayState, setOverlayState] = useState({
     open: false,
     type: null // "SYS" | "HPT" | "STR" | "AI" | null
+  });
+
+  // dataset: PositionRecord[] (localStorage "positions_dataset")
+  const [dataset, setDataset] = useState(() => {
+    try {
+      const saved = localStorage.getItem("positions_dataset");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   /** SYS에서 계산된 HP_n 결과 임시 저장 (HP/T 열릴 때만 반영, UI 동기화용) */
@@ -2354,6 +2281,61 @@ export default function App({ currentButtonId }) {
   // 오버레이 닫기
   function closeOverlay() {
     setOverlayState({ open: false, type: null });
+  }
+
+  function getAnchorsForSystem(systemId) {
+    if (systemId === "5_half_system") return anchors5Half;
+    return undefined;
+  }
+
+  const evalForSave = (args) =>
+    evaluateStrategy({
+      ...args,
+      systemId: args.signature.systemId,
+      profile: SYSTEM_PROFILES[args.signature.systemId],
+      anchorsData: getAnchorsForSystem(args.signature.systemId),
+      hpT: { T: adminState.hpt?.T ?? "8/8" },
+      trackId: SYSTEM_PROFILES[args.signature.systemId]?.meta?.canonical_track ?? inferTrackFromBalls(args.balls),
+    });
+
+  function handleSaveStrategy(aiOverride = null) {
+    const slotId = shotEditor.activeSlot;
+    const slot = shotEditor.slots[slotId];
+    const applied = slot?.applied ?? {};
+
+    const sys = applied.sys;
+    if (!sys?.inputs) return;
+
+    const systemId = sys.systemId ?? sys.system_id ?? "5_half_system";
+    const profile = SYSTEM_PROFILES[systemId];
+    const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
+    const shotType = "default";
+
+    const signature = makeSignature({ systemId, formulaHash, shotType });
+
+    const balls = adminState.balls ?? { cue: { x: 10, y: 10 }, target: { x: 50, y: 25 }, second: { x: 40, y: 20 } };
+
+    const strategy = createStrategyEntry({
+      slot: slotId,
+      signature,
+      sysInputs: sys.inputs ?? {},
+      hpT: applied.hpt,
+      str: applied.str,
+      ai: aiOverride ?? applied.ai,
+      balls,
+      evaluateStrategy: evalForSave,
+    });
+
+    const position = createPositionRecord({ balls });
+    position.strategies.push(strategy);
+
+    const updated = appendPositionToDataset(dataset, position);
+    setDataset(updated);
+    try {
+      localStorage.setItem("positions_dataset", JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Failed to save positions_dataset", e);
+    }
   }
 
   // ⭐ 핵심: 버튼 클릭 → Overlay 여는 함수
@@ -2580,25 +2562,48 @@ function handleJoyPadPointerCancel(e) {
   }, [currentButtonId, appMode]);
 
   // ============================================
-  // S1/S2/S3 시나리오 전환
+  // S1/S2/S3 시나리오 전환 + switchSlot 동기화
   // ============================================
   useEffect(() => {
     if (currentButtonId === 'S1') {
+      actions.switchSlot('S1');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
       setCurrentId(SHOTS[0].id);
     }
     else if (currentButtonId === 'S2') {
+      actions.switchSlot('S2');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
       setCurrentId(SHOTS[1].id);
     }
     else if (currentButtonId === 'S3') {
+      actions.switchSlot('S3');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
       setCurrentId(SHOTS[2].id);
     }
   }, [currentButtonId]);
+
+  // activeSlot 변경 시 adminState를 해당 슬롯의 applied(hpt/str/ai)로 동기화
+  useEffect(() => {
+    const slot = shotEditor.slots[shotEditor.activeSlot];
+    const applied = slot?.applied;
+    const defaultHpt = { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP" };
+    const defaultStr = { curve: "constant", type: null, acceleration: "smooth_const", speed: 2.5, depth: 2, impact: "medium" };
+    const defaultAi = { text: "", onePointLessons: [] };
+    setAdminState((prev) => ({
+      ...prev,
+      hpt: applied?.hpt ?? defaultHpt,
+      str: applied?.str ?? defaultStr,
+      ai: applied?.ai ?? defaultAi,
+    }));
+  }, [shotEditor.activeSlot]);
+
+  // Stage에 activeSlot 동기화 (슬롯 버튼 빨간 테두리용)
+  useEffect(() => {
+    onActiveSlotChange?.(shotEditor.activeSlot);
+  }, [shotEditor.activeSlot, onActiveSlotChange]);
 
   useEffect(() => {
     const shot = SHOTS.find((s) => s.id === currentId);
@@ -2677,6 +2682,31 @@ function handleJoyPadPointerCancel(e) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [appMode, overlayState.open]);
 
+  // ⚠️ Hooks 규칙: early return 전에 반드시 호출
+  const systemCtrl = useSystemController({
+    view: view ?? null,
+    adminState,
+    canEdit,
+    setAdminState,
+  });
+  const display = useDisplayController({ ui: view?.ui });
+  const ballsForCoaching = view?.ui ? (ballsState ?? (view.ui.balls || {})) : (ballsState ?? {});
+  const coaching = useCoachingController({
+    appMode,
+    showCoaching,
+    canEdit,
+    T: systemCtrl.T,
+    impactMode,
+    setImpactMode,
+    balls: ballsForCoaching,
+    setBallsState,
+    calcImpactBall,
+    SCALE,
+    TABLE_H,
+    PADDING,
+    RENDER_RADIUS_RG,
+  });
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#334155' }}>
@@ -2701,7 +2731,11 @@ function handleJoyPadPointerCancel(e) {
 
   const ui = view.ui;
   const balls = ballsState ?? (ui.balls || {});
-  
+  const system = systemCtrl.system;
+  const rawAnchors = display.anchors;
+  const opts = display.displayOptions;
+  const strategy = display.strategy;
+
   // 자동 분리 알고리즘
   function autoSeparate(draggedBall, otherBalls, maxIterations = 3) {
     const MIN_DISTANCE = BALL_DIAMETER_RG;
@@ -2771,7 +2805,7 @@ function handlePointerDown(e) {
   if (overlayContent) return; // 오버레이 활성 시 비활성화
   if (!svgRef.current) return;
 
-  const pointerRg = pointerToRg(e, svgRef.current);
+  const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
   if (!pointerRg) return;
 
   // hit-test: 선택 반경 1.35배 (UX 개선)
@@ -2835,7 +2869,7 @@ function handlePointerMove(e) {
   
   if (!dragState.dragging || !dragState.ballId || !svgRef.current) return;
 
-  const pointerRg = pointerToRg(e, svgRef.current);
+  const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
   if (!pointerRg) return;
 
   // ⭐ impact는 FREE 모드일 때 쿠션 근처까지 허용
@@ -2910,11 +2944,6 @@ function handlePointerCancel(e) {
   // cancel은 드래그 종료로 처리
   handlePointerUp(e);
 }
-
-  const rawAnchors = ui.anchors || {};
-  const system = ui.system || { values: {}, human_readable: {} };
-  const opts = ui.display_options || {};
-  const strategy = ui.strategy || [];
 
   // canonical 처리 (안전하게)
   let canonical = view.track || null;
@@ -3001,7 +3030,7 @@ function handlePointerCancel(e) {
   const C5 = anchors["5C"];
   const C6 = anchors["6C"];
 
-  const impactRaw = calculateImpact(balls.cue, balls.target_center, CO_fg, C1_fg, opts.thickness || "1/2", view.pattern || "뒤돌리기");
+  const impactRaw = calculateImpact(balls.cue, balls.target_center, CO_fg, C1_fg, opts.thickness || "1/2", view.pattern || "뒤돌리기", BALL_DIAMETER_RG, BALL_RADIUS_RG);
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
 
   // CO→1C 선은 레일 교점 사용
@@ -3022,7 +3051,7 @@ function handlePointerCancel(e) {
 
   const cushionPath = [C1_rail, C2, C3, lastAnchor].filter(Boolean);
   const cushionPathAttrRaw = cushionPath.map((pt) => {
-    const p = toPx(pt);
+    const p = toPx(pt, SCALE, TABLE_H);
     return `${p.x + PADDING},${p.y + PADDING}`;
   }).join(" ");
   // 최신 파생 결과를 ref에 보관 (pointerdown에서 Freeze 캡처용)
@@ -3043,7 +3072,13 @@ function handlePointerCancel(e) {
     "5C": { coord: C5, isFg: false }, 
     "6C": { coord: C6, isFg: false } 
   };
-  const railGroups = groupSystemValuesByRail(anchors, system.values || {}, view.last_cushion);
+  const strategyResult = runStrategyEngine({
+    strategy,
+    systemValues: system,
+    anchors,
+    lastCushion: view.last_cushion,
+  });
+  const railGroups = strategyResult.railGroups;
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
@@ -3062,58 +3097,44 @@ function handlePointerCancel(e) {
     >
       <RailFrame />
       <TableGrid />
-      {Object.entries(allAnchors).map(([label, data]) => data.coord && <AnchorPoint key={label} label={label} x={data.coord.x} y={data.coord.y} isFg={data.isFg} systemValues={system.values} />)}
-      {CO_line && C1_line && <line x1={toPx(CO_line).x + PADDING} y1={toPx(CO_line).y + PADDING} x2={toPx(C1_line).x + PADDING} y2={toPx(C1_line).y + PADDING} stroke="#fb923c" strokeWidth={2} />}
-      {cushionPath.length > 1 && <polyline points={cushionPathAttr} stroke="#ef4444" strokeWidth={2} fill="none" />}
-      
-      {/* 큐 → 임팩트 점선 (calcImpactBall 기반 통일) */}
-      {(() => {
-        // ✅ USER MODE 코칭 버튼 누르기 전: 가이드 라인 비표시
-        if (appMode === "USER" && !showCoaching) return null;
-        
-        // T값 결정 (모드별 출처만 다름)
-        const T = canEdit 
-          ? adminState.hpt.T 
-          : (view.ui?.hpt?.T || "8/8");
-        
-        // ============================================
-        // ✅ 수정: impactMode에 따라 올바른 좌표 사용
-        // ============================================
-        let impactBall;
-        
-        if (impactMode === "CONTACT") {
-          // 접선 고정 모드: calcImpactBall 사용
-          impactBall = calcImpactBall(balls.cue, balls.target_center, T);
-        } else {
-          // 자유 이동 모드: ballsState.impact 사용
-          if (balls.impact) {
-            impactBall = balls.impact;
-          } else {
-            // impact가 없으면 초기값으로 calcImpactBall 결과 사용
-            impactBall = calcImpactBall(balls.cue, balls.target_center, T);
+      <SystemValueLabels
+        anchors={allAnchors}
+        scale={SCALE}
+        tableH={TABLE_H}
+        padding={PADDING}
+        systemValues={system.values}
+      />
+      <ImpactLines
+        CO_line={CO_line}
+        C1_line={C1_line}
+        cushionPath={cushionPath}
+        cushionPathAttr={cushionPathAttr}
+        scale={SCALE}
+        tableH={TABLE_H}
+        padding={PADDING}
+      />
+      {coaching.impactBallPx && (
+        <CoachingOverlay
+          guideLine={
+            <line
+              x1={coaching.guideLineNode.x1}
+              y1={coaching.guideLineNode.y1}
+              x2={coaching.guideLineNode.x2}
+              y2={coaching.guideLineNode.y2}
+              stroke="#e5e7eb"
+              strokeDasharray="4 3"
+              strokeWidth={2}
+              pointerEvents="none"
+            />
           }
-        }
-        
-        if (!balls.cue || !impactBall) return null;
-        
-        const cuePx = toPx(balls.cue);
-        const impactPx = toPx(impactBall);
-        
-        // 큐 → 임팩트 점선 (항상 현재 ImpactBall 중심 기준)
-        return (
-          <line
-            x1={cuePx.x + PADDING}
-            y1={cuePx.y + PADDING}
-            x2={impactPx.x + PADDING}
-            y2={impactPx.y + PADDING}
-            stroke="#e5e7eb"
-            strokeDasharray="4 3"
-            strokeWidth={2}
-            pointerEvents="none"
-          />
-        );
-      })()}
-      
+          impactBallPx={coaching.impactBallPx}
+          impactBallRadius={coaching.impactBallRadius}
+          impactBallColor={coaching.impactBallColor}
+          impactBallOpacity={coaching.impactBallOpacity}
+          onImpactBallDoubleClick={coaching.onImpactBallDoubleClick}
+          impactBallCursor={coaching.impactBallCursor}
+        />
+      )}
       {balls.cue && <Ball {...balls.cue} color="#ffffff" />}
       {balls.target_center && <Ball {...balls.target_center} color="#fde047" />}
       {balls.second && <Ball {...balls.second} color="#f87171" />}
@@ -3164,75 +3185,6 @@ function handlePointerCancel(e) {
     </g>
   );
 })()}
-
-      {/* ImpactBall (USER/ADMIN 공통, T값 기반) */}
-      {(() => {
-        // ✅ USER MODE 코칭 버튼 누르기 전: 임펙트볼 비표시
-        if (appMode === "USER" && !showCoaching) return null;
-        
-        // T값 결정 (모드별 소스만 다름)
-        const T = canEdit 
-          ? adminState.hpt.T 
-          : (view.ui?.hpt?.T || "8/8");
-        
-        // ============================================
-        // ImpactBall 위치 결정 (모드별 분기)
-        // ============================================
-        let impactBall;
-        
-        if (impactMode === "CONTACT") {
-          // 접선 고정 모드: calcImpactBall 사용
-          impactBall = calcImpactBall(balls.cue, balls.target_center, T);
-        } else {
-          // 자유 이동 모드: ballsState.impact 사용
-          if (balls.impact) {
-            impactBall = balls.impact;
-          } else {
-            // impact가 없으면 초기값으로 calcImpactBall 결과 사용
-            impactBall = calcImpactBall(balls.cue, balls.target_center, T);
-          }
-        }
-        
-        if (!impactBall) return null;
-        
-        // ADMIN: 초록색, USER: 흰색 (시각적 구분만)
-        const color = canEdit ? "#00ff00" : "#ffffff";
-        const opacity = canEdit ? 0.7 : 0.55;
-        
-        return (
-          <Ball 
-            x={impactBall.x} 
-            y={impactBall.y} 
-            color={color} 
-            opacity={opacity}
-            onDoubleClick={appMode === "ADMIN" ? (e) => {
-              e.stopPropagation();
-              console.log("🎯🎯 ImpactBall 더블클릭! 현재 모드:", impactMode);
-              
-              // 모드 토글
-              setImpactMode((prev) => {
-                const nextMode = prev === "CONTACT" ? "FREE" : "CONTACT";
-                console.log("✅ 모드 전환:", prev, "→", nextMode);
-                
-                // CONTACT → FREE 전환 시: 현재 calcImpactBall 결과를 저장
-                if (nextMode === "FREE") {
-                  const currentImpact = calcImpactBall(balls.cue, balls.target_center, T);
-                  if (currentImpact) {
-                    console.log("💾 impact 저장:", currentImpact);
-                    setBallsState((prev) => ({
-                      ...prev,
-                      impact: currentImpact
-                    }));
-                  }
-                }
-                
-                return nextMode;
-              });
-            } : undefined}
-            style={{ cursor: appMode === "ADMIN" ? "pointer" : "default" }}
-          />
-        );
-      })()}
      </svg>
   );
 
@@ -3413,6 +3365,7 @@ function handlePointerCancel(e) {
                 sysHpNResult={sysHpNResult}
                 onSave={(newData) => {
                   setAdminState({ ...adminState, hpt: newData });
+                  actions.applyHptToSlot(shotEditor.activeSlot, newData);
                   closeOverlay();
                 }}
                 onCancel={closeOverlay}
@@ -3424,6 +3377,7 @@ function handlePointerCancel(e) {
                 data={adminState.str}
                 onSave={(newData) => {
                   setAdminState({ ...adminState, str: newData });
+                  actions.applyStrToSlot(shotEditor.activeSlot, newData);
                   closeOverlay();
                 }}
                 onCancel={closeOverlay}
@@ -3441,8 +3395,10 @@ function handlePointerCancel(e) {
                 sysHpNResult={sysHpNResult}
                 onSave={(newData) => {
                   setAdminState({ ...adminState, ai: newData });
+                  actions.applyAiToSlot(shotEditor.activeSlot, newData);
                   closeOverlay();
                 }}
+                onSaveStrategy={handleSaveStrategy}
                 onCancel={closeOverlay}
                 onePointLibrary={onePointLibrary}
                 sortedOnePointLibrary={sortedOnePointLibrary}

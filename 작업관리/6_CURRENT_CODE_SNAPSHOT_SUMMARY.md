@@ -452,3 +452,36 @@ onePointLessons: LessonItem[];
 □ 전략→궤적→물리 연결 변경: ✅ (레이어 분리)
 
 → PROJECT_MASTER_STATE_CURRENT 전면 재작성 완료
+
+------------------------------------------------------------
+
+## 🔄 2026-03 Admin Save & Dataset Persistence
+
+### 1. New Domain Modules
+
+| 파일 | 유형 | 내용 |
+|------|------|------|
+| frontend/src/domain/adminSaveEngine.ts | 신규 | createPositionRecord, createStrategyEntry, appendPositionToDataset |
+| frontend/src/domain/finalCoordinateEngine.ts | 신규 | 시스템 기반 final(1C) 좌표 계산, 5_half_system / n_across_short 지원 |
+| frontend/src/domain/evaluateStrategy.ts | 신규 | balls + sysInputs → userImpact, userFinal 계산 래퍼 |
+
+### 2. App.jsx 변경 사항
+
+- dataset useState 초기화 (localStorage "positions_dataset" 로드)
+- handleSaveStrategy 구현 (evalForSave, createStrategyEntry, appendPositionToDataset)
+- AiOverlay onSaveStrategy prop 추가, "전체 적용" 시 호출
+- 슬롯 동기화: SYS/HP/T/STR/AI 적용 시 slot.applied에 저장
+
+### 3. State Flow Update
+
+- SYS / HP/T / STR / AI → slot.applied 저장
+- "전체 적용" 클릭 시 PositionRecord 생성 후 dataset에 append
+- dataset → localStorage "positions_dataset" 자동 persist
+
+### 4. 데이터 저장 구조
+
+- dataset: **로컬 전용** (localStorage)
+- 백엔드 persist **미구현**
+- JSON export 가능 구조 (PositionRecord[])
+
+------------------------------------------------------------

@@ -22,6 +22,9 @@ frontend/src/
  ├── domain/
  │   ├── railEngine.ts
  │   ├── strategyEngine.ts
+ │   ├── adminSaveEngine.ts
+ │   ├── evaluateStrategy.ts
+ │   ├── finalCoordinateEngine.ts
  │   └── index.ts
  │
  ├── hooks/
@@ -208,7 +211,31 @@ utils/physics/* (Impact 계산)
    ↓
 components/table/* (Stage Rendering)
 
-7️⃣ App.jsx 현재 상태 요약 (계산 관점)
+7️⃣ Admin Save 데이터 흐름
+
+Admin Input (SYS / HP-T / STR / AI)
+   ↓
+Slot.applied
+   ↓
+evaluateStrategy (Domain)
+   ↓
+StrategyMeta (impact, final, angle_ci, angle_fs)
+   ↓
+PositionRecord (createPositionRecord, createStrategyEntry)
+   ↓
+appendPositionToDataset
+   ↓
+dataset (App.jsx state) → localStorage "positions_dataset"
+
+※ Position merge 전략 미구현 (항상 새 PositionRecord 생성)
+
+7.5 Computation Separation Principle
+
+- UI 레이어는 impact/final을 계산하지 않음
+- Domain 레이어가 모든 기하/시스템 평가 수행
+- adminSaveEngine은 저장 조율만 담당
+
+7.6 App.jsx 현재 상태 요약 (계산 관점)
 
 App.jsx는 Orchestrator로 전환됨. 계산·물리·좌표는 분리 완료:
 

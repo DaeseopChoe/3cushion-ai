@@ -6,6 +6,7 @@ const STAGE_RATIO = 2.33;
 export default function Stage() {
   const [viewport, setViewport] = useState({ vw: 0, vh: 0 });
   const [currentButtonId, setCurrentButtonId] = useState("S1");
+  const [activeSlot, setActiveSlot] = useState("S1");
 
   useEffect(() => {
     const calc = () => {
@@ -87,6 +88,7 @@ export default function Stage() {
   const BUTTON_FONT = BUTTON_W * 0.28;
   let BUTTON_GAP = BUTTON_W * 0.22;  // 0.12 → 0.16 (간격 소폭 증가)
 
+  // S1/S2/S3: shot 슬롯 선택 → currentButtonId로 App에 전달 → App의 useEffect에서 actions.switchSlot 호출
   const buttons = [
     { id: "COACH", label: "코칭", type: "coach" },
     { id: "S1", label: "S1", type: "shot" },
@@ -104,12 +106,15 @@ export default function Stage() {
     totalButtonHeight = BUTTON_HEIGHT * 8 + BUTTON_GAP * 7;
   }
 
-  const getButtonColor = (id, isActive) => {
-    if (id === "COACH") return isActive ? "#2563eb" : "#3b82f6";
-    if (id === "AI") return isActive ? "#c2410c" : "#ea580c";
-    if (["SYS", "HP/T", "STR"].includes(id)) return isActive ? "#d97706" : "#f59e0b";
-    return isActive ? "#047857" : "#10b981";
+  const getButtonColor = (id, isSlotSelected, isFuncSelected) => {
+    if (id === "COACH") return isFuncSelected ? "#2563eb" : "#3b82f6";
+    if (id === "AI") return isFuncSelected ? "#c2410c" : "#ea580c";
+    if (["SYS", "HP/T", "STR"].includes(id)) return isFuncSelected ? "#d97706" : "#f59e0b";
+    return isSlotSelected ? "#047857" : "#10b981";
   };
+
+  const SLOT_IDS = ["S1", "S2", "S3"];
+  const FUNC_IDS = ["SYS", "HP/T", "STR", "AI"];
 
   return (
     <div
@@ -143,30 +148,35 @@ export default function Stage() {
             gap: BUTTON_GAP,
           }}
         >
-          {buttons.map(({ id, label, type }) => (
-            <button
-              key={id}
-              onClick={() => setCurrentButtonId(id)}
-              style={{
-                height: BUTTON_HEIGHT,
-                fontSize: BUTTON_FONT,
-                padding: 0,
-                background: getButtonColor(id, currentButtonId === id),
-                color: "#fff",
-                border: currentButtonId === id ? "3px solid #fff" : "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontWeight: "700",
-                whiteSpace: "nowrap",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxSizing: "border-box",
-              }}
-            >
-              {label}
-            </button>
-          ))}
+          {buttons.map(({ id, label }) => {
+            const isSlotSelected = SLOT_IDS.includes(id) && activeSlot === id;
+            const isFuncSelected = (id === "COACH" || FUNC_IDS.includes(id)) && currentButtonId === id;
+            const borderStyle = isSlotSelected ? "3px solid #ef4444" : isFuncSelected ? "3px solid #fff" : "none";
+            return (
+              <button
+                key={id}
+                onClick={() => setCurrentButtonId(id)}
+                style={{
+                  height: BUTTON_HEIGHT,
+                  fontSize: BUTTON_FONT,
+                  padding: 0,
+                  background: getButtonColor(id, isSlotSelected, isFuncSelected),
+                  color: "#fff",
+                  border: borderStyle,
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: "700",
+                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxSizing: "border-box",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         <div style={{ width: CENTER_PAD, flexShrink: 0 }} />
@@ -181,7 +191,7 @@ export default function Stage() {
             justifyContent: "center",
           }}
         >
-          <App currentButtonId={currentButtonId} />
+          <App currentButtonId={currentButtonId} onActiveSlotChange={setActiveSlot} />
         </div>
 
         <div style={{ width: RIGHT_PAD, flexShrink: 0 }} />

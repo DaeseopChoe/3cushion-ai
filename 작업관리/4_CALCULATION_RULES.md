@@ -203,7 +203,14 @@ trajectorySamples (파생 데이터)
 
 ⚠ Draft는 절대 사용하지 않는다.
 
-1️⃣4️⃣ App.jsx 현재 상태 반영
+1️⃣4️⃣ impact/final 계산 엔진 (2026-03 추가)
+
+- evaluateStrategy.ts: balls + sysInputs → userImpact, userFinal
+- userImpact: calcImpactBall(cue, target, T)
+- userFinal: finalCoordinateEngine.computeFinalCoord (C1 보간, 5_half_system / n_across_short)
+- adminSaveEngine.buildStrategyMeta에서 evaluateStrategy 호출 → StrategyMeta 생성
+
+1️⃣5️⃣ App.jsx 현재 상태 반영
 
 현재 Phase 1에서는:
 
@@ -219,7 +226,7 @@ PhysicsEngine 순수 함수화
 
 Strategy → Trajectory → Physics 파이프라인 명확화
 
-1️⃣5️⃣ 새 시스템 추가 절차 (공식 프로토콜)
+1️⃣6️⃣ 새 시스템 추가 절차 (공식 프로토콜)
 
 profile.json 작성
 

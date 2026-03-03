@@ -1,7 +1,7 @@
 # PROJECT_MASTER_STATE_CURRENT
 3Cushion AI – Current Code State Snapshot
-Version: v2.0
-Last Updated: 2026-03-01
+Version: v2.1
+Last Updated: 2026-03
 Owner: 목계님
 
 ------------------------------------------------------------
@@ -83,6 +83,11 @@ data/
 domain/
   railEngine.ts
   strategyEngine.ts
+  adminSaveEngine.ts
+  finalCoordinateEngine.ts
+  evaluateStrategy.ts
+  positionSearchEngine.ts
+  strategySignature.ts
   index.ts
 
 hooks/
@@ -202,6 +207,54 @@ components/table/* (렌더)
 Stage (App.jsx 조립)
 
 ※ Strategy 가공·Physics·Render는 분리 완료. Config는 config/tableConfig.
+
+------------------------------------------------------------
+
+# 5.5 Domain Layer Additions (2026-03)
+
+- adminSaveEngine.ts: PositionRecord creation, createStrategyEntry, appendPositionToDataset
+- finalCoordinateEngine.ts: system-based final (1C) coordinate calculation (5_half_system, n_across_short)
+- evaluateStrategy.ts: impact + final computation wrapper (balls + sysInputs → userImpact, userFinal)
+
+------------------------------------------------------------
+
+# 5.6 Dataset State
+
+- dataset is stored in App.jsx as React state
+- persisted to localStorage under key "positions_dataset"
+- structure: PositionRecord[]
+- PositionRecord contains: balls, strategies[]
+- StrategyEntry contains: slot, signature, sysInputs, hpT, str, ai, meta
+
+------------------------------------------------------------
+
+# 5.7 Meta Storage
+
+StrategyMeta now includes:
+- impact (Point)
+- final (Point)
+- angle_ci
+- angle_fs
+
+------------------------------------------------------------
+
+# 5.8 Save Flow
+
+AiOverlay "전체 적용" →
+  onSaveStrategy →
+  handleSaveStrategy →
+  createStrategyEntry →
+  createPositionRecord →
+  appendPositionToDataset →
+  localStorage persist ("positions_dataset")
+
+------------------------------------------------------------
+
+# 5.9 Known Limitations
+
+- Position merge strategy not implemented (always creates new PositionRecord)
+- Search engine not yet connected to user flow
+- Admin auto-recommend loading not implemented
 
 ------------------------------------------------------------
 
