@@ -210,6 +210,18 @@ trajectorySamples (파생 데이터)
 - userFinal: finalCoordinateEngine.computeFinalCoord (C1 보간, 5_half_system / n_across_short)
 - adminSaveEngine.buildStrategyMeta에서 evaluateStrategy 호출 → StrategyMeta 생성
 
+1️⃣4️⃣-1 StrategyMeta (StrategyEntry 저장 시)
+
+**계산 위치:** buildStrategyMeta() [adminSaveEngine], evaluateStrategy [domain]
+
+**입력:** balls, sysInputs, signature, slot
+
+**출력 (StrategyMeta):**
+- impact (Point): userImpact
+- final (Point): userFinal
+- angle_ci: cue → impact 방향 (atan2)
+- angle_fs: final → second 방향 (atan2)
+
 1️⃣5️⃣ App.jsx 현재 상태 반영
 
 현재 Phase 1에서는:

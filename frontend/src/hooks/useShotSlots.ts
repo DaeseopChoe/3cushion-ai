@@ -3,6 +3,7 @@ import { TrajectoryPhase } from './useTrajectoryState';
 import { SYSTEM_PROFILES } from '../data/systems';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
 import { buildTrajectorySamples } from '../utils/trajectorySampleBuilder';
+import type { StrategyEntry } from '../domain/positionSearchEngine';
 
 // ==========================================
 // Types (중복 없이 정리)
@@ -15,6 +16,7 @@ export interface DraftState {
   hpt?: any;
   str?: any;
   ai?: any;
+  meta?: { recommendedFrom?: { positionId: string; score: number } };
 }
 
 export interface SlotState {
@@ -391,6 +393,39 @@ export function useShotSlots() {
   };
 
   /**
+   * StrategyEntry를 draft에만 로딩 (applied 절대 수정 안 함)
+   * 관리자 자동 추천용
+   */
+  const loadDraftFromStrategyEntry = (
+    slotId: SlotId,
+    entry: StrategyEntry,
+    meta?: { positionId: string; score: number }
+  ) => {
+    setShotEditor((s) => {
+      const slot = s.slots[slotId];
+      return {
+        ...s,
+        slots: {
+          ...s.slots,
+          [slotId]: {
+            ...slot,
+            draft: {
+              sys: {
+                systemId: entry.signature.systemId,
+                inputs: entry.sysInputs ?? {},
+              },
+              hpt: entry.hpT,
+              str: entry.str,
+              ai: entry.ai,
+              meta: meta ? { recommendedFrom: meta } : undefined,
+            },
+          },
+        },
+      };
+    });
+  };
+
+  /**
    * 슬롯 삭제 (draft/applied 모두 null로)
    */
   const deleteSlot = (slotId: SlotId) => {
@@ -441,6 +476,7 @@ export function useShotSlots() {
       applyHptToSlot,
       applyStrToSlot,
       applyAiToSlot,
+      loadDraftFromStrategyEntry,
       saveShot,
       deleteSlot,
       getActiveSlot,

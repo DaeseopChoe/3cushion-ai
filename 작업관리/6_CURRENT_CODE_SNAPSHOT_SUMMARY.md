@@ -390,6 +390,38 @@ onePointLessons: LessonItem[];
 
 ------------------------------------------------------------
 
+## 🔄 2026-03 New Modules Introduced
+
+| 모듈 | 역할 |
+|------|------|
+| positionMergeEngine.ts | Position 병합 로직 (upsertPositionRecord, isSameBalls, ε=0.5) |
+| slotAutoRecommend.ts | Admin 슬롯 자동 추천 (KD-tree 기반) |
+| kdTree6d.ts | 6D KD-tree 구현 (balls → Point6D, nearest search) |
+| positionKDIndex.ts | signatureKey별 KD-Tree 인덱스 매니저 |
+| signatureKey.ts | makeSignatureKey (systemId + formulaHash + shotType) |
+
+------------------------------------------------------------
+
+## 🔄 2026-03 strategyEngine.ts Refactor
+
+**strategyEngine.ts**
+
+Role:
+Strategy recommendation engine.
+
+Exports:
+
+- recommendForAdmin
+- recommendForUser
+- recommendWithInterpolation (future)
+
+Dependencies:
+
+- positionSearchEngine
+- KD-tree search
+
+------------------------------------------------------------
+
 ## 🔄 2026-03 App Slim화 세션 (Geometry/Physics/Render/Controllers/Domain 분리)
 
 ### 1. 변경 사항 요약
@@ -419,9 +451,9 @@ onePointLessons: LessonItem[];
 - `config/tableConfig.ts`: TABLE 관련 상수 (SCALE, TABLE_W, TABLE_H, PADDING 등) 단일 출처
 
 #### 1-6. Domain(전략) 엔진 분리
-- `domain/railEngine.ts`: groupSystemValuesByRail
-- `domain/strategyEngine.ts`: runStrategyEngine (rail grouping + strategy 가공)
-- App에서는 runStrategyEngine만 호출
+- `domain/railEngine.ts`: groupSystemValuesByRail, buildRailGroupedStrategy (rail grouping + strategy 가공)
+- `domain/strategyEngine.ts`: recommendForAdmin, recommendForUser, recommendWithInterpolation (추천 엔진)
+- App에서는 buildRailGroupedStrategy 호출
 
 ### 2. 변경 파일 목록
 
@@ -439,8 +471,8 @@ onePointLessons: LessonItem[];
 | hooks/useSystemController.ts | 신규 | T, system |
 | hooks/useDisplayController.ts | 신규 | anchors, displayOptions |
 | config/tableConfig.ts | 신규 | 테이블 상수 |
-| domain/railEngine.ts | 신규 | 레일 그룹핑 |
-| domain/strategyEngine.ts | 신규 | runStrategyEngine |
+| domain/railEngine.ts | 신규 | 레일 그룹핑, buildRailGroupedStrategy |
+| domain/strategyEngine.ts | 신규 | 추천 엔진 (recommendForAdmin, recommendForUser) |
 | domain/index.ts | 신규 | re-export |
 | App.jsx | 수정 | 위 모듈/훅 조립, orchestrator 전환 |
 

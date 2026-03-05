@@ -49,15 +49,13 @@ import { useCoachingController } from "./hooks/useCoachingController";
 import { useSystemController } from "./hooks/useSystemController";
 import { useDisplayController } from "./hooks/useDisplayController";
 import { TABLE_CONFIG } from "./config/tableConfig";
-import { runStrategyEngine } from "./domain/strategyEngine";
-import {
-  createPositionRecord,
-  createStrategyEntry,
-  appendPositionToDataset,
-} from "./domain/adminSaveEngine";
+import { buildRailGroupedStrategy } from "./domain/railEngine";
+import { createStrategyEntry } from "./domain/adminSaveEngine";
+import { upsertPositionRecord } from "./domain/positionMergeEngine";
 import { evaluateStrategy } from "./domain/evaluateStrategy";
 import { makeSignature } from "./domain/strategySignature";
 import { inferTrackFromBalls } from "./domain/finalCoordinateEngine";
+import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
 import anchors5Half from "./data/systems/5_half_system/anchors.json";
 
 const { SCALE, TABLE_W_UNITS, TABLE_H_UNITS, TABLE_W, TABLE_H, PADDING } = TABLE_CONFIG;
@@ -2299,42 +2297,84 @@ export default function App({ currentButtonId, onActiveSlotChange }) {
     });
 
   function handleSaveStrategy(aiOverride = null) {
+    console.log("[SAVE] START");
+
     const slotId = shotEditor.activeSlot;
     const slot = shotEditor.slots[slotId];
     const applied = slot?.applied ?? {};
 
     const sys = applied.sys;
-    if (!sys?.inputs) return;
+
+    console.log("[SAVE] slotId:", slotId);
+    console.log("[SAVE] adminState:", adminState);
+    console.log("[SAVE] slot:", slot);
+    console.log("[SAVE] sys:", sys);
+    console.log("[SAVE] sys?.inputs:", sys?.inputs);
+    console.log("[SAVE] dataset length:", dataset?.length);
+
+    const balls = adminState.balls ?? { cue: { x: 10, y: 10 }, target: { x: 50, y: 25 }, second: { x: 40, y: 20 } };
+    console.log("[SAVE] balls:", balls);
+
+    if (!sys?.inputs) {
+      console.log("[SAVE] EARLY RETURN: sys?.inputs 없음");
+      return;
+    }
 
     const systemId = sys.systemId ?? sys.system_id ?? "5_half_system";
     const profile = SYSTEM_PROFILES[systemId];
     const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
     const shotType = "default";
-
     const signature = makeSignature({ systemId, formulaHash, shotType });
+    console.log("[SAVE] signature:", signature);
 
-    const balls = adminState.balls ?? { cue: { x: 10, y: 10 }, target: { x: 50, y: 25 }, second: { x: 40, y: 20 } };
+    const safe = (obj) => {
+      if (obj === undefined || obj === null) return obj;
+      try {
+        return JSON.parse(JSON.stringify(obj));
+      } catch (e) {
+        console.warn("[SAVE] safe clone failed:", e);
+        return undefined;
+      }
+    };
 
-    const strategy = createStrategyEntry({
-      slot: slotId,
-      signature,
-      sysInputs: sys.inputs ?? {},
-      hpT: applied.hpt,
-      str: applied.str,
-      ai: aiOverride ?? applied.ai,
-      balls,
-      evaluateStrategy: evalForSave,
-    });
+    const cleanBalls = safe(balls);
+    const cleanSysInputs = safe(sys.inputs ?? {});
+    const cleanHpt = safe(applied.hpt);
+    const cleanStr = safe(applied.str);
+    const cleanAi = safe(aiOverride ?? applied.ai);
 
-    const position = createPositionRecord({ balls });
-    position.strategies.push(strategy);
+    console.log("[SAVE] Creating StrategyEntry");
+    let strategy;
+    try {
+      strategy = createStrategyEntry({
+        slot: slotId,
+        signature,
+        sysInputs: cleanSysInputs ?? {},
+        hpT: cleanHpt,
+        str: cleanStr,
+        ai: cleanAi,
+        balls: cleanBalls ?? balls,
+        evaluateStrategy: evalForSave,
+      });
+      console.log("[SAVE] strategy JSON check:", JSON.stringify(strategy));
+    } catch (e) {
+      console.error("[SAVE] createStrategyEntry 에러:", e);
+      throw e;
+    }
 
-    const updated = appendPositionToDataset(dataset, position);
+    console.log("[SAVE] Running upsertPositionRecord");
+    const updated = upsertPositionRecord(dataset, cleanBalls ?? balls, strategy);
+    console.log("[SAVE] updated length:", updated?.length);
+
     setDataset(updated);
+
+    console.log("[SAVE] Saving dataset to localStorage");
+    console.log("[SAVE] updated dataset:", updated);
     try {
       localStorage.setItem("positions_dataset", JSON.stringify(updated));
+      console.log("[SAVE] localStorage 저장 완료");
     } catch (e) {
-      console.warn("Failed to save positions_dataset", e);
+      console.warn("[SAVE] Failed to save positions_dataset", e);
     }
   }
 
@@ -3072,7 +3112,7 @@ function handlePointerCancel(e) {
     "5C": { coord: C5, isFg: false }, 
     "6C": { coord: C6, isFg: false } 
   };
-  const strategyResult = runStrategyEngine({
+  const strategyResult = buildRailGroupedStrategy({
     strategy,
     systemValues: system,
     anchors,
@@ -3218,7 +3258,7 @@ function handlePointerCancel(e) {
       {/* SAVE 버튼 (관리자 전용) */}
       {canEdit && (
         <button
-          onClick={handleSave}
+          onClick={handleSaveStrategy}
           style={{
             position: 'absolute',
             bottom: '20px',
@@ -3294,7 +3334,12 @@ function handlePointerCancel(e) {
                 data={adminState.sys}
                 onSave={(newData) => {
                   const { system_id, calculated, ...rest } = newData;
-                  
+                  const activeSlot = shotEditor.activeSlot;
+                  const slot = shotEditor.slots[activeSlot];
+
+                  console.log("[SYS APPLY] adminState.sys:", adminState.sys);
+                  console.log("[SYS APPLY] slot.applied before:", slot?.applied);
+
                   // 1. adminState 업데이트
                   setAdminState(prev => ({
                     ...prev,
@@ -3304,46 +3349,32 @@ function handlePointerCancel(e) {
                       system: newData.system || system_id
                     }
                   }));
-                  
-                  // 2. ShotSlots에 draft 업데이트 (시스템 계산 결과 반영)
-                  const activeSlot = shotEditor.activeSlot;
-                  if (calculated && calculated.finalOneCValue !== undefined) {
-                    // draft.sys 업데이트를 위해 updateDraftSys 호출
-                    // 입력값: CO, C3, 시스템ID
-                    actions.updateDraftSys(activeSlot, newData.system || system_id, {
-                      CO: calculated.adjustedCO,
-                      C3: calculated.adjustedC3,
-                      baseOneC: calculated.finalOneCValue,
-                      baseThreeC: calculated.adjustedC3
-                    });
-                    
-                    // 3. Draft를 Applied로 확정
+
+                  // 2. slot.applied.sys 동기화 - 항상 수행 (SAVE 시 handleSaveStrategy에서 사용)
+                  const systemId = newData.system || system_id || "5_half_system";
+                  const inputs = newData.adjustedInputs || newData.inputs || {};
+                  const numericInputs = Object.fromEntries(
+                    Object.entries(inputs).map(([k, v]) => [k, typeof v === "number" ? v : Number(v) || 0])
+                  );
+                  if (Object.keys(numericInputs).length > 0) {
+                    actions.updateDraftSys(activeSlot, systemId, numericInputs);
                     const applyResult = actions.applyDraftSys(activeSlot);
-                    
+                    console.log("[SYS APPLY] applyDraftSys result:", applyResult);
                     if (applyResult.ok) {
-                      // 4. 확정된 결과를 TrajectoryState에 주입 (화면 갱신)
                       const appliedSlot = actions.getActiveSlot();
+                      console.log("[SYS APPLY] slot.applied after:", appliedSlot?.applied);
                       const appliedResult = appliedSlot?.applied?.sys?.outputs?.result;
-                      
-                      if (appliedResult) {
-                        // TrajectoryState 초기화 (필요시)
-                        if (!trajectory.state.adjusted) {
-                          trajectory.setAdjusting({
-                            sys: {
-                              oneC: appliedResult.oneC || 0,
-                              threeC: appliedResult.threeC || 0
-                            }
-                          });
-                        }
-                        
-                        // 결과값 주입
-                        trajectory.applySysResult(appliedResult);
-                        console.log('🚀 [STEP7] applySysResult 데이터 주입 완료:', appliedResult);
-                      } else {
-                        console.warn('⚠️ [STEP7] appliedResult가 없습니다.');
+                      if (appliedResult && !trajectory.state.adjusted) {
+                        trajectory.setAdjusting({
+                          sys: {
+                            oneC: appliedResult.oneC || 0,
+                            threeC: appliedResult.threeC || 0
+                          }
+                        });
                       }
-                    } else {
-                      console.error('❌ [STEP7] applyDraftSys 실패:', applyResult.reason);
+                      if (appliedResult) {
+                        trajectory.applySysResult(appliedResult);
+                      }
                     }
                   }
 
@@ -3352,7 +3383,7 @@ function handlePointerCancel(e) {
                   } else {
                     setSysHpNResult(null);
                   }
-                  
+
                   closeOverlay();
                 }}
                 onCancel={closeOverlay}

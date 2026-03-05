@@ -212,3 +212,32 @@ Status: Active (2026-03 진행 중)
 - Slot structure stabilized (S1/S2/S3 separated from function buttons)
 - Identified need for Position merge strategy
 - Next milestone: Admin Auto-Recommended Loading Logic
+
+---
+
+# 2026-03 — Position Merge & KD-Tree & Admin Auto-Recommend
+
+- Position merge engine implemented (positionMergeEngine.ts)
+- appendPositionToDataset replaced with upsertPositionRecord
+- localStorage dataset storage stabilized
+- Circular JSON serialization bug fixed (strategy sanitize)
+- SYS overlay apply logic fixed (slot.applied.sys 동기화)
+- Admin auto recommendation (slotAutoRecommend) added
+- KD-tree index structure introduced (kdTree6d, positionKDIndex, signatureKey)
+- SAVE 버튼 → handleSaveStrategy 연결
+- 전략 혼합 금지 원칙 확정 (signatureKey별 분리)
+
+---
+
+# 2026-03-05 — StrategyEngine Refactor
+
+- strategyEngine.ts redesigned as recommendation engine
+- Added recommendForAdmin()
+- Added recommendForUser()
+- Added recommendWithInterpolation() placeholder
+
+Code responsibilities separated:
+
+- strategyEngine → strategy recommendation
+- railEngine → rail grouping + system value application
+- positionSearchEngine → KD-tree search

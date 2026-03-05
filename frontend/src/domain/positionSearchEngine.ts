@@ -1,4 +1,6 @@
 // frontend/src/domain/positionSearchEngine.ts
+import { ballsToPoint6D, dist2_6d } from "./search/kdTree6d";
+
 export type Point = { x: number; y: number };
 export type Ball3 = { cue: Point; target: Point; second: Point };
 
@@ -127,6 +129,26 @@ function pointLineDistance(A: Point, B: Point, P: Point): number {
 export function getDefaultEpsilon(tableLong = 80, ballRadius = 0.5): number {
   // ε = max(ballRadius*1.5, 0.015*tableLong)
   return Math.max(ballRadius * 1.5, 0.015 * tableLong);
+}
+
+/**
+ * 6D 거리 기반 nearest position 검색 (strategyEngine용)
+ * balls와 가장 가까운 topK개 PositionRecord 반환
+ */
+export function findNearestPositions(
+  balls: Ball3,
+  dataset: PositionRecord[],
+  topK: number
+): PositionRecord[] {
+  if (!dataset.length || topK <= 0) return [];
+
+  const q = ballsToPoint6D(balls);
+  const scored = dataset.map((rec) => ({
+    rec,
+    dist2: dist2_6d(q, ballsToPoint6D(rec.balls)),
+  }));
+  scored.sort((a, b) => a.dist2 - b.dist2);
+  return scored.slice(0, topK).map((x) => x.rec);
 }
 
 // 2볼 근사 점수(작을수록 좋음). min(dc+dt, dc+ds, dt+ds)

@@ -60,6 +60,7 @@ admin/
   sys/
   save/
   tests/
+  slotAutoRecommend.ts
   AdminContainer.tsx
 
 components/
@@ -84,10 +85,15 @@ domain/
   railEngine.ts
   strategyEngine.ts
   adminSaveEngine.ts
+  positionMergeEngine.ts
+  positionSearchEngine.ts
   finalCoordinateEngine.ts
   evaluateStrategy.ts
-  positionSearchEngine.ts
   strategySignature.ts
+  search/
+    kdTree6d.ts
+    signatureKey.ts
+    positionKDIndex.ts
   index.ts
 
 hooks/
@@ -125,7 +131,7 @@ App.jsx 역할 (Orchestrator 전환 완료):
 ✔ State Bridge (ballsState, dragState, overlayState, adminState)
 ✔ Event Handler (pointer, joystick, overlay)
 ✔ Stage Layout (SVG 조립)
-✔ 훅 호출·데이터 조립 (useSystemController, useCoachingController, useDisplayController, runStrategyEngine)
+✔ 훅 호출·데이터 조립 (useSystemController, useCoachingController, useDisplayController, buildRailGroupedStrategy)
 
 이미 분리된 것:
 
@@ -134,7 +140,7 @@ App.jsx 역할 (Orchestrator 전환 완료):
 - Rendering: components/table/* (AnchorPoint, SystemValueLabels, ImpactLines, CoachingOverlay)
 - Controllers: hooks/useCoachingController, useSystemController, useDisplayController
 - Config: config/tableConfig.ts
-- Domain: domain/strategyEngine, domain/railEngine
+- Domain: domain/strategyEngine (추천), domain/railEngine (레일 그룹핑)
 
 아직 App에 남은 것:
 
@@ -196,7 +202,7 @@ applyDraftSys
    ↓
 useTrajectoryState.applySysResult
    ↓
-domain/runStrategyEngine (전략·레일 가공)
+domain/buildRailGroupedStrategy (전략·레일 가공)
    ↓
 utils/physics/* (Impact 계산)
    ↓
@@ -212,9 +218,14 @@ Stage (App.jsx 조립)
 
 # 5.5 Domain Layer Additions (2026-03)
 
-- adminSaveEngine.ts: PositionRecord creation, createStrategyEntry, appendPositionToDataset
+- adminSaveEngine.ts: createStrategyEntry, buildStrategyMeta (positionMergeEngine re-export)
+- positionMergeEngine.ts: Position 병합 (upsertPositionRecord, isSameBalls, findSimilarPosition, mergeStrategyIntoPosition)
 - finalCoordinateEngine.ts: system-based final (1C) coordinate calculation (5_half_system, n_across_short)
 - evaluateStrategy.ts: impact + final computation wrapper (balls + sysInputs → userImpact, userFinal)
+- domain/search/kdTree6d.ts: 6D KD-tree 구현
+- domain/search/signatureKey.ts: makeSignatureKey (systemId + formulaHash + shotType)
+- domain/search/positionKDIndex.ts: signatureKey별 KD-Tree 인덱스 매니저
+- admin/slotAutoRecommend.ts: 관리자 슬롯 자동 추천
 
 ------------------------------------------------------------
 
@@ -240,21 +251,76 @@ StrategyMeta now includes:
 
 # 5.8 Save Flow
 
-AiOverlay "전체 적용" →
-  onSaveStrategy →
+SAVE 버튼 / AiOverlay "전체 적용" →
   handleSaveStrategy →
   createStrategyEntry →
-  createPositionRecord →
-  appendPositionToDataset →
-  localStorage persist ("positions_dataset")
+  upsertPositionRecord(dataset, balls, strategy) →
+  setDataset(updated) →
+  localStorage.setItem("positions_dataset", JSON.stringify(updated))
+
+**Position 병합 방식 (positionMergeEngine):**
+- 물리 배치 기준 merge (balls)
+- ε = 0.5 grid (MERGE_EPSILON)
+- isSameBalls: cue.x, cue.y, target.x, target.y, second.x, second.y 6축 비교
 
 ------------------------------------------------------------
 
-# 5.9 Known Limitations
+# 5.8.1 Strategy Recommendation Engine
 
-- Position merge strategy not implemented (always creates new PositionRecord)
-- Search engine not yet connected to user flow
-- Admin auto-recommend loading not implemented
+strategyEngine.ts now acts as the central recommendation engine.
+
+Admin Mode:
+
+- recommendForAdmin(balls, dataset)
+  → nearest PositionRecord
+
+User Mode:
+
+- recommendForUser(balls, dataset, options)
+  → returns StrategyEntry for S1/S2/S3 slots
+
+------------------------------------------------------------
+
+# 5.9 positionMergeEngine.ts
+
+**역할:** 동일(또는 ε 이내) balls 배치 시 새 PositionRecord 생성 대신 기존에 StrategyEntry 추가/갱신
+
+- MERGE_EPSILON = 0.5
+- isSameBalls(a, b, epsilon): 6축 각각 |Δ| < ε 비교
+- findSimilarPosition(dataset, balls)
+- mergeStrategyIntoPosition(position, newStrategy): slot+signature 동일 시 덮어쓰기, 아니면 추가
+- upsertPositionRecord(dataset, balls, newStrategy): 최종 진입점
+
+------------------------------------------------------------
+
+# 5.10 Known Limitations
+
+- Search engine (positionSearchEngine) not yet connected to user flow
+- Admin auto-recommend (slotAutoRecommend) 진행 중
+- Interpolation 미구현
+- Δ_sys correction 미구현
+- dataset.json export 미구현
+
+------------------------------------------------------------
+
+# 5.11 설계 원칙 (Design Principles)
+
+**전략 혼합 금지:**
+- signature = systemId + formulaHash + shotType
+- 같은 signature 안에서만 nearest search, interpolation, Δ_sys correction 허용
+- KD-tree는 signatureKey별로 분리 관리
+
+**데이터 관리 방식:**
+- localStorage = 관리자 입력 임시 저장 (positions_dataset)
+- dataset.json = 실제 운영 데이터셋 (관리자 수동 export, 미구현)
+
+------------------------------------------------------------
+
+# 5.12 Architecture Summary — Strategy Engine Refactor (2026-03)
+
+- strategyEngine.ts now handles recommendation logic.
+- railEngine.ts contains rail grouping logic.
+- runStrategyEngine moved to railEngine.
 
 ------------------------------------------------------------
 

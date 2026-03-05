@@ -124,7 +124,21 @@ Stage 렌더링
 - ADMIN / USER 분기 혼합
 - Ball, Joystick 블록 추가 분리 여지
 
-6️⃣ useShotSlots – 전략 엔진 정의
+6️⃣ Slot System
+
+**Slots:** S1 | S2 | S3
+
+**특징:**
+- 각 슬롯 = 하나의 전략
+- 금지 구조: S1에 전략 A + 전략 B 혼합
+- 허용 구조: S1 → 전략 A, S2 → 전략 B, S3 → 전략 C
+
+**Draft vs Applied 상태:**
+- draft = 자동 추천 로딩 대상
+- applied = 관리자 확정 값
+- 규칙: 자동 추천은 applied를 절대 수정하지 않는다.
+
+6.1 useShotSlots – 전략 엔진 정의
 
 정체: Shot Strategy Editor State Engine
 
@@ -189,6 +203,12 @@ components/table/* (RenderEngine)
 잔여:
 - AdminContainer 완전 분리
 - App.jsx 추가 슬림화 (Ball, Joystick, Overlay)
+
+------------------------------------------------------------
+
+**전략 혼합 금지:**
+- signature = systemId + formulaHash + shotType
+- 같은 signature 안에서만 nearest search, interpolation 허용
 
 ------------------------------------------------------------
 

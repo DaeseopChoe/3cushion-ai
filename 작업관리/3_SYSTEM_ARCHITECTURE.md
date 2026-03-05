@@ -9,6 +9,7 @@ frontend/src/
  │   ├── str/
  │   ├── ai/
  │   ├── save/
+ │   ├── slotAutoRecommend.ts
  │   └── AdminContainer.tsx
  │
  ├── components/
@@ -23,8 +24,14 @@ frontend/src/
  │   ├── railEngine.ts
  │   ├── strategyEngine.ts
  │   ├── adminSaveEngine.ts
+ │   ├── positionMergeEngine.ts
+ │   ├── positionSearchEngine.ts
  │   ├── evaluateStrategy.ts
  │   ├── finalCoordinateEngine.ts
+ │   ├── search/
+ │   │   ├── kdTree6d.ts
+ │   │   ├── signatureKey.ts
+ │   │   └── positionKDIndex.ts
  │   └── index.ts
  │
  ├── hooks/
@@ -171,7 +178,29 @@ trajectory 계산 기준
 ✔ Draft는 저장하지 않는다
 ✔ Applied만 저장한다
 
-6️⃣ 전략 → 궤적 → 물리 연결 구조 (공식 파이프라인)
+6️⃣ Architecture Diagram (App Orchestrator)
+
+```
+App (Orchestrator)
+ ├── useSystemController
+ ├── useDisplayController
+ ├── useCoachingController
+ ├── domain
+ │   ├── adminSaveEngine.ts
+ │   ├── positionMergeEngine.ts
+ │   ├── positionSearchEngine.ts
+ │   ├── strategyEngine.ts
+ │   ├── finalCoordinateEngine.ts
+ │   └── evaluateStrategy.ts
+ ├── domain/search
+ │   ├── kdTree6d.ts
+ │   ├── signatureKey.ts
+ │   └── positionKDIndex.ts
+ └── admin
+     └── slotAutoRecommend.ts
+```
+
+6.1 전략 → 궤적 → 물리 연결 구조 (공식 파이프라인)
 
 **전체 레이어:**
 ```
@@ -203,13 +232,42 @@ applied.sys
    ↓
 useTrajectoryState.applySysResult()
    ↓
-domain/runStrategyEngine (전략·레일 가공)
+domain/buildRailGroupedStrategy (전략·레일 가공)
    ↓
 Trajectory adjusted
    ↓
 utils/physics/* (Impact 계산)
    ↓
 components/table/* (Stage Rendering)
+
+6.2 Engine Layer (Domain)
+
+**strategyEngine.ts**
+
+Role:
+Strategy recommendation engine.
+
+Main functions:
+
+- recommendForAdmin()
+  Returns the nearest PositionRecord.
+
+- recommendForUser()
+  Returns recommended StrategyEntry for S1/S2/S3 slots
+  based on nearest positions.
+
+Future extension:
+
+- recommendWithInterpolation()
+
+**railEngine.ts**
+
+Role:
+Rail grouping and system value attachment.
+
+Note:
+Previous runStrategyEngine logic has been moved here
+from strategyEngine.ts during refactoring.
 
 7️⃣ Admin Save 데이터 흐름
 
@@ -221,13 +279,13 @@ evaluateStrategy (Domain)
    ↓
 StrategyMeta (impact, final, angle_ci, angle_fs)
    ↓
-PositionRecord (createPositionRecord, createStrategyEntry)
+createStrategyEntry
    ↓
-appendPositionToDataset
+upsertPositionRecord(dataset, balls, strategy) [positionMergeEngine]
    ↓
 dataset (App.jsx state) → localStorage "positions_dataset"
 
-※ Position merge 전략 미구현 (항상 새 PositionRecord 생성)
+※ Position 병합: ε=0.5 grid, 6축(cue/target/second) 비교, 동일 slot+signature 시 덮어쓰기
 
 7.5 Computation Separation Principle
 
@@ -241,7 +299,7 @@ App.jsx는 Orchestrator로 전환됨. 계산·물리·좌표는 분리 완료:
 
 - 좌표 변환: utils/geometry/coords.ts
 - 물리 계산: utils/physics/* (calculateImpact, adjustSystemLine)
-- 전략 가공: domain/runStrategyEngine
+- 전략 가공: domain/buildRailGroupedStrategy (railEngine)
 - 렌더: components/table/*
 
 App.jsx는 관리자 모드 분기, 상태 연결 허브, Event Handler, Stage 조립만 담당.
@@ -271,6 +329,17 @@ Draft/Applied 분리 유지
 훅은 early return 이전에 항상 호출 (React 규칙 준수)
 
 table 관련 상수는 config/tableConfig 단일 출처
+
+🔟 전략 혼합 금지 원칙
+
+- signature = systemId + formulaHash + shotType
+- 같은 signature 안에서만 nearest search, interpolation, Δ_sys correction 허용
+- KD-tree는 signatureKey별로 분리 관리
+
+1️⃣1️⃣ 데이터 관리 방식
+
+- localStorage = 관리자 입력 임시 저장 (positions_dataset)
+- dataset.json = 실제 운영 데이터셋 (관리자 수동 export, 미구현)
 
 📌 최종 선언
 

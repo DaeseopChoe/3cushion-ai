@@ -326,6 +326,27 @@ Draft/Applied 구조 고정
 
 Save 포맷 v1.4 확정
 
+12.1 Current Implementation Status
+
+**완료:**
+- StrategyEntry 구조
+- PositionRecord 구조
+- Position 병합 (upsertPositionRecord)
+- localStorage 저장 (positions_dataset)
+- SYS / HP-T / STR / AI UI
+- Admin draft/applied 상태 관리
+- positionMergeEngine, slotAutoRecommend, KD-tree 구조
+
+**진행 중:**
+- Position search engine (positionSearchEngine 연동)
+- Admin auto recommendation (slotAutoRecommend)
+
+**미구현:**
+- Interpolation
+- Δ_sys correction
+- User recommendation UI
+- dataset.json export
+
 13. 향후 작업 (Roadmap)
 
 TrajectoryEngine 순수 함수화
@@ -341,6 +362,16 @@ CALCULATION_RULES.md 정밀화
 trajectory 파이프라인 도식화
 
 완료 (2026-03): PhysicsEngine 분리, Geometry 분리, Render 분리, Controllers/Domain/Config 분리
+
+12.2 설계 원칙 (Design Principles)
+
+**전략 혼합 금지:**
+- signature = systemId + formulaHash + shotType
+- 같은 signature 안에서만 nearest search, interpolation, Δ_sys correction 허용
+
+**데이터 관리 방식:**
+- localStorage = 관리자 입력 임시 저장
+- dataset.json = 실제 운영 데이터셋 (관리자 수동 export, 미구현)
 
 🔒 최종 선언
 

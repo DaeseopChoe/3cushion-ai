@@ -29,3 +29,37 @@ export function groupSystemValuesByRail(
 
   return groups;
 }
+
+/**
+ * 레일 그룹핑 + strategy에 system 값 붙이기
+ * (기존 runStrategyEngine 로직, strategyEngine → railEngine 이전)
+ */
+export function buildRailGroupedStrategy(params: {
+  strategy: unknown[];
+  systemValues: Record<string, unknown> | { values?: Record<string, unknown> };
+  anchors: Record<string, unknown>;
+  lastCushion?: string;
+}) {
+  const { strategy, systemValues, anchors, lastCushion } = params;
+
+  const values =
+    systemValues && typeof systemValues === "object" && "values" in systemValues
+      ? (systemValues.values ?? systemValues)
+      : (systemValues as Record<string, unknown>);
+
+  const anchorsTyped = anchors as Record<string, { x: number; y: number } | undefined>;
+  const railGroups = groupSystemValuesByRail(
+    anchorsTyped,
+    values as Record<string, unknown>,
+    lastCushion
+  );
+
+  const processedStrategy = Array.isArray(strategy)
+    ? strategy.map((item) => ({
+        ...(item as Record<string, unknown>),
+        system: values ?? {},
+      }))
+    : [];
+
+  return { railGroups, processedStrategy };
+}

@@ -1,27 +1,103 @@
-import { groupSystemValuesByRail } from "./railEngine";
+import {
+  findNearestPositions,
+  type Ball3,
+  type PositionRecord,
+  type StrategyEntry,
+  type StrategySignature,
+} from "./positionSearchEngine";
 
-type Params = {
-  strategy: unknown[];
-  systemValues: Record<string, unknown> | { values?: Record<string, unknown> };
-  anchors: Record<string, unknown>;
-  lastCushion?: string;
+/**
+ * Dataset
+ */
+export type Dataset = PositionRecord[];
+
+/**
+ * StrategyEngine options
+ */
+export type RecommendOptions = {
+  signature?: StrategySignature;
+  topK?: number;
 };
 
-export function runStrategyEngine({ strategy, systemValues, anchors, lastCushion }: Params) {
-  const values = (systemValues && typeof systemValues === "object" && "values" in systemValues)
-    ? (systemValues.values ?? systemValues)
-    : (systemValues as Record<string, unknown>);
+// Re-export for consumers
+export type { Ball3, PositionRecord, StrategyEntry, StrategySignature };
 
-  const anchorsTyped = anchors as Record<string, { x: number; y: number } | undefined>;
+/**
+ * Filter strategies by signature
+ */
+function filterStrategiesBySignature(
+  strategies: StrategyEntry[],
+  signature?: StrategySignature
+) {
+  if (!signature) return strategies;
 
-  const railGroups = groupSystemValuesByRail(anchorsTyped, values as Record<string, unknown>, lastCushion);
+  return strategies.filter((s) => {
+    return (
+      s.signature.systemId === signature.systemId &&
+      s.signature.formulaHash === signature.formulaHash &&
+      s.signature.shotType === signature.shotType
+    );
+  });
+}
 
-  const processedStrategy = Array.isArray(strategy)
-    ? strategy.map((item) => ({
-        ...(item as Record<string, unknown>),
-        system: values ?? {},
-      }))
-    : [];
+/**
+ * ADMIN MODE
+ * 가장 가까운 PositionRecord 그대로 반환
+ */
+export function recommendForAdmin(
+  balls: Ball3,
+  dataset: Dataset
+): PositionRecord | null {
+  const nearest = findNearestPositions(balls, dataset, 1);
 
-  return { railGroups, processedStrategy };
+  if (!nearest || nearest.length === 0) return null;
+
+  return nearest[0];
+}
+
+/**
+ * USER MODE
+ * 전략 3개 추천 (S1 S2 S3)
+ */
+export function recommendForUser(
+  balls: Ball3,
+  dataset: Dataset,
+  options: RecommendOptions = {}
+): StrategyEntry[] {
+  const { signature, topK = 3 } = options;
+
+  const nearestPositions = findNearestPositions(balls, dataset, topK);
+
+  if (!nearestPositions || nearestPositions.length === 0) return [];
+
+  const collected: StrategyEntry[] = [];
+
+  for (const pos of nearestPositions) {
+    const filtered = filterStrategiesBySignature(pos.strategies, signature);
+    collected.push(...filtered);
+  }
+
+  const slotMap: Record<string, StrategyEntry> = {};
+
+  for (const s of collected) {
+    if (!slotMap[s.slot]) {
+      slotMap[s.slot] = s;
+    }
+  }
+
+  return ["S1", "S2", "S3"]
+    .map((slot) => slotMap[slot])
+    .filter(Boolean) as StrategyEntry[];
+}
+
+/**
+ * FUTURE: interpolation
+ */
+export function recommendWithInterpolation(balls: Ball3, dataset: Dataset) {
+  const nearest = findNearestPositions(balls, dataset, 3);
+
+  return {
+    basePositions: nearest,
+    interpolated: null,
+  };
 }
