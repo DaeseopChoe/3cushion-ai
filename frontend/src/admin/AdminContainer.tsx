@@ -16,9 +16,6 @@ import { useStrController } from "./str/useStrController";
 import { AiOverlay } from "./ai/AiOverlay";
 import { useAiController } from "./ai/useAiController";
 
-// SAVE
-import { saveShotRecord } from "./save/saveShotRecord";
-
 export default function AdminContainer() {
   /* =========================
      관리자 모드
@@ -72,20 +69,6 @@ export default function AdminContainer() {
   const [open, setOpen] = useState<
     null | "SYS" | "HPT" | "STR" | "AI"
   >(null);
-
-  /* =========================
-     SAVE
-  ========================= */
-  const handleSave = () => {
-    saveShotRecord({
-      scenario,
-      sys,
-      hpt,
-      str,
-      ai,
-    });
-    alert("shot_record 저장 완료");
-  };
 
   return (
     <>

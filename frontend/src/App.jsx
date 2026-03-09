@@ -42,6 +42,10 @@ import {
   pointerToRg,
 } from "./utils/geometry/coords";
 import { calculateImpact, adjustSystemLine } from "./utils/physics";
+import {
+  computeThicknessFromImpact,
+  snapImpactToOrbit,
+} from "./utils/physics/ImpactEngine";
 import SystemValueLabels from "./components/table/SystemValueLabels";
 import ImpactLines from "./components/table/ImpactLines";
 import CoachingOverlay from "./components/table/CoachingOverlay";
@@ -55,7 +59,11 @@ import { upsertPositionRecord } from "./domain/positionMergeEngine";
 import { evaluateStrategy } from "./domain/evaluateStrategy";
 import { makeSignature } from "./domain/strategySignature";
 import { inferTrackFromBalls } from "./domain/finalCoordinateEngine";
+import { computeSystemFromPositions } from "./domain/systemEngine";
+import { createCaptureCandidate } from "./data/autoCaptureEngine";
 import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
+import { PositionKDIndex } from "./domain/search/positionKDIndex";
+import { initFileHandle, saveToFile } from "./domain/fileService";
 import anchors5Half from "./data/systems/5_half_system/anchors.json";
 
 const { SCALE, TABLE_W_UNITS, TABLE_H_UNITS, TABLE_W, TABLE_H, PADDING } = TABLE_CONFIG;
@@ -75,6 +83,11 @@ const BALL_DIAMETER_MM = 61.5;
 const RG_UNIT_MM = 35.55;
 const BALL_DIAMETER_RG = BALL_DIAMETER_MM / RG_UNIT_MM;
 const BALL_RADIUS_RG = BALL_DIAMETER_RG / 2;
+
+const PHYSICS_SCALE = {
+  BALL_DIAMETER_RG,
+  BALL_RADIUS_RG,
+};
 
 // Anti-aliasing compensation (렌더링 전용)
 const AA_EPSILON = 0.08; // rg 단위
@@ -292,6 +305,7 @@ function SysOverlay({ data, onSave, onCancel }) {
     },
     corrections: {
       slide: data?.corrections?.slide || 0,
+      curve_ratio: data?.corrections?.curve_ratio || 0,
       draw: data?.corrections?.draw || 0,
       departure: data?.corrections?.departure || 0,
       spin: data?.corrections?.spin || 0
@@ -788,10 +802,11 @@ function SysOverlay({ data, onSave, onCancel }) {
         );
       })()}
 
-      {/* [E] 물리 보정: 밀림 끌림 출발값 보정 스핀 한 줄 */}
+      {/* [E] 물리 보정: 밀림 곡구 끌림 출발값 보정 스핀 한 줄 */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
         {[
           { key: 'slide', label: '밀림' },
+          { key: 'curve_ratio', label: '곡구' },
           { key: 'draw', label: '끌림' },
           { key: 'departure', label: '출발값 보정' },
           { key: 'spin', label: '스핀' }
@@ -2076,9 +2091,11 @@ export default function App({ currentButtonId, onActiveSlotChange }) {
       CO: null,
       C3: null,
       corrections: {
-        push: 0,
-        pull: 0,
-        start: 0
+        slide: 0,
+        curve_ratio: 0,
+        draw: 0,
+        departure: 0,
+        spin: 0
       }
     },
     hpt: {
@@ -2109,6 +2126,8 @@ export default function App({ currentButtonId, onActiveSlotChange }) {
     open: false,
     type: null // "SYS" | "HPT" | "STR" | "AI" | null
   });
+
+  const [autoSave, setAutoSave] = useState(false);
 
   // dataset: PositionRecord[] (localStorage "positions_dataset")
   const [dataset, setDataset] = useState(() => {
@@ -2256,12 +2275,50 @@ export default function App({ currentButtonId, onActiveSlotChange }) {
   const JOYSTICK_STEP = 0.1; // Rg
   const JOYSTICK_REPEAT_MS = 60;
 
+  // KD-Tree 인덱스 (dataset 변경 시 rebuild, runAutoRecommend용)
+  const kdIndexRef = useRef(null);
+  const fileInputRef = useRef(null);
+  useEffect(() => {
+    kdIndexRef.current = new PositionKDIndex(dataset ?? []);
+  }, [dataset]);
+
   // ============================================
   // 관리자 모드 헬퍼 함수
   // ============================================
   
   // 권한 체크
   const canEdit = appMode === "ADMIN";
+
+  function handleImportDataset() {
+    fileInputRef.current?.click();
+  }
+
+  function handleFileImport(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target.result);
+
+        const importedDataset = json.dataset ?? (Array.isArray(json) ? json : null);
+        if (!importedDataset) {
+          alert("Invalid dataset.json format");
+          return;
+        }
+        setDataset(importedDataset);
+        localStorage.setItem(
+          "positions_dataset",
+          JSON.stringify(importedDataset)
+        );
+      } catch (err) {
+        alert("Failed to import dataset.json");
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  }
 
   // 오버레이 열기 (가드 로직 포함)
   function openOverlay(type) {
@@ -2375,6 +2432,14 @@ export default function App({ currentButtonId, onActiveSlotChange }) {
       console.log("[SAVE] localStorage 저장 완료");
     } catch (e) {
       console.warn("[SAVE] Failed to save positions_dataset", e);
+    }
+
+    if (autoSave) {
+      saveToFile({
+        version: "1.0",
+        saved_at: new Date().toISOString(),
+        dataset: updated,
+      });
     }
   }
 
@@ -2602,7 +2667,7 @@ function handleJoyPadPointerCancel(e) {
   }, [currentButtonId, appMode]);
 
   // ============================================
-  // S1/S2/S3 시나리오 전환 + switchSlot 동기화
+  // S1/S2/S3 시나리오 전환 + switchSlot 동기화 + KD-tree 자동 추천
   // ============================================
   useEffect(() => {
     if (currentButtonId === 'S1') {
@@ -2610,18 +2675,60 @@ function handleJoyPadPointerCancel(e) {
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
       setCurrentId(SHOTS[0].id);
+      const systemId = adminState.sys?.system_id;
+      if (!systemId) return;
+      if (!kdIndexRef.current) return;
+      const profile = SYSTEM_PROFILES[systemId];
+      const formulaHash = adminState.sys?.formulaHash ?? (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
+      const currentSignature = makeSignature({ systemId, formulaHash, shotType: "default" });
+      runAutoRecommend({
+        slot: "S1",
+        currentBalls: normalizeBallsToBall3(adminState.balls ?? {}),
+        currentSignature,
+        dataset: dataset ?? [],
+        kdIndex: kdIndexRef.current,
+        loadDraftFromStrategyEntry: actions.loadDraftFromStrategyEntry,
+      });
     }
     else if (currentButtonId === 'S2') {
       actions.switchSlot('S2');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
       setCurrentId(SHOTS[1].id);
+      const systemId = adminState.sys?.system_id;
+      if (!systemId) return;
+      if (!kdIndexRef.current) return;
+      const profile = SYSTEM_PROFILES[systemId];
+      const formulaHash = adminState.sys?.formulaHash ?? (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
+      const currentSignature = makeSignature({ systemId, formulaHash, shotType: "default" });
+      runAutoRecommend({
+        slot: "S2",
+        currentBalls: normalizeBallsToBall3(adminState.balls ?? {}),
+        currentSignature,
+        dataset: dataset ?? [],
+        kdIndex: kdIndexRef.current,
+        loadDraftFromStrategyEntry: actions.loadDraftFromStrategyEntry,
+      });
     }
     else if (currentButtonId === 'S3') {
       actions.switchSlot('S3');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
       setCurrentId(SHOTS[2].id);
+      const systemId = adminState.sys?.system_id;
+      if (!systemId) return;
+      if (!kdIndexRef.current) return;
+      const profile = SYSTEM_PROFILES[systemId];
+      const formulaHash = adminState.sys?.formulaHash ?? (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
+      const currentSignature = makeSignature({ systemId, formulaHash, shotType: "default" });
+      runAutoRecommend({
+        slot: "S3",
+        currentBalls: normalizeBallsToBall3(adminState.balls ?? {}),
+        currentSignature,
+        dataset: dataset ?? [],
+        kdIndex: kdIndexRef.current,
+        loadDraftFromStrategyEntry: actions.loadDraftFromStrategyEntry,
+      });
     }
   }, [currentButtonId]);
 
@@ -2688,6 +2795,27 @@ function handleJoyPadPointerCancel(e) {
     }
   }, [view]);
 
+  // Strategy Auto Capture: 1초간 안정 시 dataset candidate 생성
+  const lastCapturedRef = useRef(null);
+  useEffect(() => {
+    if (!canEdit || overlayState.open) return;
+    const balls = ballsState ?? view?.ui?.balls ?? {};
+    const cue = balls.cue;
+    const target = balls.target_center ?? balls.target;
+    if (!cue || !target) return;
+    const timer = setTimeout(() => {
+      const impact = balls.impact ?? (calcImpactBall(cue, target, adminState?.hpt?.T ?? "8/8"));
+      const sysVals = adminState?.sys?.systemValues ?? adminState?.sys?.inputs ?? {};
+      const candidate = createCaptureCandidate({
+        balls,
+        impact: impact ?? undefined,
+        systemValues: sysVals,
+      });
+      lastCapturedRef.current = candidate;
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [canEdit, overlayState.open, ballsState, adminState?.sys, adminState?.hpt?.T, view?.ui?.balls]);
+
   // ============================================
   // 키보드 단축키 (관리자 모드)
   // ============================================
@@ -2745,6 +2873,7 @@ function handleJoyPadPointerCancel(e) {
     TABLE_H,
     PADDING,
     RENDER_RADIUS_RG,
+    BALL_RADIUS_RG,
   });
 
   if (loading) {
@@ -2912,12 +3041,10 @@ function handlePointerMove(e) {
   const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
   if (!pointerRg) return;
 
-  // ⭐ impact는 FREE 모드일 때 쿠션 근처까지 허용
   let minX = 0.5;
   let maxX = 79.5;
   let minY = 0.5;
   let maxY = 39.5;
-  
   if (dragState.ballId === "impact" && impactMode === "FREE") {
     minX = -CUSHION_RG;
     maxX = 80 + CUSHION_RG;
@@ -2929,6 +3056,53 @@ function handlePointerMove(e) {
     x: clamp(pointerRg.x - dragState.grabOffsetRg.x, minX, maxX),
     y: clamp(pointerRg.y - dragState.grabOffsetRg.y, minY, maxY),
   };
+
+  if (dragState.ballId === "impact" && impactMode === "FREE") {
+    const cue = balls.cue;
+    const target = balls.target_center ?? balls.target;
+
+    if (!cue || !target) return;
+
+    let nextImpact = newRg;
+
+    const snap = snapImpactToOrbit(
+      target,
+      nextImpact,
+      cue,
+      PHYSICS_SCALE,
+      1.0
+    );
+
+    if (snap?.snapped) {
+      nextImpact = snap.impactBall;
+    }
+
+    setBallsState((prev) => ({
+      ...prev,
+      impact: nextImpact,
+    }));
+
+    const thicknessInfo = computeThicknessFromImpact(
+      cue,
+      target,
+      nextImpact,
+      PHYSICS_SCALE
+    );
+
+    if (thicknessInfo && canEdit) {
+      if (systemCtrl && typeof systemCtrl.onChangeT === "function") {
+        systemCtrl.onChangeT(thicknessInfo.legacyT);
+      }
+      if (systemCtrl && typeof systemCtrl.onChangeThickness === "function") {
+        systemCtrl.onChangeThickness(
+          thicknessInfo.displayThickness,
+          thicknessInfo.side
+        );
+      }
+    }
+
+    return;
+  }
 
   setBallsState((prev) => ({
     ...prev,
@@ -2950,6 +3124,7 @@ function handlePointerUp(e) {
 
   const success = autoSeparate(draggedBall, otherBalls);
 
+  const nextBallPos = success ? draggedBall : dragState.previousPosRg;
   if (success) {
     setBallsState((prev) => ({
       ...prev,
@@ -2960,6 +3135,30 @@ function handlePointerUp(e) {
       ...prev,
       [dragState.ballId]: dragState.previousPosRg,
     }));
+  }
+
+  if (canEdit && nextBallPos && (dragState.ballId === "cue" || dragState.ballId === "target" || dragState.ballId === "target_center")) {
+    const nextBalls = { ...balls, [dragState.ballId]: nextBallPos };
+    const cuePos = nextBalls.cue;
+    const targetPos = nextBalls.target_center ?? nextBalls.target;
+    if (cuePos && targetPos) {
+      const computed = computeSystemFromPositions({ cue: cuePos, target: targetPos });
+      if (Object.keys(computed).length > 0) {
+        setAdminState((prev) => {
+          const p = prev || {};
+          const prevSys = p?.sys ?? {};
+          const prevVals = prevSys?.systemValues ?? prevSys?.inputs ?? {};
+          return {
+            ...p,
+            sys: {
+              ...prevSys,
+              systemValues: { ...prevVals, ...computed },
+              inputs: { ...(prevSys?.inputs ?? {}), ...computed },
+            },
+          };
+        });
+      }
+    }
   }
 
   // 드래그는 종료하되, 선택/조이스틱은 유지 (바깥 탭으로 닫기)
@@ -3076,7 +3275,30 @@ function handlePointerCancel(e) {
   // CO→1C 선은 레일 교점 사용
   const CO_line = CO_rail;
   const C1_line = C1_rail;
-  
+
+  // CO Dual Trajectory: 보정선 (slide/curve_ratio/p_push !== 0일 때)
+  const corrections = canEdit ? (adminState?.sys?.corrections || {}) : {};
+  const slideVal = Number(corrections.slide) || 0;
+  const curveVal = Number(corrections.curve_ratio) || 0;
+  const totalCorrection = slideVal + curveVal;
+  const hasCorrection = slideVal !== 0 || curveVal !== 0;
+
+  let CO_corrected_line = null;
+  if (hasCorrection && CO_rail && C1_rail) {
+    // 레일 방향으로 CO를 totalCorrection만큼 이동 (1 sys unit ≈ 1 grid unit)
+    const isBottomRail = Math.abs(CO_rail.y - 0) < 0.5;
+    const isTopRail = Math.abs(CO_rail.y - 40) < 0.5;
+    const isLeftRail = Math.abs(CO_rail.x - 0) < 0.5;
+    const isRightRail = Math.abs(CO_rail.x - 80) < 0.5;
+    if (isBottomRail || isTopRail) {
+      CO_corrected_line = { x: CO_rail.x + totalCorrection, y: CO_rail.y };
+    } else if (isLeftRail || isRightRail) {
+      CO_corrected_line = { x: CO_rail.x, y: CO_rail.y + totalCorrection };
+    } else {
+      CO_corrected_line = { x: CO_rail.x + totalCorrection, y: CO_rail.y };
+    }
+  }
+
   console.log("🔷 레일 교점:", {
     "CO_fg (원본)": CO_fg,
     "C1_fg (원본)": C1_fg,
@@ -3147,6 +3369,7 @@ function handlePointerCancel(e) {
       <ImpactLines
         CO_line={CO_line}
         C1_line={C1_line}
+        CO_corrected_line={hasCorrection ? CO_corrected_line : null}
         cushionPath={cushionPath}
         cushionPathAttr={cushionPathAttr}
         scale={SCALE}
@@ -3232,51 +3455,70 @@ function handlePointerCancel(e) {
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       {tableSVG}
       
-      {/* 관리자 모드 토글 버튼 (ADMIN 모드에서만 표시) */}
-      {appMode === "ADMIN" && (
-        <button
-          onClick={handleToggleAdminMode}
-          style={{
-            position: 'absolute',
-            top: '10px',
-            right: '10px',
-            padding: '6px 12px',
-            backgroundColor: 'rgba(239, 68, 68, 0.9)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            zIndex: 100
-          }}
-        >
-          🔧 ADMIN MODE
-        </button>
-      )}
-
-      {/* SAVE 버튼 (관리자 전용) */}
+      {/* 관리자 패널 (테이블 오른쪽 바깥, ADMIN 모드에서만 표시) */}
       {canEdit && (
-        <button
-          onClick={handleSaveStrategy}
-          style={{
-            position: 'absolute',
-            bottom: '20px',
-            right: '20px',
-            padding: '12px 24px',
-            backgroundColor: '#10b981',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-            zIndex: 100
-          }}
-        >
-          💾 SAVE
-        </button>
+        <div className="admin-panel">
+          <input
+            type="file"
+            accept="application/json"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleFileImport}
+          />
+          <button
+            onClick={handleToggleAdminMode}
+            style={{ backgroundColor: 'rgba(239, 68, 68, 0.9)', color: 'white' }}
+          >
+            Admin
+          </button>
+          <button
+            onClick={initFileHandle}
+            style={{ backgroundColor: '#64748b', color: 'white' }}
+          >
+            파일 연결
+          </button>
+          <button
+            type="button"
+            onClick={() => setAutoSave((prev) => !prev)}
+            style={{
+              backgroundColor: autoSave ? '#10b981' : '#64748b',
+              color: 'white',
+            }}
+          >
+            Auto Save
+          </button>
+          <button
+            onClick={handleImportDataset}
+            style={{ backgroundColor: '#8b5cf6', color: 'white' }}
+          >
+            Import
+          </button>
+          <button
+            onClick={() => {
+              const payload = {
+                version: "1.0",
+                dataset: dataset ?? [],
+              };
+              const data = JSON.stringify(payload, null, 2);
+              const blob = new Blob([data], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'dataset.json';
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            style={{ backgroundColor: '#3b82f6', color: 'white' }}
+          >
+            Export
+          </button>
+          <button
+            onClick={handleSaveStrategy}
+            style={{ backgroundColor: '#10b981', color: 'white' }}
+          >
+            SAVE
+          </button>
+        </div>
       )}
 
       {/* 관리자 모드 오버레이 */}

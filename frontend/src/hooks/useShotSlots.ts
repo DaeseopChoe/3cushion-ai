@@ -398,9 +398,10 @@ export function useShotSlots() {
    */
   const loadDraftFromStrategyEntry = (
     slotId: SlotId,
-    entry: StrategyEntry,
+    entry: StrategyEntry | null,
     meta?: { positionId: string; score: number }
   ) => {
+    if (!entry) return;
     setShotEditor((s) => {
       const slot = s.slots[slotId];
       return {

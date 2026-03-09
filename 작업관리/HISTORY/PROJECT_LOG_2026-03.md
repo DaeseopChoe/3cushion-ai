@@ -241,3 +241,71 @@ Code responsibilities separated:
 - strategyEngine → strategy recommendation
 - railEngine → rail grouping + system value application
 - positionSearchEngine → KD-tree search
+
+---
+
+# 2026-03 — Impact Engine Unification & Auto Capture System
+
+이번 세션에서는 Impact 계산 구조를 완전히 재정리하였다.
+
+## 주요 목표
+
+- Impact 계산 기준 통합
+- drag 기반 두께 계산
+- dataset 자동 캡처 기반 구축
+
+## 주요 작업
+
+### ImpactEngine 도입
+
+Impact 계산을 단일 엔진으로 통합.
+
+**지원 기능**
+
+- Legacy T → Impact
+- Display Thickness → Impact
+- Impact → Thickness
+- Orbit Snap
+- Contact Snap
+
+ImpactBall 계산 기준은 **cue → impact → target**으로 통일되었다.
+
+### Impact Drag UX 도입
+
+ImpactBall을 직접 드래그하여 두께를 설정할 수 있다.
+
+**drag 시**
+
+- Impact → thickness 역산
+- → SYS T 자동 업데이트
+
+**CONTACT 모드에서는**
+
+- targetBall orbit 위에서 이동
+
+**FREE 모드에서는**
+
+- impact 자유 이동
+
+### Contact Snap 시스템
+
+ImpactBall은 targetBall과 정확히 접촉하도록 자동 보정된다.
+
+이 기능은 다음 문제를 해결하기 위해 도입되었다.
+
+- visual gap
+- physics inconsistency
+
+### Strategy Auto Capture Engine
+
+새로운 dataset 생성 보조 엔진 추가.
+
+**기능**
+
+- 볼 상태 안정 감지 (1초)
+- → dataset candidate 생성
+
+이 엔진은 향후 다음에 사용된다.
+
+- Admin dataset builder
+- AI training dataset

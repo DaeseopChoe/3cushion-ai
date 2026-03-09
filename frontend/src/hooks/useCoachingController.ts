@@ -25,6 +25,7 @@ export function useCoachingController({
   TABLE_H,
   PADDING,
   RENDER_RADIUS_RG,
+  BALL_RADIUS_RG,
 }: {
   appMode: string;
   showCoaching: boolean;
@@ -39,20 +40,25 @@ export function useCoachingController({
   TABLE_H: number;
   PADDING: number;
   RENDER_RADIUS_RG: number;
+  BALL_RADIUS_RG: number;
 }) {
   return useMemo(() => {
     if (appMode === "USER" && !showCoaching) {
       return EMPTY;
     }
-    let impactBall: { x: number; y: number } | null = null;
-
-    if (impactMode === "CONTACT") {
-      impactBall = calcImpactBall(balls.cue!, balls.target_center!, T);
-    } else {
-      impactBall = balls.impact || calcImpactBall(balls.cue!, balls.target_center!, T);
+    const targetForImpact = balls.target_center ?? balls.target;
+    if (!balls.cue || !targetForImpact) {
+      return EMPTY;
     }
 
-    if (!balls.cue || !impactBall) {
+    let impactBall: { x: number; y: number } | null = null;
+    if (impactMode === "CONTACT") {
+      impactBall = calcImpactBall(balls.cue, targetForImpact, T);
+    } else {
+      impactBall = balls.impact || calcImpactBall(balls.cue, targetForImpact, T);
+    }
+
+    if (!impactBall) {
       return EMPTY;
     }
 
@@ -71,7 +77,7 @@ export function useCoachingController({
       cy: impactPx.y + PADDING,
     };
 
-    const impactBallRadius = RENDER_RADIUS_RG * SCALE;
+    const impactBallRadius = BALL_RADIUS_RG * SCALE;
     const impactBallColor = canEdit ? "#00ff00" : "#ffffff";
     const impactBallOpacity = canEdit ? 0.7 : 0.55;
 
@@ -82,8 +88,8 @@ export function useCoachingController({
           setImpactMode((prev) => {
             const nextMode = prev === "CONTACT" ? "FREE" : "CONTACT";
             console.log("✅ 모드 전환:", prev, "→", nextMode);
-            if (nextMode === "FREE") {
-              const currentImpact = calcImpactBall(balls.cue!, balls.target_center!, T);
+            if (nextMode === "FREE" && targetForImpact) {
+              const currentImpact = calcImpactBall(balls.cue!, targetForImpact, T);
               if (currentImpact) {
                 console.log("💾 impact 저장:", currentImpact);
                 setBallsState((prev) => (prev ? { ...prev, impact: currentImpact } : { impact: currentImpact }));
@@ -119,5 +125,6 @@ export function useCoachingController({
     TABLE_H,
     PADDING,
     RENDER_RADIUS_RG,
+    BALL_RADIUS_RG,
   ]);
 }

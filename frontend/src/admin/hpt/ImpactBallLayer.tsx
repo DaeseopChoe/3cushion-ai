@@ -56,15 +56,16 @@ export function ImpactBallLayer({
         pointerEvents="none"
       />
 
-      {/* ImpactBall */}
+      {/* ImpactBall - outline marker (contact guide, not actual ball) */}
       <circle
         cx={impactPixel.x}
         cy={impactPixel.y}
         r={radiusPixel}
-        fill={color}
+        fill="none"
+        stroke={color}
+        strokeWidth={2}
+        strokeDasharray="4 2"
         opacity={opacity}
-        stroke="rgba(255, 255, 255, 0.3)"
-        strokeWidth={1}
         pointerEvents="none"
       />
     </>

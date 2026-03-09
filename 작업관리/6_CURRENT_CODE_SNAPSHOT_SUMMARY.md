@@ -517,3 +517,93 @@ Dependencies:
 - JSON export 가능 구조 (PositionRecord[])
 
 ------------------------------------------------------------
+
+## 🔄 2026-03 Impact Engine Integration
+
+### ImpactEngine 도입
+
+**신규 모듈**
+
+- `frontend/src/utils/physics/ImpactEngine.ts`
+
+**역할**
+
+- Impact 계산을 단일 엔진으로 통합.
+
+**제공 함수**
+
+- `computeImpactFromLegacyT()`
+- `computeImpactFromDisplayThickness()`
+- `computeThicknessFromImpact()`
+- `snapImpactToOrbit()`
+- `parseLegacyT()`
+- `displayThicknessToLegacyT()`
+
+**목적**
+
+- Legacy T / Display thickness / Impact drag 계산 — 3개 기준을 단일 수학 모델로 통합
+
+### Impact 계산 구조 변경
+
+| 기존 | 변경 |
+|------|------|
+| calcImpactBall | → computeImpactFromLegacyT |
+| calculateImpact | → computeImpactFromDisplayThickness |
+
+- Impact 계산 책임은 ImpactEngine으로 이동.
+
+### Impact Drag 시스템 추가
+
+**새 UX**
+
+- ImpactBall drag 가능
+- drag → thickness 자동 계산
+- drag → SYS T 자동 업데이트
+
+**mode**
+
+- CONTACT
+- FREE
+
+**double click**
+
+- CONTACT ↔ FREE
+
+### Contact Snap 시스템
+
+- ImpactBall은 targetBall과 정확히 접촉하도록 snap된다.
+
+**수식**
+
+- `impact = target - unit(target-impact) * BALL_DIAMETER`
+
+**목적**
+
+- visual gap 제거
+- 물리 모델 일관성 유지
+
+### Auto Capture Engine 추가
+
+**신규 모듈**
+
+- `autoCaptureEngine.ts`
+
+**기능**
+
+- 볼 상태가 1초 안정되면 dataset candidate 자동 생성
+
+**API**
+
+- `createCaptureCandidate()`
+- `candidateToPositionPayload()`
+
+**사용 위치**
+
+- App.jsx
+
+### Admin Dataset Builder 기반 구축
+
+- Admin 모드는 이제 **Strategy Editor** + **Dataset Builder** 역할을 동시에 수행한다.
+- 자동 캡처는 향후 dataset 생성 파이프라인의 기반이 된다.
+
+------------------------------------------------------------

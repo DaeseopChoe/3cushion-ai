@@ -19,7 +19,10 @@ export default function CoachingOverlay({
         cx={impactBallPx.cx}
         cy={impactBallPx.cy}
         r={impactBallRadius}
-        fill={impactBallColor}
+        fill="none"
+        stroke={impactBallColor}
+        strokeWidth={2}
+        strokeDasharray="4 2"
         opacity={impactBallOpacity}
         shapeRendering="geometricPrecision"
         pointerEvents="all"

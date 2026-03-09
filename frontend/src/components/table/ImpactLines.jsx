@@ -4,6 +4,7 @@ import { toPx } from "../../utils/geometry/coords";
 export default function ImpactLines({
   CO_line,
   C1_line,
+  CO_corrected_line,
   cushionPath,
   cushionPathAttr,
   scale,
@@ -19,6 +20,16 @@ export default function ImpactLines({
           x2={toPx(C1_line, scale, tableH).x + padding}
           y2={toPx(C1_line, scale, tableH).y + padding}
           stroke="#fb923c"
+          strokeWidth={2}
+        />
+      )}
+      {CO_corrected_line && C1_line && (
+        <line
+          x1={toPx(CO_corrected_line, scale, tableH).x + padding}
+          y1={toPx(CO_corrected_line, scale, tableH).y + padding}
+          x2={toPx(C1_line, scale, tableH).x + padding}
+          y2={toPx(C1_line, scale, tableH).y + padding}
+          stroke="#ffffff"
           strokeWidth={2}
         />
       )}
