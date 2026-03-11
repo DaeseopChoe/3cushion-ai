@@ -1,6 +1,6 @@
 # PROJECT_MASTER_STATE_CURRENT
 3Cushion AI – Current Code State Snapshot
-Version: v2.1
+Version: v2.2
 Last Updated: 2026-03
 Owner: 목계님
 
@@ -69,6 +69,7 @@ components/
     SystemValueLabels.jsx
     ImpactLines.jsx
     CoachingOverlay.jsx
+    SystemGrid.jsx
     TableGrid.jsx
     RailFrame.jsx
     Ball.jsx
@@ -79,9 +80,12 @@ config/
 contexts/
 data/
   systems/ (39개 시스템)
+  anchorsRegistry.ts
   system/calculator/
 
 domain/
+  anchorCoordinateEngine.ts
+  calibrationEngine.ts
   railEngine.ts
   strategyEngine.ts
   adminSaveEngine.ts
@@ -107,6 +111,8 @@ lib/
 utils/
   geometry/
     coords.ts
+    line.ts
+    rail.ts
   physics/
     impact.ts
     systemLine.ts
@@ -200,6 +206,10 @@ useShotSlots.updateDraftSys
    ↓
 applyDraftSys
    ↓
+anchorCoordinateEngine (anchors.json → sys 좌표)
+   ↓
+calibrationEngine (impact pivot 기준 CO→C1 보정)
+   ↓
 useTrajectoryState.applySysResult
    ↓
 domain/buildRailGroupedStrategy (전략·레일 가공)
@@ -208,7 +218,7 @@ utils/physics/* (Impact 계산)
    ↓
 hooks/useCoachingController (T, impactBall, guideLine)
    ↓
-components/table/* (렌더)
+components/table/* (렌더, SystemGrid)
    ↓
 Stage (App.jsx 조립)
 
@@ -218,6 +228,9 @@ Stage (App.jsx 조립)
 
 # 5.5 Domain Layer Additions (2026-03)
 
+- anchorCoordinateEngine.ts: anchors.json 기반 sys → 좌표 계산 (parseAnchorId, getTrackAnchors, interpolateCoord, sysToCoordFromAnchors, getAnchorsForRendering)
+- calibrationEngine.ts: impact pivot 기준 CO → C1 라인 보정 (rawAnchors → calibrateTrajectory → rawAnchorsCalibrated)
+- anchorsRegistry.ts (data/systems/): 모든 anchors.json 자동 로딩 (32 systems)
 - adminSaveEngine.ts: createStrategyEntry, buildStrategyMeta (positionMergeEngine re-export)
 - positionMergeEngine.ts: Position 병합 (upsertPositionRecord, isSameBalls, findSimilarPosition, mergeStrategyIntoPosition)
 - finalCoordinateEngine.ts: system-based final (1C) coordinate calculation (5_half_system, n_across_short)
@@ -226,6 +239,24 @@ Stage (App.jsx 조립)
 - domain/search/signatureKey.ts: makeSignatureKey (systemId + formulaHash + shotType)
 - domain/search/positionKDIndex.ts: signatureKey별 KD-Tree 인덱스 매니저
 - admin/slotAutoRecommend.ts: 관리자 슬롯 자동 추천
+
+# 5.5.1 Geometry Module (utils/geometry/)
+
+- line.ts: computeLineFromPoints
+- rail.ts: lineRailIntersection, computeRailPoints, buildCushionPath
+- App.jsx CO→C1 rail 교점 계산 분리
+
+# 5.5.2 SystemGrid (components/table/)
+
+- anchors.json 기반 시스템 그리드 표시
+- FG values → frame 영역, RG values → rail edge
+- ADMIN 모드 showSystemGrid 옵션으로 표시
+
+# 5.5.3 Trajectory Reference Model
+
+- 시스템 궤적 기준: CO → C1 → C2 → C3 → C4 → C5 → C6
+- baseline: C3 = C4 = C5 = C6
+- corrected: C4 = C5 = C6
 
 ------------------------------------------------------------
 
@@ -507,9 +538,35 @@ onePointLessons: LessonItem[];
 
 ---
 
+------------------------------------------------------------
+
+# 🔄 2026-03 구조 변경 (궤적/anchors/calibration/SystemGrid)
+
+## 1. 신규 엔진 계층
+
+- **AnchorCoordinateEngine**: anchors.json 기반 sys → 좌표 계산
+- **CalibrationEngine**: impact pivot 기준 CO→C1 보정
+- **Geometry Module**: line.ts, rail.ts (computeLineFromPoints, lineRailIntersection, buildCushionPath)
+
+## 2. anchorsRegistry
+
+- data/systems/anchorsRegistry.ts: anchors.json 자동 로딩 (32 systems)
+
+## 3. SystemGrid
+
+- components/table/SystemGrid.jsx: FG/RG 표시 규칙 기반 시스템 그리드
+- ADMIN 모드 showSystemGrid 옵션
+
+## 4. Trajectory Reference Model 명확화
+
+- CO → C1 → C2 → C3 → C4 → C5 → C6
+- baseline: C3 = C4 = C5 = C6 | corrected: C4 = C5 = C6
+
+------------------------------------------------------------
+
 ### 📌 현재 프로젝트 안정 상태 요약
 
-**2026-02 기준:**
+**2026-03 기준:**
 
 - HPT 구조 안정화 완료
 - SYS 연동 오류 해결
@@ -518,6 +575,9 @@ onePointLessons: LessonItem[];
 - 원 포인트 레슨 관리 시스템 도입
 - 관리자 인터랙션 구조 완성
 - AI 버튼 설정 작업 1차 완료
+- AnchorCoordinateEngine / CalibrationEngine 도입
+- anchorsRegistry / SystemGrid 도입
+- Trajectory Reference Model 명확화 (CO→C1→...→C6)
 
 현재 프론트엔드는 구조적으로 안정된 상태이며,
 이 시점을 기준으로 기능 확장 단계로 전환 가능하다.

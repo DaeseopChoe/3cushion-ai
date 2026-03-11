@@ -16,11 +16,13 @@ frontend/src/
 
 2️⃣ 계산 엔진 계층 정의
 
-계산은 3단계로 이루어진다.
+계산은 다음 엔진 계층으로 이루어진다.
 
 [System Engine]
    ↓
-[Strategy Engine]
+[AnchorCoordinateEngine]
+   ↓
+[CalibrationEngine]
    ↓
 [Trajectory Engine]
    ↓
@@ -147,11 +149,38 @@ expr 계산
    ↓
 System result
    ↓
+AnchorCoordinateEngine (anchors.json → sys 좌표)
+   ↓
+CalibrationEngine (impact pivot 기준 보정)
+   ↓
 Trajectory adjusted
    ↓
 Physics (Impact 계산)
    ↓
 Stage 렌더
+
+9️⃣-1 Trajectory Reference Model
+
+시스템 궤적 기준: CO → C1 → C2 → C3 → C4 → C5 → C6
+
+- baseline trajectory: C3 = C4 = C5 = C6 (기준 계산)
+- corrected trajectory: C4 = C5 = C6 (보정 적용)
+
+9️⃣-2 Anchor Coordinate Rule
+
+sys → anchors.json → coordinate interpolation
+anchors.json id 형식: CO_(82.25,10)_60 → mark, x, y, sys 파싱
+
+9️⃣-3 FG / RG 판단 규칙
+
+FG: x 또는 y = -2.25 / 42.25 / 82.25 (프레임 기준)
+RG: 그 외 좌표 (rail 기준)
+
+9️⃣-4 Calibration Rule
+
+impact pivot 기준
+CO → C1 라인 재계산
+rawAnchors → calibrateTrajectory → rawAnchorsCalibrated
 
 🔟 5_half_system 특수 보정 규칙
 

@@ -1,7 +1,7 @@
 # CURRENT_CODE_SNAPSHOT_SUMMARY
 3Cushion AI – Session Change Summary
-Version: v0.2
-Date: 2026-03-01
+Version: v0.3
+Date: 2026-03
 Author: 목계님
 
 ------------------------------------------------------------
@@ -605,5 +605,77 @@ Dependencies:
 
 - Admin 모드는 이제 **Strategy Editor** + **Dataset Builder** 역할을 동시에 수행한다.
 - 자동 캡처는 향후 dataset 생성 파이프라인의 기반이 된다.
+
+------------------------------------------------------------
+
+## 🔄 2026-03 구조 변경 (궤적/anchors/calibration/SystemGrid)
+
+### 1. AnchorCoordinateEngine 도입
+
+**신규 모듈:** `domain/anchorCoordinateEngine.ts`
+
+**기능:**
+- anchors.json 기반 sys → 좌표 계산
+- parseAnchorId, getTrackAnchors, interpolateCoord
+- sysToCoordFromAnchors, getAnchorsForRendering
+
+### 2. CalibrationEngine 도입
+
+**신규 모듈:** `domain/calibrationEngine.ts`
+
+**역할:**
+- impact pivot 기준 CO → C1 라인 보정
+- rawAnchors → calibrateTrajectory → rawAnchorsCalibrated
+
+### 3. anchorsRegistry 도입
+
+**신규 모듈:** `data/systems/anchorsRegistry.ts`
+
+**기능:**
+- 모든 anchors.json 자동 로딩 (import.meta.glob)
+- 32 systems 지원
+
+### 4. SystemGrid 렌더링 도입
+
+**신규 컴포넌트:** `components/table/SystemGrid.jsx`
+
+**역할:**
+- anchors.json 기반 시스템 그리드 표시
+- FG values → frame 영역
+- RG values → rail edge
+- ADMIN 모드 showSystemGrid 옵션
+
+### 5. Geometry Module 추가
+
+**신규 파일:**
+- `utils/geometry/line.ts`: computeLineFromPoints
+- `utils/geometry/rail.ts`: lineRailIntersection, computeRailPoints, buildCushionPath
+
+**목적:** App.jsx CO→C1 rail 교점 계산 분리
+
+### 6. Trajectory Reference Model 명확화
+
+- 시스템 궤적 기준: CO → C1 → C2 → C3 → C4 → C5 → C6
+- baseline trajectory: C3 = C4 = C5 = C6
+- corrected trajectory: C4 = C5 = C6
+
+### 7. FG / RG 판단 규칙
+
+- FG: x 또는 y = -2.25 / 42.25 / 82.25
+- RG: 그 외 좌표
+
+### 8. 엔진 계층 구조
+
+```
+System Engine
+   ↓
+AnchorCoordinateEngine
+   ↓
+CalibrationEngine
+   ↓
+TrajectoryEngine
+   ↓
+PhysicsEngine
+```
 
 ------------------------------------------------------------

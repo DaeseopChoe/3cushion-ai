@@ -13,14 +13,16 @@ frontend/src/
  │   └── AdminContainer.tsx
  │
  ├── components/
- │   └── table/ (AnchorPoint, SystemValueLabels, ImpactLines, CoachingOverlay, TableGrid, RailFrame, Ball)
+ │   └── table/ (AnchorPoint, SystemValueLabels, ImpactLines, CoachingOverlay, SystemGrid, TableGrid, RailFrame, Ball)
  ├── config/
  │   └── tableConfig.ts
  ├── contexts/
  ├── data/
- │   └── systems/ (39 systems)
+ │   └── systems/ (39 systems, anchorsRegistry.ts)
  │
  ├── domain/
+ │   ├── anchorCoordinateEngine.ts
+ │   ├── calibrationEngine.ts
  │   ├── railEngine.ts
  │   ├── strategyEngine.ts
  │   ├── adminSaveEngine.ts
@@ -43,6 +45,8 @@ frontend/src/
  │
  ├── utils/
  │   ├── geometry/coords.ts
+ │   ├── geometry/line.ts
+ │   ├── geometry/rail.ts
  │   ├── physics/ (impact.ts, systemLine.ts, index.ts)
  │   ├── systemCalculator.ts
  │   ├── trajectorySampleBuilder.ts
@@ -186,6 +190,8 @@ App (Orchestrator)
  ├── useDisplayController
  ├── useCoachingController
  ├── domain
+ │   ├── anchorCoordinateEngine.ts
+ │   ├── calibrationEngine.ts
  │   ├── adminSaveEngine.ts
  │   ├── positionMergeEngine.ts
  │   ├── positionSearchEngine.ts
@@ -196,11 +202,26 @@ App (Orchestrator)
  │   ├── kdTree6d.ts
  │   ├── signatureKey.ts
  │   └── positionKDIndex.ts
+ ├── data/systems/anchorsRegistry.ts
+ ├── utils/geometry/line.ts, rail.ts
  └── admin
      └── slotAutoRecommend.ts
 ```
 
 6.1 전략 → 궤적 → 물리 연결 구조 (공식 파이프라인)
+
+**엔진 계층 (신규 구조):**
+```
+System Engine
+   ↓
+AnchorCoordinateEngine
+   ↓
+CalibrationEngine
+   ↓
+TrajectoryEngine
+   ↓
+PhysicsEngine
+```
 
 **전체 레이어:**
 ```
@@ -208,7 +229,7 @@ UI (App.jsx)
    ↓
 Controllers (hooks: useSystemController, useCoachingController, useDisplayController)
    ↓
-Domain (domain/strategyEngine, domain/railEngine)
+Domain (anchorCoordinateEngine, calibrationEngine, strategyEngine, railEngine)
    ↓
 Calculator/Trajectory (utils/systemCalculator, data/system/calculator)
    ↓
@@ -216,6 +237,11 @@ Physics (utils/physics/*)
    ↓
 Rendering (components/table/*)
 ```
+
+**Trajectory Reference Model:**
+- 시스템 궤적 기준: CO → C1 → C2 → C3 → C4 → C5 → C6
+- baseline trajectory: C3 = C4 = C5 = C6 (기준 계산)
+- corrected trajectory: C4 = C5 = C6 (보정 적용)
 
 **상세 흐름:**
 SysOverlay 입력
@@ -230,6 +256,10 @@ useShotSlots.applyDraftSys()
    ↓
 applied.sys
    ↓
+AnchorCoordinateEngine (anchors.json → sys 좌표)
+   ↓
+CalibrationEngine (impact pivot 기준 보정)
+   ↓
 useTrajectoryState.applySysResult()
    ↓
 domain/buildRailGroupedStrategy (전략·레일 가공)
@@ -241,6 +271,42 @@ utils/physics/* (Impact 계산)
 components/table/* (Stage Rendering)
 
 6.2 Engine Layer (Domain)
+
+**anchorCoordinateEngine.ts**
+
+Role: anchors.json 기반 sys → 좌표 계산.
+
+Main functions:
+- parseAnchorId: 앵커 id 파싱 (형식: "CO_(82.25,10)_60")
+- getTrackAnchors: track별 anchors 목록 추출
+- interpolateCoord: sys 값 보간으로 좌표 계산
+- sysToCoordFromAnchors: sys → 좌표 변환
+- getAnchorsForRendering: 렌더링용 앵커 좌표 생성
+
+**calibrationEngine.ts**
+
+Role: impact pivot 기준 CO → C1 라인 보정.
+
+Flow:
+rawAnchors → calibrateTrajectory → rawAnchorsCalibrated
+
+**Geometry Module (utils/geometry/)**
+
+- line.ts: computeLineFromPoints
+- rail.ts: lineRailIntersection, computeRailPoints, buildCushionPath
+- App.jsx에서 CO→C1 rail 교점 계산 분리
+
+**anchorsRegistry.ts (data/systems/)**
+
+Role: 모든 anchors.json 자동 로딩 (import.meta.glob).
+현재 32 systems 지원.
+
+**SystemGrid.jsx (components/table/)**
+
+Role: anchors.json 기반 시스템 그리드 표시.
+- FG values → frame 영역
+- RG values → rail edge
+- ADMIN 모드에서 showSystemGrid 옵션으로 표시
 
 **strategyEngine.ts**
 
