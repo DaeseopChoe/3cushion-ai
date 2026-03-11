@@ -41,6 +41,7 @@ import {
   escapeRegExp,
   pointerToRg,
 } from "./utils/geometry/coords";
+import { computeRailPoints, buildCushionPath } from "./utils/geometry/rail";
 import { calculateImpact, adjustSystemLine } from "./utils/physics";
 import {
   computeThicknessFromImpact,
@@ -48,23 +49,26 @@ import {
 } from "./utils/physics/ImpactEngine";
 import SystemValueLabels from "./components/table/SystemValueLabels";
 import ImpactLines from "./components/table/ImpactLines";
+import SystemGrid from "./components/table/SystemGrid";
 import CoachingOverlay from "./components/table/CoachingOverlay";
 import { useCoachingController } from "./hooks/useCoachingController";
 import { useSystemController } from "./hooks/useSystemController";
 import { useDisplayController } from "./hooks/useDisplayController";
-import { TABLE_CONFIG } from "./config/tableConfig";
+import { TABLE_CONFIG, getTableLayout } from "./config/tableConfig";
+import { calibrateTrajectory } from "./domain/calibrationEngine";
 import { buildRailGroupedStrategy } from "./domain/railEngine";
 import { createStrategyEntry } from "./domain/adminSaveEngine";
 import { upsertPositionRecord } from "./domain/positionMergeEngine";
 import { evaluateStrategy } from "./domain/evaluateStrategy";
 import { makeSignature } from "./domain/strategySignature";
 import { inferTrackFromBalls } from "./domain/finalCoordinateEngine";
-import { computeSystemFromPositions } from "./domain/systemEngine";
+import { computeSystemFromPositions, sysValuesToAnchors } from "./domain/systemEngine";
+import { getAnchorsForRendering } from "./domain/anchorCoordinateEngine";
 import { createCaptureCandidate } from "./data/autoCaptureEngine";
 import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
 import { initFileHandle, saveToFile } from "./domain/fileService";
-import anchors5Half from "./data/systems/5_half_system/anchors.json";
+import { getAnchorsForSystem } from "./data/systems/anchorsRegistry";
 
 const { SCALE, TABLE_W_UNITS, TABLE_H_UNITS, TABLE_W, TABLE_H, PADDING } = TABLE_CONFIG;
 
@@ -2067,7 +2071,7 @@ function RailFrame() {
 // Phase B-1 Step 1: MobileWrapper (완전 투명)
 // ============================================
 
-export default function App({ currentButtonId, onActiveSlotChange }) {
+export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlayClose }) {
   const [currentId, setCurrentId] = useState(SHOTS[0].id);
   const [view, setView] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2128,6 +2132,7 @@ export default function App({ currentButtonId, onActiveSlotChange }) {
   });
 
   const [autoSave, setAutoSave] = useState(false);
+  const [showSystemGrid, setShowSystemGrid] = useState(true);
 
   // dataset: PositionRecord[] (localStorage "positions_dataset")
   const [dataset, setDataset] = useState(() => {
@@ -2335,12 +2340,12 @@ export default function App({ currentButtonId, onActiveSlotChange }) {
 
   // 오버레이 닫기
   function closeOverlay() {
+    const wasType = overlayState.type;
     setOverlayState({ open: false, type: null });
-  }
-
-  function getAnchorsForSystem(systemId) {
-    if (systemId === "5_half_system") return anchors5Half;
-    return undefined;
+    // SYS/HP/T/STR/AI 오버레이 닫힐 때 부모에 알려 선택 초기화 → 같은 버튼 재클릭 시 즉시 열림
+    if (wasType && ["SYS", "HPT", "STR", "AI"].includes(wasType)) {
+      onFuncOverlayClose?.();
+    }
   }
 
   const evalForSave = (args) =>
@@ -2465,6 +2470,7 @@ export default function App({ currentButtonId, onActiveSlotChange }) {
 
   // Admin Mode 토글 함수
   function handleToggleAdminMode() {
+    const wasType = overlayState.type;
     setAppMode((prev) => {
       const nextMode = prev === "ADMIN" ? "USER" : "ADMIN";
       
@@ -2476,6 +2482,9 @@ export default function App({ currentButtonId, onActiveSlotChange }) {
       return nextMode;
     });
     setOverlayState({ open: false, type: null });
+    if (wasType && ["SYS", "HPT", "STR", "AI"].includes(wasType)) {
+      onFuncOverlayClose?.();
+    }
   }
 
   // SAVE 핸들러
@@ -2901,8 +2910,65 @@ function handleJoyPadPointerCancel(e) {
   const ui = view.ui;
   const balls = ballsState ?? (ui.balls || {});
   const system = systemCtrl.system;
-  const rawAnchors = display.anchors;
   const opts = display.displayOptions;
+
+  // canonical / track (getAnchorsForRendering용)
+  let canonical = view.track || null;
+  if (!canonical) {
+    const shot = SHOTS.find((s) => s.id === currentId);
+    if (shot?.file?.includes("/")) {
+      canonical = shot.file.split("/")[0];
+    }
+    // canonical.json은 B2T_R에서 로드됨
+    if (!canonical && shot?.file === "canonical.json") canonical = "B2T_R";
+  }
+  const trackForAnchors = view.track || canonical || (balls?.cue && balls?.target_center ? inferTrackFromBalls({
+    cue: balls.cue,
+    target: balls.target_center ?? balls.target ?? balls.cue,
+    second: balls.second ?? balls.target_center ?? balls.cue,
+  }) : null);
+
+  const trackForGrid = view?.track || canonical || "B2T_R";
+  const systemIdForGrid = (() => {
+    if (canEdit) {
+      const slot = shotEditor.slots[shotEditor.activeSlot];
+      const appliedSys = slot?.applied?.sys;
+      const raw = adminState?.sys?.systemId ?? adminState?.sys?.system_id ?? appliedSys?.systemId ?? "5_half_system";
+      return raw === "5_HALF" ? "5_half_system" : raw;
+    }
+    return "5_half_system";
+  })();
+  const anchorsDataForGrid = getAnchorsForSystem(systemIdForGrid);
+
+  // ADMIN: anchors.json 기반 좌표 생성 | USER: display.anchors
+  const rawAnchors = canEdit
+    ? (() => {
+        const slot = shotEditor.slots[shotEditor.activeSlot];
+        const appliedSys = slot?.applied?.sys;
+        const sysInputs = appliedSys?.inputs ?? {};
+        const sysResult = appliedSys?.outputs?.result ?? {};
+        const sysValues = {
+          ...adminState?.sys?.systemValues,
+          ...adminState?.sys?.inputs,
+          ...sysInputs,
+          ...sysResult,
+        };
+        const rawSystemId =
+          adminState?.sys?.systemId ??
+          adminState?.sys?.system_id ??
+          appliedSys?.systemId ??
+          "5_half_system";
+        const systemId = rawSystemId === "5_HALF" ? "5_half_system" : rawSystemId;
+        const anchors = getAnchorsForRendering({
+          systemId,
+          track: trackForAnchors,
+          sysValues,
+          anchorsData: getAnchorsForSystem(systemId),
+          fallback: sysValuesToAnchors(sysValues),
+        });
+        return Object.keys(anchors).length > 0 ? anchors : (display.anchors ?? {});
+      })()
+    : (display.anchors ?? {});
   const strategy = display.strategy;
 
   // 자동 분리 알고리즘
@@ -3184,16 +3250,28 @@ function handlePointerCancel(e) {
   handlePointerUp(e);
 }
 
-  // canonical 처리 (안전하게)
-  let canonical = view.track || null;
-  if (!canonical) {
-    const shot = SHOTS.find((s) => s.id === currentId);
-    if (shot && shot.file && shot.file.includes("/")) {
-      canonical = shot.file.split("/")[0];
-    }
+  // SYS 입력 → Calibration (CO/C1 자동 보정)
+  const calibration = calibrateTrajectory({
+    cue: balls.cue,
+    target: balls.target_center,
+    CO_fg: rawAnchors.CO,
+    C1_fg: rawAnchors["1C"],
+    thickness: opts.thickness || "1/2",
+    pattern: view.pattern,
+    BALL_DIAMETER_RG,
+    BALL_RADIUS_RG,
+  });
+
+  let rawAnchorsCalibrated = { ...rawAnchors };
+  if (calibration.CO_corrected) {
+    rawAnchorsCalibrated.CO = calibration.CO_corrected;
+  }
+  if (calibration.C1_corrected) {
+    rawAnchorsCalibrated["1C"] = calibration.C1_corrected;
   }
 
-  let anchors = rawAnchors;
+  // canonical 처리 (안전하게) — canonical은 위에서 이미 계산됨
+  let anchors = rawAnchorsCalibrated;
   
   // 변환 필수 데이터 확인
   const hasConversionData = 
@@ -3204,7 +3282,7 @@ function handlePointerCancel(e) {
   
   if (hasConversionData) {
     try {
-      anchors = convertCanonicalAnchors(rawAnchors, canonical);
+      anchors = convertCanonicalAnchors(rawAnchorsCalibrated, canonical);
     } catch (e) {
       console.warn("좌표 변환 실패, 원본 사용:", e);
     }
@@ -3223,45 +3301,12 @@ function handlePointerCancel(e) {
   const CO_rg_converted = anchors.CO;      // 이미 Rg
   const C1_rg_converted = anchors["1C"];   // 이미 Rg
   
-  // 원본 Fg 좌표 복원
-  const CO_fg = rawAnchors.CO;             // 원본 Fg
-  const C1_fg = rawAnchors["1C"];          // 원본 Fg
+  // 보정된 CO/C1 (calibration 적용)
+  const CO_fg = rawAnchorsCalibrated.CO;
+  const C1_fg = rawAnchorsCalibrated["1C"];
   
-  // ✅ CO-1C 선과 레일 날선 교점 계산
-  let CO_rail = CO_fg;
-  let C1_rail = C1_fg;
-  
-  if (CO_fg && C1_fg) {
-    const dx = C1_fg.x - CO_fg.x;
-    const dy = C1_fg.y - CO_fg.y;
-    
-    if (Math.abs(dy) > 0.01) {
-      const m = dy / dx;
-      const b = CO_fg.y - m * CO_fg.x;
-      
-      // B2T: CO=BOTTOM, 1C=TOP
-      if (Math.abs(CO_fg.y - (-2.25)) < 0.5) {
-        const x_bottom = (0 - b) / m;
-        CO_rail = { x: x_bottom, y: 0 };
-      }
-      
-      if (Math.abs(C1_fg.y - 42.25) < 0.5) {
-        const x_top = (40 - b) / m;
-        C1_rail = { x: x_top, y: 40 };
-      }
-      
-      // T2B: CO=TOP, 1C=BOTTOM
-      if (Math.abs(CO_fg.y - 42.25) < 0.5) {
-        const x_top = (40 - b) / m;
-        CO_rail = { x: x_top, y: 40 };
-      }
-      
-      if (Math.abs(C1_fg.y - (-2.25)) < 0.5) {
-        const x_bottom = (0 - b) / m;
-        C1_rail = { x: x_bottom, y: 0 };
-      }
-    }
-  }
+  // ✅ CO-1C 선과 레일 날선 교점 계산 (utils/geometry/rail)
+  const { CO_rail, C1_rail } = computeRailPoints(CO_fg, C1_fg);
   
   const C2 = anchors["2C"];
   const C3 = anchors["3C"];
@@ -3269,7 +3314,7 @@ function handlePointerCancel(e) {
   const C5 = anchors["5C"];
   const C6 = anchors["6C"];
 
-  const impactRaw = calculateImpact(balls.cue, balls.target_center, CO_fg, C1_fg, opts.thickness || "1/2", view.pattern || "뒤돌리기", BALL_DIAMETER_RG, BALL_RADIUS_RG);
+  const impactRaw = calibration.impact ?? calculateImpact(balls.cue, balls.target_center, CO_fg, C1_fg, opts.thickness || "1/2", view.pattern || "뒤돌리기", BALL_DIAMETER_RG, BALL_RADIUS_RG);
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
 
   // CO→1C 선은 레일 교점 사용
@@ -3311,7 +3356,7 @@ function handlePointerCancel(e) {
   if (view.last_cushion === "5C") lastAnchor = C5;
   if (view.last_cushion === "6C") lastAnchor = C6;
 
-  const cushionPath = [C1_rail, C2, C3, lastAnchor].filter(Boolean);
+  const cushionPath = buildCushionPath(C1_rail, C2, C3, lastAnchor);
   const cushionPathAttrRaw = cushionPath.map((pt) => {
     const p = toPx(pt, SCALE, TABLE_H);
     return `${p.x + PADDING},${p.y + PADDING}`;
@@ -3359,6 +3404,16 @@ function handlePointerCancel(e) {
     >
       <RailFrame />
       <TableGrid />
+      {canEdit && showSystemGrid && anchorsDataForGrid && trackForGrid && (
+        <SystemGrid
+          anchorsData={anchorsDataForGrid}
+          track={trackForGrid}
+          scale={SCALE}
+          tableH={TABLE_H}
+          padding={PADDING}
+          tableLayout={getTableLayout(SCALE, TABLE_W, TABLE_H, PADDING)}
+        />
+      )}
       <SystemValueLabels
         anchors={allAnchors}
         scale={SCALE}
@@ -3476,6 +3531,16 @@ function handlePointerCancel(e) {
             style={{ backgroundColor: '#64748b', color: 'white' }}
           >
             파일 연결
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSystemGrid((prev) => !prev)}
+            style={{
+              backgroundColor: showSystemGrid ? '#10b981' : '#64748b',
+              color: 'white',
+            }}
+          >
+            System Grid
           </button>
           <button
             type="button"

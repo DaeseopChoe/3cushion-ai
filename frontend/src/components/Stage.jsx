@@ -191,7 +191,11 @@ export default function Stage() {
             justifyContent: "center",
           }}
         >
-          <App currentButtonId={currentButtonId} onActiveSlotChange={setActiveSlot} />
+          <App
+          currentButtonId={currentButtonId}
+          onActiveSlotChange={setActiveSlot}
+          onFuncOverlayClose={() => setCurrentButtonId(activeSlot)}
+        />
         </div>
 
         <div style={{ width: RIGHT_PAD, flexShrink: 0 }} />
