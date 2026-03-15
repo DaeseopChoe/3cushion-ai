@@ -41,7 +41,7 @@ import {
   escapeRegExp,
   pointerToRg,
 } from "./utils/geometry/coords";
-import { computeRailPoints, buildCushionPath } from "./utils/geometry/rail";
+import { buildCushionPath, snapToRail } from "./utils/geometry/rail";
 import { calculateImpact, adjustSystemLine } from "./utils/physics";
 import {
   computeThicknessFromImpact,
@@ -55,7 +55,6 @@ import { useCoachingController } from "./hooks/useCoachingController";
 import { useSystemController } from "./hooks/useSystemController";
 import { useDisplayController } from "./hooks/useDisplayController";
 import { TABLE_CONFIG, getTableLayout } from "./config/tableConfig";
-import { calibrateTrajectory } from "./domain/calibrationEngine";
 import { buildRailGroupedStrategy } from "./domain/railEngine";
 import { createStrategyEntry } from "./domain/adminSaveEngine";
 import { upsertPositionRecord } from "./domain/positionMergeEngine";
@@ -64,6 +63,7 @@ import { makeSignature } from "./domain/strategySignature";
 import { inferTrackFromBalls } from "./domain/finalCoordinateEngine";
 import { computeSystemFromPositions, sysValuesToAnchors } from "./domain/systemEngine";
 import { getAnchorsForRendering } from "./domain/anchorCoordinateEngine";
+import { computeReflectionC2 } from "./domain/reflectionEngine";
 import { createCaptureCandidate } from "./data/autoCaptureEngine";
 import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
@@ -2147,6 +2147,9 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
   /** SYS에서 계산된 HP_n 결과 임시 저장 (HP/T 열릴 때만 반영, UI 동기화용) */
   const [sysHpNResult, setSysHpNResult] = useState(null);
 
+  /** C2 reflection fallback용 수동 힌트 (추후 draggable C2 UI 연결용) */
+  const [c2ManualHint, setC2ManualHint] = useState(null);
+
   // 원 포인트 레슨 라이브러리 (로컬스토리지)
   const ONE_POINT_KEY = "ONE_POINT_LESSON_LIBRARY_V1";
   const [onePointLibrary, setOnePointLibrary] = useState([]);
@@ -2912,6 +2915,12 @@ function handleJoyPadPointerCancel(e) {
   const system = systemCtrl.system;
   const opts = display.displayOptions;
 
+  const thicknessForCalc =
+    adminState?.hpt?.T ??
+    shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.hpt?.T ??
+    view?.ui?.display_options?.thickness ??
+    0;
+
   // canonical / track (getAnchorsForRendering용)
   let canonical = view.track || null;
   if (!canonical) {
@@ -2969,6 +2978,13 @@ function handleJoyPadPointerCancel(e) {
         return Object.keys(anchors).length > 0 ? anchors : (display.anchors ?? {});
       })()
     : (display.anchors ?? {});
+
+  // S1 슬롯 데이터 갱신 디버깅
+  console.log("activeSlot", shotEditor?.activeSlot);
+  console.log("slot anchors", shotEditor?.slots?.[shotEditor?.activeSlot]);
+  console.log("slot applied anchors", shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.anchors);
+  console.log("rawAnchors", rawAnchors);
+
   const strategy = display.strategy;
 
   // 자동 분리 알고리즘
@@ -3250,28 +3266,8 @@ function handlePointerCancel(e) {
   handlePointerUp(e);
 }
 
-  // SYS 입력 → Calibration (CO/C1 자동 보정)
-  const calibration = calibrateTrajectory({
-    cue: balls.cue,
-    target: balls.target_center,
-    CO_fg: rawAnchors.CO,
-    C1_fg: rawAnchors["1C"],
-    thickness: opts.thickness || "1/2",
-    pattern: view.pattern,
-    BALL_DIAMETER_RG,
-    BALL_RADIUS_RG,
-  });
-
-  let rawAnchorsCalibrated = { ...rawAnchors };
-  if (calibration.CO_corrected) {
-    rawAnchorsCalibrated.CO = calibration.CO_corrected;
-  }
-  if (calibration.C1_corrected) {
-    rawAnchorsCalibrated["1C"] = calibration.C1_corrected;
-  }
-
   // canonical 처리 (안전하게) — canonical은 위에서 이미 계산됨
-  let anchors = rawAnchorsCalibrated;
+  let anchors = rawAnchors;
   
   // 변환 필수 데이터 확인
   const hasConversionData = 
@@ -3282,7 +3278,7 @@ function handlePointerCancel(e) {
   
   if (hasConversionData) {
     try {
-      anchors = convertCanonicalAnchors(rawAnchorsCalibrated, canonical);
+      anchors = convertCanonicalAnchors(rawAnchors, canonical);
     } catch (e) {
       console.warn("좌표 변환 실패, 원본 사용:", e);
     }
@@ -3301,20 +3297,82 @@ function handlePointerCancel(e) {
   const CO_rg_converted = anchors.CO;      // 이미 Rg
   const C1_rg_converted = anchors["1C"];   // 이미 Rg
   
-  // 보정된 CO/C1 (calibration 적용)
-  const CO_fg = rawAnchorsCalibrated.CO;
-  const C1_fg = rawAnchorsCalibrated["1C"];
-  
-  // ✅ CO-1C 선과 레일 날선 교점 계산 (utils/geometry/rail)
-  const { CO_rail, C1_rail } = computeRailPoints(CO_fg, C1_fg);
-  
-  const C2 = anchors["2C"];
-  const C3 = anchors["3C"];
+  // 원본 Fg 좌표
+  const CO_fg = rawAnchors.CO;
+  const C1_fg = rawAnchors["1C"];
+
+  // ✅ CO-1C 선과 레일 날선 교점 계산
+  let CO_rail = CO_fg;
+  let C1_rail = C1_fg;
+
+  if (CO_fg && C1_fg) {
+    const dx = C1_fg.x - CO_fg.x;
+    const dy = C1_fg.y - CO_fg.y;
+
+    if (Math.abs(dy) > 0.01) {
+      const m = dy / dx;
+      const b = CO_fg.y - m * CO_fg.x;
+
+      // B2T
+      if (Math.abs(CO_fg.y - (-2.25)) < 0.5) {
+        CO_rail = { x: (0 - b) / m, y: 0 };
+      }
+      if (Math.abs(C1_fg.y - 42.25) < 0.5) {
+        C1_rail = { x: (40 - b) / m, y: 40 };
+      }
+
+      // T2B
+      if (Math.abs(CO_fg.y - 42.25) < 0.5) {
+        CO_rail = { x: (40 - b) / m, y: 40 };
+      }
+      if (Math.abs(C1_fg.y - (-2.25)) < 0.5) {
+        C1_rail = { x: (0 - b) / m, y: 0 };
+      }
+    }
+  }
+
+  // 2C fallback: anchors["2C"] 없을 때 reflection engine으로 C2 자동 생성
+  const currentTip = (() => {
+    const hp = adminState?.hpt?.hit_point ?? adminState?.hpt?.hp;
+    if (!hp || typeof hp.x !== "number" || typeof hp.y !== "number") return null;
+    const r = Math.hypot(hp.x, hp.y);
+    const count = Math.round(Math.min(4, Math.max(0, r)));
+    const side = hp.x >= 0 ? "R" : "L";
+    return { count, side };
+  })();
+
+  const C3_anchor = anchors["3C"];
+  const C3_point = C3_anchor?.coord ?? C3_anchor;
+  const C3_snapped = snapToRail(C3_point) ?? C3_point;
+  console.log("C3 original", C3_point);
+  console.log("C3 snapped", C3_snapped);
+
+  const reflected =
+    !anchors["2C"] && CO_rail && C1_rail && C3_snapped
+      ? (() => {
+          console.log("C2 input", { c1: C1_rail, c3: C3_anchor });
+          return computeReflectionC2({
+            co: CO_rail,
+            c1: C1_rail,
+            c3: C3_snapped,
+            tip: currentTip ?? null,
+            track: trackForAnchors ?? undefined,
+            manualHint: c2ManualHint ?? null,
+          });
+        })()
+      : null;
+
+  const C2 = anchors["2C"] ?? reflected?.c2 ?? null;
+  const C3 = C3_snapped ?? C3_point ?? C3_anchor;
+
+  if (reflected && canEdit) {
+    console.log("🔷 C2 reflection fallback:", reflected.diagnostics);
+  }
   const C4 = anchors["4C"];
   const C5 = anchors["5C"];
   const C6 = anchors["6C"];
 
-  const impactRaw = calibration.impact ?? calculateImpact(balls.cue, balls.target_center, CO_fg, C1_fg, opts.thickness || "1/2", view.pattern || "뒤돌리기", BALL_DIAMETER_RG, BALL_RADIUS_RG);
+  const impactRaw = calculateImpact(balls.cue, balls.target_center, CO_fg, C1_fg, thicknessForCalc || "1/2", view.pattern || "뒤돌리기", BALL_DIAMETER_RG, BALL_RADIUS_RG);
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
 
   // CO→1C 선은 레일 교점 사용
@@ -3356,7 +3414,7 @@ function handlePointerCancel(e) {
   if (view.last_cushion === "5C") lastAnchor = C5;
   if (view.last_cushion === "6C") lastAnchor = C6;
 
-  const cushionPath = buildCushionPath(C1_rail, C2, C3, lastAnchor);
+  const cushionPath = buildCushionPath(CO_rail, C1_rail, C2, C3_snapped ?? C3_point, lastAnchor);
   const cushionPathAttrRaw = cushionPath.map((pt) => {
     const p = toPx(pt, SCALE, TABLE_H);
     return `${p.x + PADDING},${p.y + PADDING}`;
@@ -3374,7 +3432,7 @@ function handlePointerCancel(e) {
     CO: { coord: CO_rail, isFg: false },   // 레일 교점 (Rg)
     "1C": { coord: C1_rail, isFg: false }, // 레일 교점 (Rg)
     "2C": { coord: C2, isFg: false }, 
-    "3C": { coord: C3, isFg: false }, 
+    "3C": { coord: C3_snapped ?? C3_point ?? C3_anchor, isFg: false }, 
     "4C": { coord: C4, isFg: false }, 
     "5C": { coord: C5, isFg: false }, 
     "6C": { coord: C6, isFg: false } 
@@ -3386,6 +3444,18 @@ function handlePointerCancel(e) {
     lastCushion: view.last_cushion,
   });
   const railGroups = strategyResult.railGroups;
+
+  const systemValuesForLabels =
+    canEdit
+      ? (
+          adminState?.sys?.systemValues ??
+          adminState?.sys?.inputs ??
+          shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.sys?.result ??
+          shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.sys?.inputs ??
+          system?.values ??
+          {}
+        )
+      : (system?.values ?? {});
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
@@ -3419,7 +3489,7 @@ function handlePointerCancel(e) {
         scale={SCALE}
         tableH={TABLE_H}
         padding={PADDING}
-        systemValues={system.values}
+        systemValues={systemValuesForLabels}
       />
       <ImpactLines
         CO_line={CO_line}
@@ -3825,7 +3895,7 @@ function handlePointerCancel(e) {
                     <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{opts.hitpoint_clock || '-'}</div>
                   </div>
                   <div style={{ marginBottom: '12px' }}>
-                    <span style={{ fontWeight: '600' }}>두께:</span> {opts.thickness || '-'}
+                    <span style={{ fontWeight: '600' }}>두께:</span> {thicknessForCalc || '-'}
                   </div>
                   <div>
                     <span style={{ fontWeight: '600' }}>회전:</span> {opts.english_tips || '-'}

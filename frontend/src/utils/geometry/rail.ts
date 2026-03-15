@@ -12,11 +12,26 @@ import {
 const RG_W = 80;
 const RG_H = 40;
 
-/** Fg 레일 판정용 상수 (기존 로직 유지) */
+/** FG 레일 판정용 상수 */
 const FG_BOTTOM_Y = -2.25;
 const FG_TOP_Y = 42.25;
+const FG_LEFT_X = -2.25;
+const FG_RIGHT_X = 82.25;
 
 export type Rail = "BOTTOM" | "TOP" | "LEFT" | "RIGHT";
+
+/**
+ * rail 안쪽 좌표를 rail 위로 스냅
+ * C3 등이 rail 위가 아닌 rail 내부에 있을 때 detectRail/교점 계산용
+ */
+export function snapToRail(p: Point | null | undefined, eps = 3): Point | null {
+  if (!p || typeof p.x !== "number" || typeof p.y !== "number") return null;
+  if (Math.abs(p.y - 0) < eps) return { x: p.x, y: 0 };
+  if (Math.abs(p.y - RG_H) < eps) return { x: p.x, y: RG_H };
+  if (Math.abs(p.x - 0) < eps) return { x: 0, y: p.y };
+  if (Math.abs(p.x - RG_W) < eps) return { x: RG_W, y: p.y };
+  return p;
+}
 
 /**
  * 직선과 레일의 교점 계산
@@ -60,9 +75,13 @@ export function lineRailIntersection(
   }
 }
 
+/** RG 레일 근접 판정 허용 오차 (FG/RG 좌표 모두 대응) */
+const RAIL_TOLERANCE = 5;
+
 /**
- * CO, C1 좌표(Fg)로부터 레일 교점(CO_rail, C1_rail) 계산
- * 기존 App.jsx 3238~3272 로직 그대로 이동
+ * CO, C1 좌표로부터 레일 교점(CO_rail, C1_rail) 계산
+ * FG (y=-2.25/42.25) 및 RG (y=0/40, x=0/80) 좌표 모두 지원
+ * TOP, BOTTOM, LEFT, RIGHT 4개 레일 처리
  */
 export function computeRailPoints(
   CO_fg: Point | undefined | null,
@@ -77,29 +96,44 @@ export function computeRailPoints(
 
   const line = computeLineFromPoints(CO_fg, C1_fg);
 
-  if (Math.abs(line.dy) > 0.01) {
-    const m = line.slope;
-    const b = line.intercept;
+  /** p가 레일 위/근처인지 판정 (FG 또는 RG) */
+  const isOnBottom = (p: Point) =>
+    Math.abs(p.y - FG_BOTTOM_Y) < RAIL_TOLERANCE || Math.abs(p.y - 0) < RAIL_TOLERANCE;
+  const isOnTop = (p: Point) =>
+    Math.abs(p.y - FG_TOP_Y) < RAIL_TOLERANCE || Math.abs(p.y - RG_H) < RAIL_TOLERANCE;
+  const isOnLeft = (p: Point) =>
+    Math.abs(p.x - FG_LEFT_X) < RAIL_TOLERANCE || Math.abs(p.x - 0) < RAIL_TOLERANCE;
+  const isOnRight = (p: Point) =>
+    Math.abs(p.x - FG_RIGHT_X) < RAIL_TOLERANCE || Math.abs(p.x - RG_W) < RAIL_TOLERANCE;
 
-    // B2T: CO=BOTTOM, 1C=TOP
-    if (Math.abs(CO_fg.y - FG_BOTTOM_Y) < 0.5) {
-      const pt = lineRailIntersection(line, "BOTTOM");
-      if (pt) CO_rail = pt;
-    }
-    if (Math.abs(C1_fg.y - FG_TOP_Y) < 0.5) {
-      const pt = lineRailIntersection(line, "TOP");
-      if (pt) C1_rail = pt;
-    }
+  // CO 레일 교점
+  if (isOnBottom(CO_fg)) {
+    const pt = lineRailIntersection(line, "BOTTOM");
+    if (pt) CO_rail = pt;
+  } else if (isOnTop(CO_fg)) {
+    const pt = lineRailIntersection(line, "TOP");
+    if (pt) CO_rail = pt;
+  } else if (isOnLeft(CO_fg)) {
+    const pt = lineRailIntersection(line, "LEFT");
+    if (pt) CO_rail = pt;
+  } else if (isOnRight(CO_fg)) {
+    const pt = lineRailIntersection(line, "RIGHT");
+    if (pt) CO_rail = pt;
+  }
 
-    // T2B: CO=TOP, 1C=BOTTOM
-    if (Math.abs(CO_fg.y - FG_TOP_Y) < 0.5) {
-      const pt = lineRailIntersection(line, "TOP");
-      if (pt) CO_rail = pt;
-    }
-    if (Math.abs(C1_fg.y - FG_BOTTOM_Y) < 0.5) {
-      const pt = lineRailIntersection(line, "BOTTOM");
-      if (pt) C1_rail = pt;
-    }
+  // C1 레일 교점
+  if (isOnBottom(C1_fg)) {
+    const pt = lineRailIntersection(line, "BOTTOM");
+    if (pt) C1_rail = pt;
+  } else if (isOnTop(C1_fg)) {
+    const pt = lineRailIntersection(line, "TOP");
+    if (pt) C1_rail = pt;
+  } else if (isOnLeft(C1_fg)) {
+    const pt = lineRailIntersection(line, "LEFT");
+    if (pt) C1_rail = pt;
+  } else if (isOnRight(C1_fg)) {
+    const pt = lineRailIntersection(line, "RIGHT");
+    if (pt) C1_rail = pt;
   }
 
   return {
@@ -159,14 +193,15 @@ export function lineToRailIntersections(
 }
 
 /**
- * C1→C2→C3... cushion path 포인트 배열 생성
- * App.jsx cushionPath 구성 로직 분리
+ * CO→1C→2C→3C→... cushion path 포인트 배열 생성
+ * 전체 trajectory 경로: CO_rail, C1_rail, C2, C3, lastAnchor
  */
 export function buildCushionPath(
+  CO_rail: Point | null | undefined,
   C1_rail: Point | null | undefined,
   C2: Point | null | undefined,
   C3: Point | null | undefined,
   lastAnchor: Point | null | undefined
 ): Point[] {
-  return [C1_rail, C2, C3, lastAnchor].filter((p): p is Point => p != null);
+  return [CO_rail, C1_rail, C2, C3, lastAnchor].filter((p): p is Point => p != null);
 }
