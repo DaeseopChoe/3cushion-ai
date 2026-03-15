@@ -679,3 +679,26 @@ PhysicsEngine
 ```
 
 ------------------------------------------------------------
+
+## 🔄 2026-03 Anchor Coordinate Rendering Debug Session
+
+이번 세션에서 다음 문제 분석이 진행됨.
+
+**문제:**
+
+- SYS 변경 시 trajectory rendering 불안정
+- S1 / S2 슬롯 간 sysValues contamination
+- getAnchorsForRendering fallback 발생
+
+**원인:**
+
+1. adminState.sys가 activeSlot 변경 시 동기화되지 않음
+2. sysValues → rawAnchors 변환 실패 시 display.anchors fallback
+3. convertCanonicalAnchors 실행 조건 오류
+4. offset_fg2rg 값이 system.values로 전달되지 않음
+
+**추가 분석:**
+
+- reflection C2 실패는 계산 오류가 아니라 rawAnchors 입력 오염 문제
+
+------------------------------------------------------------

@@ -335,6 +335,42 @@ Note:
 Previous runStrategyEngine logic has been moved here
 from strategyEngine.ts during refactoring.
 
+6.3 Anchor Coordinate Pipeline
+
+SYS 계산 결과는 다음 파이프라인을 통해
+렌더링 좌표로 변환된다.
+
+```
+sysValues
+   ↓
+getAnchorsForRendering()
+   ↓
+sysToCoordFromAnchors()
+또는
+sysValuesToAnchors()
+   ↓
+convertCanonicalAnchors()
+(FG → RG 변환)
+   ↓
+rawAnchors
+   ↓
+snapToRail()
+   ↓
+CO / C1 rail projection
+   ↓
+computeReflectionC2()
+   ↓
+buildCushionPath()
+   ↓
+Trajectory rendering
+```
+
+⚠ convertCanonicalAnchors 실행 조건
+
+- `hasConversionData = system.values.offset_fg2rg 존재`
+- 현재 구조에서는 `offset_fg2rg`가 `profile.json` safety에 존재하지만
+  `system.values`로 전달되지 않아 좌표 변환이 비활성화될 수 있다.
+
 7️⃣ Admin Save 데이터 흐름
 
 Admin Input (SYS / HP-T / STR / AI)
