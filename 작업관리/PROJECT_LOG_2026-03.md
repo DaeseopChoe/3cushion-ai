@@ -324,3 +324,86 @@ ImpactBall은 targetBall과 정확히 접촉하도록 자동 보정된다.
 Reflection C2 실패는
 좌표 엔진 문제라기보다
 rawAnchors 입력 오염 문제로 판정됨.
+
+---
+
+# 2026-03 — Reflection C2 Engine Debug & Fix (Critical)
+
+이번 세션에서 C2 reflection 실패의 실제 원인을 확정하고 수정하였다.
+
+## 문제 현상
+
+- SYS 변경 시 C2가 생성되지 않거나
+- 생성되더라도 C3와 겹침
+- reflection 경로(C1 → C2 → C3)가 형성되지 않음
+
+## 초기 가설
+
+- rawAnchors 입력 오염
+- canonical offset 누락
+- rail ordering 문제
+- intersection 조건 문제
+
+## 최종 원인 (확정)
+
+Reflection ray 방향이 반대로 계산되고 있었음
+
+### 로그 근거
+
+- thetaOutDeg ≈ 141°
+- 모든 rail에서 intersection = null
+- rayDirection = "REVERSED"
+- primaryCause = "Ray 방향 반대"
+
+## 구조적 문제
+
+기존 구현:
+
+- thetaInDeg = angleDeg(co, c1)
+- → CO → C1 방향 기반
+
+이 방식은 실제 반사 물리와 맞지 않음
+
+또한 reflectAngle 적용 이후에도
+ray 방향이 반전되지 않아 교차가 발생하지 않음
+
+## 해결 방법
+
+다음 3단계 수정으로 해결:
+
+1. 입사 방향 변경
+
+- angleDeg(co, c1)
+→ angleDeg(c1, c3)
+
+2. 레일 법선 기반 반사 도입
+
+- reflectAngle(theta, rail) = 2 * normal - theta
+
+3. 방향 보정
+
+- thetaOutDeg = reflect + spin + 180
+
+(+180은 ray 방향 반전 보정)
+
+## 결과
+
+- C2 정상 생성
+- rail intersection 정상 발생
+- C1 → C2 → C3 궤적 복원
+
+## 현재 상태
+
+- reflection 로직 정상 동작
+- C2 위치는 추가 튜닝 필요
+
+## 교훈
+
+1. reflection 문제는 입력보다 방향이 더 중요
+2. rayDirection 로그는 핵심 진단 지표
+3. "교차 없음"은 대부분 방향 문제
+4. 물리 기반(normal reflection)을 적용해야 안정적
+
+## 상태
+
+Reflection Engine 안정화 완료 (v1)

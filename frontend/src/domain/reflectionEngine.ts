@@ -190,6 +190,23 @@ export function intersectRayWithRail(
   return null;
 }
 
+/** 레일 법선 각도 (deg) */
+function railNormalAngle(rail: Rail): number {
+  switch (rail) {
+    case "TOP": return 90;
+    case "BOTTOM": return -90;
+    case "LEFT": return 180;
+    case "RIGHT": return 0;
+    default: return 0;
+  }
+}
+
+/** 입사각 → 반사각 */
+function reflectAngle(thetaInDeg: number, rail: Rail): number {
+  const normalDeg = railNormalAngle(rail);
+  return 2 * normalDeg - thetaInDeg;
+}
+
 /** orderedRails 순서로 첫 번째 유효 C2 반환 */
 export function findFirstValidC2(
   c1: Point,
@@ -224,7 +241,8 @@ export function computeReflectionC2(input: ReflectionInput): ReflectionOutput | 
     tip,
     manualHint?.deltaAngleDeg ?? 0
   );
-  const thetaOutDeg = thetaInDeg + spinAdjustDeg;
+  const thetaReflectDeg = reflectAngle(thetaInDeg, c1Rail);
+  const thetaOutDeg = thetaReflectDeg + spinAdjustDeg + 180;
 
   const preferred = manualHint?.preferredRail;
   const chosen = chooseCandidateRail(c1Rail, track, preferred);
@@ -234,7 +252,18 @@ export function computeReflectionC2(input: ReflectionInput): ReflectionOutput | 
     ...chosen.candidates.filter((r) => r !== chosen.rail),
   ];
 
+  const allRails: Rail[] = ["RIGHT", "BOTTOM", "LEFT"];
+  console.log("[C2_REFLECT] c1Rail:", c1Rail);
+  console.log("[C2_REFLECT] thetaOutDeg:", thetaOutDeg);
+  allRails.forEach((rail) => {
+    const p = intersectRayWithRail(c1, thetaOutDeg, rail);
+    console.log("[C2_REFLECT] rail:", rail, "intersectRayWithRail:", p);
+  });
+
   const found = findFirstValidC2(c1, thetaOutDeg, orderedRails);
+  if (found) {
+    console.log("[C2_REFLECT] targetRail (selected):", found.c2Rail, "c2:", found.c2);
+  }
   if (!found) {
     console.warn("Reflection skipped: intersection failed", {
       c1,

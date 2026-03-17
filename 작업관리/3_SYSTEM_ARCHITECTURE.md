@@ -365,6 +365,17 @@ buildCushionPath()
 Trajectory rendering
 ```
 
+**Reflection Flow**
+1. CO → C1 → C3 방향 기반 입사각 계산
+2. C1이 위치한 레일(c1Rail) 확인
+3. 레일 법선 기준 반사각 계산
+4. spinAdjustDeg 적용
+5. +180 방향 보정
+6. C1에서 ray 발사
+7. rail과의 교차점 = C2
+
+⚠ ray는 반드시 C1 기준에서 발사됨. 방향 보정(+180)이 없으면 교차가 발생하지 않음.
+
 ⚠ convertCanonicalAnchors 실행 조건
 
 - `hasConversionData = system.values.offset_fg2rg 존재`

@@ -285,6 +285,28 @@ App 시뮬레이션 검증
 
 trajectory 저장 테스트
 
+1️⃣6️⃣-1 Reflection 계산 규칙
+
+1. 입사각 정의
+- 기존: angleDeg(co, c1)
+- 변경: angleDeg(c1, c3)
+→ 입사 방향을 CO 기준이 아닌 실제 진행 방향 기준으로 수정
+
+2. 레일 법선 기반 반사
+- reflectAngle(thetaInDeg, rail) = 2 * normalDeg - thetaInDeg
+
+3. 레일 법선 각도
+- TOP: 90°
+- BOTTOM: -90°
+- LEFT: 180°
+- RIGHT: 0°
+
+4. 최종 출사각
+- thetaOutDeg = reflectAngle(thetaInDeg, c1Rail) + spinAdjustDeg + 180
+
+5. 중요
+- +180 보정은 ray 방향 반전 문제 해결을 위한 필수 요소
+
 📌 최종 선언
 
 이 문서는 3Cushion AI 계산 엔진의 공식 규칙이다.

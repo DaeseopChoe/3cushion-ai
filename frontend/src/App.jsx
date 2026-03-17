@@ -63,7 +63,15 @@ import { makeSignature } from "./domain/strategySignature";
 import { inferTrackFromBalls } from "./domain/finalCoordinateEngine";
 import { computeSystemFromPositions, sysValuesToAnchors } from "./domain/systemEngine";
 import { getAnchorsForRendering } from "./domain/anchorCoordinateEngine";
-import { computeReflectionC2 } from "./domain/reflectionEngine";
+import {
+  computeReflectionC2,
+  detectRail,
+  angleDeg,
+  resolveSignedSpinDeg,
+  chooseCandidateRail,
+  intersectRayWithRail,
+  directionFromAngleDeg,
+} from "./domain/reflectionEngine";
 import { createCaptureCandidate } from "./data/autoCaptureEngine";
 import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
@@ -2748,11 +2756,18 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     const slot = shotEditor.slots[shotEditor.activeSlot];
     const applied = slot?.applied;
+    // [VERIFY 1] activeSlot 변경 감지
+    console.log("[VERIFY 1] activeSlot useEffect", {
+      activeSlot: shotEditor.activeSlot,
+      "slot?.applied?.sys": slot?.applied?.sys,
+      "applied?.sys (setAdminState 직전)": applied?.sys,
+    });
     const defaultHpt = { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP" };
     const defaultStr = { curve: "constant", type: null, acceleration: "smooth_const", speed: 2.5, depth: 2, impact: "medium" };
     const defaultAi = { text: "", onePointLessons: [] };
     setAdminState((prev) => ({
       ...prev,
+      sys: applied?.sys ?? prev.sys,
       hpt: applied?.hpt ?? defaultHpt,
       str: applied?.str ?? defaultStr,
       ai: applied?.ai ?? defaultAi,
@@ -2790,6 +2805,11 @@ function handleJoyPadPointerCancel(e) {
       })
       .then((data) => {
         console.log("✅ 로드:", shot.file);
+        // [VERIFY 5] F5/초기 로드 — JSON 원본 데이터
+        console.log("[VERIFY 5] fetch 로드 완료 (JSON 원본)", {
+          "data.ui?.anchors 키": data?.ui?.anchors ? Object.keys(data.ui.anchors) : null,
+          "data.ui?.system?.values": data?.ui?.system?.values,
+        });
         setView(data);
         setLoading(false);
       })
@@ -2870,6 +2890,17 @@ function handleJoyPadPointerCancel(e) {
     setAdminState,
   });
   const display = useDisplayController({ ui: view?.ui });
+  // [VERIFY 5] view 로드 후 화면 구성 데이터 소스 (F5/초기 로드 시)
+  useEffect(() => {
+    if (!view?.ui) return;
+    const slot = shotEditor?.slots?.[shotEditor?.activeSlot];
+    console.log("[VERIFY 5] view 로드 후 화면 구성 소스", {
+      activeSlot: shotEditor?.activeSlot,
+      "slot?.applied?.sys": slot?.applied?.sys,
+      "display.anchors 키": display?.anchors ? Object.keys(display.anchors) : null,
+      "systemCtrl.system?.values": systemCtrl?.system?.values,
+    });
+  }, [view, shotEditor?.activeSlot, shotEditor?.slots]);
   const ballsForCoaching = view?.ui ? (ballsState ?? (view.ui.balls || {})) : (ballsState ?? {});
   const coaching = useCoachingController({
     appMode,
@@ -2962,12 +2993,43 @@ function handleJoyPadPointerCancel(e) {
           ...sysInputs,
           ...sysResult,
         };
+        // [VERIFY 2] sysValues 구성 소스
+        console.log("[VERIFY 2] sysValues 생성 직후", {
+          activeSlot: shotEditor.activeSlot,
+          "adminState.sys": adminState?.sys,
+          sysInputs,
+          sysResult,
+          "최종 sysValues": sysValues,
+        });
+        // [SYS_COMPARE] 정상(JSON) vs 계산(sysValues) — CO/1C/3C 차이 확인
+        console.log("[SYS_COMPARE]", {
+          "view.ui.system.values (JSON 기준)": system?.values,
+          sysValues,
+        });
         const rawSystemId =
           adminState?.sys?.systemId ??
           adminState?.sys?.system_id ??
           appliedSys?.systemId ??
           "5_half_system";
         const systemId = rawSystemId === "5_HALF" ? "5_half_system" : rawSystemId;
+        const profile = SYSTEM_PROFILES?.[systemId];
+
+        // STEP2: FG → RG 변환 상수 전달
+        if (
+          system &&
+          system.values &&
+          typeof system.values.offset_fg2rg !== "number" &&
+          profile?.safety?.offset_fg2rg
+        ) {
+          system.values.offset_fg2rg = profile.safety.offset_fg2rg;
+        }
+
+        // [VERIFY 3] getAnchorsForRendering 호출 직전
+        console.log("[VERIFY 3] getAnchorsForRendering 호출 직전", {
+          activeSlot: shotEditor.activeSlot,
+          systemId,
+          "전달 sysValues": sysValues,
+        });
         const anchors = getAnchorsForRendering({
           systemId,
           track: trackForAnchors,
@@ -2975,15 +3037,32 @@ function handleJoyPadPointerCancel(e) {
           anchorsData: getAnchorsForSystem(systemId),
           fallback: sysValuesToAnchors(sysValues),
         });
-        return Object.keys(anchors).length > 0 ? anchors : (display.anchors ?? {});
+        // [VERIFY 3] getAnchorsForRendering 호출 직후 + [VERIFY 4] fallback 분기
+        const anchorKeys = Object.keys(anchors);
+        const usedFallback = anchorKeys.length === 0;
+        console.log("[VERIFY 3] getAnchorsForRendering 호출 직후", {
+          "반환 anchors 키": anchorKeys,
+        });
+        console.log("[VERIFY 4] anchors fallback 분기", {
+          "Object.keys(anchors).length": anchorKeys.length,
+          "display.anchors 존재": !!display?.anchors,
+          "실제 반환": usedFallback ? "display.anchors (fallback)" : "anchors",
+        });
+        return anchorKeys.length > 0 ? anchors : (display.anchors ?? {});
       })()
     : (display.anchors ?? {});
 
-  // S1 슬롯 데이터 갱신 디버깅
-  console.log("activeSlot", shotEditor?.activeSlot);
-  console.log("slot anchors", shotEditor?.slots?.[shotEditor?.activeSlot]);
-  console.log("slot applied anchors", shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.anchors);
-  console.log("rawAnchors", rawAnchors);
+  // [ANCHOR_COMPARE] 정상(display.anchors) vs 계산(rawAnchors) — reflection 입력 비교
+  console.log("[ANCHOR_COMPARE] display.anchors (정상 경로)", {
+    CO: display?.anchors?.CO,
+    "1C": display?.anchors?.["1C"],
+    "3C": display?.anchors?.["3C"],
+  });
+  console.log("[ANCHOR_COMPARE] rawAnchors (계산 경로)", {
+    CO: rawAnchors?.CO,
+    "1C": rawAnchors?.["1C"],
+    "3C": rawAnchors?.["3C"],
+  });
 
   const strategy = display.strategy;
 
@@ -3278,7 +3357,14 @@ function handlePointerCancel(e) {
   
   if (hasConversionData) {
     try {
-      anchors = convertCanonicalAnchors(rawAnchors, canonical);
+      const profile = SYSTEM_PROFILES?.[systemIdForGrid];
+      const canonicalConfig = {
+        track: canonical,
+        coords: {
+          offset_fg2rg: profile?.safety?.offset_fg2rg ?? 2.25
+        }
+      };
+      anchors = convertCanonicalAnchors(rawAnchors, canonicalConfig);
     } catch (e) {
       console.warn("좌표 변환 실패, 원본 사용:", e);
     }
@@ -3344,14 +3430,155 @@ function handlePointerCancel(e) {
   const C3_anchor = anchors["3C"];
   const C3_point = C3_anchor?.coord ?? C3_anchor;
   const C3_snapped = snapToRail(C3_point) ?? C3_point;
-  console.log("C3 original", C3_point);
-  console.log("C3 snapped", C3_snapped);
+
+  if (anchors["2C"]) {
+    console.log("[C2_ANALYZE] 2C from anchors (stored), reflection skip", {
+      "anchors[2C]": anchors["2C"],
+    });
+  }
 
   const reflected =
     !anchors["2C"] && CO_rail && C1_rail && C3_snapped
       ? (() => {
-          console.log("C2 input", { c1: C1_rail, c3: C3_anchor });
-          return computeReflectionC2({
+          const c1Rail = detectRail(C1_rail);
+          const c3Rail = detectRail(C3_snapped);
+          if (!c1Rail || !c3Rail) {
+            console.log("[C2_ANALYZE] input (rail detection failed)", {
+              CO_rail,
+              C1_rail,
+              C3_original: C3_point,
+              C3_snapped,
+              c1Rail,
+              c3Rail,
+            });
+            console.log("[C2_ANALYZE] failure summary", {
+              railDetection: "FAIL",
+              snapImpact: "N/A",
+              rayDirection: "N/A",
+              railOrdering: "N/A",
+              intersectionState: "N/A",
+              segmentCheck: "N/A",
+              guardBlocked: "N/A",
+              primaryCause: "Rail Detection 실패",
+            });
+            return computeReflectionC2({
+              co: CO_rail,
+              c1: C1_rail,
+              c3: C3_snapped,
+              tip: currentTip ?? null,
+              track: trackForAnchors ?? undefined,
+              manualHint: c2ManualHint ?? null,
+            });
+          }
+          const thetaInDeg = angleDeg(CO_rail, C1_rail);
+          const spinAdjustDeg = resolveSignedSpinDeg(
+            trackForAnchors,
+            currentTip ?? null,
+            c2ManualHint?.deltaAngleDeg ?? 0
+          );
+          const thetaOutDeg = thetaInDeg + spinAdjustDeg;
+          const chosen = chooseCandidateRail(
+            c1Rail,
+            trackForAnchors,
+            c2ManualHint?.preferredRail
+          );
+          const orderedRails = [
+            chosen.rail,
+            ...chosen.candidates.filter((r) => r !== chosen.rail),
+          ];
+
+          const dx_snap = C3_point && C3_snapped
+            ? Math.abs(C3_point.x - C3_snapped.x)
+            : 0;
+          const dy_snap = C3_point && C3_snapped
+            ? Math.abs(C3_point.y - C3_snapped.y)
+            : 0;
+
+          const dir_C1_to_C3 = (() => {
+            const dx = C3_snapped.x - C1_rail.x;
+            const dy = C3_snapped.y - C1_rail.y;
+            const len = Math.hypot(dx, dy);
+            if (len < 1e-9) return { x: 0, y: 0 };
+            return { x: dx / len, y: dy / len };
+          })();
+          const ray = directionFromAngleDeg(thetaOutDeg);
+          const dotDirRay = dir_C1_to_C3.x * ray.dx + dir_C1_to_C3.y * ray.dy;
+
+          const profile = SYSTEM_PROFILES?.[systemIdForGrid];
+          const m_min = profile?.safety?.m_min ?? 0.05;
+          const theta_t_max = profile?.safety?.theta_t_max ?? 68;
+
+          const B2T_R_expected = ["RIGHT", "BOTTOM", "LEFT"];
+          const railOrderingOk =
+            trackForAnchors === "B2T_R"
+              ? JSON.stringify(orderedRails) === JSON.stringify(B2T_R_expected)
+              : true;
+
+          console.log("[C2_ANALYZE] input", {
+            CO_rail,
+            C1_rail,
+            C3_original: C3_point,
+            C3_snapped,
+            dx_snap,
+            dy_snap,
+            dir_C1_to_C3,
+            ray,
+            dotDirRay,
+            rayDirectionReversed: dotDirRay < 0,
+            c1Rail,
+            c3Rail,
+            thetaInDeg,
+            spinAdjustDeg,
+            thetaOutDeg,
+            orderedRails,
+            selectedBy: chosen.selectedBy,
+            railOrderingOk,
+            B2T_R_expected: trackForAnchors === "B2T_R" ? B2T_R_expected : null,
+            m_min,
+            theta_t_max,
+          });
+
+          const RG_W = 80;
+          const RG_H = 40;
+
+          const triedRails = orderedRails.map((rail) => {
+            const p = intersectRayWithRail(C1_rail, thetaOutDeg, rail);
+            const { dx, dy } = (() => {
+              const rad = (thetaOutDeg * Math.PI) / 180;
+              return { dx: Math.cos(rad), dy: Math.sin(rad) };
+            })();
+            let rejectedReason = null;
+            let segmentOk = null;
+            if (!p) {
+              if (rail === "TOP" || rail === "BOTTOM") {
+                rejectedReason = Math.abs(dy) < 1e-9 ? "평행(ray 수평)" : "t<=0 또는 세그먼트 밖";
+              } else {
+                rejectedReason = Math.abs(dx) < 1e-9 ? "평행(ray 수직)" : "t<=0 또는 세그먼트 밖";
+              }
+            } else {
+              segmentOk =
+                p.x >= 0 && p.x <= RG_W && p.y >= 0 && p.y <= RG_H;
+            }
+            return {
+              rail,
+              candidateIntersection: p,
+              rejectedReason: p ? null : rejectedReason,
+              segmentOk: p ? segmentOk : null,
+            };
+          });
+
+          triedRails.forEach((tr) => {
+            console.log("[C2_ANALYZE] rail candidate", {
+              rail: tr.rail,
+              lineFrom: C1_rail,
+              lineTo: C3_snapped,
+              candidateIntersection: tr.candidateIntersection,
+              rejectedReason: tr.rejectedReason,
+              segmentOk: tr.segmentOk,
+            });
+          });
+
+          const result = computeReflectionC2({
             co: CO_rail,
             c1: C1_rail,
             c3: C3_snapped,
@@ -3359,6 +3586,51 @@ function handlePointerCancel(e) {
             track: trackForAnchors ?? undefined,
             manualHint: c2ManualHint ?? null,
           });
+
+          const hasIntersection = triedRails.some((t) => t.candidateIntersection != null);
+          const anySegmentOutside =
+            triedRails.some(
+              (t) => t.candidateIntersection != null && t.segmentOk === false
+            );
+          const guardBlocked =
+            Math.abs(thetaOutDeg) > theta_t_max;
+
+          const snapImpact =
+            dy_snap <= 3 && dx_snap < 0.01 ? "NONE" : dy_snap > 5 || dx_snap > 2 ? "LARGE" : "SMALL";
+
+          if (!result) {
+            let primaryCause = "unknown";
+            if (!c1Rail || !c3Rail) primaryCause = "Rail Detection 실패";
+            else if (dotDirRay < 0) primaryCause = "Ray 방향 반대";
+            else if (!railOrderingOk) primaryCause = "Rail ordering 오류";
+            else if (!hasIntersection) primaryCause = "모든 rail 교차점 없음";
+            else if (anySegmentOutside) primaryCause = "Segment 범위 밖";
+            else if (guardBlocked) primaryCause = "Reflection guard 차단";
+            else if (snapImpact === "LARGE") primaryCause = "C3 snap 영향";
+            else primaryCause = "교차 판정 조건 문제";
+
+            console.log("[C2_ANALYZE] failure summary", {
+              railDetection: c1Rail && c3Rail ? "OK" : "FAIL",
+              snapImpact,
+              rayDirection: dotDirRay >= 0 ? "OK" : "REVERSED",
+              railOrdering: railOrderingOk ? "OK" : "WRONG",
+              intersectionState: hasIntersection ? "EXISTS" : "NONE",
+              segmentCheck: anySegmentOutside ? "OUTSIDE" : "OK",
+              guardBlocked: guardBlocked ? "YES" : "NO",
+              primaryCause,
+              c2Candidates: triedRails
+                .filter((t) => t.candidateIntersection)
+                .map((t) => ({ rail: t.rail, point: t.candidateIntersection })),
+              triedRails: triedRails.map((t) => ({
+                rail: t.rail,
+                intersection: t.candidateIntersection,
+                rejectedReason: t.rejectedReason,
+                segmentOk: t.segmentOk,
+              })),
+            });
+          }
+
+          return result;
         })()
       : null;
 
