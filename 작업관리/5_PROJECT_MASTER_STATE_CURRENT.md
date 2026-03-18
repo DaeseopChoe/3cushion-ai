@@ -581,3 +581,23 @@ onePointLessons: LessonItem[];
 
 현재 프론트엔드는 구조적으로 안정된 상태이며,
 이 시점을 기준으로 기능 확장 단계로 전환 가능하다.
+
+------------------------------------------------------------
+
+# 🔄 2026-03 C2 Reflection & Spin Calibration — Current State Summary
+
+## Current State Summary
+
+- **Reflection Engine:** Stable
+- **Spin Model:** Calibrated (TIP_TO_DELTA_DEG: 5/10/14/20)
+- **Input System:** Fixed (tipCount direct, joystick → tip equivalent)
+- **Anchor System:** Editable (더블클릭 + 좌표 입력, anchorsOverride)
+- **Calibration Tool:** Ready (anchor 직접 수정으로 미세 보정)
+- **Data Export Structure:** In Design (ADMIN → JSON → USER)
+
+## 주요 변경 (이번 세션)
+
+1. HP/T: r 제거 → tipCount 직접 사용
+2. TIP_TO_DELTA_DEG: 현실값 (5/10/14/20)
+3. Joystick: SPIN_TO_TIP_EQUIV 보간
+4. Anchor: anchorsOverride, 직접 편집, localStorage

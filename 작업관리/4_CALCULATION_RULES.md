@@ -307,6 +307,26 @@ trajectory 저장 테스트
 5. 중요
 - +180 보정은 ray 방향 반전 문제 해결을 위한 필수 요소
 
+1️⃣6️⃣-2 Spin 적용 공식
+
+thetaOutDeg = thetaReflectDeg + spinAdjustDeg + 180
+
+spinAdjustDeg = sign × Δθ
+
+Δθ (TIP_TO_DELTA_DEG):
+- 1팁 = 5°
+- 2팁 = 10°
+- 3팁 = 14°
+- 4팁 = 20°
+
+1️⃣6️⃣-3 Joystick Spin 처리
+
+1. spin → tipEquivalent 변환 (SPIN_TO_TIP_EQUIV 선형 보간)
+2. tipEquivalent → Δθ 선형 보간 (TIP_TO_DELTA_DEG)
+
+결론:
+- spin은 직접 각도가 아니라 tip 기반 보정값으로 적용됨
+
 📌 최종 선언
 
 이 문서는 3Cushion AI 계산 엔진의 공식 규칙이다.

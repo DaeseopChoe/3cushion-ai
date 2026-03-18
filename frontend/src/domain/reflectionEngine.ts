@@ -16,7 +16,8 @@ export type Point = {
 };
 
 export type TipInput = {
-  count: number;
+  count?: number;
+  hp?: { x: number; y: number };
   side: "L" | "R";
 };
 
@@ -54,11 +55,44 @@ const RG_H = 40;
 
 const TIP_TO_DELTA_DEG: Record<number, number> = {
   0: 0,
-  1: 7.125,
-  2: 14.036,
-  3: 20.556,
-  4: 26.565,
+  1: 5,
+  2: 10,
+  3: 14,
+  4: 20,
 };
+
+const SPIN_TO_TIP_EQUIV = [
+  { spin: 0.0, tip: 0 },
+  { spin: 1.4, tip: 0.9 },
+  { spin: 2.8, tip: 1.9 },
+  { spin: 3.6, tip: 3.0 },
+  { spin: 4.0, tip: 4.0 },
+];
+
+function mapSpinToTip(spin: number): number {
+  const spinClamped = Math.max(0, Math.min(4, spin));
+  if (spinClamped <= 0) return 0;
+  for (let i = 0; i < SPIN_TO_TIP_EQUIV.length - 1; i++) {
+    const a = SPIN_TO_TIP_EQUIV[i];
+    const b = SPIN_TO_TIP_EQUIV[i + 1];
+    if (spinClamped >= a.spin && spinClamped <= b.spin) {
+      const t = (spinClamped - a.spin) / (b.spin - a.spin);
+      return a.tip + t * (b.tip - a.tip);
+    }
+  }
+  return SPIN_TO_TIP_EQUIV[SPIN_TO_TIP_EQUIV.length - 1].tip;
+}
+
+function getDeltaFromSpin(spin: number): number {
+  const tipEquiv = mapSpinToTip(spin);
+  const lower = Math.floor(tipEquiv);
+  const upper = Math.ceil(tipEquiv);
+  const t = tipEquiv - lower;
+  return (
+    (TIP_TO_DELTA_DEG[lower] ?? 0) * (1 - t) +
+    (TIP_TO_DELTA_DEG[upper] ?? 0) * t
+  );
+}
 
 /** 레일 판정 */
 export function detectRail(p: Point, eps = EPS_RAIL): Rail | null {
@@ -90,9 +124,18 @@ export function resolveSignedSpinDeg(
   tip?: TipInput | null,
   extraDeltaDeg = 0
 ): number {
-  if (!tip || tip.count === 0) return extraDeltaDeg;
+  if (!tip) return extraDeltaDeg;
 
-  const base = TIP_TO_DELTA_DEG[tip.count] ?? TIP_TO_DELTA_DEG[Math.round(tip.count)] ?? 0;
+  let base: number;
+  if (tip.count !== undefined && tip.count > 0) {
+    base = TIP_TO_DELTA_DEG[tip.count] ?? TIP_TO_DELTA_DEG[Math.round(tip.count)] ?? 0;
+  } else if (tip.hp && typeof tip.hp.x === "number" && typeof tip.hp.y === "number") {
+    const spin = Math.min(4, Math.hypot(tip.hp.x, tip.hp.y));
+    base = getDeltaFromSpin(spin);
+  } else {
+    return extraDeltaDeg;
+  }
+
   const turn = detectTrackTurn(track);
 
   if (!turn) {

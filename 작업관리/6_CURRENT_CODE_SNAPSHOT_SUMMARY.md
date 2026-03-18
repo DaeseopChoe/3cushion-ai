@@ -702,3 +702,67 @@ PhysicsEngine
 - reflection C2 실패는 계산 오류가 아니라 rawAnchors 입력 오염 문제
 
 ------------------------------------------------------------
+
+## 🔥 2026-03 C2 Reflection & Spin Calibration (Critical)
+
+### 1. HP/T 입력 구조 변경 (Critical Fix)
+
+**기존:**
+- hp.x, hp.y → r = hypot(x,y) → count = round(r)
+- UI 구조상 항상 r=4 → 모든 tip이 count=4로 처리됨
+
+**문제:**
+- 1팁, 2팁, 3팁, 4팁 모두 동일하게 처리됨
+- spinAdjustDeg 항상 최대값 적용
+
+**수정:**
+- tipCount를 UI에서 직접 전달
+- r 기반 count 계산 제거
+
+**결과:**
+- tip.count = 1,2,3,4 정상 동작
+
+---
+
+### 2. TIP_TO_DELTA_DEG 변경
+
+**기존:**
+- 1: 7.125, 2: 14.036, 3: 20.556, 4: 26.565
+
+**현재:**
+- 1: 5, 2: 10, 3: 14, 4: 20
+
+**의미:**
+- 실제 당구 반사각에 맞게 현실적 보정값 적용
+
+---
+
+### 3. Joystick Spin → Tip Equivalent 변환
+
+**추가 로직:**
+
+SPIN_TO_TIP_EQUIV:
+- 0.0 → 0
+- 1.4 → 0.9
+- 2.8 → 1.9
+- 3.6 → 3.0
+- 4.0 → 4.0
+
+**설명:**
+- joystick 입력을 tip 기준으로 보간
+- tip은 기준, joystick은 보조값
+
+---
+
+### 4. Anchor Direct Edit System
+
+**기능:**
+- CO, 1C, 2C, 3C 등 모든 anchor 더블클릭
+- X/Y 좌표 직접 입력
+- anchorsOverride에 저장
+- localStorage 유지
+
+**정책:**
+- 좌표는 소수점 1자리까지 제한 (round1)
+
+------------------------------------------------------------

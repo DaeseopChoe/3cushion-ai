@@ -25,6 +25,7 @@ export interface HptState {
   hp: Point;
   T: string;
   mode?: "TIP" | "SPIN";  // 없으면 "TIP" (기존 데이터 호환)
+  tipCount?: number;      // UI 입력값 1|2|3|4 (r 기반 계산 사용 금지)
 }
 
 interface UseHptControllerArgs {
@@ -41,10 +42,13 @@ export function useHptController({ hpt, onChange }: UseHptControllerArgs) {
   const [mode, setMode] = useState<HptMode>((hpt as { mode?: HptMode }).mode ?? "TIP");
   const [systemTipIndex, setSystemTipIndex] = useState<number>(0);
 
-  // 부모 반영 (mode 포함)
+  // 부모 반영 (mode, tipCount 포함)
   const sync = useCallback(
-    (x: number, y: number, m: HptMode) => {
-      onChange({ ...hpt, hp: { x, y }, mode: m });
+    (x: number, y: number, m: HptMode, tipCount?: number) => {
+      const next: HptState & { tipCount?: number } = { ...hpt, hp: { x, y }, mode: m };
+      if (tipCount !== undefined) next.tipCount = tipCount;
+      else if (m === "SPIN") next.tipCount = (hpt as { tipCount?: number }).tipCount ?? 0;
+      onChange(next);
     },
     [hpt, onChange]
   );
@@ -62,18 +66,16 @@ export function useHptController({ hpt, onChange }: UseHptControllerArgs) {
     setHpY(clamped.y);
   }, []);
 
-  const applyHpAndSync = useCallback((x: number, y: number, nextMode: HptMode) => {
+  const applyHpAndSync = useCallback((x: number, y: number, nextMode: HptMode, tipCount?: number) => {
     const clamped = clampHpToRadius(x, y, MAX_TIP);
     const r = Math.hypot(clamped.x, clamped.y);
     if (r > 4.0001) {
       console.error("[CLAMP BREAK - controller outbound]", { x: clamped.x, y: clamped.y, r });
     }
-    const payload = { ...hpt, hp: { x: clamped.x, y: clamped.y }, mode: nextMode };
-    console.warn("[HPT_VERIFY A] applyHpAndSync 진입", { nextMode, clamped: { x: clamped.x, y: clamped.y }, payload });
     setMode(nextMode);
     setHpX(clamped.x);
     setHpY(clamped.y);
-    sync(clamped.x, clamped.y, nextMode);
+    sync(clamped.x, clamped.y, nextMode, tipCount);
   }, [sync, hpt]);
 
   // 외부 동기화 (parent→controller 역주입) - applyHpLocal만 사용 (루프 방지)
@@ -82,18 +84,17 @@ export function useHptController({ hpt, onChange }: UseHptControllerArgs) {
     const y = hpt.hp.y ?? 0;
     const r = Math.hypot(x, y);
     const parentMode = (hpt as { mode?: HptMode }).mode;
-    console.warn("[HPT_VERIFY A] useEffect(parent→controller) 진입", { "hpt.mode": parentMode, "hpt.hp": { x, y } });
     if (r > 4.0001) {
       console.error("[CLAMP BREAK - parent→controller]", { x, y, r });
     }
     applyHpLocal(x, y);
-    console.warn("[HPT_VERIFY A] applyHpLocal 적용 후 → 로컬 hp만 갱신, mode는 별도 effect에서 처리");
-  }, [hpt.hp.x, hpt.hp.y, applyHpLocal]);
+    const tc = (hpt as { tipCount?: number }).tipCount;
+    if (tc !== undefined && tc >= 0 && tc <= MAX_TIP) setSystemTipIndex(tc);
+  }, [hpt.hp.x, hpt.hp.y, (hpt as { tipCount?: number }).tipCount, applyHpLocal]);
 
   // parent에서 mode 전달 시 동기화
   useEffect(() => {
     const nextMode = (hpt as { mode?: HptMode }).mode;
-    console.warn("[HPT_VERIFY A] useEffect(mode sync) 진입", { nextMode });
     if (nextMode === "TIP" || nextMode === "SPIN") setMode(nextMode);
   }, [(hpt as { mode?: HptMode }).mode]);
 
@@ -115,7 +116,7 @@ export function useHptController({ hpt, onChange }: UseHptControllerArgs) {
       const y = MAX_TIP * Math.sin(theta);
 
       setSystemTipIndex(clampedTip);
-      applyHpAndSync(x, y, "TIP");
+      applyHpAndSync(x, y, "TIP", clampedTip);
     },
     [applyHpAndSync]
   );

@@ -382,6 +382,33 @@ Trajectory rendering
 - 현재 구조에서는 `offset_fg2rg`가 `profile.json` safety에 존재하지만
   `system.values`로 전달되지 않아 좌표 변환이 비활성화될 수 있다.
 
+6.4 Anchor Override 구조
+
+anchors = {
+  ...baseAnchors,
+  ...anchorsOverride
+}
+
+설명:
+- baseAnchors: 시스템 기본값 (getAnchorsForRendering + convertCanonicalAnchors)
+- anchorsOverride: 관리자 보정값 (adminState.anchorsOverride)
+
+6.5 Anchor Edit Flow
+
+1. anchor 더블클릭
+2. 좌표 입력 (X, Y)
+3. override 저장 (소수점 1자리 제한)
+4. 즉시 반영
+5. localStorage 저장 (ANCHORS_OVERRIDE_V1)
+
+6.6 향후 구조 (설계 중)
+
+ADMIN → JSON Export → USER 적용
+
+- ADMIN: anchor 보정
+- JSON: 확정 데이터
+- USER: 계산 없이 사용
+
 7️⃣ Admin Save 데이터 흐름
 
 Admin Input (SYS / HP-T / STR / AI)

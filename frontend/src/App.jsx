@@ -921,6 +921,52 @@ function SysOverlay({ data, onSave, onCancel }) {
   );
 }
 
+function AnchorEditOverlay({ anchorKey, initialX, initialY, onApply, onCancel }) {
+  const [x, setX] = useState(String(initialX));
+  const [y, setY] = useState(String(initialY));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: "280px" }}>
+      <div>
+        <strong>Key:</strong> {anchorKey}
+      </div>
+      <div>
+        <label style={{ display: "block", marginBottom: "4px" }}>X:</label>
+        <input
+          type="number"
+          step="0.1"
+          value={x}
+          onChange={(e) => setX(e.target.value)}
+          style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+        />
+      </div>
+      <div>
+        <label style={{ display: "block", marginBottom: "4px" }}>Y:</label>
+        <input
+          type="number"
+          step="0.1"
+          value={y}
+          onChange={(e) => setY(e.target.value)}
+          style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+        />
+      </div>
+      <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+        <button
+          onClick={() => onApply(x, y)}
+          style={{ padding: "8px 16px", backgroundColor: "#10b981", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}
+        >
+          적용
+        </button>
+        <button
+          onClick={onCancel}
+          style={{ padding: "8px 16px", backgroundColor: "#64748b", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}
+        >
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
   const [tempData, setTempData] = useState(data);
   const [lastChanged, setLastChanged] = useState(null); // 'x' or 'y'
@@ -940,6 +986,7 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
     T: tempData.T ?? "8/8",
     hp: { x: hpClamped.x, y: hpClamped.y },
     mode: tempData.mode ?? "TIP",
+    tipCount: tempData.tipCount,
   };
   const onControllerChange = (next) => {
     const rx = next.hp?.x ?? 0;
@@ -949,13 +996,12 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
       console.error("[CLAMP BREAK - parent store]", next.hp);
     }
     const c = clampHpToRadius(rx, ry, 4);
-    const toSave = { ...next, hit_point: { x: c.x, y: c.y }, mode: next.mode ?? "TIP" };
-    console.warn("[HPT_VERIFY A] onControllerChange 저장 직전", { nextHpt: toSave, mode: toSave.mode });
     setTempData((prev) => ({
       ...prev,
       T: next.T,
       hit_point: { x: c.x, y: c.y },
       mode: next.mode ?? "TIP",
+      tipCount: next.tipCount,
     }));
   };
   const hpt = useHptController({
@@ -2097,7 +2143,12 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
   // ============================================
   const [appMode, setAppMode] = useState("USER"); // "USER" | "ADMIN"
   
-  const [adminState, setAdminState] = useState({
+  const ANCHORS_OVERRIDE_KEY = "ANCHORS_OVERRIDE_V1";
+  const [adminState, setAdminState] = useState(() => {
+    try {
+      const saved = localStorage.getItem(ANCHORS_OVERRIDE_KEY);
+      const anchorsOverride = saved ? JSON.parse(saved) : {};
+      return {
     sys: {
       system_id: null,
       CO: null,
@@ -2127,17 +2178,72 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
       text: "",
       onePointLessons: []
     },
+    anchorsOverride: typeof anchorsOverride === "object" ? anchorsOverride : {},
     balls: {
       cue: { x: 10, y: 10 },
       target: { x: 50, y: 25 },
       second: { x: 40, y: 20 }
     }
+  };
+    } catch {
+      return {
+    sys: {
+      system_id: null,
+      CO: null,
+      C3: null,
+      corrections: {
+        slide: 0,
+        curve_ratio: 0,
+        draw: 0,
+        departure: 0,
+        spin: 0
+      }
+    },
+    hpt: {
+      T: "8/8",
+      hit_point: { x: 0, y: 0 },
+      mode: "TIP"
+    },
+    str: {
+      curve: "constant",
+      type: null,
+      acceleration: "smooth_const",
+      speed: 2.5,
+      depth: 2,
+      impact: "medium"
+    },
+    ai: {
+      text: "",
+      onePointLessons: []
+    },
+    anchorsOverride: {},
+    balls: {
+      cue: { x: 10, y: 10 },
+      target: { x: 50, y: 25 },
+      second: { x: 40, y: 20 }
+    }
+  };
+    }
   });
 
   const [overlayState, setOverlayState] = useState({
     open: false,
-    type: null // "SYS" | "HPT" | "STR" | "AI" | null
+    type: null, // "SYS" | "HPT" | "STR" | "AI" | "ANCHOR_EDIT" | null
+    anchorKey: null,
   });
+
+  useEffect(() => {
+    try {
+      const ov = adminState?.anchorsOverride;
+      if (ov && typeof ov === "object" && Object.keys(ov).length > 0) {
+        localStorage.setItem(ANCHORS_OVERRIDE_KEY, JSON.stringify(ov));
+      } else {
+        localStorage.removeItem(ANCHORS_OVERRIDE_KEY);
+      }
+    } catch (e) {
+      console.warn("anchorsOverride save failed", e);
+    }
+  }, [adminState?.anchorsOverride]);
 
   const [autoSave, setAutoSave] = useState(false);
   const [showSystemGrid, setShowSystemGrid] = useState(true);
@@ -2349,10 +2455,14 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     setOverlayState({ open: true, type });
   }
 
+  function openAnchorEdit(anchorKey) {
+    setOverlayState({ open: true, type: "ANCHOR_EDIT", anchorKey });
+  }
+
   // 오버레이 닫기
   function closeOverlay() {
     const wasType = overlayState.type;
-    setOverlayState({ open: false, type: null });
+    setOverlayState({ open: false, type: null, anchorKey: null });
     // SYS/HP/T/STR/AI 오버레이 닫힐 때 부모에 알려 선택 초기화 → 같은 버튼 재클릭 시 즉시 열림
     if (wasType && ["SYS", "HPT", "STR", "AI"].includes(wasType)) {
       onFuncOverlayClose?.();
@@ -2762,7 +2872,7 @@ function handleJoyPadPointerCancel(e) {
       "slot?.applied?.sys": slot?.applied?.sys,
       "applied?.sys (setAdminState 직전)": applied?.sys,
     });
-    const defaultHpt = { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP" };
+    const defaultHpt = { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP", tipCount: 0 };
     const defaultStr = { curve: "constant", type: null, acceleration: "smooth_const", speed: 2.5, depth: 2, impact: "medium" };
     const defaultAi = { text: "", onePointLessons: [] };
     setAdminState((prev) => ({
@@ -3376,6 +3486,9 @@ function handlePointerCancel(e) {
     }
   }
 
+  const override = adminState?.anchorsOverride ?? {};
+  anchors = { ...anchors, ...override };
+
   // ⚠️ convertCanonicalAnchors가 이미 Fg → Rg 변환을 함!
   // 따라서 anchors.CO, anchors["1C"]는 Rg 좌표
   // determineRotation에는 원본 Fg 좌표가 필요
@@ -3421,10 +3534,13 @@ function handlePointerCancel(e) {
   const currentTip = (() => {
     const hp = adminState?.hpt?.hit_point ?? adminState?.hpt?.hp;
     if (!hp || typeof hp.x !== "number" || typeof hp.y !== "number") return null;
-    const r = Math.hypot(hp.x, hp.y);
-    const count = Math.round(Math.min(4, Math.max(0, r)));
     const side = hp.x >= 0 ? "R" : "L";
-    return { count, side };
+    const mode = adminState?.hpt?.mode ?? "TIP";
+    if (mode === "TIP") {
+      const count = Math.max(0, Math.min(4, Math.round(adminState?.hpt?.tipCount ?? 0)));
+      return { count, side };
+    }
+    return { hp: { x: hp.x, y: hp.y }, side };
   })();
 
   const C3_anchor = anchors["3C"];
@@ -3701,8 +3817,8 @@ function handlePointerCancel(e) {
   const visibleKeys = lastIndex >= 0 ? orderedKeys.slice(0, lastIndex + 1) : orderedKeys;
 
   const allAnchors = { 
-    CO: { coord: CO_rail, isFg: false },   // 레일 교점 (Rg)
-    "1C": { coord: C1_rail, isFg: false }, // 레일 교점 (Rg)
+    CO: { coord: override.CO ?? CO_rail, isFg: false },
+    "1C": { coord: override["1C"] ?? C1_rail, isFg: false },
     "2C": { coord: C2, isFg: false }, 
     "3C": { coord: C3_snapped ?? C3_point ?? C3_anchor, isFg: false }, 
     "4C": { coord: C4, isFg: false }, 
@@ -3762,6 +3878,7 @@ function handlePointerCancel(e) {
         tableH={TABLE_H}
         padding={PADDING}
         systemValues={systemValuesForLabels}
+        onAnchorDoubleClick={canEdit ? openAnchorEdit : undefined}
       />
       <ImpactLines
         CO_line={CO_line}
@@ -3962,6 +4079,7 @@ function handlePointerCancel(e) {
                 {overlayState.type === 'HPT' && 'HP/T 설정'}
                 {overlayState.type === 'STR' && 'STR 설정'}
                 {overlayState.type === 'AI' && 'AI 코멘트'}
+                {overlayState.type === 'ANCHOR_EDIT' && 'Anchor 좌표 수정'}
               </h2>
               <button
                 onClick={closeOverlay}
@@ -4063,6 +4181,30 @@ function handlePointerCancel(e) {
                 onCancel={closeOverlay}
               />
             )}
+
+            {overlayState.type === 'ANCHOR_EDIT' && overlayState.anchorKey && (() => {
+              const key = overlayState.anchorKey;
+              const coord = allAnchors[key]?.coord ?? { x: 0, y: 0 };
+              return (
+                <AnchorEditOverlay
+                  anchorKey={key}
+                  initialX={coord.x}
+                  initialY={coord.y}
+                  onApply={(x, y) => {
+                    const round1 = (v) => Math.round(Number(v) * 10) / 10;
+                    setAdminState((prev) => ({
+                      ...prev,
+                      anchorsOverride: {
+                        ...(prev.anchorsOverride ?? {}),
+                        [key]: { x: round1(x), y: round1(y) },
+                      },
+                    }));
+                    closeOverlay();
+                  }}
+                  onCancel={closeOverlay}
+                />
+              );
+            })()}
 
             {overlayState.type === 'AI' && (
               <AiOverlay

@@ -7,7 +7,8 @@ export default function SystemValueLabels({
   scale,
   tableH,
   padding,
-  systemValues
+  systemValues,
+  onAnchorDoubleClick,
 }) {
   return (
     <>
@@ -54,6 +55,7 @@ export default function SystemValueLabels({
             textAnchor={textAnchor}
             label={label}
             systemValue={systemValue}
+            onDoubleClick={onAnchorDoubleClick}
           />
         );
       })}
