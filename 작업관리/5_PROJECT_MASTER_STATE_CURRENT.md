@@ -1,7 +1,7 @@
 # PROJECT_MASTER_STATE_CURRENT
 3Cushion AI – Current Code State Snapshot
-Version: v2.2
-Last Updated: 2026-03
+Version: v2.3
+Last Updated: 2026-03-19
 Owner: 목계님
 
 ------------------------------------------------------------
@@ -64,6 +64,7 @@ admin/
   AdminContainer.tsx
 
 components/
+  WorkspaceHistoryModal.jsx
   table/
     AnchorPoint.jsx
     SystemValueLabels.jsx
@@ -91,6 +92,9 @@ domain/
   adminSaveEngine.ts
   positionMergeEngine.ts
   positionSearchEngine.ts
+  positionRecallEngine.ts
+  positionRecallEngine.test.ts
+  workspaceHistory.ts
   finalCoordinateEngine.ts
   evaluateStrategy.ts
   strategySignature.ts
@@ -280,19 +284,74 @@ StrategyMeta now includes:
 
 ------------------------------------------------------------
 
-# 5.8 Save Flow
+# 5.8 Save Flow (2026-03 재구성)
 
-SAVE 버튼 / AiOverlay "전체 적용" →
-  handleSaveStrategy →
-  createStrategyEntry →
-  upsertPositionRecord(dataset, balls, strategy) →
-  setDataset(updated) →
-  localStorage.setItem("positions_dataset", JSON.stringify(updated))
+## 5.8.1 저장 구조 (현재)
 
-**Position 병합 방식 (positionMergeEngine):**
-- 물리 배치 기준 merge (balls)
-- ε = 0.5 grid (MERGE_EPSILON)
-- isSameBalls: cue.x, cue.y, target.x, target.y, second.x, second.y 6축 비교
+| 단계 | 트리거 | 저장 대상 | 저장소 |
+|------|--------|-----------|--------|
+| **SAVE** | SAVE 버튼 클릭 | Workspace Snapshot | localStorage `workspace_history` |
+| **Export** | History → Unexported → 선택 → Export | JSON 파일 | File System (systemId/pattern 폴더) |
+
+## 5.8.2 SAVE = Workspace History Snapshot
+
+- SYS/HPT/STR/AI/Anchor overlay **적용 버튼 클릭 시** → `handleSaveWorkspaceSnapshot(true)` (silent)
+- SAVE 버튼 클릭 시 → `handleSaveWorkspaceSnapshot()` (alert 표시)
+- snapshot 구조: `{ id, name, systemId, pattern, version, timestamp, exported, state }`
+- state: adminState, ballsState, dataset, shotEditor
+
+## 5.8.3 Export 구조
+
+- **위치:** History 모달 → Unexported 탭에서만 수행
+- **File System Access API** 사용 (`showDirectoryPicker`, `getDirectoryHandle`)
+- **폴더 구조:** `{선택폴더}/{systemId}/{pattern}/*.json`
+- **파일명:** `{systemId}_{pattern}_v{version}_{date}.json`
+- **version:** patternDir 내 기존 파일 파싱 후 max+1 (overwrite 금지)
+- **exported:** Export 완료 시 snapshot.exported = true
+
+## 5.8.4 Auto Save 정책
+
+- **항상 ON** (버튼 제거)
+- **적용 버튼 클릭 시만 저장** (입력 중 저장 금지)
+- anchorsOverride: 적용 시에만 localStorage + snapshot 저장
+
+## 5.8.5 handleSaveStrategy (유지)
+
+- AiOverlay "전체 적용" / onSaveStrategy에서 호출
+- dataset upsert → positions_dataset localStorage
+- autoSave=true 시 saveToFile (fileHandle 연결 시)
+
+## 5.8.6 Workspace History 구조
+
+- **All / Unexported** 탭 구조
+- **snapshot.exported** 필드: Export 완료 시 true
+- **Delete N개:** All 탭에서 최신순 기준 가장 오래된 N개(최대 30) 삭제
+- **localStorage key:** `workspace_history`
+
+## 5.8.7 Recall 구조
+
+- **Import 제거** → Position Recall로 완전 대체
+- `runPositionRecall` (positionRecallEngine) 사용
+- threshold/softThreshold 검증 후 확인 적용 (자동 적용 금지)
+- `applyPositionRecall` 단일 트랜잭션 (balls + draft)
+
+## 5.8.8 버튼 구조 (우측 패널)
+
+**레이아웃:** app-layout (flex) → table-area | right-panel (120px)
+
+**현재 버튼:**
+- Grid (System Grid 토글)
+- Recall (Position Recall)
+- History (WorkspaceHistoryModal)
+- SAVE (snapshot 저장)
+
+**제거된 버튼:**
+- Admin (Ctrl+Shift+A로 모드 전환)
+- Import (Recall로 대체)
+- Export (History 내부로 이동)
+- Auto Save (항상 ON)
+- 파일 연결
+- Save Strategy
 
 ------------------------------------------------------------
 
@@ -330,7 +389,7 @@ User Mode:
 - Admin auto-recommend (slotAutoRecommend) 진행 중
 - Interpolation 미구현
 - Δ_sys correction 미구현
-- dataset.json export 미구현
+- Export: File System Access API (Chrome/Edge 지원, Firefox 제한적)
 
 ------------------------------------------------------------
 
@@ -342,8 +401,8 @@ User Mode:
 - KD-tree는 signatureKey별로 분리 관리
 
 **데이터 관리 방식:**
-- localStorage = 관리자 입력 임시 저장 (positions_dataset)
-- dataset.json = 실제 운영 데이터셋 (관리자 수동 export, 미구현)
+- localStorage = positions_dataset, workspace_history, ANCHORS_OVERRIDE_V1
+- Export = History → Unexported → 선택 → File System (systemId/pattern 폴더)
 
 ------------------------------------------------------------
 

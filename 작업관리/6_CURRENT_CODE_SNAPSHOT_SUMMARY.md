@@ -1,7 +1,7 @@
 # CURRENT_CODE_SNAPSHOT_SUMMARY
 3Cushion AI – Session Change Summary
-Version: v0.3
-Date: 2026-03
+Version: v0.5
+Date: 2026-03-19
 Author: 목계님
 
 ------------------------------------------------------------
@@ -13,7 +13,65 @@ PROJECT_MASTER_STATE_CURRENT와 다르며,
 구조/계산/상태 엔진 변경 시 PROJECT_MASTER_STATE_CURRENT를 재작성한다.
 ------------------------------------------------------------
 
-# 1. 이번 세션 작업 목적
+# [최신] SAVE / History / Export 구조 변경 (2026-03-19)
+
+## 작업 목적
+- Workspace History 기반 저장 구조 도입
+- Export를 History 모달 내부로 통합
+- 버튼 UI 최소화 및 우측 패널 분리
+
+## 신규 파일
+- `frontend/src/domain/workspaceHistory.ts` — UUID, version, name, load/save, deleteOldest30, updateSnapshotsExported
+- `frontend/src/components/WorkspaceHistoryModal.jsx` — All/Unexported 탭, 체크박스, Export, Delete N개
+
+## 삭제 파일
+- `frontend/src/components/WorkspaceHistoryPanel.jsx` — floating 패널 제거
+
+## 변경 파일
+- `frontend/src/App.jsx` — exportDirHandle, saveSnapshotToFile, handleExportSnapshots (File System API), 버튼 구조, app-layout
+- `frontend/src/hooks/useShotSlots.ts` — restoreShotEditor 액션 추가
+- `frontend/src/index.css` — app-layout, table-area, right-panel, control-button
+
+## 핵심 변경
+- **SAVE:** snapshot 저장 (workspace_history), 적용 시 silent 저장
+- **Export:** History → Unexported → 선택 → systemId/pattern 폴더에 JSON 저장
+- **버튼:** Grid, Recall, History, SAVE (Admin/Import/Export/Auto Save/파일 연결/Save Strategy 제거)
+- **Auto Save:** 항상 ON, 적용 시에만 저장
+- **레이아웃:** 3단 flex (table-area | right-panel)
+
+------------------------------------------------------------
+
+# [이전] Position Recall Engine 세션 (2026-03)
+
+## 작업 목적
+- domain 레이어에 Position Recall 엔진 구현
+- slotAutoRecommend 로직을 positionRecallEngine로 추출·재구성
+- KD-tree 미사용 (TopK 미지원, 기존 로직 안정 동작)
+
+## 변경 파일
+- **신규:** frontend/src/domain/positionRecallEngine.ts
+- **신규:** frontend/src/domain/positionRecallEngine.test.ts
+- **수정:** frontend/src/admin/slotAutoRecommend.ts
+
+## 핵심 변경
+- runPositionRecall: dataset, balls, signatureKey, thresholds → PositionRecallResult
+- weightedBallDistance: 제곱 거리 (2.0*cue² + 1.5*target² + 1.0*second²)
+- slotAutoRecommend: runPositionRecall 호출로 전환, kdIndex 파라미터 유지(호환용, 미사용)
+
+## PROJECT_MASTER_STATE_CURRENT 갱신
+- domain/에 positionRecallEngine.ts, positionRecallEngine.test.ts, workspaceHistory.ts 추가
+- components/에 WorkspaceHistoryModal.jsx 추가
+- WorkspaceHistoryPanel.jsx 제거
+
+### maxDist2 제거 (Recall 품질 개선, 2026-03)
+- positionRecallEngine: 5단계 maxDist2 distance cut-off 제거
+- maxDist2 파라미터 @deprecated (필터링에 미사용)
+- slotAutoRecommend: maxDist2 전달 제거, EPSILON/MAX_DIST2 상수 제거
+- 거리 판단은 threshold 단계에서만 수행
+
+------------------------------------------------------------
+
+# 1. 이번 세션 작업 목적 (이전)
 
 - App.jsx 내부 HptOverlay에 HP_n UI 반영 (1줄 구조)
 - App.jsx 계산 블록 한 구역으로 정리 (Physics Engine Block 마커)

@@ -48,6 +48,7 @@ import {
   snapImpactToOrbit,
 } from "./utils/physics/ImpactEngine";
 import SystemValueLabels from "./components/table/SystemValueLabels";
+import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
 import ImpactLines from "./components/table/ImpactLines";
 import SystemGrid from "./components/table/SystemGrid";
 import CoachingOverlay from "./components/table/CoachingOverlay";
@@ -75,8 +76,21 @@ import {
 import { createCaptureCandidate } from "./data/autoCaptureEngine";
 import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
+import { runPositionRecall } from "./domain/positionRecallEngine";
+import { makeSignatureKey } from "./domain/search/signatureKey";
 import { initFileHandle, saveToFile } from "./domain/fileService";
 import { getAnchorsForSystem } from "./data/systems/anchorsRegistry";
+import {
+  generateUUID,
+  getNextVersion,
+  buildSnapshotName,
+  loadWorkspaceHistory,
+  saveWorkspaceHistory,
+  findSnapshotById,
+  deleteSnapshotById,
+  deleteOldest30,
+  updateSnapshotsExported,
+} from "./domain/workspaceHistory";
 
 const { SCALE, TABLE_W_UNITS, TABLE_H_UNITS, TABLE_W, TABLE_H, PADDING } = TABLE_CONFIG;
 
@@ -2133,10 +2147,8 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
   const [overlayContent, setOverlayContent] = useState(null);
   
   // ============================================
-  // ShotSlots & TrajectoryState 훅 연결
+  // ShotSlots & TrajectoryState 훅 연결 (ballsState 이후에 연결)
   // ============================================
-  const { shotEditor, actions } = useShotSlots();
-  const trajectory = useTrajectoryState();
   
   // ============================================
   // 관리자 모드 상태 (v0)
@@ -2226,27 +2238,23 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     }
   });
 
+  const [ballsState, setBallsState] = useState(null);
+  const suppressAutoSaveRef = useRef(false);
+  const { shotEditor, actions } = useShotSlots({
+    setBallsState,
+    setAdminState,
+    suppressAutoSaveRef,
+  });
+  const trajectory = useTrajectoryState();
+
   const [overlayState, setOverlayState] = useState({
     open: false,
     type: null, // "SYS" | "HPT" | "STR" | "AI" | "ANCHOR_EDIT" | null
     anchorKey: null,
   });
 
-  useEffect(() => {
-    try {
-      const ov = adminState?.anchorsOverride;
-      if (ov && typeof ov === "object" && Object.keys(ov).length > 0) {
-        localStorage.setItem(ANCHORS_OVERRIDE_KEY, JSON.stringify(ov));
-      } else {
-        localStorage.removeItem(ANCHORS_OVERRIDE_KEY);
-      }
-    } catch (e) {
-      console.warn("anchorsOverride save failed", e);
-    }
-  }, [adminState?.anchorsOverride]);
-
-  const [autoSave, setAutoSave] = useState(false);
   const [showSystemGrid, setShowSystemGrid] = useState(true);
+  const autoSave = true;
 
   // dataset: PositionRecord[] (localStorage "positions_dataset")
   const [dataset, setDataset] = useState(() => {
@@ -2372,8 +2380,7 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
   // false: 배치만 표시 (임펙트볼/가이드 비표시)
   // true: 코칭 결과 표시 (임펙트볼/가이드 표시)
   
-  // Ball drag state
-  const [ballsState, setBallsState] = useState(null);
+  // Ball drag state (ballsState는 adminState 직후에 선언됨)
   const [dragState, setDragState] = useState({
   // dragging: pointer capture 동안만 true (Freeze 적용 구간)
   dragging: false,
@@ -2569,6 +2576,34 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     }
   }
 
+  function handlePositionRecall() {
+    const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
+    const appliedSys = shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.sys;
+    const systemId = appliedSys?.systemId ?? adminState?.sys?.systemId ?? adminState?.sys?.system_id ?? "5_half_system";
+    const profile = SYSTEM_PROFILES[systemId];
+    const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
+    const signature = makeSignature({ systemId, formulaHash, shotType: "default" });
+    const signatureKey = makeSignatureKey(signature);
+
+    const result = runPositionRecall({
+      dataset: dataset ?? [],
+      balls: currentBalls,
+      signatureKey,
+      thresholds: { soft: 6.0, hard: 12.0 },
+    });
+
+    if (result.kind === "no-match") {
+      alert(result.reason === "empty-dataset" ? "데이터셋이 비어 있습니다." :
+        result.reason === "signature-not-found" ? "해당 시그니처의 전략이 없습니다." :
+        "유사한 포지션을 찾을 수 없습니다.");
+      return;
+    }
+    if (result.kind === "low-confidence") {
+      if (!confirm("유사도가 낮습니다. 적용하시겠습니까?")) return;
+    }
+    actions.applyPositionRecall(result.record);
+  }
+
   // ⭐ 핵심: 버튼 클릭 → Overlay 여는 함수
   function handleSelectAdminButton(buttonId) {
     if (appMode !== "ADMIN") return;
@@ -2608,13 +2643,12 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     }
   }
 
-  // SAVE 핸들러
+  // SAVE 핸들러 (기존 - 다른 곳에서 사용 시)
   function handleSave() {
     if (!adminState.sys.system_id) {
       alert("시스템을 선택하세요");
       return;
     }
-
     const record = {
       timestamp: Date.now(),
       mode: "ADMIN",
@@ -2626,9 +2660,182 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
       ai_text: adminState.ai.text,
       onePointLessons: adminState.ai.onePointLessons ?? []
     };
-
     console.log("💾 SAVED:", record);
     alert("저장 완료");
+  }
+
+  // Workspace History: 스냅샷 생성 및 저장
+  const [workspaceHistoryVersion, setWorkspaceHistoryVersion] = useState(0);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [exportDirHandle, setExportDirHandle] = useState(null);
+  const workspaceHistory = useMemo(
+    () => loadWorkspaceHistory(),
+    [workspaceHistoryVersion]
+  );
+  function handleSaveWorkspaceSnapshot(silent = false) {
+    const systemId = adminState?.sys?.system_id ?? adminState?.sys?.system ?? "5_half_system";
+    if (!systemId || systemId === "null") {
+      alert("시스템을 선택하세요 (SYS 설정)");
+      return;
+    }
+    const pattern = adminState?.sys?.shotType ?? "뒤돌리기";
+    const history = loadWorkspaceHistory();
+    const version = getNextVersion(history, systemId, pattern);
+    const timestamp = new Date().toISOString();
+    const name = buildSnapshotName(pattern, systemId, version, timestamp);
+    const snapshot = {
+      id: generateUUID(),
+      name,
+      systemId,
+      pattern,
+      version,
+      timestamp,
+      exported: false,
+      state: {
+        adminState: JSON.parse(JSON.stringify(adminState)),
+        ballsState: ballsState ? JSON.parse(JSON.stringify(ballsState)) : null,
+        dataset: JSON.parse(JSON.stringify(dataset ?? [])),
+        shotEditor: JSON.parse(JSON.stringify(shotEditor)),
+      },
+    };
+    const nextHistory = [...history, snapshot];
+    saveWorkspaceHistory(nextHistory);
+    setWorkspaceHistoryVersion((v) => v + 1);
+    console.log("💾 Workspace snapshot saved:", name);
+    if (!silent) alert(`스냅샷 저장: ${name}`);
+  }
+
+  // Workspace History: 스냅샷 복원 (전체 상태 overwrite)
+  function handleLoadWorkspaceSnapshot(id) {
+    const history = loadWorkspaceHistory();
+    const snapshot = findSnapshotById(history, id);
+    if (!snapshot) {
+      alert("스냅샷을 찾을 수 없습니다.");
+      return;
+    }
+    const s = snapshot.state;
+    setAdminState(s.adminState);
+    setBallsState(s.ballsState);
+    const nextDataset = s.dataset ?? [];
+    setDataset(nextDataset);
+    try {
+      localStorage.setItem("positions_dataset", JSON.stringify(nextDataset));
+    } catch (e) {
+      console.warn("Failed to persist dataset on restore", e);
+    }
+    actions.restoreShotEditor(s.shotEditor);
+    setWorkspaceHistoryVersion((v) => v + 1);
+    console.log("📂 Workspace restored:", snapshot.name);
+    alert(`복원 완료: ${snapshot.name}`);
+  }
+
+  // Workspace History: 스냅샷 삭제
+  function handleDeleteWorkspaceSnapshot(id) {
+    deleteSnapshotById(id);
+    setWorkspaceHistoryVersion((v) => v + 1);
+  }
+
+  // Workspace History: 가장 오래된 30개 삭제
+  function handleDeleteOldest30() {
+    deleteOldest30();
+    setWorkspaceHistoryVersion((v) => v + 1);
+  }
+
+  // Export: systemId/pattern 기반 폴더에 자동 저장
+  async function pickExportFolder() {
+    if (!window.showDirectoryPicker) {
+      alert("이 브라우저는 폴더 선택을 지원하지 않습니다.");
+      return null;
+    }
+    alert("data 폴더를 선택하세요 (system 폴더가 아닌 상위 폴더)");
+    try {
+      const handle = await window.showDirectoryPicker();
+      setExportDirHandle(handle);
+      return handle;
+    } catch (e) {
+      if (e.name !== "AbortError") console.warn("Export folder pick cancelled or failed", e);
+      return null;
+    }
+  }
+
+  async function getOrCreateDir(parent, name) {
+    return await parent.getDirectoryHandle(name, { create: true });
+  }
+
+  async function getNextVersionFromDir(patternDir) {
+    let maxVer = 0;
+    try {
+      for await (const [fileName, handle] of patternDir.entries()) {
+        if (handle.kind === "file" && fileName.endsWith(".json")) {
+          const match = fileName.match(/v(\d+)/);
+          if (match) {
+            const v = parseInt(match[1], 10);
+            if (v > maxVer) maxVer = v;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("getNextVersionFromDir failed", e);
+    }
+    return maxVer + 1;
+  }
+
+  function buildExportFileName({ pattern, systemId, version, date }) {
+    const verStr = String(version).padStart(3, "0");
+    return `${systemId}_${pattern}_v${verStr}_${date}.json`;
+  }
+
+  function getToday() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  async function saveSnapshotToFile(snapshot) {
+    let dir = exportDirHandle;
+    if (!dir) {
+      dir = await pickExportFolder();
+      if (!dir) return false;
+    }
+    try {
+      let systemDir;
+      if (dir.name === snapshot.systemId) {
+        systemDir = dir;
+      } else {
+        systemDir = await getOrCreateDir(dir, snapshot.systemId);
+      }
+      const patternDir = await getOrCreateDir(systemDir, snapshot.pattern);
+      const version = await getNextVersionFromDir(patternDir);
+      const fileName = buildExportFileName({
+        pattern: snapshot.pattern,
+        systemId: snapshot.systemId,
+        version,
+        date: getToday(),
+      });
+      const fileHandle = await patternDir.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(JSON.stringify(snapshot, null, 2));
+      await writable.close();
+      return true;
+    } catch (e) {
+      console.error("saveSnapshotToFile failed", e);
+      alert(`Export 실패: ${e.message}`);
+      return false;
+    }
+  }
+
+  // Workspace History: 선택 스냅샷 Export (폴더 저장 + exported=true)
+  async function handleExportSnapshots(ids) {
+    const history = loadWorkspaceHistory();
+    const toExport = ids
+      .map((id) => findSnapshotById(history, id))
+      .filter(Boolean);
+    if (toExport.length === 0) return;
+    for (const snap of toExport) {
+      const ok = await saveSnapshotToFile(snap);
+      if (!ok) return;
+    }
+    updateSnapshotsExported(ids);
+    setWorkspaceHistoryVersion((v) => v + 1);
+    alert(`${toExport.length}개 스냅샷 Export 완료`);
   }
 
   function nudgeBall(ballId, dx, dy) {
@@ -3966,83 +4173,22 @@ function handlePointerCancel(e) {
   );
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {tableSVG}
-      
-      {/* 관리자 패널 (테이블 오른쪽 바깥, ADMIN 모드에서만 표시) */}
-      {canEdit && (
-        <div className="admin-panel">
-          <input
-            type="file"
-            accept="application/json"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            onChange={handleFileImport}
-          />
-          <button
-            onClick={handleToggleAdminMode}
-            style={{ backgroundColor: 'rgba(239, 68, 68, 0.9)', color: 'white' }}
-          >
-            Admin
-          </button>
-          <button
-            onClick={initFileHandle}
-            style={{ backgroundColor: '#64748b', color: 'white' }}
-          >
-            파일 연결
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowSystemGrid((prev) => !prev)}
-            style={{
-              backgroundColor: showSystemGrid ? '#10b981' : '#64748b',
-              color: 'white',
-            }}
-          >
-            System Grid
-          </button>
-          <button
-            type="button"
-            onClick={() => setAutoSave((prev) => !prev)}
-            style={{
-              backgroundColor: autoSave ? '#10b981' : '#64748b',
-              color: 'white',
-            }}
-          >
-            Auto Save
-          </button>
-          <button
-            onClick={handleImportDataset}
-            style={{ backgroundColor: '#8b5cf6', color: 'white' }}
-          >
-            Import
-          </button>
-          <button
-            onClick={() => {
-              const payload = {
-                version: "1.0",
-                dataset: dataset ?? [],
-              };
-              const data = JSON.stringify(payload, null, 2);
-              const blob = new Blob([data], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'dataset.json';
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            style={{ backgroundColor: '#3b82f6', color: 'white' }}
-          >
-            Export
-          </button>
-          <button
-            onClick={handleSaveStrategy}
-            style={{ backgroundColor: '#10b981', color: 'white' }}
-          >
-            SAVE
-          </button>
-        </div>
+    <div className="app-layout">
+      <div className="table-area">
+        {tableSVG}
+
+      {showHistoryModal && (
+        <WorkspaceHistoryModal
+          history={workspaceHistory}
+          onClose={() => setShowHistoryModal(false)}
+          onLoad={(id) => {
+            handleLoadWorkspaceSnapshot(id);
+            setShowHistoryModal(false);
+          }}
+          onDelete={handleDeleteWorkspaceSnapshot}
+          onDeleteOldest30={handleDeleteOldest30}
+          onExport={handleExportSnapshots}
+        />
       )}
 
       {/* 관리자 모드 오버레이 */}
@@ -4152,6 +4298,7 @@ function handlePointerCancel(e) {
                   }
 
                   closeOverlay();
+                  setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                 }}
                 onCancel={closeOverlay}
               />
@@ -4165,6 +4312,7 @@ function handlePointerCancel(e) {
                   setAdminState({ ...adminState, hpt: newData });
                   actions.applyHptToSlot(shotEditor.activeSlot, newData);
                   closeOverlay();
+                  setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                 }}
                 onCancel={closeOverlay}
               />
@@ -4177,6 +4325,7 @@ function handlePointerCancel(e) {
                   setAdminState({ ...adminState, str: newData });
                   actions.applyStrToSlot(shotEditor.activeSlot, newData);
                   closeOverlay();
+                  setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                 }}
                 onCancel={closeOverlay}
               />
@@ -4192,14 +4341,21 @@ function handlePointerCancel(e) {
                   initialY={coord.y}
                   onApply={(x, y) => {
                     const round1 = (v) => Math.round(Number(v) * 10) / 10;
+                    const newOverride = {
+                      ...(adminState?.anchorsOverride ?? {}),
+                      [key]: { x: round1(x), y: round1(y) },
+                    };
                     setAdminState((prev) => ({
                       ...prev,
-                      anchorsOverride: {
-                        ...(prev.anchorsOverride ?? {}),
-                        [key]: { x: round1(x), y: round1(y) },
-                      },
+                      anchorsOverride: newOverride,
                     }));
+                    try {
+                      localStorage.setItem(ANCHORS_OVERRIDE_KEY, JSON.stringify(newOverride));
+                    } catch (e) {
+                      console.warn("anchorsOverride save failed", e);
+                    }
                     closeOverlay();
+                    setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                   }}
                   onCancel={closeOverlay}
                 />
@@ -4219,6 +4375,7 @@ function handlePointerCancel(e) {
                   setAdminState({ ...adminState, ai: newData });
                   actions.applyAiToSlot(shotEditor.activeSlot, newData);
                   closeOverlay();
+                  setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                 }}
                 onSaveStrategy={handleSaveStrategy}
                 onCancel={closeOverlay}
@@ -4329,6 +4486,55 @@ function handlePointerCancel(e) {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      </div>
+
+      {canEdit && (
+        <div className="right-panel">
+          <input
+            type="file"
+            accept="application/json"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleFileImport}
+          />
+          <button
+            type="button"
+            className="control-button"
+            onClick={() => setShowSystemGrid((prev) => !prev)}
+            style={{
+              backgroundColor: showSystemGrid ? '#10b981' : '#64748b',
+              color: 'white',
+            }}
+          >
+            Grid
+          </button>
+          <div className="right-panel-group">
+            <button
+              className="control-button"
+              onClick={handlePositionRecall}
+              style={{ backgroundColor: '#0ea5e9', color: 'white' }}
+            >
+              Recall
+            </button>
+            <button
+              className="control-button"
+              onClick={() => setShowHistoryModal(true)}
+              style={{ backgroundColor: '#6366f1', color: 'white' }}
+            >
+              History
+            </button>
+          </div>
+          <div className="right-panel-group">
+            <button
+              className="control-button"
+              onClick={handleSaveWorkspaceSnapshot}
+              style={{ backgroundColor: '#059669', color: 'white' }}
+            >
+              SAVE
+            </button>
           </div>
         </div>
       )}

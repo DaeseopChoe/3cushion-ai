@@ -3,7 +3,7 @@ import { TrajectoryPhase } from './useTrajectoryState';
 import { SYSTEM_PROFILES } from '../data/systems';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
 import { buildTrajectorySamples } from '../utils/trajectorySampleBuilder';
-import type { StrategyEntry } from '../domain/positionSearchEngine';
+import type { PositionRecord, StrategyEntry } from '../domain/positionSearchEngine';
 
 // ==========================================
 // Types (중복 없이 정리)
@@ -34,11 +34,18 @@ export interface ShotEditorState {
   };
 }
 
+export type UseShotSlotsOptions = {
+  setBallsState?: (arg: any) => void;
+  setAdminState?: (updater: (prev: any) => any) => void;
+  suppressAutoSaveRef?: { current: boolean };
+};
+
 // ==========================================
 // Hook
 // ==========================================
 
-export function useShotSlots() {
+export function useShotSlots(options?: UseShotSlotsOptions) {
+  const { setBallsState, setAdminState, suppressAutoSaveRef } = options ?? {};
   const [shotEditor, setShotEditor] = useState<ShotEditorState>({
     activeSlot: 'S1',
     slots: {
@@ -393,6 +400,35 @@ export function useShotSlots() {
   };
 
   /**
+   * PositionRecord의 strategies를 모든 slot draft에 일괄 적용 (단일 setShotEditor)
+   * applied 절대 수정 안 함. entry가 없는 slot은 skip.
+   */
+  const loadDraftsFromPositionRecord = (record: PositionRecord) => {
+    setShotEditor((s) => {
+      const nextSlots = { ...s.slots };
+      for (const entry of record.strategies) {
+        const slotId = entry.slot;
+        const slot = nextSlots[slotId];
+        if (!slot) continue;
+        nextSlots[slotId] = {
+          ...slot,
+          draft: {
+            sys: {
+              systemId: entry.signature.systemId,
+              inputs: entry.sysInputs ?? {},
+            },
+            hpt: entry.hpT,
+            str: entry.str,
+            ai: entry.ai,
+            meta: { recommendedFrom: { positionId: record.positionId, score: 0 } },
+          },
+        };
+      }
+      return { ...s, slots: nextSlots };
+    });
+  };
+
+  /**
    * StrategyEntry를 draft에만 로딩 (applied 절대 수정 안 함)
    * 관리자 자동 추천용
    */
@@ -462,9 +498,47 @@ export function useShotSlots() {
     );
   };
 
+  /**
+   * Position Recall 결과를 UI 상태에 단일 트랜잭션으로 적용
+   * - balls 업데이트 (round1 적용)
+   * - slot draft 업데이트 (applied 변경 금지)
+   * - AUTO SAVE suppression
+   */
+  const applyPositionRecall = (record: PositionRecord) => {
+    if (!setBallsState || !setAdminState) {
+      console.warn("[applyPositionRecall] setBallsState/setAdminState 미제공, draft만 적용");
+      loadDraftsFromPositionRecord(record);
+      return;
+    }
+
+    if (suppressAutoSaveRef) suppressAutoSaveRef.current = true;
+
+    const round1 = (v: number) => Math.round(Number(v) * 10) / 10;
+    const balls = record.balls;
+    const ballsForState = {
+      cue: balls.cue ? { x: round1(balls.cue.x), y: round1(balls.cue.y) } : undefined,
+      target: balls.target ? { x: round1(balls.target.x), y: round1(balls.target.y) } : undefined,
+      target_center: balls.target ? { x: round1(balls.target.x), y: round1(balls.target.y) } : undefined,
+      second: balls.second ? { x: round1(balls.second.x), y: round1(balls.second.y) } : undefined,
+    };
+
+    setBallsState(ballsForState);
+    setAdminState((prev: any) => ({ ...prev, balls: record.balls }));
+    loadDraftsFromPositionRecord(record);
+
+    if (suppressAutoSaveRef) {
+      queueMicrotask(() => { suppressAutoSaveRef.current = false; });
+    }
+  };
+
   // ==========================================
   // Return
   // ==========================================
+
+  /** Workspace History 복원용: shotEditor 전체 overwrite */
+  const restoreShotEditor = (next: ShotEditorState) => {
+    setShotEditor(next);
+  };
 
   return {
     shotEditor,
@@ -478,11 +552,14 @@ export function useShotSlots() {
       applyStrToSlot,
       applyAiToSlot,
       loadDraftFromStrategyEntry,
+      loadDraftsFromPositionRecord,
+      applyPositionRecall,
       saveShot,
       deleteSlot,
       getActiveSlot,
       getAllSlots,
-      getAppliedSlots
+      getAppliedSlots,
+      restoreShotEditor
     }
   };
 }
