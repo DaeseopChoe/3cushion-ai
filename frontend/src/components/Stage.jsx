@@ -7,6 +7,9 @@ export default function Stage() {
   const [viewport, setViewport] = useState({ vw: 0, vh: 0 });
   const [currentButtonId, setCurrentButtonId] = useState("S1");
   const [activeSlot, setActiveSlot] = useState("S1");
+  const [dirtySlotIds, setDirtySlotIds] = useState([]);
+  const [appMode, setAppMode] = useState("USER");
+  const [strategyCountMap, setStrategyCountMap] = useState({});
 
   useEffect(() => {
     const calc = () => {
@@ -116,6 +119,12 @@ export default function Stage() {
   const SLOT_IDS = ["S1", "S2", "S3"];
   const FUNC_IDS = ["SYS", "HP/T", "STR", "AI"];
 
+  const getSlotIndicator = (slotId, isDirty) => {
+    if (appMode === "ADMIN") return isDirty;
+    if (appMode === "USER") return (strategyCountMap[slotId] || 0) > 0;
+    return false;
+  };
+
   return (
     <div
       style={{
@@ -152,16 +161,27 @@ export default function Stage() {
             const isSlotSelected = SLOT_IDS.includes(id) && activeSlot === id;
             const isFuncSelected = (id === "COACH" || FUNC_IDS.includes(id)) && currentButtonId === id;
             const borderStyle = isSlotSelected ? "3px solid #ef4444" : isFuncSelected ? "3px solid #fff" : "none";
+            const isDirty = SLOT_IDS.includes(id) && dirtySlotIds.includes(id);
+            const hasIndicator = SLOT_IDS.includes(id) && getSlotIndicator(id, isDirty);
+            const displayLabel = hasIndicator ? `${label} ●` : label;
+            const slotColorClass = appMode === "ADMIN" && hasIndicator ? "slot-dirty" : "slot-normal";
+            const slotTooltip = SLOT_IDS.includes(id)
+              ? (appMode === "ADMIN"
+                ? (hasIndicator ? "적용되지 않은 변경 있음" : "")
+                : (hasIndicator ? "사용 가능한 전략 있음" : ""))
+              : "";
             return (
               <button
                 key={id}
+                title={slotTooltip}
                 onClick={() => setCurrentButtonId(id)}
+                className={SLOT_IDS.includes(id) ? slotColorClass : ""}
                 style={{
                   height: BUTTON_HEIGHT,
                   fontSize: BUTTON_FONT,
                   padding: 0,
                   background: getButtonColor(id, isSlotSelected, isFuncSelected),
-                  color: "#fff",
+                  color: slotColorClass === "slot-dirty" ? "#ffd54f" : "#ffffff",
                   border: borderStyle,
                   borderRadius: "6px",
                   cursor: "pointer",
@@ -173,7 +193,7 @@ export default function Stage() {
                   boxSizing: "border-box",
                 }}
               >
-                {label}
+                {displayLabel}
               </button>
             );
           })}
@@ -195,6 +215,9 @@ export default function Stage() {
           currentButtonId={currentButtonId}
           onActiveSlotChange={setActiveSlot}
           onFuncOverlayClose={() => setCurrentButtonId(activeSlot)}
+          onDirtySlotsChange={setDirtySlotIds}
+          onAppModeChange={setAppMode}
+          onStrategyCountMapChange={setStrategyCountMap}
         />
         </div>
 

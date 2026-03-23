@@ -37,15 +37,74 @@ export interface ShotEditorState {
 export type UseShotSlotsOptions = {
   setBallsState?: (arg: any) => void;
   setAdminState?: (updater: (prev: any) => any) => void;
-  suppressAutoSaveRef?: { current: boolean };
 };
 
 // ==========================================
 // Hook
 // ==========================================
 
+/** draft ≠ applied 여부 (dirty = 아직 확정 안 됨) */
+function isSlotDirty(slot: SlotState | null | undefined): boolean {
+  if (!slot) return false;
+  const d = slot.draft;
+  const a = slot.applied;
+  if (d === null && a === null) return false;
+  if (d === null || a === null) return true;
+  try {
+    const norm = (x: DraftState) => ({ sys: x?.sys, hpt: x?.hpt, str: x?.str, ai: x?.ai });
+    return JSON.stringify(norm(d)) !== JSON.stringify(norm(a));
+  } catch {
+    return true;
+  }
+}
+
+/** PositionRecord → slot별 draft 맵 생성 (applyPositionRecall 단일 트랜잭션용) */
+function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftState> {
+  const map: Record<string, DraftState> = {};
+  for (const entry of record.strategies) {
+    const slotId = entry.slot;
+    if (!["S1", "S2", "S3"].includes(slotId)) continue;
+    map[slotId] = {
+      sys: {
+        systemId: entry.signature.systemId,
+        inputs: entry.sysInputs ?? {},
+      },
+      hpt: entry.hpT,
+      str: entry.str,
+      ai: entry.ai,
+      meta: { recommendedFrom: { positionId: record.positionId, score: 0 } },
+    };
+  }
+  return map;
+}
+
+/** 기존 slots에 nextDrafts 적용, applied 절대 변경 안 함. record에 없는 slot은 그대로 유지 */
+function applyDraftsToSlots(
+  slots: ShotEditorState["slots"],
+  nextDrafts: Record<string, DraftState>
+): ShotEditorState["slots"] {
+  return Object.fromEntries(
+    (Object.entries(slots) as Array<[keyof ShotEditorState["slots"], SlotState]>).map(
+      ([slotId, slot]) => {
+        const nextDraft = nextDrafts[slotId];
+        if (!nextDraft) return [slotId, slot];
+        return [
+          slotId,
+          {
+            ...slot,
+            draft: {
+              ...(slot.draft ?? {}),
+              ...nextDraft,
+            },
+          },
+        ];
+      }
+    )
+  ) as ShotEditorState["slots"];
+}
+
 export function useShotSlots(options?: UseShotSlotsOptions) {
-  const { setBallsState, setAdminState, suppressAutoSaveRef } = options ?? {};
+  const { setBallsState, setAdminState } = options ?? {};
   const [shotEditor, setShotEditor] = useState<ShotEditorState>({
     activeSlot: 'S1',
     slots: {
@@ -498,37 +557,27 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     );
   };
 
+  /** draft ≠ applied인 슬롯 ID 목록 */
+  const getDirtySlotIds = (): SlotId[] => {
+    return (["S1", "S2", "S3"] as const).filter(
+      (id) => isSlotDirty(shotEditor.slots[id])
+    );
+  };
+
+  /** 모든 슬롯 확정 여부 (dirty 없음) */
+  const isAnySlotDirty = (): boolean => getDirtySlotIds().length > 0;
+
   /**
-   * Position Recall 결과를 UI 상태에 단일 트랜잭션으로 적용
-   * - balls 업데이트 (round1 적용)
-   * - slot draft 업데이트 (applied 변경 금지)
-   * - AUTO SAVE suppression
+   * Position Recall 결과를 UI 상태에 적용 (옵션 B: 전략만 적용)
+   * - balls / adminState.balls 절대 변경 안 함
+   * - draft만 갱신 (applied 유지)
    */
   const applyPositionRecall = (record: PositionRecord) => {
-    if (!setBallsState || !setAdminState) {
-      console.warn("[applyPositionRecall] setBallsState/setAdminState 미제공, draft만 적용");
-      loadDraftsFromPositionRecord(record);
-      return;
-    }
-
-    if (suppressAutoSaveRef) suppressAutoSaveRef.current = true;
-
-    const round1 = (v: number) => Math.round(Number(v) * 10) / 10;
-    const balls = record.balls;
-    const ballsForState = {
-      cue: balls.cue ? { x: round1(balls.cue.x), y: round1(balls.cue.y) } : undefined,
-      target: balls.target ? { x: round1(balls.target.x), y: round1(balls.target.y) } : undefined,
-      target_center: balls.target ? { x: round1(balls.target.x), y: round1(balls.target.y) } : undefined,
-      second: balls.second ? { x: round1(balls.second.x), y: round1(balls.second.y) } : undefined,
-    };
-
-    setBallsState(ballsForState);
-    setAdminState((prev: any) => ({ ...prev, balls: record.balls }));
-    loadDraftsFromPositionRecord(record);
-
-    if (suppressAutoSaveRef) {
-      queueMicrotask(() => { suppressAutoSaveRef.current = false; });
-    }
+    const nextDrafts = buildDraftsFromRecord(record);
+    setShotEditor((prev) => ({
+      ...prev,
+      slots: applyDraftsToSlots(prev.slots, nextDrafts),
+    }));
   };
 
   // ==========================================
@@ -559,6 +608,8 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       getActiveSlot,
       getAllSlots,
       getAppliedSlots,
+      getDirtySlotIds,
+      isAnySlotDirty,
       restoreShotEditor
     }
   };

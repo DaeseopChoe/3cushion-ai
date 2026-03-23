@@ -2139,7 +2139,7 @@ function RailFrame() {
 // Phase B-1 Step 1: MobileWrapper (완전 투명)
 // ============================================
 
-export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlayClose }) {
+export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlayClose, onDirtySlotsChange, onAppModeChange, onStrategyCountMapChange }) {
   const [currentId, setCurrentId] = useState(SHOTS[0].id);
   const [view, setView] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2239,11 +2239,9 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
   });
 
   const [ballsState, setBallsState] = useState(null);
-  const suppressAutoSaveRef = useRef(false);
   const { shotEditor, actions } = useShotSlots({
     setBallsState,
     setAdminState,
-    suppressAutoSaveRef,
   });
   const trajectory = useTrajectoryState();
 
@@ -2576,32 +2574,36 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     }
   }
 
+  const HARD_THRESHOLD = 12.0; // 제곱 거리 기준, 초과 시 참고용 안내
+
   function handlePositionRecall() {
     const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
-    const appliedSys = shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.sys;
-    const systemId = appliedSys?.systemId ?? adminState?.sys?.systemId ?? adminState?.sys?.system_id ?? "5_half_system";
+    const sys = adminState?.sys;
+    const systemId = sys?.systemId ?? sys?.system_id ?? "5_half_system";
     const profile = SYSTEM_PROFILES[systemId];
     const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-    const signature = makeSignature({ systemId, formulaHash, shotType: "default" });
-    const signatureKey = makeSignatureKey(signature);
+    const shotType = sys?.shotType ?? "default";
+    const signatureKey = makeSignatureKey({ systemId, formulaHash, shotType });
 
     const result = runPositionRecall({
       dataset: dataset ?? [],
       balls: currentBalls,
       signatureKey,
-      thresholds: { soft: 6.0, hard: 12.0 },
+      thresholds: { soft: Infinity, hard: Infinity },
     });
 
-    if (result.kind === "no-match") {
-      alert(result.reason === "empty-dataset" ? "데이터셋이 비어 있습니다." :
-        result.reason === "signature-not-found" ? "해당 시그니처의 전략이 없습니다." :
-        "유사한 포지션을 찾을 수 없습니다.");
+    if (!result || result.kind === "no-match") {
+      alert(result?.reason === "empty-dataset" ? "추천 데이터 없음 (데이터셋 비어 있음)" :
+        result?.reason === "signature-not-found" ? "추천 데이터 없음 (해당 시그니처 없음)" :
+        "추천 데이터 없음");
       return;
     }
-    if (result.kind === "low-confidence") {
-      if (!confirm("유사도가 낮습니다. 적용하시겠습니까?")) return;
-    }
+
     actions.applyPositionRecall(result.record);
+
+    if (result.distance > HARD_THRESHOLD) {
+      alert("유사도 낮음");
+    }
   }
 
   // ⭐ 핵심: 버튼 클릭 → Overlay 여는 함수
@@ -3069,32 +3071,67 @@ function handleJoyPadPointerCancel(e) {
     }
   }, [currentButtonId]);
 
-  // activeSlot 변경 시 adminState를 해당 슬롯의 applied(hpt/str/ai)로 동기화
+  // activeSlot/slots 변경 시 adminState를 해당 슬롯의 draft(우선) → applied로 동기화
+  // Recall → draft 변경 시 UI가 즉시 draft 값을 보여주도록 함
   useEffect(() => {
     const slot = shotEditor.slots[shotEditor.activeSlot];
+    const draft = slot?.draft;
     const applied = slot?.applied;
-    // [VERIFY 1] activeSlot 변경 감지
-    console.log("[VERIFY 1] activeSlot useEffect", {
-      activeSlot: shotEditor.activeSlot,
-      "slot?.applied?.sys": slot?.applied?.sys,
-      "applied?.sys (setAdminState 직전)": applied?.sys,
-    });
     const defaultHpt = { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP", tipCount: 0 };
     const defaultStr = { curve: "constant", type: null, acceleration: "smooth_const", speed: 2.5, depth: 2, impact: "medium" };
     const defaultAi = { text: "", onePointLessons: [] };
     setAdminState((prev) => ({
       ...prev,
-      sys: applied?.sys ?? prev.sys,
-      hpt: applied?.hpt ?? defaultHpt,
-      str: applied?.str ?? defaultStr,
-      ai: applied?.ai ?? defaultAi,
+      sys: draft?.sys ?? applied?.sys ?? prev.sys,
+      hpt: draft?.hpt ?? applied?.hpt ?? defaultHpt,
+      str: draft?.str ?? applied?.str ?? defaultStr,
+      ai: draft?.ai ?? applied?.ai ?? defaultAi,
     }));
-  }, [shotEditor.activeSlot]);
+  }, [shotEditor.activeSlot, shotEditor.slots]);
 
   // Stage에 activeSlot 동기화 (슬롯 버튼 빨간 테두리용)
   useEffect(() => {
     onActiveSlotChange?.(shotEditor.activeSlot);
   }, [shotEditor.activeSlot, onActiveSlotChange]);
+
+  // Stage에 dirty 슬롯 ID 동기화 (S1● S2● 표시용)
+  useEffect(() => {
+    onDirtySlotsChange?.(actions.getDirtySlotIds?.() ?? []);
+  }, [shotEditor.slots, onDirtySlotsChange]);
+
+  // Stage에 appMode 동기화
+  useEffect(() => {
+    onAppModeChange?.(appMode);
+  }, [appMode, onAppModeChange]);
+
+  // USER 모드용: 현재 balls 기준 유사 포지션의 slot별 전략 개수
+  const strategyCountMap = useMemo(() => {
+    const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
+    if (!dataset?.length) return {};
+    const sys = adminState?.sys;
+    const systemId = sys?.systemId ?? sys?.system_id ?? "5_half_system";
+    const profile = SYSTEM_PROFILES?.[systemId];
+    const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1")?.slice(0, 32) ?? "v1";
+    const shotType = sys?.shotType ?? "default";
+    const signatureKey = makeSignatureKey({ systemId, formulaHash, shotType });
+    const result = runPositionRecall({
+      dataset: dataset ?? [],
+      balls: currentBalls,
+      signatureKey,
+      thresholds: { soft: Infinity, hard: Infinity },
+      topK: 5,
+    });
+    const map = {};
+    if (!result || result.kind === "no-match" || !result.record) return map;
+    (result.record.strategies ?? []).forEach((entry) => {
+      if (entry?.slot) map[entry.slot] = (map[entry.slot] || 0) + 1;
+    });
+    return map;
+  }, [dataset, ballsState, adminState?.balls, adminState?.sys]);
+
+  useEffect(() => {
+    onStrategyCountMapChange?.(strategyCountMap);
+  }, [strategyCountMap, onStrategyCountMapChange]);
 
   useEffect(() => {
     const shot = SHOTS.find((s) => s.id === currentId);
@@ -3265,6 +3302,7 @@ function handleJoyPadPointerCancel(e) {
 
   const thicknessForCalc =
     adminState?.hpt?.T ??
+    shotEditor?.slots?.[shotEditor?.activeSlot]?.draft?.hpt?.T ??
     shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.hpt?.T ??
     view?.ui?.display_options?.thickness ??
     0;
@@ -3289,8 +3327,8 @@ function handleJoyPadPointerCancel(e) {
   const systemIdForGrid = (() => {
     if (canEdit) {
       const slot = shotEditor.slots[shotEditor.activeSlot];
-      const appliedSys = slot?.applied?.sys;
-      const raw = adminState?.sys?.systemId ?? adminState?.sys?.system_id ?? appliedSys?.systemId ?? "5_half_system";
+      const slotSys = slot?.draft?.sys ?? slot?.applied?.sys;
+      const raw = adminState?.sys?.systemId ?? adminState?.sys?.system_id ?? slotSys?.systemId ?? "5_half_system";
       return raw === "5_HALF" ? "5_half_system" : raw;
     }
     return "5_half_system";
@@ -3301,9 +3339,9 @@ function handleJoyPadPointerCancel(e) {
   const rawAnchors = canEdit
     ? (() => {
         const slot = shotEditor.slots[shotEditor.activeSlot];
-        const appliedSys = slot?.applied?.sys;
-        const sysInputs = appliedSys?.inputs ?? {};
-        const sysResult = appliedSys?.outputs?.result ?? {};
+        const slotSys = slot?.draft?.sys ?? slot?.applied?.sys;
+        const sysInputs = slotSys?.inputs ?? {};
+        const sysResult = slotSys?.outputs?.result ?? {};
         const sysValues = {
           ...adminState?.sys?.systemValues,
           ...adminState?.sys?.inputs,
@@ -3326,7 +3364,7 @@ function handleJoyPadPointerCancel(e) {
         const rawSystemId =
           adminState?.sys?.systemId ??
           adminState?.sys?.system_id ??
-          appliedSys?.systemId ??
+          slotSys?.systemId ??
           "5_half_system";
         const systemId = rawSystemId === "5_HALF" ? "5_half_system" : rawSystemId;
         const profile = SYSTEM_PROFILES?.[systemId];
@@ -4045,7 +4083,9 @@ function handlePointerCancel(e) {
       ? (
           adminState?.sys?.systemValues ??
           adminState?.sys?.inputs ??
-          shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.sys?.result ??
+          shotEditor?.slots?.[shotEditor?.activeSlot]?.draft?.sys?.outputs?.result ??
+          shotEditor?.slots?.[shotEditor?.activeSlot]?.draft?.sys?.inputs ??
+          shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.sys?.outputs?.result ??
           shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.sys?.inputs ??
           system?.values ??
           {}
@@ -4057,9 +4097,8 @@ function handlePointerCancel(e) {
   const tableSVG = (
     <svg
       ref={svgRef}
+      className="table-svg"
       viewBox={`0 0 ${TABLE_W + 2 * PADDING} ${TABLE_H + 2 * PADDING}`}
-      width="100%"
-      height="100%"
       preserveAspectRatio="xMidYMid meet"
       style={{ touchAction: "none" }}
       onPointerDown={handlePointerDown}
@@ -4175,8 +4214,9 @@ function handlePointerCancel(e) {
   return (
     <div className="app-layout">
       <div className="table-area">
-        {tableSVG}
-
+        <div className="table-area-inner">
+          {tableSVG}
+        </div>
       {showHistoryModal && (
         <WorkspaceHistoryModal
           history={workspaceHistory}
@@ -4369,7 +4409,7 @@ function handlePointerCancel(e) {
                 sysData={adminState.sys}
                 hptData={adminState.hpt}
                 strData={adminState.str}
-                appliedSys={actions?.getActiveSlot?.()?.applied?.sys}
+                appliedSys={actions?.getActiveSlot?.()?.draft?.sys ?? actions?.getActiveSlot?.()?.applied?.sys}
                 sysHpNResult={sysHpNResult}
                 onSave={(newData) => {
                   setAdminState({ ...adminState, ai: newData });
