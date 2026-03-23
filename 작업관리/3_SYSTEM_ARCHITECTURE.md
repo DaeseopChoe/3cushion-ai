@@ -163,6 +163,19 @@ Slot
  ├── draft
  └── applied
 
+### UI State Layer (Draft vs Applied) — 2026-03 확정
+
+**Draft Layer:**
+- 사용자 인터랙션 및 Recall draft 적용 결과 반영
+- UI 표시 기준
+
+**Applied Layer:**
+- 확정된 계산 결과
+- dataset 저장 기준
+
+**UI Rendering:**
+- Draft 기준 (모든 입력 필드 SYS/HP/T/STR/AI)
+
 Draft
 
 실시간 계산

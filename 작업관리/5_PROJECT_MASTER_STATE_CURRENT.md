@@ -330,10 +330,21 @@ StrategyMeta now includes:
 
 ## 5.8.7 Recall 구조
 
-- **Import 제거** → Position Recall로 완전 대체
+- **Recall** = 전략 템플릿 불러오기 (Import 완전 대체)
 - `runPositionRecall` (positionRecallEngine) 사용
-- threshold/softThreshold 검증 후 확인 적용 (자동 적용 금지)
-- `applyPositionRecall` 단일 트랜잭션 (balls + draft)
+- `applyPositionRecall` draft만 업데이트 (balls 변경 없음)
+
+### Recall 동작 정의 (2026-03 업데이트)
+
+- Recall은 balls를 변경하지 않는다.
+- Recall은 draft 상태만 변경한다.
+- applied 상태는 변경하지 않는다.
+- SAVE 수행 전까지 dataset에는 반영되지 않는다.
+
+### UI 데이터 소스 정책
+
+- UI 표시 값은 draft를 기준으로 한다.
+- applied는 저장 및 확정 상태로만 사용한다.
 
 ## 5.8.8 버튼 구조 (우측 패널)
 

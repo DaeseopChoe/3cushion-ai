@@ -407,3 +407,64 @@ ray 방향이 반전되지 않아 교차가 발생하지 않음
 ## 상태
 
 Reflection Engine 안정화 완료 (v1)
+
+---
+
+# [2026-03-23] Recall UX 및 Draft/Applied 구조 확정
+
+### 1. Recall 정책 변경 (중요)
+
+- Recall은 balls를 변경하지 않는다.
+- Recall은 dataset의 전략을 draft 상태로만 적용한다.
+- Recall 실행 시 SAVE 자동 실행은 수행하지 않는다.
+
+**정의:** Recall = "전략 템플릿 불러오기 (draft only)"
+
+---
+
+### 2. Draft / Applied 구조 확정
+
+- **draft:** UI 표시 및 사용자 수정 상태
+- **applied:** 확정 상태 (SAVE 시 dataset에 반영)
+
+**변경 사항:**
+- 모든 입력 UI는 applied가 아닌 draft를 기준으로 표시하도록 수정
+- adminState 동기화 시 draft 우선 적용 구조로 변경
+
+```
+sys: draft?.sys ?? applied?.sys ?? prev.sys
+hpt: draft?.hpt ?? applied?.hpt ?? defaultHpt
+str: draft?.str ?? applied?.str ?? defaultStr
+ai: draft?.ai ?? applied?.ai ?? defaultAi
+```
+
+### 3. Recall draft 적용 흐름 변경
+
+**기존:** Recall → balls 변경 + draft 적용
+
+**변경:** Recall → draft만 적용 (balls 유지)
+
+### 4. UX 정책 변경
+
+**(1) 경고 및 confirm 제거**
+- SAVE 시 confirm 제거
+- "Recall 적용됨 — 아직 확정되지 않음" 메시지 제거
+
+**(2) 유사도 메시지 단순화**
+- 기존: "유사도 낮음 (참고용)"
+- 변경: "유사도 낮음"
+
+**(3) 슬롯 표시 (S1 ●) 의미 확정**
+- **ADMIN 모드:** ● = draft ≠ applied (적용 필요 상태)
+- **USER 모드:** ● = 해당 포지션에서 사용 가능한 전략 존재
+
+### 5. 상태 동기화 구조 변경
+
+- shotEditor.slots 변경 시 adminState가 자동 동기화되도록 dependency 확장
+- systemValuesForLabels, thicknessForCalc, AiOverlay 등도 draft 우선 적용
+
+### 6. 결과
+
+- Recall 결과가 UI에 즉시 반영됨
+- 사용자 작업 흐름 단순화
+- dataset 오염 방지 (balls 고정)

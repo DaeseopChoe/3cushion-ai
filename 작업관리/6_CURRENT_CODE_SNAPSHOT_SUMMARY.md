@@ -13,7 +13,21 @@ PROJECT_MASTER_STATE_CURRENT와 다르며,
 구조/계산/상태 엔진 변경 시 PROJECT_MASTER_STATE_CURRENT를 재작성한다.
 ------------------------------------------------------------
 
-# [최신] SAVE / History / Export 구조 변경 (2026-03-19)
+# [최신] Recall UX Refactor (2026-03-23)
+
+## Recent Changes (Recall UX Refactor)
+
+- **applyPositionRecall:** balls 변경 로직 제거, draft만 업데이트하도록 수정
+- **adminState 동기화:** draft 우선 반영 구조로 변경 (`draft ?? applied ?? prev`)
+- **SAVE:** dirty 상태 confirm 제거 (바로 저장)
+- **UI:** 모든 입력 필드 draft 기준으로 렌더링 (SYS/HP/T/STR/AI overlay)
+- **Recall 메시지:** "Recall 적용됨 — 아직 확정되지 않음" 제거
+- **유사도 메시지:** "유사도 낮음 (참고용)" → "유사도 낮음"
+- **슬롯 표시:** S1● ADMIN=draft≠applied, USER=전략 존재
+
+------------------------------------------------------------
+
+# [이전] SAVE / History / Export 구조 변경 (2026-03-19)
 
 ## 작업 목적
 - Workspace History 기반 저장 구조 도입

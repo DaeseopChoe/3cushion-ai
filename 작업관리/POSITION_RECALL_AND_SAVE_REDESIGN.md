@@ -29,9 +29,15 @@
 | **Import** | ~~JSON 파일 선택 → dataset 덮어쓰기~~ → **완전 제거** |
 | **Position Recall** | 현재 3볼 좌표 기준 dataset에서 가장 유사한 record 검색 → UI state에 적용 |
 
-**핵심:** 파일 선택 없음. 현재 화면의 cue/target/second 좌표로 dataset 내 nearest search 후 해당 record의 balls + strategy를 UI에 복원.
+**핵심:** 파일 선택 없음. 현재 화면의 cue/target/second 좌표로 dataset 내 nearest search 후 해당 record의 전략을 draft로 불러옴. **balls는 변경하지 않음.**
 
-**구현 반영:** Import 버튼 제거. Recall 버튼으로 대체. `runPositionRecall` (positionRecallEngine) 사용.
+**구현 반영:** Recall 버튼으로 대체. `runPositionRecall` (positionRecallEngine) 사용.
+
+### Recall 최종 정책 (확정)
+
+- Recall은 전략 템플릿을 draft로 불러오는 기능이다.
+- Recall은 balls 및 applied 상태를 변경하지 않는다.
+- Recall 이후 반드시 사용자 적용 과정을 거쳐야 한다.
 
 ---
 
@@ -120,31 +126,24 @@ applyPositionRecall(record);
 
 ---
 
-### 1.5 선택된 record를 UI state에 적용하는 구조
+### 1.5 선택된 record를 UI state에 적용하는 구조 (2026-03 확정)
 
-#### ⚠️ [핵심] 단일 트랜잭션 필수
+#### Recall = draft만 적용 (balls 변경 없음)
 
-**문제:** `setBallsState` + `loadDraftFromStrategyEntry` 분리 시 비동기 충돌 가능.
-
-**해결:** 반드시 하나의 액션으로 묶어야 함.
+**확정 정책:** Recall은 전략만 draft로 불러온다. balls는 절대 변경하지 않는다.
 
 ```ts
-// 권장: 단일 dispatch
+// 구현 (useShotSlots.applyPositionRecall)
 applyPositionRecall(record) {
-  batch(() => {
-    setBallsState(normalizeBalls(record.balls));  // round1 적용
-    setAdminState(prev => ({ ...prev, balls: record.balls }));
-    loadDraftFromStrategyEntry(activeSlot, entry);
-  });
+  const nextDrafts = buildDraftsFromRecord(record);
+  setShotEditor((prev) => ({
+    ...prev,
+    slots: applyDraftsToSlots(prev.slots, nextDrafts),
+  }));
 }
-
-// 또는 reducer 패턴
-dispatch({ type: "APPLY_POSITION_RECALL", payload: record });
 ```
 
-**round1 적용:** Recall 후 balls 좌표에도 `round1` 적용. `normalizeBalls(record.balls)` 내부에서 처리.
-
-**target_center 정규화:** record.balls.target → ballsState.target_center 매핑 필요.
+**UI 표시:** adminState 동기화 시 draft 우선 (`draft ?? applied ?? prev`). Recall 결과가 즉시 UI에 반영됨.
 
 ---
 
@@ -289,10 +288,9 @@ if (mode === "recall") {
 [관리자]
 
 3볼 설정
-  → Recall (추천)
-  → 확인 후 적용 (threshold/softThreshold 검증)
-  → 수정
-  → AUTO SAVE (백업)
+  → Recall (draft 적용)
+  → 사용자 수정
+  → 적용 버튼 (draft → applied)
   → SAVE (snapshot)
   → EXPORT (배포 JSON, 현재 UI 상태 기준)
 
@@ -303,6 +301,8 @@ if (mode === "recall") {
 Published JSON 로드
   → 계산만 수행
 ```
+
+**Recall 흐름:** Recall → draft 적용 → 사용자 수정 → 적용 → SAVE
 
 ---
 
@@ -369,7 +369,7 @@ Published JSON 로드
 | **admin/slotAutoRecommend.ts** | Recall 로직 | runPositionRecall (또는 positionRecallEngine으로 이전) | 소 |
 | **domain/search/positionKDIndex.ts** | 전체 검색 | searchTop1AllSignatures | 소 |
 | **domain/persistenceEngine.ts** | 신규 | saveWorkspaceAuto, saveWorkspaceSnapshot, createPublishedPayload | 신규 |
-| **hooks/useShotSlots.ts** | Recall 적용 | applyBallsFromRecord 또는 loadPositionRecall | 소 |
+| **hooks/useShotSlots.ts** | Recall draft 적용 | applyPositionRecall (draft만), loadDraftsFromPositionRecord | 소 |
 | **hooks/useWorkspaceHistory.ts** | 신규 (선택) | snapshots, push, restore | 신규 |
 | **domain/fileService.ts** | Export | downloadPublishedJSON | 소 |
 
