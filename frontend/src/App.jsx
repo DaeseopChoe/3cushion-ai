@@ -42,6 +42,11 @@ import {
   pointerToRg,
 } from "./utils/geometry/coords";
 import { buildCushionPath, snapToRail } from "./utils/geometry/rail";
+import {
+  normalizeAnchor,
+  resolveAnchorPoint,
+  computeRailImpactPoint,
+} from "./utils/geometry/anchorResolve";
 import { calculateImpact, adjustSystemLine } from "./utils/physics";
 import {
   computeThicknessFromImpact,
@@ -2158,8 +2163,6 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
   const ANCHORS_OVERRIDE_KEY = "ANCHORS_OVERRIDE_V1";
   const [adminState, setAdminState] = useState(() => {
     try {
-      const saved = localStorage.getItem(ANCHORS_OVERRIDE_KEY);
-      const anchorsOverride = saved ? JSON.parse(saved) : {};
       return {
     sys: {
       system_id: null,
@@ -2190,7 +2193,8 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
       text: "",
       onePointLessons: []
     },
-    anchorsOverride: typeof anchorsOverride === "object" ? anchorsOverride : {},
+    // 앱 시작 시 항상 빈 상태 (이전 세션 영향 제거)
+    anchorsOverride: {},
     balls: {
       cue: { x: 10, y: 10 },
       target: { x: 50, y: 25 },
@@ -3403,7 +3407,15 @@ function handleJoyPadPointerCancel(e) {
           "display.anchors 존재": !!display?.anchors,
           "실제 반환": usedFallback ? "display.anchors (fallback)" : "anchors",
         });
-        return anchorKeys.length > 0 ? anchors : (display.anchors ?? {});
+        const finalAnchors = anchorKeys.length > 0 ? anchors : (display.anchors ?? {});
+        console.log("[ANCHOR_SPACE_TRACE] rawAnchors 최종", {
+          keys: Object.keys(finalAnchors || {}),
+          hasSpaceInfo: Object.values(finalAnchors || {}).some(
+            (v) => v && typeof v === "object" && ("isFg" in v || "space" in v || "keyUsed" in v)
+          ),
+          sample: finalAnchors?.["1C"] ? { "1C": finalAnchors["1C"] } : null,
+        });
+        return finalAnchors;
       })()
     : (display.anchors ?? {});
 
@@ -3740,40 +3752,37 @@ function handlePointerCancel(e) {
   
   const CO_rg_converted = anchors.CO;      // 이미 Rg
   const C1_rg_converted = anchors["1C"];   // 이미 Rg
-  
-  // 원본 Fg 좌표
-  const CO_fg = rawAnchors.CO;
-  const C1_fg = rawAnchors["1C"];
 
-  // ✅ CO-1C 선과 레일 날선 교점 계산
-  let CO_rail = CO_fg;
-  let C1_rail = C1_fg;
+  const resolveAnchorCtx = {
+    track: trackForAnchors,
+    systemId: systemIdForGrid,
+  };
 
-  if (CO_fg && C1_fg) {
-    const dx = C1_fg.x - CO_fg.x;
-    const dy = C1_fg.y - CO_fg.y;
+  const CO_anchor = normalizeAnchor(rawAnchors.CO);
+  const C1_anchor = normalizeAnchor(rawAnchors["1C"]);
+  const CO_prep = resolveAnchorPoint(CO_anchor, resolveAnchorCtx);
+  const C1_prep = resolveAnchorPoint(C1_anchor, resolveAnchorCtx);
 
-    if (Math.abs(dy) > 0.01) {
-      const m = dy / dx;
-      const b = CO_fg.y - m * CO_fg.x;
+  const isBottomCO =
+    CO_prep && Math.abs(CO_prep.y + 2.25) < 0.5;
 
-      // B2T
-      if (Math.abs(CO_fg.y - (-2.25)) < 0.5) {
-        CO_rail = { x: (0 - b) / m, y: 0 };
-      }
-      if (Math.abs(C1_fg.y - 42.25) < 0.5) {
-        C1_rail = { x: (40 - b) / m, y: 40 };
-      }
+  let CO_rail = CO_prep;
 
-      // T2B
-      if (Math.abs(CO_fg.y - 42.25) < 0.5) {
-        CO_rail = { x: (40 - b) / m, y: 40 };
-      }
-      if (Math.abs(C1_fg.y - (-2.25)) < 0.5) {
-        C1_rail = { x: (0 - b) / m, y: 0 };
-      }
+  if (isBottomCO && CO_prep && C1_prep) {
+    const pt = computeRailImpactPoint(CO_prep, C1_prep, {
+      ...resolveAnchorCtx,
+      mark: "CO",
+    });
+
+    if (pt) {
+      CO_rail = pt;
     }
   }
+
+  const C1_rail =
+    CO_prep && C1_prep
+      ? computeRailImpactPoint(CO_prep, C1_prep, { ...resolveAnchorCtx, mark: "1C" })
+      : null;
 
   // 2C fallback: anchors["2C"] 없을 때 reflection engine으로 C2 자동 생성
   const currentTip = (() => {
@@ -3789,7 +3798,12 @@ function handlePointerCancel(e) {
   })();
 
   const C3_anchor = anchors["3C"];
-  const C3_point = C3_anchor?.coord ?? C3_anchor;
+  const C3_prep = resolveAnchorPoint(normalizeAnchor(C3_anchor), resolveAnchorCtx);
+  const C3_point =
+    C3_prep ??
+    (C3_anchor && typeof C3_anchor === "object" && "coord" in C3_anchor && C3_anchor.coord
+      ? C3_anchor.coord
+      : C3_anchor);
   const C3_snapped = snapToRail(C3_point) ?? C3_point;
 
   if (anchors["2C"]) {
@@ -4005,7 +4019,9 @@ function handlePointerCancel(e) {
   const C5 = anchors["5C"];
   const C6 = anchors["6C"];
 
-  const impactRaw = calculateImpact(balls.cue, balls.target_center, CO_fg, C1_fg, thicknessForCalc || "1/2", view.pattern || "뒤돌리기", BALL_DIAMETER_RG, BALL_RADIUS_RG);
+  const impactCO = CO_prep ?? CO_rail ?? { x: balls.cue?.x ?? 0, y: balls.cue?.y ?? 0 };
+  const impactC1 = C1_prep ?? C1_rail ?? impactCO;
+  const impactRaw = calculateImpact(balls.cue, balls.target_center, impactCO, impactC1, thicknessForCalc || "1/2", view.pattern || "뒤돌리기", BALL_DIAMETER_RG, BALL_RADIUS_RG);
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
 
   // CO→1C 선은 레일 교점 사용
@@ -4036,10 +4052,10 @@ function handlePointerCancel(e) {
   }
 
   console.log("🔷 레일 교점:", {
-    "CO_fg (원본)": CO_fg,
-    "C1_fg (원본)": C1_fg,
-    "CO_rail (교점)": CO_rail,
-    "C1_rail (교점)": C1_rail
+    "CO_prep (의미점)": CO_prep,
+    "C1_prep (의미점)": C1_prep,
+    "CO_rail": CO_rail,
+    "C1_rail (SSOT)": C1_rail
   });
 
   let lastAnchor = null;
@@ -4061,10 +4077,11 @@ function handlePointerCancel(e) {
   const lastIndex = orderedKeys.indexOf(view.last_cushion);
   const visibleKeys = lastIndex >= 0 ? orderedKeys.slice(0, lastIndex + 1) : orderedKeys;
 
-  const allAnchors = { 
+  const allAnchors = {
     CO: { coord: override.CO ?? CO_rail, isFg: false },
-    "1C": { coord: override["1C"] ?? C1_rail, isFg: false },
-    "2C": { coord: C2, isFg: false }, 
+    // FIX: 1C는 항상 궤적 꺾임점(C1_rail)과 동일한 좌표를 사용
+    "1C": { coord: C1_rail, isFg: false },
+    "2C": { coord: C2, isFg: false },
     "3C": { coord: C3_snapped ?? C3_point ?? C3_anchor, isFg: false }, 
     "4C": { coord: C4, isFg: false }, 
     "5C": { coord: C5, isFg: false }, 

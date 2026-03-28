@@ -57,8 +57,8 @@ const TIP_TO_DELTA_DEG: Record<number, number> = {
   0: 0,
   1: 5,
   2: 10,
-  3: 14,
-  4: 20,
+  3: 13,
+  4: 18,
 };
 
 const SPIN_TO_TIP_EQUIV = [

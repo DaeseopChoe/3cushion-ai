@@ -1,24 +1,12 @@
 /**
  * anchorCoordinateEngine.ts
- * sys values → anchors.json 기반 좌표 계산
- * trajectory 렌더링용 CO, 1C, 3C, 4C, 5C, 6C 앵커 생성
+ * sys values → anchors.json SSOT (anchorLookupEngine), trajectory 앵커 생성
  */
 
-// ---------------------------------------------------------------------------
-// FG → RG 변환 (offset 2.25 기준)
-// ---------------------------------------------------------------------------
-const FG_X_MIN = -2.25;
-const FG_X_MAX = 82.25;
-const FG_Y_MIN = -2.25;
-const FG_Y_MAX = 42.25;
-const RG_W = 80;
-const RG_H = 40;
-
-function fgToRg(pt: { x: number; y: number }): { x: number; y: number } {
-  const x = ((pt.x - FG_X_MIN) / (FG_X_MAX - FG_X_MIN)) * RG_W;
-  const y = ((pt.y - FG_Y_MIN) / (FG_Y_MAX - FG_Y_MIN)) * RG_H;
-  return { x, y };
-}
+import {
+  getAnchorCoordFromSys,
+  type AnchorLookupMark,
+} from "./anchorLookupEngine";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -115,6 +103,15 @@ function extractSysValue(
   sysValues: Record<string, unknown> | undefined,
   candidates: string[]
 ): number | null {
+  const r = extractSysValueWithKey(sysValues, candidates);
+  return r?.value ?? null;
+}
+
+/** value + 사용된 key 반환 (ANCHOR_SPACE_TRACE용) */
+function extractSysValueWithKey(
+  sysValues: Record<string, unknown> | undefined,
+  candidates: string[]
+): { value: number; keyUsed: string } | null {
   if (!sysValues || typeof sysValues !== "object") return null;
 
   const num = (v: unknown): number | null => {
@@ -125,7 +122,7 @@ function extractSysValue(
 
   for (const key of candidates) {
     const val = num(sysValues[key]);
-    if (val != null) return val;
+    if (val != null) return { value: val, keyUsed: key };
   }
   return null;
 }
@@ -151,40 +148,58 @@ const MARK_SYS_CANDIDATES: Record<string, string[]> = {
   C6: ["C6_f", "C6_r", "6C"],
 };
 
+const ENGINE_MARK_TO_LOOKUP_MARK: Record<string, AnchorLookupMark> = {
+  CO: "CO",
+  C1: "1C",
+  C3: "3C",
+  C4: "4C",
+  C5: "5C",
+  C6: "6C",
+};
+
+export type AnchorPointWithSpace = {
+  coord: { x: number; y: number };
+  valueSpace: "Fg" | "Rg";
+};
+
 // ---------------------------------------------------------------------------
-// 2-5. sysToCoordFromAnchors
+// 2-5. sysToCoordFromAnchors (anchors.json SSOT 직접 매핑)
 // ---------------------------------------------------------------------------
 function sysToCoordFromAnchors(
-  anchorsData: AnchorsData | undefined,
+  _anchorsData: AnchorsData | undefined,
   track: string,
-  sysValues: Record<string, unknown> | undefined
-): Record<string, { x: number; y: number }> {
-  const result: Record<string, { x: number; y: number }> = {};
-  const parsed = getTrackAnchors(anchorsData, track);
-  if (!parsed.length) return result;
-
-  const byMark: Record<string, CoordPoint[]> = {};
-  for (const p of parsed) {
-    if (!byMark[p.mark]) byMark[p.mark] = [];
-    byMark[p.mark].push({ x: p.x, y: p.y, sys: p.sys });
-  }
+  sysValues: Record<string, unknown> | undefined,
+  systemId: string
+): Record<string, AnchorPointWithSpace> {
+  const result: Record<string, AnchorPointWithSpace> = {};
 
   for (const mark of Object.keys(MARK_TO_OUTPUT_KEY)) {
-    const points = byMark[mark];
-    if (!points?.length) continue;
-
     const candidates = MARK_SYS_CANDIDATES[mark];
     if (!candidates) continue;
 
-    const sysVal = extractSysValue(sysValues, candidates);
-    if (sysVal == null) continue;
+    const extracted = extractSysValueWithKey(sysValues, candidates);
+    if (extracted == null) continue;
 
-    const coord = interpolateCoord(points, sysVal);
-    if (!coord) continue;
+    const lookupMark = ENGINE_MARK_TO_LOOKUP_MARK[mark];
+    if (!lookupMark) continue;
 
-    const rg = fgToRg(coord);
+    const hit = getAnchorCoordFromSys({
+      systemId,
+      track,
+      mark: lookupMark,
+      sysValue: extracted.value,
+    });
+    if (!hit) continue;
+
     const key = MARK_TO_OUTPUT_KEY[mark];
-    result[key] = rg;
+    result[key] = hit;
+
+    console.log("[ANCHOR_SPACE_TRACE]", {
+      mark,
+      keyUsed: extracted.keyUsed,
+      coord: hit.coord,
+      valueSpace: hit.valueSpace,
+    });
   }
 
   return result;
@@ -203,11 +218,17 @@ export type GetAnchorsForRenderingInput = {
 
 function getAnchorsForRendering(
   input: GetAnchorsForRenderingInput
-): Record<string, { x: number; y: number }> {
-  const { anchorsData, track, sysValues, fallback } = input;
+): Record<string, AnchorPointWithSpace | { x: number; y: number }> {
+  const { anchorsData, track, sysValues, fallback, systemId } = input;
 
-  if (anchorsData && track && sysValues && typeof sysValues === "object" && Object.keys(sysValues).length > 0) {
-    const computed = sysToCoordFromAnchors(anchorsData, track, sysValues);
+  if (
+    anchorsData &&
+    track &&
+    sysValues &&
+    typeof sysValues === "object" &&
+    Object.keys(sysValues).length > 0
+  ) {
+    const computed = sysToCoordFromAnchors(anchorsData, track, sysValues, systemId);
     if (Object.keys(computed).length > 0) return computed;
   }
 
@@ -225,4 +246,5 @@ export {
   extractSysValue,
   sysToCoordFromAnchors,
   getAnchorsForRendering,
+  type AnchorPointWithSpace,
 };

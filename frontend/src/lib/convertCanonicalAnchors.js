@@ -2,6 +2,17 @@
 // FG → RG 변환 전용 canonical 모듈
 // 송설님 요구: 레일 교점 정확 계산
 
+function unwrapAnchor(anchor) {
+  if (!anchor) return null;
+  if (anchor.coord && typeof anchor.coord.x === "number" && typeof anchor.coord.y === "number") {
+    return { pt: anchor.coord, valueSpace: anchor.valueSpace };
+  }
+  if (typeof anchor.x === "number" && typeof anchor.y === "number") {
+    return { pt: { x: anchor.x, y: anchor.y }, valueSpace: null };
+  }
+  return null;
+}
+
 export function convertCanonicalAnchors(anchors, canonical) {
   const offset = canonical.coords.offset_fg2rg || 2.25;
 
@@ -105,14 +116,30 @@ export function convertCanonicalAnchors(anchors, canonical) {
   // -----------------------
   // 3) CO–1C 기준선 방향
   // -----------------------
-  const CO_fg = anchors["CO"];
-  const C1_fg = anchors["1C"];
+  const coUn = unwrapAnchor(anchors["CO"]);
+  const c1Un = unwrapAnchor(anchors["1C"]);
+  const CO_fg = coUn?.pt ?? null;
+  const C1_fg = c1Un?.pt ?? null;
 
-  const CO_space = detectSpace(CO_fg);
-  const C1_space = detectSpace(C1_fg);
+  const CO_space =
+    coUn?.valueSpace === "Fg"
+      ? "FG"
+      : coUn?.valueSpace === "Rg"
+        ? "RG"
+        : CO_fg
+          ? detectSpace(CO_fg)
+          : null;
+  const C1_space =
+    c1Un?.valueSpace === "Fg"
+      ? "FG"
+      : c1Un?.valueSpace === "Rg"
+        ? "RG"
+        : C1_fg
+          ? detectSpace(C1_fg)
+          : null;
 
   let baseDir = { x: 1, y: 0 };
-  if (CO_space === "FG" && C1_space === "FG") {
+  if (CO_fg && C1_fg && CO_space === "FG" && C1_space === "FG") {
     baseDir = { x: C1_fg.x - CO_fg.x, y: C1_fg.y - CO_fg.y };
   }
 
@@ -129,25 +156,34 @@ export function convertCanonicalAnchors(anchors, canonical) {
   const result = {};
 
   for (const key of Object.keys(anchors)) {
-    const pt = anchors[key];
-    if (!pt) {
+    const raw = anchors[key];
+    if (!raw) {
       result[key] = null;
       continue;
     }
 
-    const space = detectSpace(pt);
+    const un = unwrapAnchor(raw);
+    if (!un || !un.pt) {
+      result[key] = null;
+      continue;
+    }
+    const pt = un.pt;
+    const space =
+      un.valueSpace === "Fg"
+        ? "FG"
+        : un.valueSpace === "Rg"
+          ? "RG"
+          : detectSpace(pt);
 
     if (space === "RG") {
-      // 이미 RG면 그대로
       result[key] = { x: pt.x, y: pt.y };
       console.log(`  ${key} (RG):`, result[key]);
       continue;
     }
 
-    // FG → RG 교점 계산
     const rail = detectRail(pt);
     result[key] = calculateRailIntersection(pt, baseDir, rail);
-    
+
     console.log(`  ${key} (FG→RG):`, {
       fg: pt,
       rail,

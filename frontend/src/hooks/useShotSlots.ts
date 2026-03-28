@@ -64,10 +64,36 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
   for (const entry of record.strategies) {
     const slotId = entry.slot;
     if (!["S1", "S2", "S3"].includes(slotId)) continue;
+
+    const systemId = entry.signature.systemId === "5_HALF" ? "5_half_system" : (entry.signature.systemId ?? "5_half_system");
+    const inputs = entry.sysInputs ?? {};
+    const profile = SYSTEM_PROFILES[systemId];
+    const expr = profile?.formula?.expr;
+
+    const baseThreeC =
+      typeof inputs.baseThreeC === "number" ? inputs.baseThreeC
+        : (typeof inputs.C3 === "number" ? inputs.C3 : (typeof inputs.C3_r === "number" ? inputs.C3_r : 0));
+    const baseOneC =
+      typeof inputs.baseOneC === "number" ? inputs.baseOneC
+        : (typeof inputs.CO === "number" ? inputs.CO : (typeof inputs.CO_f === "number" ? inputs.CO_f : 0));
+    const exprInputs: Record<string, number> = {
+      ...inputs,
+      baseThreeC,
+      baseOneC,
+      CO_f: typeof inputs.CO_f === "number" ? inputs.CO_f : baseOneC,
+      C3_r: typeof inputs.C3_r === "number" ? inputs.C3_r : baseThreeC,
+    } as Record<string, number>;
+
+    let calcResult: Record<string, number> = {};
+    if (expr) {
+      calcResult = calculateByProfileExpr(expr, exprInputs);
+    }
+
     map[slotId] = {
       sys: {
-        systemId: entry.signature.systemId,
-        inputs: entry.sysInputs ?? {},
+        systemId,
+        inputs,
+        outputs: { result: calcResult },
       },
       hpt: entry.hpT,
       str: entry.str,
