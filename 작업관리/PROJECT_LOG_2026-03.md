@@ -599,3 +599,134 @@ ai: draft?.ai ?? applied?.ai ?? defaultAi
 - SYS rollback 원인 단일화
 - trajectory 렌더 트리거 정리
 - adminState / slot / applied 흐름 정합성 확보
+
+---
+
+# 🔥 2026-03-30 — Trajectory Engine Upgrade (SSOT + Spin Correction)
+
+## 1. Rendering 구조 개선
+
+### SSOT 확정
+
+- 기존: adminState + slot 혼합
+- 변경: 단일 소스
+
+resolvedSlotSys = slot.draft.sys ?? slot.applied.sys
+
+- adminState.sys는 렌더링에서 제외
+- 모든 궤적 계산은 resolvedSlotSysValues 기반으로 통일
+
+---
+
+## 2. Trajectory Pipeline 확정
+
+anchors  
+→ pathNodesRaw  
+→ adjustedNodes (NEW)  
+→ pathNodes  
+
+- anchor / sys / epsilon 로직은 유지
+- path 단계에서만 보정 수행
+
+---
+
+## 3. Spin Correction Layer 도입 (핵심)
+
+### 적용 위치
+
+- pathNodes 생성 이후
+- C3 이후 구간 (C4 ~ C6)
+
+---
+
+### (1) Progress 기반 감쇠
+
+progress = 누적거리 / 전체거리
+
+- progress ≥ 0.85 → spin 50%
+
+---
+
+### (2) Direction 판별
+
+cross = (B-A) × (C-B)
+
+- forward: cross ≥ 0
+- reverse: cross < 0
+
+---
+
+### (3) Spin 적용
+
+r_final = rotate(r, spin * k)
+
+- k ≈ 0.015
+- forward → +
+- reverse → -
+
+---
+
+## 4. 현재 한계
+
+- 누적 보정 방식 (오차 누적 가능)
+- 충돌 물리 (두께 / 회전 증가) 미반영
+- C7 앵커 없음 (reflection 기반 확장 예정)
+
+---
+
+## 5. Position 저장 구조 개편
+
+### positionId
+
+- Ball3 기반 deterministic id
+- round(v * 10) → pad → concat
+
+---
+
+### 구조
+
+PositionRecord
+- positionId
+- balls
+- strategies:
+  - S1
+  - S2
+  - S3
+
+---
+
+### 규칙
+
+- 슬롯당 전략 1개
+- 동일 positionId → merge
+- family 단위 저장
+
+---
+
+## 6. Recall 구조
+
+- nearest 1 family만 사용
+- exact match 우선
+- fallback: 거리 합 최소
+
+epsilon = 2.0
+
+---
+
+## 7. 주요 안정화 성과
+
+- S1 trajectory flicker 문제 해결
+- C4~C6 anchor 누락 문제 해결
+- C3 fallback 구조 안정화
+- sys overwrite 구조 제거
+
+---
+
+## 8. 다음 단계 (예정)
+
+- spin 누적 오차 제거 (non-accumulative 옵션)
+- STR → 실제 spin 매핑 정교화
+- C7 reflection 확장
+- collision physics (장기)
+
+---
