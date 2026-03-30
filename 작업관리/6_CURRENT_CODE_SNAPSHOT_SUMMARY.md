@@ -1,8 +1,33 @@
 # CURRENT_CODE_SNAPSHOT_SUMMARY
 3Cushion AI – Session Change Summary
-Version: v0.5
-Date: 2026-03-19
+Version: v0.6
+Date: 2026-03-28
 Author: 목계님
+
+------------------------------------------------------------
+
+# [2026-03-28] Anchors SSOT · Recall result · CO regression · 2C Δθ 튜닝
+
+## 목적
+문서·코드 정합: 렌더 좌표는 **anchors lookup**, Recall은 **outputs.result** 필수, **CO_rail 조건부**, C1은 **교점 SSOT**, spin **TIP_TO_DELTA_DEG** 미세 조정.
+
+## 파일별 책임 (현재 코드 기준)
+
+| 파일 | 책임 |
+|------|------|
+| **App.jsx** | sysValues 조립, `getAnchorsForRendering`, `normalizeAnchor`/`resolveAnchorPoint`, `C1_rail = computeRailImpactPoint(..., mark:"1C")`, **`CO_rail`**: `isBottomCO`일 때만 `mark:"CO"` 교점 시도·성공 시만 덮어씀, 그 외 `CO_prep`, `allAnchors["1C"]` = `C1_rail`, reflection/C3/쿠션 경로 조립 |
+| **domain/anchorLookupEngine.ts** | `getAnchorCoordFromSys`: track+mark+sysValue → `anchors.json` knot 보간, `coord` + `valueSpace` |
+| **domain/anchorCoordinateEngine.ts** | `getAnchorsForRendering`: sysValues에서 CO_f/C1_f 등 후보 → lookup 호출 → 렌더용 맵 |
+| **utils/geometry/anchorResolve.ts** | `normalizeAnchor`, `resolveAnchorPoint`(Fg **snap 없음**), `computeRailImpactPoint`(직선–레일 교점; 내부 fallback은 C1 경로에서만 CO에 영향 없도록 App이 CO를 가드) |
+| **domain/reflectionEngine.ts** | `TIP_TO_DELTA_DEG`: 0–4 → **0,5,10,13,18**; SPIN_TO_TIP_EQUIV, 2C 후보·반사 로직 |
+
+## 검증 포인트 (5_half_system, B2T_R)
+- CO_f=50: CO_rail ≈ 하단 교점 (Rg y=0 근처)
+- CO_f=60/70: CO_rail = CO_prep (LEFT Fg 점 유지)
+- Recall 후 CO–1C–2C–3C 연속 표시
+
+## 구조 영향
+계산 파이프라인·Recall 데이터 보강·CO 가드 → **경미 이상**; MASTER_STATE v2.4 갱신.
 
 ------------------------------------------------------------
 이 문서는 “최근 세션에서 발생한 코드 변경 사항”을 요약하는 문서이다.
@@ -796,16 +821,13 @@ PhysicsEngine
 
 ---
 
-### 2. TIP_TO_DELTA_DEG 변경
+### 2. TIP_TO_DELTA_DEG 변경 (누적)
 
-**기존:**
-- 1: 7.125, 2: 14.036, 3: 20.556, 4: 26.565
+**더 이전:** 1: 7.125, 2: 14.036, 3: 20.556, 4: 26.565
 
-**현재:**
-- 1: 5, 2: 10, 3: 14, 4: 20
+**2026-03 중반:** 1: 5, 2: 10, 3: 14, 4: 20
 
-**의미:**
-- 실제 당구 반사각에 맞게 현실적 보정값 적용
+**2026-03-28:** 1: 5, 2: 10, 3: **13**, 4: **18** — 3·4팁 과보정 완화 (테이블 값만 변경, 구조 동일)
 
 ---
 
@@ -836,5 +858,27 @@ SPIN_TO_TIP_EQUIV:
 
 **정책:**
 - 좌표는 소수점 1자리까지 제한 (round1)
+
+------------------------------------------------------------
+
+# [2026-03-28] Slot / SSOT / adminState sync — documentation & behavior snapshot
+
+## 목적
+
+슬롯·공 SSOT·Position LOCK·슬롯 전환 정책을 문서 SSOT와 맞추고, **현재 코드 동기화 상태와 잔여 리스크**를 요약한다.
+
+## Current sync behavior (코드 기준 요약)
+
+| 영역 | 상태 | 비고 |
+|------|------|------|
+| **Position LOCK** | `syncBallsToAllSlots` | balls만 deep copy; `draft`/`applied` 비변경 — 의도대로 |
+| **Slot switch** | `currentId` / JSON reload 제거 | `ballsState`·`view` 유지; `activeSlot`만 변경 — 의도대로 |
+| **adminState sync** | 슬롯 → `adminState` `useEffect` | `sys`는 `prev.sys`와 `draft`/`applied`의 base **merge**; `system_id` 정규화. **부분적으로만 안정** |
+| **Remaining issues** | SYS 슬롯 반영·지속 | 슬롯에 sys가 기대대로 남지 않거나, 렌더가 불안정한 소스를 읽는 문제 가능 |
+
+## Intended vs unstable
+
+- **문서(`3_SYSTEM_ARCHITECTURE`, `2_FRONTEND_ARCHITECTURE_BASELINE_v1`)** 는 **의도 아키텍처**를 기술한다.
+- **현재 구현**은 SYS 지속성·궤적 렌더·슬롯 일관성이 **완전히 안정적이지 않을 수 있다** (`5_PROJECT_MASTER_STATE_CURRENT.md` Known critical issues 참고).
 
 ------------------------------------------------------------

@@ -4,6 +4,9 @@ expr 평가 방식, 보정 규칙, Admin/App 모드 차이, 상태 반영 파이
 1️⃣ 현재 계산 관련 파일 구조
 frontend/src/
  ├── admin/sys/useSysCalculation.ts
+ ├── domain/anchorLookupEngine.ts
+ ├── domain/anchorCoordinateEngine.ts
+ ├── utils/geometry/anchorResolve.ts
  ├── utils/systemCalculator.ts
  ├── utils/trajectorySampleBuilder.ts
  ├── hooks/useShotSlots.ts
@@ -18,15 +21,13 @@ frontend/src/
 
 계산은 다음 엔진 계층으로 이루어진다.
 
-[System Engine]
+[System Engine / expr]
    ↓
-[AnchorCoordinateEngine]
+[AnchorCoordinateEngine + anchorLookupEngine → anchors.json SSOT]
    ↓
-[CalibrationEngine]
+[Geometry: resolveAnchorPoint, rail 교점, 2C reflection]
    ↓
-[Trajectory Engine]
-   ↓
-[Physics Engine]
+[Trajectory / sample / Physics]
 
 3️⃣ 표기 규칙 (Naming Convention)
 3.1 시스템 값 표기
@@ -107,10 +108,12 @@ Admin은 실험/디버깅 모드이며,
 
 7️⃣ App 계산 규칙
 
-파일:
+**Admin vs App (좌표):**
 
-utils/systemCalculator.ts
+- **Admin / expr:** `profile.formula.expr` + `calculateByProfileExpr` → **시스템 스칼라** (C1_f, C3_r 등). anchors.json을 직접 읽지 않는다.
+- **App 렌더·궤적:** 동일 스칼라를 **sysValues**로 모아 `getAnchorsForRendering` → **anchorLookupEngine**이 `anchors.json`에서 **coord + valueSpace**를 보간한다. **“좌표는 계산하지 않고 anchors에서 꺼낸다.”**
 
+관련 파일: `App.jsx`, `domain/anchorCoordinateEngine.ts`, `domain/anchorLookupEngine.ts`, `utils/geometry/anchorResolve.ts`, `lib/convertCanonicalAnchors.js`, `utils/systemCalculator.ts`, `utils/trajectorySampleBuilder.ts`.
 
 App 계산은 다음 단계를 따른다:
 
@@ -120,11 +123,13 @@ value_domains 검증
 
 space_rule 검증
 
-calculateByProfileExpr 실행
+calculateByProfileExpr 실행 → **draft.sys.outputs.result** (UI·렌더가 이 result를 sysValues에 병합해 사용)
 
-anchors 기반 보정 적용
+anchors.json SSOT lookup + (선택) canonical 변환
 
-trajectorySampleBuilder 호출
+geometry: resolveAnchorPoint, computeRailImpactPoint(C1), 조건부 CO_rail
+
+trajectorySampleBuilder 호출 (파생 샘플 등)
 
 8️⃣ Draft / Applied 반영 규칙
 
@@ -140,24 +145,27 @@ applied.sys
    ↓
 useTrajectoryState.applySysResult()
 
+**Recall:** `buildDraftsFromRecord`가 저장된 `sysInputs`로 **다시 `calculateByProfileExpr`를 실행**해 `draft.sys.outputs.result`를 채운다. result가 비면 `getAnchorsForRendering`이 1C 등을 만들지 못해 **rawAnchors 비어 궤적이 사라지는 문제**가 있었음 → 위 보강으로 해소.
 
 ✔ Draft는 실시간 계산
 ✔ Applied만 확정
 
 9️⃣ 전략 → 궤적 → 물리 연결 구조
-expr 계산
+expr 계산 (스칼라)
    ↓
-System result
+outputs.result + inputs → sysValues
    ↓
-AnchorCoordinateEngine (anchors.json → sys 좌표)
+getAnchorsForRendering (anchors.json → coord + valueSpace)
    ↓
-CalibrationEngine (impact pivot 기준 보정)
+resolveAnchorPoint (Fg: snap 금지) / computeRailImpactPoint (C1_rail SSOT) / CO_rail 조건부
    ↓
-Trajectory adjusted
+2C reflection (필요 시) / cushion path
    ↓
 Physics (Impact 계산)
    ↓
 Stage 렌더
+
+※ `calibrationEngine.calibrateTrajectory`는 모듈로 존재하나 **현 App 메인 경로에서 호출하지 않음**.
 
 9️⃣-1 Trajectory Reference Model
 
@@ -171,32 +179,36 @@ Stage 렌더
 sys → anchors.json → coordinate interpolation
 anchors.json id 형식: CO_(82.25,10)_60 → mark, x, y, sys 파싱
 
-9️⃣-3 FG / RG 판단 규칙
+9️⃣-3 FG / RG 의미 공간 (valueSpace)
 
-FG: x 또는 y = -2.25 / 42.25 / 82.25 (프레임 기준)
-RG: 그 외 좌표 (rail 기준)
+**coord:** lookup·저장된 표현 좌표.
 
-9️⃣-4 Calibration Rule
+**valueSpace `Fg`:** 프레임 부근 **의미·방향점** (예: C1_f → 상단 프레임 y=42.25 근처). **`snapToRail` 대상이 아님** — `resolveAnchorPoint`는 좌표를 바꾸지 않는다.
 
-impact pivot 기준
-CO → C1 라인 재계산
-rawAnchors → calibrateTrajectory → rawAnchorsCalibrated
+**valueSpace `Rg`:** 레일 맞음 좌표로 쓰는 표현.
+
+**역할 분리:**
+
+- **C1_f / rawAnchors["1C"]:** lookup된 **방향점(Fg)**.
+- **C1_rail:** CO–1C 직선과 첫 쿠션 레일의 **실제 충돌점** (`computeRailImpactPoint`, mark `"1C"`).
+- **C3_r:** 입력·lookup 모두 **레일 계열 값**; 앵커 좌표는 SSOT에서 사용.
+
+9️⃣-4 Calibration Rule (모듈)
+
+`calibrationEngine.ts`: impact pivot 기준 CO→C1 보정 **가능**. **현재 App.jsx 궤적 조립에서는 사용하지 않음.**
 
 🔟 5_half_system 특수 보정 규칙
 
-공식:
+**앵커 기하 (B2T_R):** CO_f=50은 코너 `(-2.25,-2.25)`. CO_f>50은 **LEFT 레일**에서 y 증가하는 구간. CO_rail은 하단 교점을 **조건부**만 사용 (App `isBottomCO`).
+
+공식 (expr / logic):
 
 Sn = (CO_f - 50) * 0.5
 C4_f = C3_r + Sn
 C5_f = C4_f
 C6_f = C4_f
 
-
-적용 위치:
-
-logic.json
-
-계산 엔진 내부 분기
+적용 위치: logic.json, expr 평가
 
 1️⃣1️⃣ value_domains 규칙
 
@@ -313,11 +325,12 @@ thetaOutDeg = thetaReflectDeg + spinAdjustDeg + 180
 
 spinAdjustDeg = sign × Δθ
 
-Δθ (TIP_TO_DELTA_DEG):
+Δθ (`reflectionEngine.ts` 내 `TIP_TO_DELTA_DEG`, 구조 변경 없이 값만 튜닝):
+
 - 1팁 = 5°
 - 2팁 = 10°
-- 3팁 = 14°
-- 4팁 = 20°
+- 3팁 = **13°** (과보정 완화)
+- 4팁 = **18°** (과보정 완화)
 
 1️⃣6️⃣-3 Joystick Spin 처리
 
@@ -326,6 +339,21 @@ spinAdjustDeg = sign × Δθ
 
 결론:
 - spin은 직접 각도가 아니라 tip 기반 보정값으로 적용됨
+
+1️⃣6️⃣-4 Trajectory rendering rule (2026-03)
+
+궤적(Trajectory) 표시는 다음이 **모두 충족될 때만** 수행하는 것을 원칙으로 한다.
+
+- **`sys.system_id`** 가 유효하다 (시스템이 선택·식별 가능하고 파이프라인과 일치).
+- 해당 시스템·프로파일이 요구하는 **입력·출력(CO, C1, C3 등)** 이 현재 계산 패스에서 **완전**하다.
+- **계산이 확정(finalized)** 된 상태이다 (중간 partial 상태만으로는 확정으로 보지 않음).
+
+### Warning
+
+- **partial `sys` 상태**만으로는 궤적 렌더를 트리거하지 않는다. 슬롯 전환·`useEffect` 병합 직후 등 **덮어쓰기/타이밍 레이스**로 인한 중간 상태는 렌더 조건에서 제외하는 것이 안전하다.
+- 렌더는 가능한 한 **`adminState` / 확정된 슬롯 전략** 같은 **안정된 소스**를 기준으로 한다.
+
+⚠ 구현상 `App.jsx`의 조건·타이밍이 위 원칙과 어긋나면 플리커·롤백 현상이 발생할 수 있다. 알려진 이슈는 `5_PROJECT_MASTER_STATE_CURRENT.md` 참고.
 
 📌 최종 선언
 

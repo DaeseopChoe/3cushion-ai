@@ -1,7 +1,7 @@
 # PROJECT_MASTER_STATE_CURRENT
 3Cushion AI – Current Code State Snapshot
-Version: v2.3
-Last Updated: 2026-03-19
+Version: v2.4
+Last Updated: 2026-03-28
 Owner: 목계님
 
 ------------------------------------------------------------
@@ -85,8 +85,10 @@ data/
   system/calculator/
 
 domain/
+  anchorLookupEngine.ts
   anchorCoordinateEngine.ts
   calibrationEngine.ts
+  reflectionEngine.ts
   railEngine.ts
   strategyEngine.ts
   adminSaveEngine.ts
@@ -117,6 +119,7 @@ utils/
     coords.ts
     line.ts
     rail.ts
+    anchorResolve.ts
   physics/
     impact.ts
     systemLine.ts
@@ -202,38 +205,42 @@ IDLE → ADJUSTING → APPLIED
 
 # 5. 전략 → 궤적 → 물리 연결 구조 (현재)
 
-Admin SysOverlay
+Admin SysOverlay / Recall draft
    ↓
-calculateByProfileExpr
+calculateByProfileExpr → draft.sys.outputs.result (Recall은 buildDraftsFromRecord에서 재실행)
    ↓
-useShotSlots.updateDraftSys
+useShotSlots.updateDraftSys / applyDraftSys
    ↓
-applyDraftSys
+getAnchorsForRendering: anchorLookupEngine + anchorCoordinateEngine (anchors.json SSOT, coord + valueSpace)
    ↓
-anchorCoordinateEngine (anchors.json → sys 좌표)
+utils/geometry/anchorResolve (resolveAnchorPoint; Fg snap 없음) + computeRailImpactPoint (C1_rail)
    ↓
-calibrationEngine (impact pivot 기준 CO→C1 보정)
+App.jsx: CO_rail = 조건부 하단 교점 (isBottomCO), 그 외 CO_prep 유지
+   ↓
+reflectionEngine (2C 자동) when anchors["2C"] 없음
    ↓
 useTrajectoryState.applySysResult
    ↓
-domain/buildRailGroupedStrategy (전략·레일 가공)
+domain/buildRailGroupedStrategy
    ↓
-utils/physics/* (Impact 계산)
+utils/physics/* (Impact)
    ↓
-hooks/useCoachingController (T, impactBall, guideLine)
+hooks/useCoachingController
    ↓
-components/table/* (렌더, SystemGrid)
+components/table/*
    ↓
-Stage (App.jsx 조립)
+Stage (App.jsx)
 
-※ Strategy 가공·Physics·Render는 분리 완료. Config는 config/tableConfig.
+※ calibrationEngine 모듈은 존재하나 **현 App 경로에서 calibrateTrajectory 미호출**.
 
 ------------------------------------------------------------
 
 # 5.5 Domain Layer Additions (2026-03)
 
-- anchorCoordinateEngine.ts: anchors.json 기반 sys → 좌표 계산 (parseAnchorId, getTrackAnchors, interpolateCoord, sysToCoordFromAnchors, getAnchorsForRendering)
-- calibrationEngine.ts: impact pivot 기준 CO → C1 라인 보정 (rawAnchors → calibrateTrajectory → rawAnchorsCalibrated)
+- anchorLookupEngine.ts: anchors.json mark+sys → getAnchorCoordFromSys (보간, valueSpace 부여)
+- anchorCoordinateEngine.ts: sysValues → getAnchorsForRendering (후보 키 CO_f, C1_f 등)
+- calibrationEngine.ts: (모듈만 존재; App 메인 궤적에서 미사용)
+- reflectionEngine.ts: 2C 후보, TIP_TO_DELTA_DEG 등
 - anchorsRegistry.ts (data/systems/): 모든 anchors.json 자동 로딩 (32 systems)
 - adminSaveEngine.ts: createStrategyEntry, buildStrategyMeta (positionMergeEngine re-export)
 - positionMergeEngine.ts: Position 병합 (upsertPositionRecord, isSameBalls, findSimilarPosition, mergeStrategyIntoPosition)
@@ -247,8 +254,9 @@ Stage (App.jsx 조립)
 # 5.5.1 Geometry Module (utils/geometry/)
 
 - line.ts: computeLineFromPoints
-- rail.ts: lineRailIntersection, computeRailPoints, buildCushionPath
-- App.jsx CO→C1 rail 교점 계산 분리
+- rail.ts: lineRailIntersection, computeRailPoints, buildCushionPath, snapToRail
+- anchorResolve.ts: normalizeAnchor, resolveAnchorPoint (Fg snap 없음), computeRailImpactPoint
+- App.jsx: CO_rail 조건부, C1_rail = computeRailImpactPoint mark "1C"; allAnchors["1C"] = C1_rail
 
 # 5.5.2 SystemGrid (components/table/)
 
@@ -334,12 +342,13 @@ StrategyMeta now includes:
 - `runPositionRecall` (positionRecallEngine) 사용
 - `applyPositionRecall` draft만 업데이트 (balls 변경 없음)
 
-### Recall 동작 정의 (2026-03 업데이트)
+### Recall 동작 정의 (2026-03 업데이트, 2026-03-28 보강)
 
 - Recall은 balls를 변경하지 않는다.
 - Recall은 draft 상태만 변경한다.
 - applied 상태는 변경하지 않는다.
 - SAVE 수행 전까지 dataset에는 반영되지 않는다.
+- **buildDraftsFromRecord:** 저장된 `sysInputs`로 `calculateByProfileExpr`를 실행해 **`draft.sys.outputs.result`를 채운다.** (과거: inputs만 → result 비어 1C lookup 실패·CO-1C-2C-3C 궤적 소실)
 
 ### UI 데이터 소스 정책
 
@@ -614,9 +623,9 @@ onePointLessons: LessonItem[];
 
 ## 1. 신규 엔진 계층
 
-- **AnchorCoordinateEngine**: anchors.json 기반 sys → 좌표 계산
-- **CalibrationEngine**: impact pivot 기준 CO→C1 보정
-- **Geometry Module**: line.ts, rail.ts (computeLineFromPoints, lineRailIntersection, buildCushionPath)
+- **anchorLookupEngine / AnchorCoordinateEngine**: anchors.json SSOT → sys 보간 좌표
+- **CalibrationEngine**: (모듈 존재; App 메인 궤적 경로 미사용)
+- **Geometry Module**: line.ts, rail.ts, **anchorResolve.ts**
 
 ## 2. anchorsRegistry
 
@@ -636,21 +645,22 @@ onePointLessons: LessonItem[];
 
 ### 📌 현재 프로젝트 안정 상태 요약
 
-**2026-03 기준:**
+**2026-03-28 기준 (v2.4):**
 
-- HPT 구조 안정화 완료
-- SYS 연동 오류 해결
-- AI 전략 생성 구조 확정
-- STR 기본값 확정
-- 원 포인트 레슨 관리 시스템 도입
-- 관리자 인터랙션 구조 완성
-- AI 버튼 설정 작업 1차 완료
-- AnchorCoordinateEngine / CalibrationEngine 도입
-- anchorsRegistry / SystemGrid 도입
-- Trajectory Reference Model 명확화 (CO→C1→...→C6)
+- HPT / SYS / AI / STR / 원포인트 레슨: 유지
+- **anchors.json 좌표 SSOT** + anchorLookupEngine / anchorCoordinateEngine
+- **valueSpace (Fg/Rg)** + resolveAnchorPoint **Fg snap 제거**
+- **Recall → outputs.result 복구** (buildDraftsFromRecord + expr)
+- **1C 라벨 = C1_rail** (allAnchors 고정), override와 꺾임점 정합
+- **CO regression 복구** (isBottomCO 조건부 교점; LEFT 구간 CO_prep 유지)
+- **2C reflection:** TIP_TO_DELTA_DEG 3팁 13°, 4팁 18° (1차 튜닝)
+- anchorsRegistry / SystemGrid / Trajectory Reference Model: 유지
 
-현재 프론트엔드는 구조적으로 안정된 상태이며,
-이 시점을 기준으로 기능 확장 단계로 전환 가능하다.
+**남은 과제:**
+
+- 2C reflection **실전 샷 기반 미세 보정**
+- computeRailImpactPoint **fallback 정리** (CO는 App에서 이미 가드; C1 등 일원화 검토)
+- anchor / rail / reflection **장기 리팩터링** (SSOT·좌표계 단일화)
 
 ------------------------------------------------------------
 
@@ -659,15 +669,48 @@ onePointLessons: LessonItem[];
 ## Current State Summary
 
 - **Reflection Engine:** Stable
-- **Spin Model:** Calibrated (TIP_TO_DELTA_DEG: 5/10/14/20)
+- **Spin Model:** Calibrated (TIP_TO_DELTA_DEG: **5 / 10 / 13 / 18** — 3·4팁 과보정 완화)
 - **Input System:** Fixed (tipCount direct, joystick → tip equivalent)
 - **Anchor System:** Editable (더블클릭 + 좌표 입력, anchorsOverride)
 - **Calibration Tool:** Ready (anchor 직접 수정으로 미세 보정)
 - **Data Export Structure:** In Design (ADMIN → JSON → USER)
 
-## 주요 변경 (이번 세션)
+## 주요 변경 (누적)
 
 1. HP/T: r 제거 → tipCount 직접 사용
-2. TIP_TO_DELTA_DEG: 현실값 (5/10/14/20)
+2. TIP_TO_DELTA_DEG: **5 / 10 / 13 / 18** (3·4팁 1차 튜닝)
 3. Joystick: SPIN_TO_TIP_EQUIV 보간
 4. Anchor: anchorsOverride, 직접 편집, localStorage
+
+------------------------------------------------------------
+
+# Known critical issues (2026-03)
+
+⚠ 아래는 **문서화된 가설·관측**이며, 코드가 완전히 안정화되었다는 뜻이 아니다.
+
+### 1. SYS apply rollback
+
+- SYS 적용 직후 한동안 궤적·값이 보였다가 **이전 값으로 되돌아가는** 현상이 보고됨.
+
+### 2. Trajectory flicker
+
+- 궤적이 **잠깐 보였다 사라지는** 플리커.
+
+### 3. S1 SAVE 후 궤적 소실
+
+- S1에서 SAVE 이후 **궤적이 사라지는** 현상.
+
+### 4. Slot desync
+
+- **S1:** 궤적 없음 / 이상 동작.
+- **S2/S3:** 이전 슬롯·stale `sys` 값이 남는 **불일치**.
+
+### Trajectory / render timing
+
+- **최종 계산 완료 시점**과 **렌더가 읽는 상태**의 조건이 어긋나 partial state로 그리거나, 직후 다른 effect가 덮어쓰는 경우가 의심됨.
+
+### Root cause hypothesis
+
+- **`adminState` ↔ slot (`draft`/`applied`) ↔ render** 파이프라인에서 상태 소스·타이밍이 충돌 (merge 규칙·`useEffect` 순서·SAVE 이후 스냅샷 등).
+
+→ 의도 아키텍처는 `3_SYSTEM_ARCHITECTURE.md` Slot Architecture / `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` State Separation 참고. **현재 구현은 불안정할 수 있음.**
