@@ -5,7 +5,6 @@ export default function CoachingOverlay({
   guideLine,
   impactBallPx,
   impactBallRadius,
-  impactBallColor,
   impactBallOpacity,
   onImpactBallDoubleClick,
   impactBallCursor
@@ -19,11 +18,8 @@ export default function CoachingOverlay({
         cx={impactBallPx.cx}
         cy={impactBallPx.cy}
         r={impactBallRadius}
-        fill="none"
-        stroke={impactBallColor}
-        strokeWidth={2}
-        strokeDasharray="4 2"
-        opacity={impactBallOpacity}
+        fill="#F3F4F6"
+        opacity={impactBallOpacity ?? 0.6}
         shapeRendering="geometricPrecision"
         pointerEvents="all"
         onDoubleClick={onImpactBallDoubleClick}

@@ -714,3 +714,64 @@ onePointLessons: LessonItem[];
 - **`adminState` ↔ slot (`draft`/`applied`) ↔ render** 파이프라인에서 상태 소스·타이밍이 충돌 (merge 규칙·`useEffect` 순서·SAVE 이후 스냅샷 등).
 
 → 의도 아키텍처는 `3_SYSTEM_ARCHITECTURE.md` Slot Architecture / `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` State Separation 참고. **현재 구현은 불안정할 수 있음.**
+
+---
+
+# 🆕 CURRENT ENGINE STATE (2026-03)
+
+## 1. Rendering SSOT
+
+- 궤적 계산은 단일 소스 기반:
+
+  `resolvedSlotSys = slot.draft.sys ?? slot.applied.sys`
+
+- `adminState.sys`는 렌더 SSOT에서 제외됨
+- 모든 궤적 계산은 `resolvedSlotSysValues` 기반 (`inputs ∪ outputs.result`)
+
+---
+
+## 2. Trajectory Pipeline
+
+`anchors` → `pathNodesRaw` → `adjustedNodes` → `pathNodes`
+
+- anchor / sys / epsilon 로직은 수정하지 않음
+- path 단계에서만 보정 수행
+
+---
+
+## 3. Spin Correction Layer (NEW)
+
+C3 이후 구간에 대해:
+
+- progress 기반 spin decay 적용
+- forward / reverse 방향 판별
+- vector 회전 기반 궤적 보정
+
+### Spin Decay
+
+- progress ≥ 0.85 → spin 50% 적용
+
+### Direction
+
+- cross product 기반
+  - forward: +
+  - reverse: -
+
+---
+
+## 4. Known Limitation
+
+- spin 보정은 누적 방식 (오차 누적 가능)
+- collision physics (두께/충돌 회전) 미반영
+- C7 앵커 없음 (향후 reflection 기반 확장 예정)
+
+---
+
+## 5. PositionId + family 저장 + recall
+
+- **positionId:** Ball3만 사용, `round(v×10)` + `padStart(3)` 6토큰 concat (`positionId.ts`). targetBall 미포함.
+- **PositionRecord:** `strategies`는 배열이 아니라 `S1` / `S2` / `S3` 슬롯 맵(슬롯당 전략 1개). 동일 `positionId` 또는 ε-동일 볼이면 레코드 merge.
+- **Recall (Position LOCK ON):** `recallPosition` — exact `positionId` 우선, 없으면 `calcBall3DistanceSum` 최소 레코드, `minDist ≤ 2.0`일 때만. 성공 시 `applyPositionRecall`로 draft만 채움.
+- 상세: `POSITION_RECALL_AND_SAVE_REDESIGN.md`, `positionMergeEngine.ts`, `positionRecallEngine.ts`.
+
+---

@@ -1,5 +1,6 @@
 import {
   findNearestPositions,
+  listStrategiesInRecord,
   type Ball3,
   type PositionRecord,
   type StrategyEntry,
@@ -73,7 +74,7 @@ export function recommendForUser(
   const collected: StrategyEntry[] = [];
 
   for (const pos of nearestPositions) {
-    const filtered = filterStrategiesBySignature(pos.strategies, signature);
+    const filtered = filterStrategiesInRecord(pos, signature);
     collected.push(...filtered);
   }
 

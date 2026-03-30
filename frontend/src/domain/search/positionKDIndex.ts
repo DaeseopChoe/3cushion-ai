@@ -44,7 +44,9 @@ export class PositionKDIndex {
 
     for (const rec of dataset) {
       const seenKeys = new Set<string>();
-      for (const entry of rec.strategies) {
+      for (const slotId of ["S1", "S2", "S3"] as const) {
+        const entry = rec.strategies[slotId];
+        if (!entry) continue;
         const key = makeSignatureKey(entry.signature);
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);

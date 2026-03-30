@@ -468,3 +468,134 @@ ai: draft?.ai ?? applied?.ai ?? defaultAi
 - Recall 결과가 UI에 즉시 반영됨
 - 사용자 작업 흐름 단순화
 - dataset 오염 방지 (balls 고정)
+
+---
+
+# [2026-03-28] Recall outputs.result · anchors SSOT 정합 · CO regression · geometry · 2C Δθ
+
+## 1. Recall → rawAnchors 비어 궤적 소실
+
+| 항목 | 내용 |
+|------|------|
+| **이슈** | `buildDraftsFromRecord`가 `inputs`만 넣고 `outputs.result`를 비워 둠 → `getAnchorsForRendering`이 C1 등 lookup 키 부족 → `rawAnchors["1C"]` 공백 → C1_rail/2C 단절 |
+| **원인** | Recall 경로에서 `calculateByProfileExpr` 미실행 |
+| **수정** | `useShotSlots.ts` `buildDraftsFromRecord` 내 `expr` 존재 시 `calculateByProfileExpr(expr, exprInputs)` → `draft.sys.outputs.result` 할당 |
+| **결과** | Recall 후에도 CO–1C–2C–3C 궤적 복원 |
+
+## 2. 1C 라벨 vs 꺾임점 불일치 (override)
+
+| 항목 | 내용 |
+|------|------|
+| **이슈** | `allAnchors["1C"]`가 `override["1C"]` 등으로 잡혀 라벨이 C1_rail과 어긋남 |
+| **수정** | `App.jsx` `allAnchors["1C"]`를 **`C1_rail` 고정** (주석: 궤적 꺾임점과 일치) |
+| **결과** | 라벨·경로 정합 |
+
+## 3. Fg/Rg 의미 · resolveAnchorPoint
+
+| 항목 | 내용 |
+|------|------|
+| **이슈** | Fg 점에 `snapToRail` 성격 처리 시 C1_f (50,42.25) 등이 (50,40)으로 붕괴 |
+| **원칙** | Fg는 방향·의미점, Rg는 레일 표현; **좌표는 anchors lookup SSOT** |
+| **수정** | `resolveAnchorPoint`는 coord를 그대로 반환 (Fg snap 제거 유지) |
+| **역할** | C1_rail = `computeRailImpactPoint(..., mark:"1C")` 가 실제 첫 쿠션 충돌점 SSOT |
+
+## 4. anchors SSOT · 엔진 역할
+
+| 항목 | 내용 |
+|------|------|
+| **정리** | `profile`/expr = **스칼라** 규칙; **렌더 좌표** = `anchors.json` + `anchorLookupEngine` + `anchorCoordinateEngine` |
+| **구조** | sys → lookup → `{ coord, valueSpace }` |
+
+## 5. CO regression (5_half CO_f > 50)
+
+| 항목 | 내용 |
+|------|------|
+| **이슈** | `CO_rail = computeRailImpactPoint(..., mark:"CO")` 단독 사용 시 B2T에서 항상 BOTTOM 교점 시도 → CO가 LEFT에만 있을 때 교점 실패 → 내부 fallback으로 튐 |
+| **원인** | 5_half B2T_R: CO_50 코너, CO>50은 LEFT 상승 — **하단 조건 없이** 교점만 보던 회귀 |
+| **수정** | `App.jsx`: `isBottomCO` (`|y+2.25|<0.5`)일 때만 CO 교점 시도, 성공 시만 덮어씀; 아니면 `CO_prep` 유지 |
+| **결과** | CO_60/70 LEFT 유지, 2C reflection 입력 정상화 |
+
+## 6. 2C reflection Δθ 1차 튜닝
+
+| 항목 | 내용 |
+|------|------|
+| **이슈** | 3·4팁 구간 과보정 체감 |
+| **수정** | `reflectionEngine.ts` `TIP_TO_DELTA_DEG`: 3팁 **13°**, 4팁 **18°** (0/1/2는 0/5/10 유지) |
+| **범위** | lookup 테이블 숫자만; 분기/함수 구조 변경 없음 |
+| **다음** | 실전 샷 기준 미세 보정 |
+
+## 7. 설계 논의 (기록)
+
+교점 불가 시 **fallback**을 점 우선 vs 직선 우선으로 둘 수 있으나, **1C(SSOT)**는 직선–레일 **교점**을 채택. **CO**는 교점 실패 시 의미점 유선이라 App에서 조건부 호출로 정리.
+
+---
+
+# [2026-03-30] Slot 구조 정립 + SSOT 확정 + SYS/Trajectory 불안정 발생
+
+## 1. 구조 확정
+
+- S1/S2/S3 = 동일 테이블 + 다른 전략
+- Position(balls)은 공유
+- 전략(sys/hpt/str/ai)은 슬롯별 독립
+
+---
+
+## 2. SSOT 구조 확정
+
+- ballsState → 테이블 렌더 SSOT
+- shotEditor.slots → 슬롯별 상태 저장
+- adminState → UI 및 계산용 상태
+
+---
+
+## 3. 핵심 변경
+
+- currentId 제거 → view reload 제거
+- 슬롯 전환 시 ballsState 유지
+- Position LOCK 시 balls만 전 슬롯 동기화
+
+---
+
+## 4. adminState 동기화 변경
+
+- prev.sys 기반 merge 구조 적용
+- system_id / track / inputs 정규화
+- draft/applied → adminState 연결 유지
+
+---
+
+## 5. 발생 문제 (Critical)
+
+### (1) SYS 값 롤백
+- Apply 직후 반영 → 이후 이전값으로 복귀
+
+### (2) 궤적 사라짐
+- SAVE 이후 S1 궤적 소실
+- 일부 구간(C3/C4 이후) 미표시
+
+### (3) 렌더 타이밍 불일치
+- 계산 완료 시점 ≠ 렌더 트리거 시점
+
+---
+
+## 6. 원인 후보
+
+- adminState ↔ slot.draft ↔ applied 불일치
+- SAVE 시 applied overwrite
+- trajectory 계산 트리거 누락
+
+---
+
+## 7. 상태
+
+- 구조 설계 완료
+- SSOT 정리 완료
+- ⚠ SYS / trajectory 불안정 상태
+
+---
+
+## 8. 다음 작업
+
+- SYS rollback 원인 단일화
+- trajectory 렌더 트리거 정리
+- adminState / slot / applied 흐름 정합성 확보

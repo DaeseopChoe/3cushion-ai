@@ -62,11 +62,78 @@
   background: #0b1a2a;
 }
 
-.right-panel-group {
-  margin-top: 20px;
+/* 우측 상단 기능 버튼 그룹 — 이전 14px gap의 2배 이상 */
+.right-panel-top-buttons {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 56px;
+}
+
+.right-panel-divider {
+  height: 80px;
+  flex-shrink: 0;
+}
+
+.right-panel-input-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.position-btn {
+  width: 100%;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid #475569;
+  color: #cbd5e1;
+}
+
+.position-btn.active {
+  background: #2563eb;
+  color: white;
+  border-color: transparent;
+}
+
+.target-btn {
+  width: 100%;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid #475569;
+  color: #cbd5e1;
+}
+
+.target-btn.active {
+  background: #7c3aed;
+  color: white;
+  border-color: transparent;
+}
+
+.control-button.recall-btn:not(.active) {
+  background-color: #475569;
+  color: #e2e8f0;
+}
+
+.control-button.recall-btn.active {
+  background-color: #0ea5e9;
+  color: white;
+}
+
+.control-button.save-btn:not(.active) {
+  background-color: #475569;
+  color: #e2e8f0;
+}
+
+.control-button.save-btn.active {
+  background-color: #10b981;
+  color: white;
 }
 
 .control-button {

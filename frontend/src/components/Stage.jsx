@@ -10,6 +10,7 @@ export default function Stage() {
   const [dirtySlotIds, setDirtySlotIds] = useState([]);
   const [appMode, setAppMode] = useState("USER");
   const [strategyCountMap, setStrategyCountMap] = useState({});
+  const [systemControlsAvailable, setSystemControlsAvailable] = useState(false);
 
   useEffect(() => {
     const calc = () => {
@@ -170,11 +171,18 @@ export default function Stage() {
                 ? (hasIndicator ? "적용되지 않은 변경 있음" : "")
                 : (hasIndicator ? "사용 가능한 전략 있음" : ""))
               : "";
+            const funcDisabled =
+              appMode === "ADMIN" && FUNC_IDS.includes(id) && !systemControlsAvailable;
             return (
               <button
                 key={id}
+                type="button"
                 title={slotTooltip}
-                onClick={() => setCurrentButtonId(id)}
+                disabled={funcDisabled}
+                onClick={() => {
+                  if (funcDisabled) return;
+                  setCurrentButtonId(id);
+                }}
                 className={SLOT_IDS.includes(id) ? slotColorClass : ""}
                 style={{
                   height: BUTTON_HEIGHT,
@@ -184,13 +192,14 @@ export default function Stage() {
                   color: slotColorClass === "slot-dirty" ? "#ffd54f" : "#ffffff",
                   border: borderStyle,
                   borderRadius: "6px",
-                  cursor: "pointer",
+                  cursor: funcDisabled ? "not-allowed" : "pointer",
                   fontWeight: "700",
                   whiteSpace: "nowrap",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   boxSizing: "border-box",
+                  opacity: funcDisabled ? 0.45 : 1,
                 }}
               >
                 {displayLabel}
@@ -218,6 +227,7 @@ export default function Stage() {
           onDirtySlotsChange={setDirtySlotIds}
           onAppModeChange={setAppMode}
           onStrategyCountMapChange={setStrategyCountMap}
+          onSystemControlsAvailabilityChange={setSystemControlsAvailable}
         />
         </div>
 

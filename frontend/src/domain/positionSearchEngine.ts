@@ -4,6 +4,9 @@ import { ballsToPoint6D, dist2_6d } from "./search/kdTree6d";
 export type Point = { x: number; y: number };
 export type Ball3 = { cue: Point; target: Point; second: Point };
 
+/** 1적구 색 기준 (저장·dataset SSOT; 좌표 키는 유지) */
+export type TargetBall = "yellow" | "red";
+
 export type StrategySignature = {
   systemId: string; // 예: "5_half_system"
   formulaHash: string; // profile.formula.expr 기반 해시/버전
@@ -22,6 +25,9 @@ export type StrategyEntry = {
   slot: "S1" | "S2" | "S3";
   signature: StrategySignature;
 
+  /** 관리자 선택 트랙 (미지정 시 리콜·렌더는 B2T_L 기본) */
+  track?: string;
+
   // 보간 대상(원본 입력값)
   sysInputs: Record<string, number>;
   hpT?: unknown;
@@ -32,11 +38,26 @@ export type StrategyEntry = {
   meta: StrategyMeta;
 };
 
+/** 슬롯당 최대 1전략 (S1/S2/S3 키) */
+export type SlotStrategiesMap = Partial<Record<"S1" | "S2" | "S3", StrategyEntry>>;
+
 export type PositionRecord = {
   positionId: string;
   balls: Ball3;
-  strategies: StrategyEntry[];
+  /** 미지정·레거시는 undefined → 병합/리콜 시 yellow 버킷과 동일 취급 */
+  targetBall?: TargetBall | null;
+  strategies: SlotStrategiesMap;
 };
+
+/** PositionRecord의 전략을 슬롯 순 S1→S2→S3로 나열 (배열 API 대체용) */
+export function listStrategiesInRecord(rec: PositionRecord): StrategyEntry[] {
+  const out: StrategyEntry[] = [];
+  for (const id of ["S1", "S2", "S3"] as const) {
+    const s = rec.strategies[id];
+    if (s) out.push(s);
+  }
+  return out;
+}
 
 export type SearchParams = {
   userBalls: Ball3;
@@ -229,7 +250,7 @@ export function searchStrategies(params: SearchParams): SearchResult {
   // 1) flatten 전략
   const all: Array<{ rec: PositionRecord; strat: StrategyEntry }> = [];
   for (const rec of dataset) {
-    for (const strat of rec.strategies) {
+    for (const strat of listStrategiesInRecord(rec)) {
       total++;
       if (signature && !sameSignature(strat.signature, signature)) continue;
       afterSignature++;

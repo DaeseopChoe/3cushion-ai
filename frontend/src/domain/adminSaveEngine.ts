@@ -6,6 +6,7 @@ import type {
   StrategyEntry,
   StrategyMeta,
   StrategySignature,
+  TargetBall,
 } from "./positionSearchEngine";
 
 /**
@@ -17,19 +18,24 @@ export type EvaluateStrategyForSave = (args: {
   sysInputs: Record<string, number>;
   signature: StrategySignature;
   slot: "S1" | "S2" | "S3";
+  track?: string;
 }) => { userImpact: Point; userFinal: Point };
 
 // ---------- 1) createPositionRecord ----------
 export function createPositionRecord(args: {
   balls: Ball3;
   positionId?: string;
+  targetBall?: TargetBall | null;
 }): PositionRecord {
   const positionId =
     args.positionId ?? `pos_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   return {
     positionId,
     balls: args.balls,
-    strategies: [],
+    strategies: {},
+    ...(args.targetBall === "yellow" || args.targetBall === "red"
+      ? { targetBall: args.targetBall }
+      : {}),
   };
 }
 
@@ -42,6 +48,7 @@ export function createStrategyEntry(args: {
   str?: unknown;
   ai?: unknown;
   balls: Ball3;
+  track?: string;
   evaluateStrategy: EvaluateStrategyForSave;
 }): StrategyEntry {
   const meta = buildStrategyMeta({
@@ -49,12 +56,14 @@ export function createStrategyEntry(args: {
     sysInputs: args.sysInputs,
     signature: args.signature,
     slot: args.slot,
+    track: args.track,
     evaluateStrategy: args.evaluateStrategy,
   });
 
   return {
     slot: args.slot,
     signature: args.signature,
+    track: args.track ?? "B2T_L",
     sysInputs: args.sysInputs,
     hpT: args.hpT,
     str: args.str,
@@ -69,15 +78,17 @@ export function buildStrategyMeta(args: {
   sysInputs: Record<string, number>;
   signature: StrategySignature;
   slot: "S1" | "S2" | "S3";
+  track?: string;
   evaluateStrategy: EvaluateStrategyForSave;
 }): StrategyMeta {
-  const { balls, sysInputs, signature, slot, evaluateStrategy } = args;
+  const { balls, sysInputs, signature, slot, track, evaluateStrategy } = args;
 
   const { userImpact, userFinal } = evaluateStrategy({
     balls,
     sysInputs,
     signature,
     slot,
+    track,
   });
 
   const impact = userImpact;

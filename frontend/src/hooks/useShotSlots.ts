@@ -23,6 +23,8 @@ export interface SlotState {
   // SlotState는 draft와 applied 모두 DraftState | null
   draft: DraftState | null;
   applied: DraftState | null;
+  /** Position LOCK 시 테이블 좌표 스냅샷 (S1/S2/S3 동일) */
+  balls?: Record<string, { x: number; y: number } | undefined> | null;
 }
 
 export interface ShotEditorState {
@@ -61,9 +63,9 @@ function isSlotDirty(slot: SlotState | null | undefined): boolean {
 /** PositionRecord → slot별 draft 맵 생성 (applyPositionRecall 단일 트랜잭션용) */
 function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftState> {
   const map: Record<string, DraftState> = {};
-  for (const entry of record.strategies) {
-    const slotId = entry.slot;
-    if (!["S1", "S2", "S3"].includes(slotId)) continue;
+  for (const slotId of ["S1", "S2", "S3"] as const) {
+    const entry = record.strategies[slotId];
+    if (!entry) continue;
 
     const systemId = entry.signature.systemId === "5_HALF" ? "5_half_system" : (entry.signature.systemId ?? "5_half_system");
     const inputs = entry.sysInputs ?? {};
@@ -92,6 +94,7 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
     map[slotId] = {
       sys: {
         systemId,
+        track: entry.track ?? "B2T_L",
         inputs,
         outputs: { result: calcResult },
       },
@@ -175,7 +178,8 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
         ...s.slots,
         [targetSlotId]: {
           draft: sourceSlot.draft ? structuredClone(sourceSlot.draft) : null,
-          applied: sourceSlot.applied ? structuredClone(sourceSlot.applied) : null
+          applied: sourceSlot.applied ? structuredClone(sourceSlot.applied) : null,
+          balls: sourceSlot.balls ? structuredClone(sourceSlot.balls) : null,
         }
       }
     }));
@@ -189,12 +193,18 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
    * - 시스템 전환 또는 입력 변화 시 즉시 실행
    * - APPLIED 데이터는 절대 수정 X
    */
-  const updateDraftSys = (slotId: SlotId, nextSystemId: string, inputDelta: any) => {
+  const updateDraftSys = (
+    slotId: SlotId,
+    nextSystemId: string,
+    inputDelta: any,
+    opts?: { track?: string }
+  ) => {
     setShotEditor((s) => {
       const slot = s.slots[slotId];
       const prevDraftSys = slot.draft?.sys ?? {};
       const prevInputs = prevDraftSys.inputs ?? {};
       const prevSystemId = prevDraftSys.systemId;
+      const nextTrack = opts?.track ?? prevDraftSys.track ?? "B2T_L";
 
       // -------- [1] 입력 통합(가독성 주석) --------
       // 이전 입력에 delta 반영(시스템ID, 코렉션 등)
@@ -225,6 +235,13 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
         baseOneC,
       };
 
+      const C3_r_input = (nextInputs as { C3_r?: number }).C3_r;
+      if (C3_r_input == null) {
+        if (import.meta.env.DEV) {
+          console.warn("[C3_r MISSING]", slotId, nextInputs);
+        }
+      }
+
       // -------- [3] SYSTEM_PROFILES + calculateByProfileExpr 기반 계산 (시스템 공통) --------
       const profile = SYSTEM_PROFILES[nextSystemId];
       const exprInputs: Record<string, number> = { ...nextInputs } as Record<string, number>;
@@ -245,6 +262,43 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       const prevResult = prevOutputs.result || {};
       const prevDebug = prevOutputs.debug || {};
 
+      let nextResult: Record<string, number> = {
+        ...prevResult,
+        ...calcResult,
+      };
+
+      if (C3_r_input != null) {
+        nextResult.C3_r = C3_r_input;
+      }
+
+      // 5_half: 프로파일 수식은 C1_f만 — C4_f 체인은 렌더/앵커용으로 outputs.result에 확장 (SysOverlay와 동일 규칙)
+      if (nextSystemId === "5_half_system" || nextSystemId === "5_HALF") {
+        const CO_f = nextResult.CO_f ?? (nextInputs as { CO_f?: number }).CO_f ?? 0;
+        const C3_r = nextResult.C3_r;
+        if (C3_r == null) {
+          if (import.meta.env.DEV) {
+            console.error("[C3_r NOT RESOLVED]", slotId, nextResult);
+          }
+        } else {
+          const Sn = (CO_f - 50) * 0.5;
+          const C4_f = C3_r + Sn;
+          nextResult = {
+            ...nextResult,
+            Sn,
+            C4_f,
+            C5_f: C4_f,
+            C6_f: C4_f,
+          };
+        }
+      }
+
+      if (import.meta.env.DEV) {
+        console.group(`[SYS TRACE] ${slotId}`);
+        console.log("[UPDATE_INPUTS]", slotId, nextInputs, prevResult);
+        console.log("[NEXT_RESULT]", slotId, nextResult);
+        console.groupEnd();
+      }
+
       // -------- [4] draft.sys 구성, 상태 업데이트 --------
       return {
         ...s,
@@ -256,12 +310,10 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
               ...(slot.draft || {}),
               sys: {
                 systemId: nextSystemId,
+                track: nextTrack,
                 inputs: nextInputs,
                 outputs: {
-                  result: {
-                    ...prevResult,
-                    ...calcResult,
-                  },
+                  result: nextResult,
                   debug: {
                     ...prevDebug,
                     expr: profile?.formula?.expr ?? null,
@@ -491,8 +543,9 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
   const loadDraftsFromPositionRecord = (record: PositionRecord) => {
     setShotEditor((s) => {
       const nextSlots = { ...s.slots };
-      for (const entry of record.strategies) {
-        const slotId = entry.slot;
+      for (const slotId of ["S1", "S2", "S3"] as const) {
+        const entry = record.strategies[slotId];
+        if (!entry) continue;
         const slot = nextSlots[slotId];
         if (!slot) continue;
         nextSlots[slotId] = {
@@ -500,6 +553,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
           draft: {
             sys: {
               systemId: entry.signature.systemId,
+              track: entry.track ?? "B2T_L",
               inputs: entry.sysInputs ?? {},
             },
             hpt: entry.hpT,
@@ -534,6 +588,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
             draft: {
               sys: {
                 systemId: entry.signature.systemId,
+                track: entry.track ?? "B2T_L",
                 inputs: entry.sysInputs ?? {},
               },
               hpt: entry.hpT,
@@ -615,6 +670,36 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     setShotEditor(next);
   };
 
+  /** 현재 테이블 좌표를 S1/S2/S3에 동일하게 저장 (Position LOCK 시) */
+  const syncBallsToAllSlots = (
+    balls: Record<string, { x: number; y: number } | undefined> | null | undefined
+  ) => {
+    if (!balls) return;
+    const snapshot = JSON.parse(JSON.stringify(balls)) as Record<
+      string,
+      { x: number; y: number } | undefined
+    >;
+    setShotEditor((prev) => ({
+      ...prev,
+      slots: {
+        S1: { ...prev.slots.S1, balls: snapshot },
+        S2: { ...prev.slots.S2, balls: snapshot },
+        S3: { ...prev.slots.S3, balls: snapshot },
+      },
+    }));
+  };
+
+  const clearBallsSnapshotsFromSlots = () => {
+    setShotEditor((prev) => ({
+      ...prev,
+      slots: {
+        S1: { ...prev.slots.S1, balls: null },
+        S2: { ...prev.slots.S2, balls: null },
+        S3: { ...prev.slots.S3, balls: null },
+      },
+    }));
+  };
+
   return {
     shotEditor,
     actions: {
@@ -636,7 +721,9 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       getAppliedSlots,
       getDirtySlotIds,
       isAnySlotDirty,
-      restoreShotEditor
+      restoreShotEditor,
+      syncBallsToAllSlots,
+      clearBallsSnapshotsFromSlots,
     }
   };
 }

@@ -543,6 +543,46 @@ S1 / S2 / S3는 **동일한 테이블**을 공유하고, **서로 다른 전략*
 
 ⚠ **구현 상태 (2026-03):** 위는 **의도된 아키텍처** 명세이다. `adminState` ↔ 슬롯 ↔ 렌더 타이밍은 아직 불안정한 구간이 있으며, 상세 버그는 `5_PROJECT_MASTER_STATE_CURRENT.md`, `6_CURRENT_CODE_SNAPSHOT_SUMMARY.md`를 참고한다.
 
+---
+
+# 🆕 TRAJECTORY RENDERING LAYER
+
+## 구조
+
+1. System Layer (sys 계산)
+2. Anchor Layer (좌표 변환)
+3. Path Layer (기본 경로 생성)
+4. Correction Layer (NEW)
+
+---
+
+## Correction Layer 역할
+
+- spin decay 적용
+- forward / reverse 보정
+- vector 기반 각도 수정
+
+---
+
+## 특징
+
+- non-destructive layer
+- anchor / sys와 완전 분리
+- rendering 전용 보정
+
+---
+
+## Data Flow
+
+resolvedSlotSys  
+→ resolvedSlotSysValues  
+→ getAnchorsForRendering  
+→ pathNodesRaw  
+→ adjustedNodes (spin 적용)  
+→ pathNodes (렌더링)
+
+---
+
 📌 최종 선언
 
 이 문서는 3Cushion AI 시스템 구조의 공식 명세서이다.

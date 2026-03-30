@@ -386,3 +386,43 @@ Published JSON 로드
 ---
 
 *최종 업데이트: 2026-03-19 (구현 반영)*
+
+---
+
+# 🆕 POSITION ID + FAMILY STRUCTURE
+
+## positionId
+
+- Ball3 기반 deterministic id
+- round(v × 10) → padStart → concat
+
+---
+
+## 구조
+
+**PositionRecord**
+
+- positionId
+- balls
+- strategies:
+  - S1
+  - S2
+  - S3
+
+---
+
+## 규칙
+
+- 슬롯당 전략 1개
+- 동일 positionId → merge
+- recall → nearest 1 family
+
+---
+
+## Recall
+
+- exact match 우선
+- fallback: distance sum 최소 (cue + target + second 유클리드 거리의 합)
+- epsilon = 2.0 (`RECALL_NEAREST_EPSILON_DEFAULT`)
+
+---

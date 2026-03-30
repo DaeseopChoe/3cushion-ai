@@ -5,7 +5,6 @@ const EMPTY = {
   guideLineNode: null as { x1: number; y1: number; x2: number; y2: number } | null,
   impactBallPx: null as { cx: number; cy: number } | null,
   impactBallRadius: null as number | null,
-  impactBallColor: null as string | null,
   impactBallOpacity: null as number | null,
   onImpactBallDoubleClick: undefined as ((e: React.MouseEvent) => void) | undefined,
   impactBallCursor: "default" as string,
@@ -19,6 +18,8 @@ export function useCoachingController({
   impactMode,
   setImpactMode,
   balls,
+  /** 임팩트 계산용 1적구 위치 (없으면 target_center → target) */
+  targetPointForImpact,
   setBallsState,
   calcImpactBall,
   SCALE,
@@ -34,6 +35,7 @@ export function useCoachingController({
   impactMode: string;
   setImpactMode: React.Dispatch<React.SetStateAction<string>>;
   balls: Record<string, { x: number; y: number } | undefined>;
+  targetPointForImpact?: { x: number; y: number } | null;
   setBallsState: React.Dispatch<React.SetStateAction<Record<string, { x: number; y: number } | undefined> | null>>;
   calcImpactBall: (cue: { x: number; y: number }, target: { x: number; y: number }, T: string) => { x: number; y: number } | null;
   SCALE: number;
@@ -46,7 +48,10 @@ export function useCoachingController({
     if (appMode === "USER" && !showCoaching) {
       return EMPTY;
     }
-    const targetForImpact = balls.target_center ?? balls.target;
+    const targetForImpact =
+      targetPointForImpact ??
+      balls.target_center ??
+      balls.target;
     if (!balls.cue || !targetForImpact) {
       return EMPTY;
     }
@@ -78,8 +83,7 @@ export function useCoachingController({
     };
 
     const impactBallRadius = BALL_RADIUS_RG * SCALE;
-    const impactBallColor = canEdit ? "#00ff00" : "#ffffff";
-    const impactBallOpacity = canEdit ? 0.7 : 0.55;
+    const impactBallOpacity = 0.6;
 
     const onImpactBallDoubleClick = canEdit
       ? (e: React.MouseEvent) => {
@@ -106,7 +110,6 @@ export function useCoachingController({
       guideLineNode,
       impactBallPx,
       impactBallRadius,
-      impactBallColor,
       impactBallOpacity,
       onImpactBallDoubleClick,
       impactBallCursor,
@@ -118,6 +121,7 @@ export function useCoachingController({
     T,
     impactMode,
     balls,
+    targetPointForImpact,
     setImpactMode,
     setBallsState,
     calcImpactBall,

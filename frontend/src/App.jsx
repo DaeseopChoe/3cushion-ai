@@ -41,7 +41,10 @@ import {
   escapeRegExp,
   pointerToRg,
 } from "./utils/geometry/coords";
-import { buildCushionPath, snapToRail } from "./utils/geometry/rail";
+import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel";
+import { computeRailPoints, snapToRail } from "./utils/geometry/rail";
+import { resolveBalls, uiBallsToBallArray } from "./utils/ballRoleResolver";
+import { isSegmentHitBall } from "./utils/geometry";
 import {
   normalizeAnchor,
   resolveAnchorPoint,
@@ -63,10 +66,13 @@ import { useDisplayController } from "./hooks/useDisplayController";
 import { TABLE_CONFIG, getTableLayout } from "./config/tableConfig";
 import { buildRailGroupedStrategy } from "./domain/railEngine";
 import { createStrategyEntry } from "./domain/adminSaveEngine";
-import { upsertPositionRecord } from "./domain/positionMergeEngine";
+import {
+  MERGE_EPSILON,
+  normalizeDatasetFromStorage,
+  upsertPositionRecord,
+} from "./domain/positionMergeEngine";
 import { evaluateStrategy } from "./domain/evaluateStrategy";
 import { makeSignature } from "./domain/strategySignature";
-import { inferTrackFromBalls } from "./domain/finalCoordinateEngine";
 import { computeSystemFromPositions, sysValuesToAnchors } from "./domain/systemEngine";
 import { getAnchorsForRendering } from "./domain/anchorCoordinateEngine";
 import {
@@ -81,7 +87,7 @@ import {
 import { createCaptureCandidate } from "./data/autoCaptureEngine";
 import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
-import { runPositionRecall } from "./domain/positionRecallEngine";
+import { recallPosition, runPositionRecall } from "./domain/positionRecallEngine";
 import { makeSignatureKey } from "./domain/search/signatureKey";
 import { initFileHandle, saveToFile } from "./domain/fileService";
 import { getAnchorsForSystem } from "./data/systems/anchorsRegistry";
@@ -133,6 +139,71 @@ const CUSHION_RG = CUSHION_MM / RG_UNIT_MM;
 const FRAME_RG = FRAME_MM / RG_UNIT_MM;
 const POINT_OFFSET_RG = POINT_OFFSET_MM / RG_UNIT_MM;
 
+/**
+ * 궤적·CO→1C 선분용 시작점만 Rg 레일로 보정.
+ * CO_rail 이 Fg(-2.25 등)에 머물면 빨간 선이 프레임·라벨과 겹침.
+ * 라벨(allAnchors.CO) 정책과 CO_rail(의미/교점) 변수는 그대로 두고, draw path 첫 점만 교정.
+ */
+function coStartForCushionPath(coRail, coPrep, c1Prep) {
+  if (!coRail || !coPrep || !c1Prep) return coRail ?? coPrep ?? null;
+  const onRgPlayingRail =
+    Math.abs(coRail.x) <= 0.75 ||
+    Math.abs(coRail.x - 80) <= 0.75 ||
+    Math.abs(coRail.y) <= 0.75 ||
+    Math.abs(coRail.y - 40) <= 0.75;
+  if (onRgPlayingRail) return coRail;
+  const { CO_rail: snapped } = computeRailPoints(coPrep, c1Prep);
+  return snapped ?? coRail;
+}
+
+/** pathNodes (C3 이후) spin decay + forward/reverse 보정 — 앵커 엔진과 무관 */
+function spinPathGetDistance(A, B) {
+  if (!A || !B) return 0;
+  const dx = B.x - A.x;
+  const dy = B.y - A.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function spinPathComputeProgress(pathNodes, index) {
+  let total = 0;
+  let current = 0;
+  for (let i = 0; i < pathNodes.length - 1; i++) {
+    const d = spinPathGetDistance(pathNodes[i], pathNodes[i + 1]);
+    total += d;
+    if (i < index) current += d;
+  }
+  if (total === 0) return 0;
+  return current / total;
+}
+
+function spinPathGetSpinFactor(progress) {
+  if (progress >= 0.85) return 0.5;
+  return 1.0;
+}
+
+function spinPathGetDirectionType(A, B, C) {
+  if (!A || !B || !C) return "forward";
+  const v1 = { x: B.x - A.x, y: B.y - A.y };
+  const v2 = { x: C.x - B.x, y: C.y - B.y };
+  const cross = v1.x * v2.y - v1.y * v2.x;
+  return cross >= 0 ? "forward" : "reverse";
+}
+
+function spinPathRotateVector(v, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: v.x * cos - v.y * sin,
+    y: v.x * sin + v.y * cos,
+  };
+}
+
+function spinPathApplySpin(v, spin, type) {
+  const k = 0.015;
+  const angle = spin * k * (type === "forward" ? 1 : -1);
+  return spinPathRotateVector(v, angle);
+}
+
 // ==================================================
 // 🔵 Physics Engine Block (Phase 2 분리 대상)
 // - 좌표 변환, 물리 계산, ImpactBall 등
@@ -166,7 +237,7 @@ function STRContent({ trajectoryState }) {
   return (
     <div style={{ padding: 20, fontSize: 16 }}>
       <div style={{ marginBottom: 10 }}>
-        <strong>3C 입력값:</strong>
+        <strong>C3 입력값:</strong>
         <input
           type="number"
           value={threeC}
@@ -177,22 +248,46 @@ function STRContent({ trajectoryState }) {
         />
       </div>
       <div>
-        <strong>1C 보정값 (실시간 0.75× 보정):</strong>
+        <strong>C1 보정값 (실시간 0.75× 보정):</strong>
         <span style={{ marginLeft: 10, fontWeight: 'bold' }}>{displayOneC}</span>
       </div>
     </div>
   );
 }
 
-function Ball({ x, y, color, opacity = 1, ...eventProps }) {
+/** 임팩트·코칭용 1적구 좌표 (targetColor: 관리자 확정 타겟) */
+function resolveImpactTargetBall(ballsObj, targetColorSel) {
+  if (!ballsObj) return null;
+  if (targetColorSel === "red") {
+    return ballsObj.second ?? ballsObj.target_center ?? ballsObj.target ?? null;
+  }
+  if (targetColorSel === "yellow") {
+    return ballsObj.target_center ?? ballsObj.target ?? ballsObj.second ?? null;
+  }
+  return ballsObj.target_center ?? ballsObj.target ?? null;
+}
+
+/** 조이스틱이 붙은 공 id → 임팩트 타겟 색 (후보/확정 공통 매핑) */
+function resolveBallColorFromId(ballId) {
+  if (ballId === "target" || ballId === "target_center") return "yellow";
+  if (ballId === "second") return "red";
+  return null;
+}
+
+function Ball({ x, y, color, opacity = 1, emphasis, ...eventProps }) {
   const p = toPx({ x, y }, SCALE, TABLE_H);
+  const r = BALL_RADIUS_RG * SCALE;
+  const stroke = emphasis === "selected" ? "#ffffff" : "none";
+  const strokeW = emphasis === "selected" ? 3 : 0;
   return (
     <circle
       cx={p.x + PADDING}
       cy={p.y + PADDING}
-      r={RENDER_RADIUS_RG * SCALE}
+      r={r}
       fill={color}
       opacity={opacity}
+      stroke={stroke}
+      strokeWidth={strokeW}
       shapeRendering="geometricPrecision"
       pointerEvents="all"
       {...eventProps}
@@ -319,6 +414,7 @@ function SysOverlay({ data, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     shotType: data?.shotType || '뒤돌리기',
     system: data?.system || SYSTEM_OPTIONS[0]?.id || '5_half_system',
+    track: data?.track || "B2T_L",
     // 완성 키 방식: CO_f, CO_r, C1_f, C1_r, ..., C4_f, C4_r, HP_n, An
     inputs: {
       CO_f: data?.inputs?.CO_f ?? "",
@@ -342,6 +438,11 @@ function SysOverlay({ data, onSave, onCancel }) {
       spin: data?.corrections?.spin || 0
     }
   });
+
+  useEffect(() => {
+    const t = data?.track || "B2T_L";
+    setFormData((prev) => (prev.track === t ? prev : { ...prev, track: t }));
+  }, [data?.track]);
 
   // UI 토글 상태 (표시용) - 계산키와 분리
   const [spaceSel, setSpaceSel] = useState({
@@ -511,6 +612,7 @@ function SysOverlay({ data, onSave, onCancel }) {
   const handleSave = () => {
     const saveData = {
       ...formData,
+      track: formData.track,
       spaceSel,
       calculated: calcResult,
       finalResult: finalResultDisplay,
@@ -634,6 +736,30 @@ function SysOverlay({ data, onSave, onCancel }) {
             ))}
           </select>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>트랙 (Track)</span>
+        <select
+          value={formData.track}
+          onChange={(e) =>
+            setFormData({ ...formData, track: e.target.value })
+          }
+          style={{
+            width: '100%',
+            height: '36px',
+            padding: '0 10px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '6px',
+            fontSize: '14px',
+            backgroundColor: '#fff'
+          }}
+        >
+          <option value="B2T_R">B2T_R</option>
+          <option value="B2T_L">B2T_L</option>
+          <option value="T2B_R">T2B_R</option>
+          <option value="T2B_L">T2B_L</option>
+        </select>
       </div>
 
       {/* [C] 계산 공식 표시 */}
@@ -946,7 +1072,7 @@ function AnchorEditOverlay({ anchorKey, initialX, initialY, onApply, onCancel })
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: "280px" }}>
       <div>
-        <strong>Key:</strong> {anchorKey}
+        <strong>앵커:</strong> {cushionMarkToDisplayLabel(anchorKey)}
       </div>
       <div>
         <label style={{ display: "block", marginBottom: "4px" }}>X:</label>
@@ -2144,7 +2270,15 @@ function RailFrame() {
 // Phase B-1 Step 1: MobileWrapper (완전 투명)
 // ============================================
 
-export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlayClose, onDirtySlotsChange, onAppModeChange, onStrategyCountMapChange }) {
+export default function App({
+  currentButtonId,
+  onActiveSlotChange,
+  onFuncOverlayClose,
+  onDirtySlotsChange,
+  onAppModeChange,
+  onStrategyCountMapChange,
+  onSystemControlsAvailabilityChange,
+}) {
   const [currentId, setCurrentId] = useState(SHOTS[0].id);
   const [view, setView] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2166,6 +2300,7 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
       return {
     sys: {
       system_id: null,
+      track: "B2T_L",
       CO: null,
       C3: null,
       corrections: {
@@ -2205,6 +2340,7 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
       return {
     sys: {
       system_id: null,
+      track: "B2T_L",
       CO: null,
       C3: null,
       corrections: {
@@ -2249,6 +2385,63 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
   });
   const trajectory = useTrajectoryState();
 
+  /** 궤적/앵커 렌더 SSOT: 활성 슬롯의 sys만 사용 (adminState.sys / view.ui.system 혼합 금지) */
+  const resolvedSlotSys = useMemo(() => {
+    const slot = shotEditor.slots[shotEditor.activeSlot];
+    return slot?.draft?.sys ?? slot?.applied?.sys ?? null;
+  }, [shotEditor.slots, shotEditor.activeSlot]);
+
+  const resolvedSlotSysValues = useMemo(() => {
+    if (!resolvedSlotSys) return {};
+    const merged = {
+      ...(resolvedSlotSys.inputs ?? {}),
+      ...(resolvedSlotSys.outputs?.result ?? {}),
+    };
+    const sid = resolvedSlotSys?.systemId;
+    const needsC3r = sid === "5_half_system" || sid === "5_HALF";
+    if (import.meta.env.DEV && needsC3r && merged.C3_r == null) {
+      console.warn(
+        "[resolvedSlotSysValues] C3_r missing (5_half)",
+        shotEditor.activeSlot,
+        merged
+      );
+    }
+    return merged;
+  }, [resolvedSlotSys, shotEditor.activeSlot]);
+
+  /** C3 오염 추적: 슬롯별 C3_r/CO_f/Sn/C4_f 비교 */
+  useEffect(() => {
+    const mergeSlotSysValues = (id) => {
+      const slot = shotEditor.slots[id];
+      const sys = slot?.draft?.sys ?? slot?.applied?.sys;
+      if (!sys) return null;
+      const m = { ...(sys.inputs ?? {}), ...(sys.outputs?.result ?? {}) };
+      return {
+        ...m,
+        _trace: {
+          C3_r: m.C3_r,
+          CO_f: m.CO_f,
+          Sn: m.Sn,
+          C4_f: m.C4_f,
+        },
+      };
+    };
+    if (import.meta.env.DEV) {
+      console.log("[SYS_VALUES]", shotEditor.activeSlot, {
+        S1: mergeSlotSysValues("S1"),
+        S2: mergeSlotSysValues("S2"),
+        S3: mergeSlotSysValues("S3"),
+        activeResolved: resolvedSlotSysValues,
+        activeTrace: {
+          C3_r: resolvedSlotSysValues.C3_r,
+          CO_f: resolvedSlotSysValues.CO_f,
+          Sn: resolvedSlotSysValues.Sn,
+          C4_f: resolvedSlotSysValues.C4_f,
+        },
+      });
+    }
+  }, [shotEditor.slots, shotEditor.activeSlot, resolvedSlotSysValues]);
+
   const [overlayState, setOverlayState] = useState({
     open: false,
     type: null, // "SYS" | "HPT" | "STR" | "AI" | "ANCHOR_EDIT" | null
@@ -2258,11 +2451,26 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
   const [showSystemGrid, setShowSystemGrid] = useState(true);
   const autoSave = true;
 
+  /** 우측 패널: 상태 가시성 (버튼 = 시스템 상태 표현) */
+  const [isPositionLocked, setIsPositionLocked] = useState(false);
+  const [isTargetSelected, setIsTargetSelected] = useState(false);
+  const [isRecalled, setIsRecalled] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [targetColor, setTargetColor] = useState(null);
+
+  const canUseSystemControls =
+    appMode === "ADMIN" && isPositionLocked && isTargetSelected;
+
+  useEffect(() => {
+    onSystemControlsAvailabilityChange?.(canUseSystemControls);
+  }, [canUseSystemControls, onSystemControlsAvailabilityChange]);
+
   // dataset: PositionRecord[] (localStorage "positions_dataset")
   const [dataset, setDataset] = useState(() => {
     try {
       const saved = localStorage.getItem("positions_dataset");
-      return saved ? JSON.parse(saved) : [];
+      const raw = saved ? JSON.parse(saved) : [];
+      return normalizeDatasetFromStorage(raw);
     } catch {
       return [];
     }
@@ -2397,6 +2605,19 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
   frozenImpact: null,
   frozenCushionPathAttr: null,
 });
+
+  function applyTarget() {
+    const color = resolveBallColorFromId(dragState.ballId);
+    if (!color) return;
+    stopJoystick();
+    setTargetColor(color);
+    setIsTargetSelected(true);
+    setDragState((s) => ({
+      ...s,
+      joystickVisible: false,
+    }));
+  }
+
   const svgRef = useRef(null);
   const derivedRef = useRef({ impact: null, cushionPathAttr: null });
 
@@ -2438,10 +2659,11 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
           alert("Invalid dataset.json format");
           return;
         }
-        setDataset(importedDataset);
+        const normalized = normalizeDatasetFromStorage(importedDataset);
+        setDataset(normalized);
         localStorage.setItem(
           "positions_dataset",
-          JSON.stringify(importedDataset)
+          JSON.stringify(normalized)
         );
       } catch (err) {
         alert("Failed to import dataset.json");
@@ -2478,14 +2700,33 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     }
   }
 
+  useEffect(() => {
+    if (appMode !== "ADMIN") return;
+    if (isPositionLocked && isTargetSelected) return;
+    if (!overlayState.open) return;
+    const t = overlayState.type;
+    if (!t || !["SYS", "HPT", "STR", "AI"].includes(t)) return;
+    onFuncOverlayClose?.();
+    setOverlayState({ open: false, type: null, anchorKey: null });
+  }, [
+    appMode,
+    isPositionLocked,
+    isTargetSelected,
+    overlayState.open,
+    overlayState.type,
+    onFuncOverlayClose,
+  ]);
+
   const evalForSave = (args) =>
     evaluateStrategy({
-      ...args,
+      balls: args.balls,
+      sysInputs: args.sysInputs,
+      signature: args.signature,
       systemId: args.signature.systemId,
       profile: SYSTEM_PROFILES[args.signature.systemId],
       anchorsData: getAnchorsForSystem(args.signature.systemId),
       hpT: { T: adminState.hpt?.T ?? "8/8" },
-      trackId: SYSTEM_PROFILES[args.signature.systemId]?.meta?.canonical_track ?? inferTrackFromBalls(args.balls),
+      trackId: args.track ?? "B2T_L",
     });
 
   function handleSaveStrategy(aiOverride = null) {
@@ -2535,6 +2776,11 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     const cleanStr = safe(applied.str);
     const cleanAi = safe(aiOverride ?? applied.ai);
 
+    const ball3ForDataset = normalizeBallsToBall3(ballsState ?? adminState.balls ?? {});
+    const cleanBall3 = safe(ball3ForDataset) ?? ball3ForDataset;
+    const datasetTargetBall =
+      targetColor === "red" || targetColor === "yellow" ? targetColor : undefined;
+
     console.log("[SAVE] Creating StrategyEntry");
     let strategy;
     try {
@@ -2545,7 +2791,8 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
         hpT: cleanHpt,
         str: cleanStr,
         ai: cleanAi,
-        balls: cleanBalls ?? balls,
+        balls: cleanBall3,
+        track: sys.track ?? "B2T_L",
         evaluateStrategy: evalForSave,
       });
       console.log("[SAVE] strategy JSON check:", JSON.stringify(strategy));
@@ -2555,7 +2802,13 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     }
 
     console.log("[SAVE] Running upsertPositionRecord");
-    const updated = upsertPositionRecord(dataset, cleanBalls ?? balls, strategy);
+    const updated = upsertPositionRecord(
+      dataset,
+      ball3ForDataset,
+      strategy,
+      MERGE_EPSILON,
+      datasetTargetBall
+    );
     console.log("[SAVE] updated length:", updated?.length);
 
     setDataset(updated);
@@ -2594,6 +2847,7 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
       balls: currentBalls,
       signatureKey,
       thresholds: { soft: Infinity, hard: Infinity },
+      targetBall: targetColor ?? null,
     });
 
     if (!result || result.kind === "no-match") {
@@ -2604,6 +2858,11 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     }
 
     actions.applyPositionRecall(result.record);
+    if (result.record.targetBall === "red" || result.record.targetBall === "yellow") {
+      setTargetColor(result.record.targetBall);
+      setIsTargetSelected(true);
+    }
+    setIsRecalled(true);
 
     if (result.distance > HARD_THRESHOLD) {
       alert("유사도 낮음");
@@ -2615,6 +2874,7 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     if (appMode !== "ADMIN") return;
 
     if (!ADMIN_BUTTONS.includes(buttonId)) return;
+    if (!isPositionLocked || !isTargetSelected) return;
 
     // 드래그 중이면 강제 종료
     if (dragState.dragging) {
@@ -2678,7 +2938,52 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     () => loadWorkspaceHistory(),
     [workspaceHistoryVersion]
   );
+
+  function handleTogglePositionLock() {
+    if (isPositionLocked) {
+      setIsPositionLocked(false);
+      actions.clearBallsSnapshotsFromSlots();
+      return;
+    }
+    if (!isTargetSelected) {
+      alert("먼저 Target 버튼으로 타겟을 확정하세요.");
+      return;
+    }
+    const snap = ballsState;
+    if (!snap || !snap.cue) {
+      alert("공 배치를 확인할 수 없습니다.");
+      return;
+    }
+    setIsPositionLocked(true);
+    actions.syncBallsToAllSlots(snap);
+    const ball3 = normalizeBallsToBall3(snap);
+    setAdminState((prev) => ({
+      ...prev,
+      balls: JSON.parse(JSON.stringify(ball3)),
+    }));
+
+    const recalled = recallPosition(ball3, dataset ?? []);
+    if (recalled) {
+      const hasAny =
+        recalled.strategies?.S1 ||
+        recalled.strategies?.S2 ||
+        recalled.strategies?.S3;
+      if (hasAny) {
+        actions.applyPositionRecall(recalled);
+        setIsRecalled(true);
+        console.log(
+          "[Recall] Position LOCK: 유사 포지션 데이터 불러옴",
+          recalled.positionId
+        );
+      }
+    }
+  }
+
   function handleSaveWorkspaceSnapshot(silent = false) {
+    if (!canUseSystemControls) {
+      if (!silent) alert("Position LOCK 및 Target 확정 후 저장할 수 있습니다.");
+      return;
+    }
     const systemId = adminState?.sys?.system_id ?? adminState?.sys?.system ?? "5_half_system";
     if (!systemId || systemId === "null") {
       alert("시스템을 선택하세요 (SYS 설정)");
@@ -2702,11 +3007,13 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
         ballsState: ballsState ? JSON.parse(JSON.stringify(ballsState)) : null,
         dataset: JSON.parse(JSON.stringify(dataset ?? [])),
         shotEditor: JSON.parse(JSON.stringify(shotEditor)),
+        targetBall: targetColor ?? null,
       },
     };
     const nextHistory = [...history, snapshot];
     saveWorkspaceHistory(nextHistory);
     setWorkspaceHistoryVersion((v) => v + 1);
+    setIsSaved(true);
     console.log("💾 Workspace snapshot saved:", name);
     if (!silent) alert(`스냅샷 저장: ${name}`);
   }
@@ -2722,7 +3029,7 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     const s = snapshot.state;
     setAdminState(s.adminState);
     setBallsState(s.ballsState);
-    const nextDataset = s.dataset ?? [];
+    const nextDataset = normalizeDatasetFromStorage(s.dataset ?? []);
     setDataset(nextDataset);
     try {
       localStorage.setItem("positions_dataset", JSON.stringify(nextDataset));
@@ -2731,6 +3038,12 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     }
     actions.restoreShotEditor(s.shotEditor);
     setWorkspaceHistoryVersion((v) => v + 1);
+    setIsSaved(false);
+    setIsRecalled(false);
+    setIsPositionLocked(false);
+    const restoredTarget = s.targetBall ?? null;
+    setTargetColor(restoredTarget);
+    setIsTargetSelected(!!restoredTarget);
     console.log("📂 Workspace restored:", snapshot.name);
     alert(`복원 완료: ${snapshot.name}`);
   }
@@ -2844,8 +3157,17 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
     alert(`${toExport.length}개 스냅샷 Export 완료`);
   }
 
+  function invalidateSavedAndRecalledForBallId(ballId) {
+    if (!ballId) return;
+    if (["cue", "target", "target_center", "second", "impact"].includes(ballId)) {
+      setIsSaved(false);
+      setIsRecalled(false);
+    }
+  }
+
   function nudgeBall(ballId, dx, dy) {
     if (!ballId) return;
+    if (isPositionLocked) return;
     setBallsState((prev) => {
       const cur = prev?.[ballId];
       if (!cur) return prev;
@@ -2869,6 +3191,7 @@ export default function App({ currentButtonId, onActiveSlotChange, onFuncOverlay
       };
       return { ...prev, [ballId]: next };
     });
+    invalidateSavedAndRecalledForBallId(ballId);
   }
 
   function startJoystick(direction) {
@@ -2944,6 +3267,13 @@ function handleJoyPadPointerMove(e) {
   // small deadzone to avoid micro jitter
   if (Math.abs(dxRg) + Math.abs(dyRg) < 0.005) return;
 
+  if (
+    isPositionLocked &&
+    ["cue", "target", "target_center", "second"].includes(ballId)
+  ) {
+    return;
+  }
+
   setBallsState((prev) => {
     const cur = prev?.[ballId];
     if (!cur) return prev;
@@ -2954,6 +3284,7 @@ function handleJoyPadPointerMove(e) {
     };
     return { ...prev, [ballId]: next };
   });
+  invalidateSavedAndRecalledForBallId(ballId);
 }
 
 function handleJoyPadPointerUp(e) {
@@ -3002,22 +3333,22 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     if (appMode !== "ADMIN") return;
     if (!currentButtonId) return;
+    if (!isPositionLocked || !isTargetSelected) return;
 
     if (currentButtonId === "SYS") openOverlay("SYS");
     else if (currentButtonId === "HP/T") openOverlay("HPT");
     else if (currentButtonId === "STR") openOverlay("STR");
     else if (currentButtonId === "AI") openOverlay("AI");
-  }, [currentButtonId, appMode]);
+  }, [currentButtonId, appMode, isPositionLocked, isTargetSelected]);
 
   // ============================================
-  // S1/S2/S3 시나리오 전환 + switchSlot 동기화 + KD-tree 자동 추천
+  // S1/S2/S3: 슬롯(전략)만 전환 — currentId/view/ballsState는 건드리지 않음 (공 배치 SSOT)
   // ============================================
   useEffect(() => {
     if (currentButtonId === 'S1') {
       actions.switchSlot('S1');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
-      setCurrentId(SHOTS[0].id);
       const systemId = adminState.sys?.system_id;
       if (!systemId) return;
       if (!kdIndexRef.current) return;
@@ -3030,6 +3361,7 @@ function handleJoyPadPointerCancel(e) {
         currentSignature,
         dataset: dataset ?? [],
         kdIndex: kdIndexRef.current,
+        targetBall: targetColor ?? null,
         loadDraftFromStrategyEntry: actions.loadDraftFromStrategyEntry,
       });
     }
@@ -3037,7 +3369,6 @@ function handleJoyPadPointerCancel(e) {
       actions.switchSlot('S2');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
-      setCurrentId(SHOTS[1].id);
       const systemId = adminState.sys?.system_id;
       if (!systemId) return;
       if (!kdIndexRef.current) return;
@@ -3050,6 +3381,7 @@ function handleJoyPadPointerCancel(e) {
         currentSignature,
         dataset: dataset ?? [],
         kdIndex: kdIndexRef.current,
+        targetBall: targetColor ?? null,
         loadDraftFromStrategyEntry: actions.loadDraftFromStrategyEntry,
       });
     }
@@ -3057,7 +3389,6 @@ function handleJoyPadPointerCancel(e) {
       actions.switchSlot('S3');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
-      setCurrentId(SHOTS[2].id);
       const systemId = adminState.sys?.system_id;
       if (!systemId) return;
       if (!kdIndexRef.current) return;
@@ -3070,13 +3401,13 @@ function handleJoyPadPointerCancel(e) {
         currentSignature,
         dataset: dataset ?? [],
         kdIndex: kdIndexRef.current,
+        targetBall: targetColor ?? null,
         loadDraftFromStrategyEntry: actions.loadDraftFromStrategyEntry,
       });
     }
   }, [currentButtonId]);
 
-  // activeSlot/slots 변경 시 adminState를 해당 슬롯의 draft(우선) → applied로 동기화
-  // Recall → draft 변경 시 UI가 즉시 draft 값을 보여주도록 함
+  // activeSlot/slots 변경 시: hpt/str/ai만 슬롯 → admin 동기화 (SYS는 슬롯 SSOT, 여기서 덮어쓰지 않음)
   useEffect(() => {
     const slot = shotEditor.slots[shotEditor.activeSlot];
     const draft = slot?.draft;
@@ -3086,7 +3417,6 @@ function handleJoyPadPointerCancel(e) {
     const defaultAi = { text: "", onePointLessons: [] };
     setAdminState((prev) => ({
       ...prev,
-      sys: draft?.sys ?? applied?.sys ?? prev.sys,
       hpt: draft?.hpt ?? applied?.hpt ?? defaultHpt,
       str: draft?.str ?? applied?.str ?? defaultStr,
       ai: draft?.ai ?? applied?.ai ?? defaultAi,
@@ -3123,15 +3453,18 @@ function handleJoyPadPointerCancel(e) {
       balls: currentBalls,
       signatureKey,
       thresholds: { soft: Infinity, hard: Infinity },
+      targetBall: targetColor ?? null,
       topK: 5,
     });
     const map = {};
     if (!result || result.kind === "no-match" || !result.record) return map;
-    (result.record.strategies ?? []).forEach((entry) => {
-      if (entry?.slot) map[entry.slot] = (map[entry.slot] || 0) + 1;
-    });
+    for (const slotId of ["S1", "S2", "S3"]) {
+      if (result.record.strategies[slotId]) {
+        map[slotId] = (map[slotId] || 0) + 1;
+      }
+    }
     return map;
-  }, [dataset, ballsState, adminState?.balls, adminState?.sys]);
+  }, [dataset, ballsState, adminState?.balls, adminState?.sys, targetColor]);
 
   useEffect(() => {
     onStrategyCountMapChange?.(strategyCountMap);
@@ -3182,6 +3515,11 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     if (view && view.ui && view.ui.balls) {
       setBallsState(view.ui.balls);
+      setIsSaved(false);
+      setIsRecalled(false);
+      setIsPositionLocked(false);
+      setIsTargetSelected(false);
+      setTargetColor(null);
     }
   }, [view]);
 
@@ -3260,6 +3598,10 @@ function handleJoyPadPointerCancel(e) {
     });
   }, [view, shotEditor?.activeSlot, shotEditor?.slots]);
   const ballsForCoaching = view?.ui ? (ballsState ?? (view.ui.balls || {})) : (ballsState ?? {});
+  const coachingImpactTarget = useMemo(
+    () => resolveImpactTargetBall(ballsForCoaching, targetColor),
+    [ballsForCoaching, targetColor]
+  );
   const coaching = useCoachingController({
     appMode,
     showCoaching,
@@ -3268,6 +3610,7 @@ function handleJoyPadPointerCancel(e) {
     impactMode,
     setImpactMode,
     balls: ballsForCoaching,
+    targetPointForImpact: coachingImpactTarget,
     setBallsState,
     calcImpactBall,
     SCALE,
@@ -3311,28 +3654,19 @@ function handleJoyPadPointerCancel(e) {
     view?.ui?.display_options?.thickness ??
     0;
 
-  // canonical / track (getAnchorsForRendering용)
-  let canonical = view.track || null;
-  if (!canonical) {
-    const shot = SHOTS.find((s) => s.id === currentId);
-    if (shot?.file?.includes("/")) {
-      canonical = shot.file.split("/")[0];
+  /** 트랙은 입력값(슬롯 draft/applied 또는 뷰 JSON). 공/샷 경로로 추론하지 않음. */
+  const trackForAnchors = (() => {
+    if (canEdit) {
+      return resolvedSlotSys?.track || view?.track || "B2T_L";
     }
-    // canonical.json은 B2T_R에서 로드됨
-    if (!canonical && shot?.file === "canonical.json") canonical = "B2T_R";
-  }
-  const trackForAnchors = view.track || canonical || (balls?.cue && balls?.target_center ? inferTrackFromBalls({
-    cue: balls.cue,
-    target: balls.target_center ?? balls.target ?? balls.cue,
-    second: balls.second ?? balls.target_center ?? balls.cue,
-  }) : null);
+    return view?.track || "B2T_L";
+  })();
 
-  const trackForGrid = view?.track || canonical || "B2T_R";
+  const canonical = trackForAnchors;
+  const trackForGrid = trackForAnchors;
   const systemIdForGrid = (() => {
     if (canEdit) {
-      const slot = shotEditor.slots[shotEditor.activeSlot];
-      const slotSys = slot?.draft?.sys ?? slot?.applied?.sys;
-      const raw = adminState?.sys?.systemId ?? adminState?.sys?.system_id ?? slotSys?.systemId ?? "5_half_system";
+      const raw = resolvedSlotSys?.systemId ?? "5_half_system";
       return raw === "5_HALF" ? "5_half_system" : raw;
     }
     return "5_half_system";
@@ -3342,46 +3676,21 @@ function handleJoyPadPointerCancel(e) {
   // ADMIN: anchors.json 기반 좌표 생성 | USER: display.anchors
   const rawAnchors = canEdit
     ? (() => {
-        const slot = shotEditor.slots[shotEditor.activeSlot];
-        const slotSys = slot?.draft?.sys ?? slot?.applied?.sys;
-        const sysInputs = slotSys?.inputs ?? {};
-        const sysResult = slotSys?.outputs?.result ?? {};
-        const sysValues = {
-          ...adminState?.sys?.systemValues,
-          ...adminState?.sys?.inputs,
-          ...sysInputs,
-          ...sysResult,
-        };
-        // [VERIFY 2] sysValues 구성 소스
-        console.log("[VERIFY 2] sysValues 생성 직후", {
+        if (!resolvedSlotSys) {
+          return display?.anchors ?? {};
+        }
+        const sysValues = { ...resolvedSlotSysValues };
+        console.log("[VERIFY 2] sysValues 생성 직후 (slot SSOT)", {
           activeSlot: shotEditor.activeSlot,
-          "adminState.sys": adminState?.sys,
-          sysInputs,
-          sysResult,
+          resolvedSlotSys,
           "최종 sysValues": sysValues,
         });
-        // [SYS_COMPARE] 정상(JSON) vs 계산(sysValues) — CO/1C/3C 차이 확인
         console.log("[SYS_COMPARE]", {
           "view.ui.system.values (JSON 기준)": system?.values,
           sysValues,
         });
-        const rawSystemId =
-          adminState?.sys?.systemId ??
-          adminState?.sys?.system_id ??
-          slotSys?.systemId ??
-          "5_half_system";
+        const rawSystemId = resolvedSlotSys?.systemId ?? "5_half_system";
         const systemId = rawSystemId === "5_HALF" ? "5_half_system" : rawSystemId;
-        const profile = SYSTEM_PROFILES?.[systemId];
-
-        // STEP2: FG → RG 변환 상수 전달
-        if (
-          system &&
-          system.values &&
-          typeof system.values.offset_fg2rg !== "number" &&
-          profile?.safety?.offset_fg2rg
-        ) {
-          system.values.offset_fg2rg = profile.safety.offset_fg2rg;
-        }
 
         // [VERIFY 3] getAnchorsForRendering 호출 직전
         console.log("[VERIFY 3] getAnchorsForRendering 호출 직전", {
@@ -3389,6 +3698,9 @@ function handleJoyPadPointerCancel(e) {
           systemId,
           "전달 sysValues": sysValues,
         });
+        if (import.meta.env.DEV) {
+          console.log("[ANCHOR_INPUT]", resolvedSlotSysValues);
+        }
         const anchors = getAnchorsForRendering({
           systemId,
           track: trackForAnchors,
@@ -3408,6 +3720,9 @@ function handleJoyPadPointerCancel(e) {
           "실제 반환": usedFallback ? "display.anchors (fallback)" : "anchors",
         });
         const finalAnchors = anchorKeys.length > 0 ? anchors : (display.anchors ?? {});
+        if (import.meta.env.DEV) {
+          console.log("[ANCHORS]", finalAnchors["3C"]);
+        }
         console.log("[ANCHOR_SPACE_TRACE] rawAnchors 최종", {
           keys: Object.keys(finalAnchors || {}),
           hasSpaceInfo: Object.values(finalAnchors || {}).some(
@@ -3538,6 +3853,8 @@ function handlePointerDown(e) {
     return;
   }
 
+  if (isPositionLocked) return;
+
   // ✅ 공을 다시 터치한 경우 → 조이스틱 재설정
   const grabOffset = {
     x: pointerRg.x - closestBall.pos.x,
@@ -3563,7 +3880,8 @@ function handlePointerDown(e) {
 function handlePointerMove(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
-  
+  if (isPositionLocked) return;
+
   if (!dragState.dragging || !dragState.ballId || !svgRef.current) return;
 
   const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
@@ -3587,7 +3905,10 @@ function handlePointerMove(e) {
 
   if (dragState.ballId === "impact" && impactMode === "FREE") {
     const cue = balls.cue;
-    const target = balls.target_center ?? balls.target;
+    const target =
+      resolveImpactTargetBall(balls, targetColor) ??
+      balls.target_center ??
+      balls.target;
 
     if (!cue || !target) return;
 
@@ -3665,6 +3986,16 @@ function handlePointerUp(e) {
     }));
   }
 
+  if (
+    ["cue", "target", "target_center", "second", "impact"].includes(
+      dragState.ballId
+    )
+  ) {
+    setIsSaved(false);
+    setIsRecalled(false);
+    // targetColor / isTargetSelected: pointerUp에서 건드리지 않음 (조이스틱=후보, Target으로만 확정/무효화는 뷰/복원 등에서)
+  }
+
   if (canEdit && nextBallPos && (dragState.ballId === "cue" || dragState.ballId === "target" || dragState.ballId === "target_center")) {
     const nextBalls = { ...balls, [dragState.ballId]: nextBallPos };
     const cuePos = nextBalls.cue;
@@ -3714,22 +4045,25 @@ function handlePointerCancel(e) {
 
   // canonical 처리 (안전하게) — canonical은 위에서 이미 계산됨
   let anchors = rawAnchors;
-  
-  // 변환 필수 데이터 확인
-  const hasConversionData = 
-    canonical && 
+
+  const profileForCanonical = SYSTEM_PROFILES?.[systemIdForGrid];
+  const offsetFg2rg =
+    typeof system?.values?.offset_fg2rg === "number"
+      ? system.values.offset_fg2rg
+      : profileForCanonical?.safety?.offset_fg2rg;
+
+  const hasConversionData =
+    canonical &&
     canonical !== "canonical" &&
-    system.values &&
-    typeof system.values.offset_fg2rg === "number";
-  
+    typeof offsetFg2rg === "number";
+
   if (hasConversionData) {
     try {
-      const profile = SYSTEM_PROFILES?.[systemIdForGrid];
       const canonicalConfig = {
         track: canonical,
         coords: {
-          offset_fg2rg: profile?.safety?.offset_fg2rg ?? 2.25
-        }
+          offset_fg2rg: offsetFg2rg ?? 2.25,
+        },
       };
       anchors = convertCanonicalAnchors(rawAnchors, canonicalConfig);
     } catch (e) {
@@ -3738,8 +4072,8 @@ function handlePointerCancel(e) {
   } else {
     if (!canonical) {
       console.warn("canonical 정보 없음, 좌표 변환 스킵");
-    } else if (!system.values || typeof system.values.offset_fg2rg !== "number") {
-      console.warn("system.values.offset_fg2rg 없음, 좌표 변환 스킵");
+    } else if (typeof offsetFg2rg !== "number") {
+      console.warn("offset_fg2rg 없음(profile/view), 좌표 변환 스킵");
     }
   }
 
@@ -3783,6 +4117,9 @@ function handlePointerCancel(e) {
     CO_prep && C1_prep
       ? computeRailImpactPoint(CO_prep, C1_prep, { ...resolveAnchorCtx, mark: "1C" })
       : null;
+
+  /** 빨간 궤적·CO→1C 선 시작점 (Rg). isBottomCO 외 Fg CO_rail 보정 */
+  const CO_path0 = coStartForCushionPath(CO_rail, CO_prep, C1_prep);
 
   // 2C fallback: anchors["2C"] 없을 때 reflection engine으로 C2 자동 생성
   const currentTip = (() => {
@@ -4021,49 +4358,117 @@ function handlePointerCancel(e) {
 
   const impactCO = CO_prep ?? CO_rail ?? { x: balls.cue?.x ?? 0, y: balls.cue?.y ?? 0 };
   const impactC1 = C1_prep ?? C1_rail ?? impactCO;
-  const impactRaw = calculateImpact(balls.cue, balls.target_center, impactCO, impactC1, thicknessForCalc || "1/2", view.pattern || "뒤돌리기", BALL_DIAMETER_RG, BALL_RADIUS_RG);
+  const impactTargetBall =
+    resolveImpactTargetBall(balls, targetColor) ??
+    balls.target_center ??
+    balls.target;
+  const impactRaw = calculateImpact(
+    balls.cue,
+    impactTargetBall,
+    impactCO,
+    impactC1,
+    thicknessForCalc || "1/2",
+    view.pattern || "뒤돌리기",
+    BALL_DIAMETER_RG,
+    BALL_RADIUS_RG
+  );
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
 
-  // CO→1C 선은 레일 교점 사용
-  const CO_line = CO_rail;
+  // CO→1C 선은 레일(Rg) 시작점 — Fg 의미점과 분리 (CO_line ≠ 라벨 좌표일 수 있음)
   const C1_line = C1_rail;
 
   // CO Dual Trajectory: 보정선 (slide/curve_ratio/p_push !== 0일 때)
-  const corrections = canEdit ? (adminState?.sys?.corrections || {}) : {};
+  const corrections = canEdit ? (resolvedSlotSys?.corrections || {}) : {};
   const slideVal = Number(corrections.slide) || 0;
   const curveVal = Number(corrections.curve_ratio) || 0;
   const totalCorrection = slideVal + curveVal;
   const hasCorrection = slideVal !== 0 || curveVal !== 0;
 
   let CO_corrected_line = null;
-  if (hasCorrection && CO_rail && C1_rail) {
+  if (hasCorrection && CO_path0 && C1_rail) {
     // 레일 방향으로 CO를 totalCorrection만큼 이동 (1 sys unit ≈ 1 grid unit)
-    const isBottomRail = Math.abs(CO_rail.y - 0) < 0.5;
-    const isTopRail = Math.abs(CO_rail.y - 40) < 0.5;
-    const isLeftRail = Math.abs(CO_rail.x - 0) < 0.5;
-    const isRightRail = Math.abs(CO_rail.x - 80) < 0.5;
+    const isBottomRail = Math.abs(CO_path0.y - 0) < 0.5;
+    const isTopRail = Math.abs(CO_path0.y - 40) < 0.5;
+    const isLeftRail = Math.abs(CO_path0.x - 0) < 0.5;
+    const isRightRail = Math.abs(CO_path0.x - 80) < 0.5;
     if (isBottomRail || isTopRail) {
-      CO_corrected_line = { x: CO_rail.x + totalCorrection, y: CO_rail.y };
+      CO_corrected_line = { x: CO_path0.x + totalCorrection, y: CO_path0.y };
     } else if (isLeftRail || isRightRail) {
-      CO_corrected_line = { x: CO_rail.x, y: CO_rail.y + totalCorrection };
+      CO_corrected_line = { x: CO_path0.x, y: CO_path0.y + totalCorrection };
     } else {
-      CO_corrected_line = { x: CO_rail.x + totalCorrection, y: CO_rail.y };
+      CO_corrected_line = { x: CO_path0.x + totalCorrection, y: CO_path0.y };
     }
   }
+
+  const CO_line = CO_path0;
 
   console.log("🔷 레일 교점:", {
     "CO_prep (의미점)": CO_prep,
     "C1_prep (의미점)": C1_prep,
     "CO_rail": CO_rail,
+    CO_path0,
     "C1_rail (SSOT)": C1_rail
   });
 
-  let lastAnchor = null;
-  if (view.last_cushion === "4C") lastAnchor = C4;
-  if (view.last_cushion === "5C") lastAnchor = C5;
-  if (view.last_cushion === "6C") lastAnchor = C6;
+  const HIT_TOLERANCE = Math.max(2, BALL_RADIUS_RG * 4);
+  const C3_for_path = C3_snapped ?? C3_point ?? C3_anchor;
+  const pathNodesRaw = [CO_path0, C1_rail, C2, C3_for_path, C4, C5, C6];
+  const adjustedNodes = [...pathNodesRaw];
+  for (let i = 3; i < adjustedNodes.length - 1; i++) {
+    const A = adjustedNodes[i - 1];
+    const B = adjustedNodes[i];
+    const C = adjustedNodes[i + 1];
+    if (!A || !B || !C) continue;
 
-  const cushionPath = buildCushionPath(CO_rail, C1_rail, C2, C3_snapped ?? C3_point, lastAnchor);
+    const progress = spinPathComputeProgress(adjustedNodes, i);
+    const spinFactor = spinPathGetSpinFactor(progress);
+    const baseSpin = (adminState?.str?.spin ?? 1.0) * spinFactor;
+    const type = spinPathGetDirectionType(A, B, C);
+    const v = { x: C.x - B.x, y: C.y - B.y };
+    const v2 = spinPathApplySpin(v, baseSpin, type);
+    adjustedNodes[i + 1] = { x: B.x + v2.x, y: B.y + v2.y };
+
+    if (import.meta.env.DEV) {
+      console.log("[SPIN]", { index: i, progress, spinFactor, type });
+    }
+  }
+  const pathNodes = adjustedNodes;
+
+  const pathSecondBallRole =
+    view?.target_ball_color === "red" ? "red" : "yellow";
+  const ballsForRoles = uiBallsToBallArray(balls, pathSecondBallRole);
+  const { second: secondBallRole } = resolveBalls(ballsForRoles, pathSecondBallRole);
+  const secondPoint =
+    secondBallRole &&
+    Number.isFinite(secondBallRole.x) &&
+    Number.isFinite(secondBallRole.y)
+      ? { x: secondBallRole.x, y: secondBallRole.y }
+      : null;
+
+  let pathEndIndex = 3;
+  if (secondPoint) {
+    const postC3Segments = [
+      [pathNodes[3], pathNodes[4]],
+      [pathNodes[4], pathNodes[5]],
+      [pathNodes[5], pathNodes[6]],
+    ];
+    for (let i = 0; i < postC3Segments.length; i++) {
+      const [A, B] = postC3Segments[i];
+      if (!A || !B) continue;
+      if (isSegmentHitBall(A, B, secondPoint, HIT_TOLERANCE)) {
+        pathEndIndex = 4 + i;
+        break;
+      }
+    }
+  }
+
+  const cushionPath = [];
+  for (let i = 0; i <= pathEndIndex && i < pathNodes.length; i++) {
+    const p = pathNodes[i];
+    if (p == null) break;
+    cushionPath.push(p);
+  }
+
   const cushionPathAttrRaw = cushionPath.map((pt) => {
     const p = toPx(pt, SCALE, TABLE_H);
     return `${p.x + PADDING},${p.y + PADDING}`;
@@ -4074,9 +4479,10 @@ function handlePointerCancel(e) {
   const cushionPathAttr = dragState.dragging ? (dragState.frozenCushionPathAttr || cushionPathAttrRaw) : cushionPathAttrRaw;
 
   const orderedKeys = ["CO", "1C", "2C", "3C", "4C", "5C", "6C"];
-  const lastIndex = orderedKeys.indexOf(view.last_cushion);
-  const visibleKeys = lastIndex >= 0 ? orderedKeys.slice(0, lastIndex + 1) : orderedKeys;
-
+  const visibleKeysForLabels = orderedKeys.slice(
+    0,
+    Math.min(cushionPath.length, orderedKeys.length)
+  );
   const allAnchors = {
     CO: { coord: override.CO ?? CO_rail, isFg: false },
     // FIX: 1C는 항상 궤적 꺾임점(C1_rail)과 동일한 좌표를 사용
@@ -4087,27 +4493,26 @@ function handlePointerCancel(e) {
     "5C": { coord: C5, isFg: false }, 
     "6C": { coord: C6, isFg: false } 
   };
+  const allAnchorsForLabels = Object.fromEntries(
+    visibleKeysForLabels
+      .map((k) => [k, allAnchors[k]])
+      .filter(([, v]) => v && v.coord != null)
+  );
   const strategyResult = buildRailGroupedStrategy({
     strategy,
-    systemValues: system,
+    systemValues: canEdit ? { values: resolvedSlotSysValues } : system,
     anchors,
     lastCushion: view.last_cushion,
   });
   const railGroups = strategyResult.railGroups;
 
-  const systemValuesForLabels =
-    canEdit
-      ? (
-          adminState?.sys?.systemValues ??
-          adminState?.sys?.inputs ??
-          shotEditor?.slots?.[shotEditor?.activeSlot]?.draft?.sys?.outputs?.result ??
-          shotEditor?.slots?.[shotEditor?.activeSlot]?.draft?.sys?.inputs ??
-          shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.sys?.outputs?.result ??
-          shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.sys?.inputs ??
-          system?.values ??
-          {}
-        )
-      : (system?.values ?? {});
+  const canEditPosition = !isPositionLocked;
+
+  const systemValuesForLabels = canEdit
+    ? (resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
+        ? resolvedSlotSysValues
+        : (system?.values ?? {}))
+    : (system?.values ?? {});
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
@@ -4136,7 +4541,7 @@ function handlePointerCancel(e) {
         />
       )}
       <SystemValueLabels
-        anchors={allAnchors}
+        anchors={allAnchorsForLabels}
         scale={SCALE}
         tableH={TABLE_H}
         padding={PADDING}
@@ -4169,16 +4574,47 @@ function handlePointerCancel(e) {
           }
           impactBallPx={coaching.impactBallPx}
           impactBallRadius={coaching.impactBallRadius}
-          impactBallColor={coaching.impactBallColor}
           impactBallOpacity={coaching.impactBallOpacity}
           onImpactBallDoubleClick={coaching.onImpactBallDoubleClick}
           impactBallCursor={coaching.impactBallCursor}
         />
       )}
-      {balls.cue && <Ball {...balls.cue} color="#ffffff" />}
-      {balls.target_center && <Ball {...balls.target_center} color="#fde047" />}
-      {balls.second && <Ball {...balls.second} color="#f87171" />}
-      {dragState.joystickVisible && dragState.ballId && balls[dragState.ballId] && (() => {
+      {balls.cue && (
+        <Ball
+          {...balls.cue}
+          color="#ffffff"
+          emphasis={
+            canEditPosition && dragState.ballId === "cue" ? "selected" : undefined
+          }
+        />
+      )}
+      {balls.target_center && (
+        <Ball
+          {...balls.target_center}
+          color="#fde047"
+          emphasis={
+            canEditPosition &&
+            (dragState.ballId === "target_center" || dragState.ballId === "target")
+              ? "selected"
+              : undefined
+          }
+        />
+      )}
+      {balls.second && (
+        <Ball
+          {...balls.second}
+          color="#f87171"
+          emphasis={
+            canEditPosition && dragState.ballId === "second"
+              ? "selected"
+              : undefined
+          }
+        />
+      )}
+      {dragState.joystickVisible &&
+        canEditPosition &&
+        dragState.ballId &&
+        balls[dragState.ballId] && (() => {
   const bp = balls[dragState.ballId];
 
   // Joystick position: 10 Rg toward table center (clamped inside table)
@@ -4316,7 +4752,8 @@ function handlePointerCancel(e) {
                     sys: {
                       ...prev.sys,
                       ...rest,
-                      system: newData.system || system_id
+                      system: newData.system || system_id,
+                      track: newData.track ?? prev.sys?.track ?? "B2T_L",
                     }
                   }));
 
@@ -4326,25 +4763,24 @@ function handlePointerCancel(e) {
                   const numericInputs = Object.fromEntries(
                     Object.entries(inputs).map(([k, v]) => [k, typeof v === "number" ? v : Number(v) || 0])
                   );
-                  if (Object.keys(numericInputs).length > 0) {
-                    actions.updateDraftSys(activeSlot, systemId, numericInputs);
-                    const applyResult = actions.applyDraftSys(activeSlot);
-                    console.log("[SYS APPLY] applyDraftSys result:", applyResult);
-                    if (applyResult.ok) {
-                      const appliedSlot = actions.getActiveSlot();
-                      console.log("[SYS APPLY] slot.applied after:", appliedSlot?.applied);
-                      const appliedResult = appliedSlot?.applied?.sys?.outputs?.result;
-                      if (appliedResult && !trajectory.state.adjusted) {
-                        trajectory.setAdjusting({
-                          sys: {
-                            oneC: appliedResult.oneC || 0,
-                            threeC: appliedResult.threeC || 0
-                          }
-                        });
-                      }
-                      if (appliedResult) {
-                        trajectory.applySysResult(appliedResult);
-                      }
+                  const trackVal = newData.track ?? "B2T_L";
+                  actions.updateDraftSys(activeSlot, systemId, numericInputs, { track: trackVal });
+                  const applyResult = actions.applyDraftSys(activeSlot);
+                  console.log("[SYS APPLY] applyDraftSys result:", applyResult);
+                  if (applyResult.ok) {
+                    const appliedSlot = actions.getActiveSlot();
+                    console.log("[SYS APPLY] slot.applied after:", appliedSlot?.applied);
+                    const appliedResult = appliedSlot?.applied?.sys?.outputs?.result;
+                    if (appliedResult && !trajectory.state.adjusted) {
+                      trajectory.setAdjusting({
+                        sys: {
+                          oneC: appliedResult.oneC || 0,
+                          threeC: appliedResult.threeC || 0
+                        }
+                      });
+                    }
+                    if (appliedResult) {
+                      trajectory.applySysResult(appliedResult);
                     }
                   }
 
@@ -4557,40 +4993,61 @@ function handlePointerCancel(e) {
             style={{ display: 'none' }}
             onChange={handleFileImport}
           />
-          <button
-            type="button"
-            className="control-button"
-            onClick={() => setShowSystemGrid((prev) => !prev)}
-            style={{
-              backgroundColor: showSystemGrid ? '#10b981' : '#64748b',
-              color: 'white',
-            }}
-          >
-            Grid
-          </button>
-          <div className="right-panel-group">
+          <div className="right-panel-top-buttons">
             <button
+              type="button"
               className="control-button"
+              onClick={() => setShowSystemGrid((prev) => !prev)}
+              style={{
+                backgroundColor: showSystemGrid ? '#10b981' : '#64748b',
+                color: 'white',
+              }}
+            >
+              Grid
+            </button>
+            <button
+              type="button"
+              className={`control-button recall-btn${isRecalled ? " active" : ""}`}
               onClick={handlePositionRecall}
-              style={{ backgroundColor: '#0ea5e9', color: 'white' }}
             >
               Recall
             </button>
             <button
+              type="button"
               className="control-button"
               onClick={() => setShowHistoryModal(true)}
               style={{ backgroundColor: '#6366f1', color: 'white' }}
             >
               History
             </button>
-          </div>
-          <div className="right-panel-group">
             <button
-              className="control-button"
-              onClick={handleSaveWorkspaceSnapshot}
-              style={{ backgroundColor: '#059669', color: 'white' }}
+              type="button"
+              disabled={!canUseSystemControls}
+              className={`control-button save-btn${isSaved ? " active" : ""}`}
+              onClick={() => handleSaveWorkspaceSnapshot()}
+              style={{
+                opacity: canUseSystemControls ? 1 : 0.45,
+                cursor: canUseSystemControls ? "pointer" : "not-allowed",
+              }}
             >
               SAVE
+            </button>
+          </div>
+          <div className="right-panel-divider" aria-hidden="true" />
+          <div className="right-panel-input-buttons input-buttons">
+            <button
+              type="button"
+              className={`target-btn${isTargetSelected ? " active" : ""}`}
+              onClick={applyTarget}
+            >
+              Target
+            </button>
+            <button
+              type="button"
+              className={`position-btn${isPositionLocked ? " active" : ""}`}
+              onClick={handleTogglePositionLock}
+            >
+              Position
             </button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import React from "react";
 import { toPx } from "../../utils/geometry/coords";
+import { cushionMarkToDisplayLabel } from "../../utils/cushionDisplayLabel";
 import AnchorPoint from "./AnchorPoint";
 
 export default function SystemValueLabels({
@@ -54,6 +55,7 @@ export default function SystemValueLabels({
             dy={dy}
             textAnchor={textAnchor}
             label={label}
+            displayLabel={cushionMarkToDisplayLabel(label)}
             systemValue={systemValue}
             onDoubleClick={onAnchorDoubleClick}
           />

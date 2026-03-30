@@ -44,8 +44,12 @@ frontend/src/
  │   └── systems/   (39개 시스템)
  │
  ├── domain/
+ │   ├── anchorLookupEngine.ts
+ │   ├── anchorCoordinateEngine.ts
+ │   ├── reflectionEngine.ts
  │   ├── railEngine.ts
  │   ├── strategyEngine.ts
+ │   ├── calibrationEngine.ts (모듈 존재; App 궤적 경로에서는 미사용)
  │   └── index.ts
  │
  ├── hooks/
@@ -56,7 +60,7 @@ frontend/src/
  │   └── useDisplayController.ts
  │
  ├── utils/
- │   ├── geometry/coords.ts
+ │   ├── geometry/coords.ts, line.ts, rail.ts, anchorResolve.ts
  │   ├── physics/ (impact.ts, systemLine.ts, index.ts)
  │   ├── systemCalculator.ts
  │   ├── trajectorySampleBuilder.ts
@@ -103,11 +107,13 @@ UI 표시 기준
 
 3.2 anchors.json 역할
 
-좌표 기반 샘플 데이터
+**좌표 SSOT (Single Source of Truth):** sys·track·mark에 대해 보간 가능한 기준점 집합.
 
 궤적 검증용 기준점
 
 Canonical anchor 정의
+
+**역할 분리:** `profile.formula.expr`는 시스템 **값(숫자)** 계산 규칙이고, **화면에 그리는 CO/1C/3C 좌표**는 anchors lookup 파이프라인이 담당한다.
 
 3.3 logic.json 역할
 
@@ -147,6 +153,8 @@ Draft / Applied 상태 관리
 SYSTEM_PROFILES 기반 계산 실행
 
 calculateByProfileExpr 호출
+
+**Recall:** `buildDraftsFromRecord`에서 저장된 inputs로 expr 재실행 → **`outputs.result` 채움** (lookup용)
 
 저장 포맷 v1.4 생성
 
@@ -309,6 +317,23 @@ systems 경로 중복 문제
 src/systems 제거
 
 src/data/systems 단일화 완료
+
+12. 2026-03 최신 상태 (문서·코드 동기화 요약)
+
+**최근 핵심 주제 (2026-03 후반 ~ 03-28 기준):**
+
+| 주제 | 요약 |
+|------|------|
+| **anchors SSOT** | 렌더용 앵커 좌표는 `anchors.json` + `anchorLookupEngine` / `anchorCoordinateEngine`에서 sys 보간으로 가져온다. “좌표를 expr로 새로 계산”하지 않는다. |
+| **valueSpace (Fg / Rg)** | lookup 결과는 `coord` + `valueSpace`. Fg는 프레임 의미·방향점, Rg는 레일 맞음 좌표. `resolveAnchorPoint`는 Fg에 `snapToRail`을 적용하지 않는다. |
+| **Recall + `outputs.result`** | Recall 시 draft에 `inputs`만 있고 `outputs.result`가 비면 `getAnchorsForRendering`이 1C 등을 채우지 못한다. `buildDraftsFromRecord`에서 `calculateByProfileExpr`로 `draft.sys.outputs.result`를 채우도록 보강됨. |
+| **CO regression 복구** | `CO_rail`을 무조건 `computeRailImpactPoint(..., mark:"CO")`로 두면 5_half에서 CO_f>50(LEFT 구간)일 때 하단 교점 실패 → fallback으로 튀던 문제가 있었다. **Fg 하단 근처(`isBottomCO`)일 때만** 해당 교점을 적용하고, 그 외에는 `CO_prep` 유지로 복구. |
+| **2C reflection 튜닝** | `reflectionEngine.ts`의 `TIP_TO_DELTA_DEG`: 3팁 **13°**, 4팁 **18°** (과보정 완화). 구조·테이블 형식은 유지, 값만 조정. |
+| **1C 라벨 정합** | `allAnchors["1C"]`를 `C1_rail`(궤적 꺾임점)과 고정해 override와 라벨 불일치를 제거. |
+
+아래 12절(2026-02 Baseline)은 역사적 스냅샷으로 유지하되, **운영 기준 최신 상태는 위 표와 `5_PROJECT_MASTER_STATE_CURRENT.md`를 우선**한다.
+
+---
 
 12. 현재 안정 상태 (2026-02 Baseline)
 

@@ -9,6 +9,7 @@ import type {
   PositionRecord,
   StrategyEntry,
   StrategySignature,
+  TargetBall,
 } from "../domain/positionSearchEngine";
 import type { PositionKDIndex } from "../domain/search/positionKDIndex";
 import { makeSignatureKey } from "../domain/search/signatureKey";
@@ -37,6 +38,7 @@ export type RunAutoRecommendParams = {
   currentSignature: StrategySignature;
   dataset: PositionRecord[];
   kdIndex: PositionKDIndex;
+  targetBall?: TargetBall | null;
   loadDraftFromStrategyEntry: (
     slot: SlotId,
     entry: StrategyEntry,
@@ -56,6 +58,7 @@ export function runAutoRecommend(params: RunAutoRecommendParams): void {
     currentBalls,
     currentSignature,
     dataset,
+    targetBall,
     loadDraftFromStrategyEntry,
   } = params;
 
@@ -66,17 +69,15 @@ export function runAutoRecommend(params: RunAutoRecommendParams): void {
     balls: currentBalls,
     signatureKey,
     thresholds: { soft: Infinity, hard: Infinity },
+    targetBall: targetBall ?? null,
     topK: 5,
   });
 
   if (result.kind === "no-match") return;
 
   const best = result.record;
-  const entry = best.strategies.find(
-    (s) => s.slot === slot && makeSignatureKey(s.signature) === signatureKey
-  );
-
-  if (!entry) return;
+  const entry = best.strategies[slot];
+  if (!entry || makeSignatureKey(entry.signature) !== signatureKey) return;
 
   loadDraftFromStrategyEntry(slot, entry, {
     positionId: best.positionId,

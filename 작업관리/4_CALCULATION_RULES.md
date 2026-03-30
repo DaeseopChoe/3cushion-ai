@@ -359,3 +359,62 @@ spinAdjustDeg = sign × Δθ
 
 이 문서는 3Cushion AI 계산 엔진의 공식 규칙이다.
 모든 계산 변경은 본 문서 대비 변경점으로 기록한다.
+
+---
+
+# 🆕 SPIN + TRAJECTORY CORRECTION RULE
+
+## 적용 위치
+
+- pathNodes 생성 이후
+- 앵커 계산 이후 단계
+
+---
+
+## 1. Progress 계산
+
+progress = 누적 거리 / 전체 거리
+
+---
+
+## 2. Spin Decay
+
+if progress >= 0.85:
+
+- spin = spin × 0.5
+
+---
+
+## 3. Direction 판별
+
+cross = (B − A) × (C − B)
+
+- cross ≥ 0 → forward
+- cross < 0 → reverse
+
+---
+
+## 4. Spin 적용
+
+r_final = rotate(r, spin × k)
+
+- k ≈ 0.015
+- forward → +
+- reverse → −
+
+---
+
+## 5. 적용 구간
+
+- C3 이후 (C4 ~ C6)
+- C7 확장 시 자동 적용
+
+---
+
+## 6. 금지 사항
+
+- anchor 계산 수정 금지
+- epsilon / HIT_TOLERANCE 변경 금지
+- sys 계산 로직 변경 금지
+
+---
