@@ -63,7 +63,7 @@ import CoachingOverlay from "./components/table/CoachingOverlay";
 import { useCoachingController } from "./hooks/useCoachingController";
 import { useSystemController } from "./hooks/useSystemController";
 import { useDisplayController } from "./hooks/useDisplayController";
-import { TABLE_CONFIG, getTableLayout } from "./config/tableConfig";
+import { TABLE_CONFIG } from "./config/tableConfig";
 import { buildRailGroupedStrategy } from "./domain/railEngine";
 import { createStrategyEntry } from "./domain/adminSaveEngine";
 import {
@@ -299,6 +299,28 @@ function Ball({ x, y, color, opacity = 1, emphasis, ...eventProps }) {
 // 관리자 모드 오버레이 컴포넌트들
 // ============================================
 
+/**
+ * SYS 오버레이 onSave 페이로드를 슬롯 `updateDraftSys` / `commitDraftSys`용 숫자 맵으로 통합.
+ * (`inputs` vs `adjustedInputs` vs admin 계열 `system_values` / `output` 불일치 방지)
+ */
+function mergeSysOverlayPayloadToNumericInputs(newData) {
+  const normalize = (obj) => {
+    if (!obj || typeof obj !== "object") return {};
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v === "" || v === null || v === undefined) continue;
+      const n = typeof v === "number" ? v : Number(v);
+      if (!Number.isFinite(n)) continue;
+      out[k] = n;
+    }
+    return out;
+  };
+  const fromInputs = normalize(newData?.inputs);
+  const fromSystemValues = normalize(newData?.system_values);
+  const fromCalc = normalize(newData?.calculated ?? newData?.output);
+  const fromAdjusted = normalize(newData?.adjustedInputs);
+  return { ...fromInputs, ...fromSystemValues, ...fromCalc, ...fromAdjusted };
+}
 
 function SysOverlay({ data, onSave, onCancel }) {
   // ==========================================
@@ -1028,18 +1050,22 @@ function SysOverlay({ data, onSave, onCancel }) {
       {/* 버튼 */}
       <div style={{ display: 'flex', gap: '10px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
         <button
+          type="button"
+          disabled={!hasAllInputs}
           onClick={handleSave}
+          title={!hasAllInputs ? "공식에 필요한 입력을 모두 채운 뒤 적용할 수 있습니다." : undefined}
           style={{
             flex: 1,
             height: '36px',
             padding: '0 16px',
-            backgroundColor: '#3b82f6',
+            backgroundColor: hasAllInputs ? '#3b82f6' : '#94a3b8',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',
             fontSize: '14px',
-            cursor: 'pointer'
+            cursor: hasAllInputs ? 'pointer' : 'not-allowed',
+            opacity: hasAllInputs ? 1 : 0.85,
           }}
         >
           적용
@@ -3663,7 +3689,6 @@ function handleJoyPadPointerCancel(e) {
   })();
 
   const canonical = trackForAnchors;
-  const trackForGrid = trackForAnchors;
   const systemIdForGrid = (() => {
     if (canEdit) {
       const raw = resolvedSlotSys?.systemId ?? "5_half_system";
@@ -3671,7 +3696,6 @@ function handleJoyPadPointerCancel(e) {
     }
     return "5_half_system";
   })();
-  const anchorsDataForGrid = getAnchorsForSystem(systemIdForGrid);
 
   // ADMIN: anchors.json 기반 좌표 생성 | USER: display.anchors
   const rawAnchors = canEdit
@@ -4520,9 +4544,10 @@ function handlePointerCancel(e) {
     <svg
       ref={svgRef}
       className="table-svg"
+      overflow="visible"
       viewBox={`0 0 ${TABLE_W + 2 * PADDING} ${TABLE_H + 2 * PADDING}`}
       preserveAspectRatio="xMidYMid meet"
-      style={{ touchAction: "none" }}
+      style={{ touchAction: "none", overflow: "visible" }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -4530,24 +4555,6 @@ function handlePointerCancel(e) {
     >
       <RailFrame />
       <TableGrid />
-      {canEdit && showSystemGrid && anchorsDataForGrid && trackForGrid && (
-        <SystemGrid
-          anchorsData={anchorsDataForGrid}
-          track={trackForGrid}
-          scale={SCALE}
-          tableH={TABLE_H}
-          padding={PADDING}
-          tableLayout={getTableLayout(SCALE, TABLE_W, TABLE_H, PADDING)}
-        />
-      )}
-      <SystemValueLabels
-        anchors={allAnchorsForLabels}
-        scale={SCALE}
-        tableH={TABLE_H}
-        padding={PADDING}
-        systemValues={systemValuesForLabels}
-        onAnchorDoubleClick={canEdit ? openAnchorEdit : undefined}
-      />
       <ImpactLines
         CO_line={CO_line}
         C1_line={C1_line}
@@ -4661,6 +4668,21 @@ function handlePointerCancel(e) {
     </g>
   );
 })()}
+      {canEdit && (
+        <SystemGrid
+          track={trackForAnchors}
+          anchorsData={getAnchorsForSystem(systemIdForGrid)}
+          visible={showSystemGrid}
+        />
+      )}
+      <SystemValueLabels
+        anchors={allAnchorsForLabels}
+        scale={SCALE}
+        tableH={TABLE_H}
+        padding={PADDING}
+        systemValues={systemValuesForLabels}
+        onAnchorDoubleClick={canEdit ? openAnchorEdit : undefined}
+      />
      </svg>
   );
 
@@ -4759,18 +4781,15 @@ function handlePointerCancel(e) {
 
                   // 2. slot.applied.sys 동기화 - 항상 수행 (SAVE 시 handleSaveStrategy에서 사용)
                   const systemId = newData.system || system_id || "5_half_system";
-                  const inputs = newData.adjustedInputs || newData.inputs || {};
-                  const numericInputs = Object.fromEntries(
-                    Object.entries(inputs).map(([k, v]) => [k, typeof v === "number" ? v : Number(v) || 0])
-                  );
+                  const numericInputs = mergeSysOverlayPayloadToNumericInputs(newData);
                   const trackVal = newData.track ?? "B2T_L";
-                  actions.updateDraftSys(activeSlot, systemId, numericInputs, { track: trackVal });
-                  const applyResult = actions.applyDraftSys(activeSlot);
-                  console.log("[SYS APPLY] applyDraftSys result:", applyResult);
+                  const applyResult = actions.commitDraftSys(activeSlot, systemId, numericInputs, {
+                    track: trackVal,
+                  });
+                  console.log("[SYS APPLY] commitDraftSys result:", applyResult);
                   if (applyResult.ok) {
-                    const appliedSlot = actions.getActiveSlot();
-                    console.log("[SYS APPLY] slot.applied after:", appliedSlot?.applied);
-                    const appliedResult = appliedSlot?.applied?.sys?.outputs?.result;
+                    console.log("[SYS APPLY] committed applied.sys outputs:", applyResult.appliedSys?.outputs);
+                    const appliedResult = applyResult.appliedSys?.outputs?.result;
                     if (appliedResult && !trajectory.state.adjusted) {
                       trajectory.setAdjusting({
                         sys: {

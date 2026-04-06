@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { TrajectoryPhase } from './useTrajectoryState';
 import { SYSTEM_PROFILES } from '../data/systems';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
@@ -132,6 +132,144 @@ function applyDraftsToSlots(
   ) as ShotEditorState["slots"];
 }
 
+function validateDraftState(
+  draft: DraftState | null | undefined
+): { ok: true } | { ok: false; reason: string } {
+  if (!draft) {
+    return { ok: false, reason: "Draft 데이터가 없습니다." };
+  }
+  const result = draft.sys?.outputs?.result;
+  if (!result || typeof result !== "object") {
+    return { ok: false, reason: "draft.sys.outputs.result가 없습니다." };
+  }
+  const firstVal = Object.values(result)[0];
+  if (typeof firstVal !== "number" || Number.isNaN(firstVal)) {
+    return { ok: false, reason: "계산 결과값이 숫자가 아닙니다." };
+  }
+  return { ok: true };
+}
+
+/**
+ * slot + 입력 델타로 draft 전체(DraftState)를 계산 (setState 밖에서도 동일 결과를 얻기 위해 분리)
+ */
+function buildSlotDraftWithUpdatedSys(
+  slot: SlotState,
+  slotId: SlotId,
+  nextSystemId: string,
+  inputDelta: any,
+  opts?: { track?: string }
+): DraftState {
+  const prevDraftSys = slot.draft?.sys ?? {};
+  const prevInputs = prevDraftSys.inputs ?? {};
+  const prevSystemId = prevDraftSys.systemId;
+  const nextTrack = opts?.track ?? prevDraftSys.track ?? "B2T_L";
+
+  const candidateInputs = {
+    ...prevInputs,
+    ...inputDelta,
+  };
+
+  let baseThreeC: number;
+  let baseOneC: number;
+  if (prevSystemId !== nextSystemId) {
+    baseThreeC = typeof candidateInputs.C3 === "number" ? candidateInputs.C3 : 0;
+    baseOneC = typeof candidateInputs.CO === "number" ? candidateInputs.CO : 0;
+  } else {
+    baseThreeC =
+      typeof prevInputs.baseThreeC === "number"
+        ? prevInputs.baseThreeC
+        : typeof prevInputs.C3 === "number"
+          ? prevInputs.C3
+          : 0;
+    baseOneC =
+      typeof prevInputs.baseOneC === "number"
+        ? prevInputs.baseOneC
+        : typeof prevInputs.CO === "number"
+          ? prevInputs.CO
+          : 0;
+  }
+
+  const nextInputs = {
+    ...candidateInputs,
+    baseThreeC,
+    baseOneC,
+  };
+
+  const C3_r_input = (nextInputs as { C3_r?: number }).C3_r;
+  if (C3_r_input == null) {
+    if (import.meta.env.DEV) {
+      console.warn("[C3_r MISSING]", slotId, nextInputs);
+    }
+  }
+
+  const profile = SYSTEM_PROFILES[nextSystemId];
+  const exprInputs: Record<string, number> = { ...nextInputs } as Record<string, number>;
+
+  let calcResult: Record<string, number> = {};
+  if (profile?.formula?.expr) {
+    calcResult = calculateByProfileExpr(profile.formula.expr, exprInputs);
+  }
+
+  console.log("[STEP6-A]", "system:", nextSystemId, "expr:", profile?.formula?.expr, "result:", calcResult);
+
+  const prevOutputs = slot.draft?.sys?.outputs || {};
+  const prevResult = prevOutputs.result || {};
+  const prevDebug = prevOutputs.debug || {};
+
+  let nextResult: Record<string, number> = {
+    ...prevResult,
+    ...calcResult,
+  };
+
+  if (C3_r_input != null) {
+    nextResult.C3_r = C3_r_input;
+  }
+
+  if (nextSystemId === "5_half_system" || nextSystemId === "5_HALF") {
+    const CO_f = nextResult.CO_f ?? (nextInputs as { CO_f?: number }).CO_f ?? 0;
+    const C3_r = nextResult.C3_r;
+    if (C3_r == null) {
+      if (import.meta.env.DEV) {
+        console.error("[C3_r NOT RESOLVED]", slotId, nextResult);
+      }
+    } else {
+      const Sn = (CO_f - 50) * 0.5;
+      const C4_f = C3_r + Sn;
+      nextResult = {
+        ...nextResult,
+        Sn,
+        C4_f,
+        C5_f: C4_f,
+        C6_f: C4_f,
+      };
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    console.group(`[SYS TRACE] ${slotId}`);
+    console.log("[UPDATE_INPUTS]", slotId, nextInputs, prevResult);
+    console.log("[NEXT_RESULT]", slotId, nextResult);
+    console.groupEnd();
+  }
+
+  return {
+    ...(slot.draft || {}),
+    sys: {
+      systemId: nextSystemId,
+      track: nextTrack,
+      inputs: nextInputs,
+      outputs: {
+        result: nextResult,
+        debug: {
+          ...prevDebug,
+          expr: profile?.formula?.expr ?? null,
+          exprInputs,
+        },
+      },
+    },
+  };
+}
+
 export function useShotSlots(options?: UseShotSlotsOptions) {
   const { setBallsState, setAdminState } = options ?? {};
   const [shotEditor, setShotEditor] = useState<ShotEditorState>({
@@ -142,6 +280,8 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       S3: { draft: null, applied: null }
     }
   });
+  const shotEditorRef = useRef(shotEditor);
+  shotEditorRef.current = shotEditor;
 
   // ==========================================
   // Actions
@@ -201,131 +341,68 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
   ) => {
     setShotEditor((s) => {
       const slot = s.slots[slotId];
-      const prevDraftSys = slot.draft?.sys ?? {};
-      const prevInputs = prevDraftSys.inputs ?? {};
-      const prevSystemId = prevDraftSys.systemId;
-      const nextTrack = opts?.track ?? prevDraftSys.track ?? "B2T_L";
-
-      // -------- [1] 입력 통합(가독성 주석) --------
-      // 이전 입력에 delta 반영(시스템ID, 코렉션 등)
-      const candidateInputs = {
-        ...prevInputs,
-        ...inputDelta,
-      };
-
-      // -------- [2] 시스템ID 전환 판단 --------
-      let baseThreeC: number;
-      let baseOneC: number;
-      if (prevSystemId !== nextSystemId) {
-        // 시스템이 바뀌었으면 새로운 base 값 세팅 (입력에서 받아오거나 0)
-        baseThreeC = typeof candidateInputs.C3 === "number" ? candidateInputs.C3 : 0;
-        baseOneC = typeof candidateInputs.CO === "number" ? candidateInputs.CO : 0;
-      } else {
-        // 기존 시스템이면 이전 값 유지
-        baseThreeC = typeof prevInputs.baseThreeC === "number" ? prevInputs.baseThreeC
-          : (typeof prevInputs.C3 === "number" ? prevInputs.C3 : 0);
-        baseOneC = typeof prevInputs.baseOneC === "number" ? prevInputs.baseOneC
-          : (typeof prevInputs.CO === "number" ? prevInputs.CO : 0);
-      }
-
-      // 확정 입력 (입력 필드/코렉션/base 동시 포함)
-      const nextInputs = {
-        ...candidateInputs,
-        baseThreeC,
-        baseOneC,
-      };
-
-      const C3_r_input = (nextInputs as { C3_r?: number }).C3_r;
-      if (C3_r_input == null) {
-        if (import.meta.env.DEV) {
-          console.warn("[C3_r MISSING]", slotId, nextInputs);
-        }
-      }
-
-      // -------- [3] SYSTEM_PROFILES + calculateByProfileExpr 기반 계산 (시스템 공통) --------
-      const profile = SYSTEM_PROFILES[nextSystemId];
-      const exprInputs: Record<string, number> = { ...nextInputs } as Record<string, number>;
-
-      let calcResult: Record<string, number> = {};
-      if (profile?.formula?.expr) {
-        calcResult = calculateByProfileExpr(profile.formula.expr, exprInputs);
-      }
-
-      console.log(
-        "[STEP6-A]",
-        "system:", nextSystemId,
-        "expr:", profile?.formula?.expr,
-        "result:", calcResult
-      );
-
-      const prevOutputs = slot.draft?.sys?.outputs || {};
-      const prevResult = prevOutputs.result || {};
-      const prevDebug = prevOutputs.debug || {};
-
-      let nextResult: Record<string, number> = {
-        ...prevResult,
-        ...calcResult,
-      };
-
-      if (C3_r_input != null) {
-        nextResult.C3_r = C3_r_input;
-      }
-
-      // 5_half: 프로파일 수식은 C1_f만 — C4_f 체인은 렌더/앵커용으로 outputs.result에 확장 (SysOverlay와 동일 규칙)
-      if (nextSystemId === "5_half_system" || nextSystemId === "5_HALF") {
-        const CO_f = nextResult.CO_f ?? (nextInputs as { CO_f?: number }).CO_f ?? 0;
-        const C3_r = nextResult.C3_r;
-        if (C3_r == null) {
-          if (import.meta.env.DEV) {
-            console.error("[C3_r NOT RESOLVED]", slotId, nextResult);
-          }
-        } else {
-          const Sn = (CO_f - 50) * 0.5;
-          const C4_f = C3_r + Sn;
-          nextResult = {
-            ...nextResult,
-            Sn,
-            C4_f,
-            C5_f: C4_f,
-            C6_f: C4_f,
-          };
-        }
-      }
-
-      if (import.meta.env.DEV) {
-        console.group(`[SYS TRACE] ${slotId}`);
-        console.log("[UPDATE_INPUTS]", slotId, nextInputs, prevResult);
-        console.log("[NEXT_RESULT]", slotId, nextResult);
-        console.groupEnd();
-      }
-
-      // -------- [4] draft.sys 구성, 상태 업데이트 --------
+      const nextDraft = buildSlotDraftWithUpdatedSys(slot, slotId, nextSystemId, inputDelta, opts);
       return {
         ...s,
         slots: {
           ...s.slots,
           [slotId]: {
             ...slot,
-            draft: {
-              ...(slot.draft || {}),
-              sys: {
-                systemId: nextSystemId,
-                track: nextTrack,
-                inputs: nextInputs,
-                outputs: {
-                  result: nextResult,
-                  debug: {
-                    ...prevDebug,
-                    expr: profile?.formula?.expr ?? null,
-                    exprInputs,
-                  },
-                },
-              },
-            },
+            draft: nextDraft,
           },
         },
       };
     });
+  };
+
+  /**
+   * SYS 오버레이 "적용" 등: draft 갱신과 applied 반영을 한 번의 setState로 처리
+   * (연속 updateDraftSys + applyDraftSys 호출 시 첫 갱신이 반영되기 전 stale draft를 apply 하는 버그 방지)
+   */
+  const commitDraftSys = (
+    slotId: SlotId,
+    nextSystemId: string,
+    inputDelta: any,
+    opts?: { track?: string }
+  ):
+    | { ok: true; appliedSys: NonNullable<DraftState["sys"]> }
+    | { ok: false; reason: string } => {
+    const slot = shotEditorRef.current.slots[slotId];
+    const previewDraft = buildSlotDraftWithUpdatedSys(slot, slotId, nextSystemId, inputDelta, opts);
+    const v = validateDraftState(previewDraft);
+    if (!v.ok) return v;
+    let clonedPreview: NonNullable<DraftState["sys"]>;
+    try {
+      clonedPreview = structuredClone(previewDraft.sys);
+    } catch (e) {
+      return { ok: false, reason: "structuredClone 실패: " + String(e) };
+    }
+
+    setShotEditor((s) => {
+      const fresh = s.slots[slotId];
+      const nextDraft = buildSlotDraftWithUpdatedSys(fresh, slotId, nextSystemId, inputDelta, opts);
+      if (!validateDraftState(nextDraft).ok) return s;
+      const prevApplied = fresh.applied ?? {};
+      let clonedSys: NonNullable<DraftState["sys"]>;
+      try {
+        clonedSys = structuredClone(nextDraft.sys);
+      } catch {
+        return s;
+      }
+      return {
+        ...s,
+        slots: {
+          ...s.slots,
+          [slotId]: {
+            ...fresh,
+            draft: nextDraft,
+            applied: { ...prevApplied, sys: clonedSys },
+          },
+        },
+      };
+    });
+
+    return { ok: true, appliedSys: clonedPreview };
   };
 
   /*
@@ -340,20 +417,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
   // Draft 검증 함수 (expr/output 기반, 하드코딩 키 미사용)
   const validateDraft = (slotId: SlotId): { ok: true } | { ok: false; reason: string } => {
     const slot = shotEditor.slots[slotId];
-    const draft = slot.draft;
-    if (!draft) {
-      return { ok: false, reason: "Draft 데이터가 없습니다." };
-    }
-
-    const result = draft.sys?.outputs?.result;
-    if (!result || typeof result !== "object") {
-      return { ok: false, reason: "draft.sys.outputs.result가 없습니다." };
-    }
-    const firstVal = Object.values(result)[0];
-    if (typeof firstVal !== "number" || Number.isNaN(firstVal)) {
-      return { ok: false, reason: "계산 결과값이 숫자가 아닙니다." };
-    }
-    return { ok: true };
+    return validateDraftState(slot.draft);
   };
 
   // Draft.hpt/str/ai -> Applied.hpt/str/ai 확정 (오버레이 "적용" 시 호출)
@@ -706,6 +770,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       switchSlot,
       duplicateSlot,
       updateDraftSys,
+      commitDraftSys,
       validateDraft,
       applyDraftSys,
       applyHptToSlot,

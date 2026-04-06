@@ -46,6 +46,13 @@ export function fgToRg(fg: Point): Point {
   return { x: rg_x, y: rg_y };
 }
 
+/** RG → FG (`fgToRg` 역변환, 동일 경계 상수) */
+export function rgToFg(rg: Point): Point {
+  const fg_x = (rg.x / RG_W) * (FG_X_MAX - FG_X_MIN) + FG_X_MIN;
+  const fg_y = (rg.y / RG_H) * (FG_Y_MAX - FG_Y_MIN) + FG_Y_MIN;
+  return { x: fg_x, y: fg_y };
+}
+
 // ---------------------------------------------------------------------------
 // 1) parseC1AnchorId
 // ---------------------------------------------------------------------------

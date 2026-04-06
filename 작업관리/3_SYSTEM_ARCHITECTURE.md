@@ -587,3 +587,57 @@ resolvedSlotSys
 
 이 문서는 3Cushion AI 시스템 구조의 공식 명세서이다.
 구조 변경은 반드시 본 문서 대비 변경점으로 기록한다.
+
+---
+
+## [UPDATE 2026-04-01] Rail-based Normal 통합 및 C3~C6 정책 정리
+
+### 1. Normal 정의 (FG 기준 단일 소스)
+
+모든 쿠션 벡터 normal은 `railLine` 기반 **외향 단위 벡터**로 통일한다.
+
+구현: [`frontend/src/utils/geometry/railNormalFG.ts`](../frontend/src/utils/geometry/railNormalFG.ts) — `getRailOutwardUnitNormalFG(railLine)`
+
+| Rail | Normal (FG) |
+|------|-------------|
+| TOP | (0, +1) |
+| BOTTOM | (0, -1) |
+| LEFT | (-1, 0) |
+| RIGHT | (+1, 0) |
+
+- 좌표 `(x, y)`에 의존하지 않음 (normal 표 lookup만 사용).
+- symmetry(H/V/RPI) 적용 시 `railLine` 또는 벡터 변환만 일관되게 맞추면 동일 구조 유지 가능.
+
+### 2. `computeNormalFromPosition` 제거
+
+- **기존:** 좌표 기반 최근접 쿠션 → normal 계산 (`SystemGrid.jsx` 등).
+- **현재:** 완전 제거. `railLine` → `getRailOutwardUnitNormalFG` 구조로 단일화.
+
+### 3. Vector Mark 배치 구조 (SSOT)
+
+공통 파이프라인 (`SystemGrid.jsx` — `computeVectorMarkTargetFG`):
+
+1. `railLine = getRailLineFromPosition(x, y)`
+2. `normal = normalForVectorMarkPlacement(railLine, mark)` — 내부에서 `getRailOutwardUnitNormalFG` 기반
+3. `targetFG = baseFG + normal * distance`
+4. 이후 `fgToRg` → `toPx` (렌더 파이프라인)
+
+### 4. Mark별 정책 분리
+
+| Mark | baseFG | normal | distance |
+|------|--------|--------|----------|
+| C3 | rail snap | outward + **수직 변에서만** x 반전 (레거시 배치 유지) | `CUSHION_HALF` |
+| C4 | rail snap | pure outward | `CUSHION_HALF` |
+| C5 | anchor | pure outward | `MID_RANGE + BETA` |
+| C6 | anchor | pure outward | `MID_RANGE + BETA` |
+
+### 5. FRAME (CO / C1)
+
+- `getRailLineFromPosition(x, y)` → `getRailOutwardUnitNormalFG(railLine)` 사용.
+- `applyLayerOffset`는 **outward** 법선에 맞춰 픽셀 `dx/dy` 매핑됨 (기존 화면과 동일하도록 부호 조정 완료).
+
+### 6. 핵심 설계 원칙
+
+- normal은 반드시 **railLine 기반** (좌표만으로 normal 계산 금지).
+- 위치 의미는 **baseFG**와 **distance**로 결정.
+- symmetry 적용 가능 구조 확보 (표준 outward + rail 선택 정책 분리).
