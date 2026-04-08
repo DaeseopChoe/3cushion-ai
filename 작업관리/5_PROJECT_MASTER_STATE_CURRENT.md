@@ -4,6 +4,33 @@ Version: v2.4
 Last Updated: 2026-03-28
 Owner: 목계님
 
+## Label System Refactoring Status
+
+### 완료
+
+- 5&half 시스템 완전 보호 (`five_half_reference`)
+- `anchor_ssot` 렌더 파이프라인 단순화 완료
+- 충돌/레이어/MID 자동 이동 로직 제거 완료
+
+### 현재 상태
+
+- 좌표 기반 렌더 구조 확보
+- 일부 시스템에서 위치 오차가 관찰됨
+
+### 원인
+
+- `space` 미명시 데이터가 있어 `inferCoordSpace` fallback에 의존
+
+### 결론
+
+현재 상태는 **구조 정리 완료 / 데이터 구조 미완성** 단계다.
+
+### 다음 단계
+
+1. anchor `space` 명시 구조 도입
+2. `inferCoordSpace` fallback 제거
+3. 전략 분리 구조 확정 (`five_half_reference` / `anchor_ssot` / `custom`)
+
 ------------------------------------------------------------
 이 문서는 “현재 실제 코드 상태”만 기록한다.
 설명/이론/설계 철학은 포함하지 않는다.

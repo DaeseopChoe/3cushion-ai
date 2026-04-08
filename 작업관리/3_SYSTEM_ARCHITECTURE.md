@@ -641,3 +641,55 @@ resolvedSlotSys
 - normal은 반드시 **railLine 기반** (좌표만으로 normal 계산 금지).
 - 위치 의미는 **baseFG**와 **distance**로 결정.
 - symmetry 적용 가능 구조 확보 (표준 outward + rail 선택 정책 분리).
+
+---
+
+## Label Rendering Architecture (v2 - SSOT 기반)
+
+라벨 렌더링은 **anchor SSOT** 기반으로 동작한다.
+
+- `anchor.coord`는 절대 변경하지 않는다.
+- 좌표 이동(`offset` / `normal` / `collision` 기반 이동)은 금지한다.
+- 렌더 직전 좌표 변환만 허용한다.
+
+### 현재 구조
+
+```
+coord
+  ↓
+space 판별
+  ↓
+(space === FG) ? fgToRg 1회 : 그대로
+  ↓
+toPx
+```
+
+### 전략 구조
+
+- `five_half_reference` (기준 시스템, 완전 분리)
+- `anchor_ssot` (기본 전략)
+- `custom` (향후 확장)
+
+### 금지 규칙
+
+- 충돌 기반 이동 금지
+- MID 임의 이동 금지
+- FG↔RG 강제 전환 금지
+
+### 현재 문제 정의
+
+현재 일부 시스템은 `space`가 명시되지 않아 `inferCoordSpace` fallback에 의존한다.
+이로 인해 시스템별 좌표 의미와 불일치가 발생할 수 있다.
+
+### 다음 목표
+
+`anchor` 데이터에 `space`를 명시하는 구조를 도입한다.
+
+예시:
+
+```json
+{
+  "coord": [82.25, 20],
+  "space": "FG"
+}
+```

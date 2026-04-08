@@ -4,6 +4,31 @@ Version: v0.6
 Date: 2026-03-28
 Author: 목계님
 
+## Current Label Rendering Pipeline
+
+1. `anchor.coord` 수신
+2. `Number.isFinite(x/y)` 검증
+3. `space` 결정 (`valueSpace/space` 우선)
+4. `FG`이면 `fgToRg` 변환
+5. `toPx` 렌더
+
+### 제거된 기능
+
+- collision detection 제거
+- layer switching 제거
+- MID offset 제거
+
+### 현재 남아있는 리스크
+
+- `inferCoordSpace` fallback 오판 가능성
+- 일부 라벨 위치 불일치 가능성 (예: C3 내부 이동으로 보이는 케이스)
+
+### 구조 평가
+
+- 단순화 완료
+- SSOT 유지
+- `space` 명시 구조 도입 필요
+
 ------------------------------------------------------------
 
 # [2026-03-28] Anchors SSOT · Recall result · CO regression · 2C Δθ 튜닝
