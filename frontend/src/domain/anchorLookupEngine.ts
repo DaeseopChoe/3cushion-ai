@@ -128,6 +128,15 @@ export function getAnchorCoordFromSys(
   const jsonMark = jsonMarkFromLookupMark(mark);
   const points = collectPointsForMark(anchorsData, track, jsonMark);
   if (!points.length) return null;
+  console.log("[ANCHOR_RAW]", {
+    stage: "anchorLookupEngine:getAnchorCoordFromSys",
+    systemId: sid,
+    track,
+    mark,
+    jsonMark,
+    sysValue,
+    points,
+  });
 
   const coord = interpolatePoints(points, sysValue);
   const valueSpace = coordValueSpace(coord.x, coord.y);

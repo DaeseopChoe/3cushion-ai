@@ -7,7 +7,8 @@ export function toPx(
   scale: number,
   tableH: number
 ) {
-  return { x: rg.x * scale, y: tableH - rg.y * scale };
+  const { x, y } = rg;
+  return { x: x * scale, y: tableH - y * scale };
 }
 
 export function toRg(

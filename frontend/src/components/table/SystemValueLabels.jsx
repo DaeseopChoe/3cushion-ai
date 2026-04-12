@@ -1,42 +1,145 @@
 import React from "react";
-import { toPx } from "../../utils/geometry/coords";
-import { getRailOutwardUnitNormalFG } from "../../utils/geometry/railNormalFG";
+import { toPx, formatResultNum } from "../../utils/geometry/coords";
 import { cushionMarkToDisplayLabel } from "../../utils/cushionDisplayLabel";
-import { fgToRg, rgToFg } from "../../domain/finalCoordinateEngine";
-import { TABLE_CONFIG } from "../../config/tableConfig";
+import { getLabelNumericSuffix } from "../../domain/anchorCoordinateEngine";
 import AnchorPoint from "./AnchorPoint";
-import { computeCushionVectorLabelPosition, getRailLineFromPosition } from "./SystemGrid";
+import {
+  getSpace,
+  toRenderRg,
+} from "../../utils/geometry/systemLabelPlacement";
 
-/** SystemGrid 벡터 거리와 동일 기준 (3C=C3 … 6C=C6) */
-const VECTOR_LABEL_MARK = {
-  "3C": "C3",
-  "4C": "C4",
-  "5C": "C5",
-  "6C": "C6",
+const LABEL_PRIORITY = {
+  CO: 0,
+  "1C": 1,
+  "2C": 2,
+  "3C": 3,
+  "4C": 4,
+  "5C": 5,
+  "6C": 6,
 };
+const SPACE_EPS = 0.02;
 
-const VECTOR_LABELS = new Set(Object.keys(VECTOR_LABEL_MARK));
+function detectRailForCoord(coord, eps = SPACE_EPS) {
+  const { x, y } = coord;
+  if (Math.abs(x + 2.25) <= eps) return "LEFT";
+  if (Math.abs(x - 82.25) <= eps) return "RIGHT";
+  if (Math.abs(y + 2.25) <= eps) return "BOTTOM";
+  if (Math.abs(y - 42.25) <= eps) return "TOP";
+  if (Math.abs(x - 0) <= eps) return "LEFT";
+  if (Math.abs(x - 80) <= eps) return "RIGHT";
+  if (Math.abs(y - 0) <= eps) return "BOTTOM";
+  if (Math.abs(y - 40) <= eps) return "TOP";
+  return null;
+}
 
-/** C4 라벨 전용 — CUSHION_HALF 거리, 쿠션 외향 normal */
-function computeC4CushionCenterLabelPosition({ rawX, rawY, isFg, scale, tableH, padding }) {
-  const fg = isFg ? { x: rawX, y: rawY } : rgToFg({ x: rawX, y: rawY });
-  const railLine = getRailLineFromPosition(fg.x, fg.y);
-  const baseFG = { x: railLine.x ?? fg.x, y: railLine.y ?? fg.y };
-  const normal = getRailOutwardUnitNormalFG(railLine);
-  const half = TABLE_CONFIG.CUSHION_RG / 2;
-  const targetFG = {
-    x: baseFG.x + normal.x * half,
-    y: baseFG.y + normal.y * half,
-  };
-  const rg = fgToRg(targetFG);
+function byPriority(a, b) {
+  const pa = LABEL_PRIORITY[a.label] ?? 999;
+  const pb = LABEL_PRIORITY[b.label] ?? 999;
+  if (pa !== pb) return pa - pb;
+  return String(a.label).localeCompare(String(b.label));
+}
+
+function resolveSpace(coord) {
+  return getSpace(coord);
+}
+
+function collectBaseNodes(anchors, forceRgByLabel, forceMidByLabel, railByLabel) {
+  return Object.entries(anchors)
+    .map(([label, data]) => {
+      if (!data?.coord) return null;
+      const x = Number(data.coord.x);
+      const y = Number(data.coord.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      const coord = { x, y };
+      const space = resolveSpace(coord);
+      if (label === "CO" || label === "2C" || label === "3C") {
+        // #region agent log
+        fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "75c16c",
+          },
+          body: JSON.stringify({
+            sessionId: "75c16c",
+            runId: "snap-debug-pre",
+            hypothesisId: "H3",
+            location: "SystemValueLabels.jsx:collectBaseNodes",
+            message: "base node resolved",
+            data: { label, coord, space, labelStrategy: "anchor_ssot" },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
+      }
+      return {
+        label,
+        coord,
+        space,
+        rail: railByLabel?.[label] ?? detectRailForCoord(coord),
+        forceRg: !!forceRgByLabel?.[label],
+        forceMid: !!forceMidByLabel?.[label],
+      };
+    })
+    .filter(Boolean)
+    .sort(byPriority);
+}
+
+
+function renderNode(node, { scale, tableH, padding, systemValues, onAnchorDoubleClick }) {
+  if (node.id === "CO") {
+    console.log("TO_RENDER_INPUT_CO", node.coord, node.space);
+  }
+  const rg = toRenderRg(node.coord, node.space, {
+    forceRg: node.forceRg,
+    forceMid: node.forceMid,
+    rail: node.rail,
+  });
+  console.log("[RENDER_RG]", rg);
+  console.log("[TO_PX_INPUT]", rg);
+  console.log("[FINAL_COORD_BEFORE_RENDER]", rg);
+  if (node.label === "CO" || node.label === "2C" || node.label === "3C") {
+    // #region agent log
+    fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "75c16c",
+      },
+      body: JSON.stringify({
+        sessionId: "75c16c",
+        runId: "snap-debug-pre",
+        hypothesisId: "H4",
+        location: "SystemValueLabels.jsx:renderNode",
+        message: "toPx input on common path",
+        data: { label: node.label, coord: node.coord, space: node.space, rg, path: "anchor_ssot" },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  }
+  console.log("TO_PX_INPUT_CO", rg);
   const p = toPx(rg, scale, tableH);
-  return {
-    cx: p.x + padding,
-    cy: p.y + padding,
-    dx: 0,
-    dy: 0,
-    textAnchor: "middle",
-  };
+  const cx = p.x + padding;
+  const cy = p.y + padding;
+  console.log("[FINAL_COORD]", { label: node.label, cx, cy, rg });
+  const num = getLabelNumericSuffix(node.label, systemValues);
+  const systemValue = num != null ? formatResultNum(num) : null;
+  return (
+    <AnchorPoint
+      key={node.label}
+      cx={cx}
+      cy={cy}
+      dx={0}
+      dy={0}
+      textAnchor="middle"
+      fontSize={20}
+      label={node.label}
+      displayLabel={cushionMarkToDisplayLabel(node.label)}
+      systemValue={systemValue}
+      onDoubleClick={onAnchorDoubleClick}
+    />
+  );
 }
 
 export default function SystemValueLabels({
@@ -46,96 +149,66 @@ export default function SystemValueLabels({
   padding,
   systemValues,
   onAnchorDoubleClick,
+  labelStrategy = "anchor_ssot",
+  systemId,
+  forceRgByLabel,
+  forceMidByLabel,
+  railByLabel,
 }) {
+  const renderProps = {
+    scale,
+    tableH,
+    padding,
+    systemValues,
+    onAnchorDoubleClick,
+  };
+  // #region agent log
+  fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "75c16c",
+    },
+    body: JSON.stringify({
+      sessionId: "75c16c",
+      runId: "snap-debug-pre",
+      hypothesisId: "H5",
+      location: "SystemValueLabels.jsx:component-entry",
+      message: "SystemValueLabels render entered",
+      data: {
+        systemId,
+        labelStrategy,
+        anchorCount: anchors ? Object.keys(anchors).length : 0,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  // #region agent log
+  fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "75c16c",
+    },
+    body: JSON.stringify({
+      sessionId: "75c16c",
+      runId: "snap-debug-pre",
+      hypothesisId: "H1",
+      location: "SystemValueLabels.jsx:strategy-branch",
+      message: "anchor_ssot strategy branch selected",
+      data: { labelStrategy, systemId },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  const nodes = collectBaseNodes(anchors, forceRgByLabel, forceMidByLabel, railByLabel);
+
   return (
     <>
-      {Object.entries(anchors).map(([label, data]) => {
-        if (!data.coord) return null;
-
-        let cx;
-        let cy;
-        let dx;
-        let dy;
-        let textAnchor;
-
-        if (label === "4C") {
-          const pos = computeC4CushionCenterLabelPosition({
-            rawX: data.coord.x,
-            rawY: data.coord.y,
-            isFg: data.isFg,
-            scale,
-            tableH,
-            padding,
-          });
-          cx = pos.cx;
-          cy = pos.cy;
-          dx = pos.dx;
-          dy = pos.dy;
-          textAnchor = pos.textAnchor;
-        } else if (VECTOR_LABELS.has(label)) {
-          const mark = VECTOR_LABEL_MARK[label];
-          const pos = computeCushionVectorLabelPosition({
-            rawX: data.coord.x,
-            rawY: data.coord.y,
-            isFg: data.isFg,
-            mark,
-            scale,
-            tableH,
-            padding,
-          });
-          cx = pos.cx;
-          cy = pos.cy;
-          dx = pos.dx;
-          dy = pos.dy;
-          textAnchor = pos.textAnchor;
-        } else {
-          let dotX = data.coord.x;
-          let dotY = data.coord.y;
-
-          if (data.isFg) {
-            if (Math.abs(dotY - 42.25) < 0.5) dotY = 40;
-            else if (Math.abs(dotY - (-2.25)) < 0.5) dotY = 0;
-          }
-
-          const p = toPx({ x: dotX, y: dotY }, scale, tableH);
-          cx = p.x + padding;
-          cy = p.y + padding;
-          dx = 0;
-          dy = 0;
-          textAnchor = "middle";
-
-          if (Math.abs(dotY - 40) < 0.5) dy = -10;
-          else if (Math.abs(dotY - 0) < 0.5) dy = 17.5;
-
-          if (Math.abs(dotX - 0) < 0.5) {
-            dx = -10;
-            textAnchor = "end";
-          } else if (Math.abs(dotX - 80) < 0.5) {
-            dx = 10;
-            textAnchor = "start";
-          }
-        }
-
-        const systemValue =
-          typeof label === "string" && systemValues?.[label] != null
-            ? systemValues[label]
-            : null;
-
-        return (
-          <AnchorPoint
-            key={label}
-            cx={cx}
-            cy={cy}
-            dx={dx}
-            dy={dy}
-            textAnchor={textAnchor}
-            label={label}
-            displayLabel={cushionMarkToDisplayLabel(label)}
-            systemValue={systemValue}
-            onDoubleClick={onAnchorDoubleClick}
-          />
-        );
-      })}
+      {nodes.map((node) => renderNode(node, renderProps))}
     </>
   );
 }

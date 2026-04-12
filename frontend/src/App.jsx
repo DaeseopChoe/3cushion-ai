@@ -2310,6 +2310,27 @@ export default function App({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [overlayContent, setOverlayContent] = useState(null);
+
+  useEffect(() => {
+    // #region agent log
+    fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "75c16c",
+      },
+      body: JSON.stringify({
+        sessionId: "75c16c",
+        runId: "snap-debug-pre",
+        hypothesisId: "H5",
+        location: "App.jsx:mount-effect",
+        message: "App mounted in browser runtime",
+        data: { currentId: SHOTS[0]?.id ?? null },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, []);
   
   // ============================================
   // ShotSlots & TrajectoryState 훅 연결 (ballsState 이후에 연결)
@@ -3750,7 +3771,7 @@ function handleJoyPadPointerCancel(e) {
         console.log("[ANCHOR_SPACE_TRACE] rawAnchors 최종", {
           keys: Object.keys(finalAnchors || {}),
           hasSpaceInfo: Object.values(finalAnchors || {}).some(
-            (v) => v && typeof v === "object" && ("isFg" in v || "space" in v || "keyUsed" in v)
+            (v) => v && typeof v === "object" && ("space" in v || "keyUsed" in v)
           ),
           sample: finalAnchors?.["1C"] ? { "1C": finalAnchors["1C"] } : null,
         });
@@ -4371,7 +4392,8 @@ function handlePointerCancel(e) {
       : null;
 
   const C2 = anchors["2C"] ?? reflected?.c2 ?? null;
-  const C3 = C3_snapped ?? C3_point ?? C3_anchor;
+  // 라벨 표시는 원본 좌표를 유지하고, snapped는 trajectory/계산 전용으로 분리한다.
+  const C3_label = C3_point ?? C3_anchor;
 
   if (reflected && canEdit) {
     console.log("🔷 C2 reflection fallback:", reflected.diagnostics);
@@ -4503,25 +4525,108 @@ function handlePointerCancel(e) {
   const cushionPathAttr = dragState.dragging ? (dragState.frozenCushionPathAttr || cushionPathAttrRaw) : cushionPathAttrRaw;
 
   const orderedKeys = ["CO", "1C", "2C", "3C", "4C", "5C", "6C"];
+  // NOTE: 라벨 미표시 원인 구분용 — 현재는 좌표계 이슈와 별개로
+  // visibleKeysForLabels(cushionPath 길이 기반) 정책이 먼저 라벨 대상을 제한한다.
   const visibleKeysForLabels = orderedKeys.slice(
     0,
     Math.min(cushionPath.length, orderedKeys.length)
   );
   const allAnchors = {
-    CO: { coord: override.CO ?? CO_rail, isFg: false },
+    CO: { coord: override.CO ?? CO_rail },
     // FIX: 1C는 항상 궤적 꺾임점(C1_rail)과 동일한 좌표를 사용
-    "1C": { coord: C1_rail, isFg: false },
-    "2C": { coord: C2, isFg: false },
-    "3C": { coord: C3_snapped ?? C3_point ?? C3_anchor, isFg: false }, 
-    "4C": { coord: C4, isFg: false }, 
-    "5C": { coord: C5, isFg: false }, 
-    "6C": { coord: C6, isFg: false } 
+    "1C": { coord: C1_rail },
+    "2C": { coord: C2 },
+    "3C": { coord: C3_label },
+    "4C": { coord: C4 }, 
+    "5C": { coord: C5 }, 
+    "6C": { coord: C6 } 
   };
+  console.log("[ANCHOR_BEFORE_RENDER]", {
+    stage: "App:allAnchors",
+    rawAnchors,
+    anchorsAfterCanonical: anchors,
+    allAnchors,
+    trackForAnchors,
+    systemIdForGrid,
+  });
   const allAnchorsForLabels = Object.fromEntries(
     visibleKeysForLabels
       .map((k) => [k, allAnchors[k]])
       .filter(([, v]) => v && v.coord != null)
   );
+  console.log("LABEL_INPUT_CO", allAnchorsForLabels["CO"]);
+  const LABEL_ORDER = ["CO", "1C", "2C", "3C", "4C", "5C", "6C"];
+  const labelRank = Object.fromEntries(LABEL_ORDER.map((k, idx) => [k, idx]));
+  const overlapEps = 1.0;
+  const forceRgByLabel = {};
+  const forceMidByLabel = {};
+  const railByLabel = {};
+  const getRailAxisValue = (coord, rail) => {
+    if (!coord || !rail) return Number.NaN;
+    if (rail === "TOP" || rail === "BOTTOM") return coord.x;
+    return coord.y;
+  };
+  const overlapsByRail = { TOP: [], BOTTOM: [], LEFT: [], RIGHT: [] };
+  Object.entries(allAnchorsForLabels).forEach(([label, data]) => {
+    const coord = data?.coord;
+    if (!coord) return;
+    const rail = detectRail(coord);
+    if (!rail) return;
+    railByLabel[label] = rail;
+    overlapsByRail[rail].push({
+      label,
+      coord,
+      axis: getRailAxisValue(coord, rail),
+    });
+  });
+  Object.values(overlapsByRail).forEach((items) => {
+    const applyClusterPolicy = (cluster) => {
+      if (!cluster || cluster.length < 2) return;
+      const byPriority = [...cluster].sort(
+        (a, b) => (labelRank[a.label] ?? 999) - (labelRank[b.label] ?? 999)
+      );
+      if (byPriority.length === 2) {
+        forceRgByLabel[byPriority[1].label] = true;
+        return;
+      }
+      for (let i = 1; i < byPriority.length - 1; i += 1) {
+        forceRgByLabel[byPriority[i].label] = true;
+      }
+      forceMidByLabel[byPriority[byPriority.length - 1].label] = true;
+    };
+
+    items.sort((a, b) => a.axis - b.axis);
+    let cluster = [];
+    for (let i = 0; i < items.length; i += 1) {
+      if (cluster.length === 0) {
+        cluster.push(items[i]);
+        continue;
+      }
+      const prev = cluster[cluster.length - 1];
+      const curr = items[i];
+      if (Math.abs(curr.axis - prev.axis) <= overlapEps) {
+        cluster.push(curr);
+      } else {
+        applyClusterPolicy(cluster);
+        cluster = [curr];
+      }
+    }
+    applyClusterPolicy(cluster);
+  });
+  Object.keys(forceMidByLabel).forEach((label) => {
+    delete forceRgByLabel[label];
+  });
+  if (import.meta.env.DEV) {
+    console.log("[LABEL_VISIBILITY_TRACE]", {
+      orderedKeys,
+      visibleKeysForLabels,
+      cushionPathLength: cushionPath.length,
+      passedToLabels: Object.keys(allAnchorsForLabels),
+      forceRgByLabel,
+      forceMidByLabel,
+      railByLabel,
+    });
+  }
   const strategyResult = buildRailGroupedStrategy({
     strategy,
     systemValues: canEdit ? { values: resolvedSlotSysValues } : system,
@@ -4537,6 +4642,7 @@ function handlePointerCancel(e) {
         ? resolvedSlotSysValues
         : (system?.values ?? {}))
     : (system?.values ?? {});
+  const labelStrategy = "anchor_ssot";
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
@@ -4681,6 +4787,11 @@ function handlePointerCancel(e) {
         tableH={TABLE_H}
         padding={PADDING}
         systemValues={systemValuesForLabels}
+        labelStrategy={labelStrategy}
+        systemId={systemIdForGrid}
+        forceRgByLabel={forceRgByLabel}
+        forceMidByLabel={forceMidByLabel}
+        railByLabel={railByLabel}
         onAnchorDoubleClick={canEdit ? openAnchorEdit : undefined}
       />
      </svg>

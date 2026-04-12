@@ -11,6 +11,7 @@ export default function AnchorPoint({
   label,
   displayLabel,
   systemValue,
+  fontSize = 20,
   onDoubleClick,
 }) {
   const text = displayLabel ?? label;
@@ -31,9 +32,9 @@ export default function AnchorPoint({
         dominantBaseline="middle"
         fontWeight="bold"
       >
-        <tspan fontSize={20}>{text}</tspan>
+        <tspan fontSize={fontSize}>{text}</tspan>
         {systemValue != null && (
-          <tspan fontSize={20}>{" "}_{systemValue}</tspan>
+          <tspan fontSize={fontSize}>{" "}_{systemValue}</tspan>
         )}
       </text>
     </g>

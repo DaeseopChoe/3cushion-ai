@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import Stage from "./components/Stage.jsx";
@@ -6,6 +6,25 @@ import { LayoutProvider } from "./contexts/LayoutContext.jsx";
 import "./index.css";
 import "./styles/stage-layout.css";
 // import "./styles/mobile-layout.css";  // Phase 1: 임시 비활성화
+
+// #region agent log
+fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Debug-Session-Id": "75c16c",
+  },
+  body: JSON.stringify({
+    sessionId: "75c16c",
+    runId: "snap-debug-pre",
+    hypothesisId: "H9",
+    location: "main.jsx:top-level",
+    message: "main module evaluated",
+    data: { module: "main.jsx" },
+    timestamp: Date.now(),
+  }),
+}).catch(() => {});
+// #endregion
 
 // Phase F: Service Worker 비활성화
 // import { registerServiceWorker } from "./registerSW.js";
@@ -23,6 +42,27 @@ import "./styles/stage-layout.css";
 function RootWrapper() {
   // 버튼 클릭 핸들러
   const [currentButtonId, setCurrentButtonId] = useState(null);
+
+  useEffect(() => {
+    // #region agent log
+    fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "75c16c",
+      },
+      body: JSON.stringify({
+        sessionId: "75c16c",
+        runId: "snap-debug-pre",
+        hypothesisId: "H6",
+        location: "main.jsx:RootWrapper-mount",
+        message: "frontend entry mounted",
+        data: { hasRoot: true },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, []);
   
   const handleButtonClick = (buttonId) => {
     console.log('🎯 Button clicked:', buttonId);

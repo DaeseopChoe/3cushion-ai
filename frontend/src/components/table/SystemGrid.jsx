@@ -95,19 +95,21 @@ export function getRailLineFromPosition(x, y) {
 }
 
 function usesRailLineBaseMark(mark) {
-  return mark === "C3" || mark === "C4";
+  return mark === "C2" || mark === "C3" || mark === "C4";
 }
 
 /**
- * 벡터 라벨 displacement: C4/C5/C6는 순수 쿠션 외향; C3만 수직 변에서 x 반전(레거시 배치 유지).
+ * 벡터 라벨 displacement: C4/C5/C6는 순수 쿠션 외향; C2/C3는 동일(수직 변에서 x 반전, 레거시 C3 정책 유지).
  */
 function normalForVectorMarkPlacement(railLine, mark) {
   const outward = getRailOutwardUnitNormalFG(railLine);
   if (mark === "C4" || mark === "C5" || mark === "C6") return outward;
-  return railLine.x != null ? { x: -outward.x, y: outward.y } : outward;
+  if (mark === "C2" || mark === "C3")
+    return railLine.x != null ? { x: -outward.x, y: outward.y } : outward;
+  return outward;
 }
 
-/** C3/C4: railLine → baseFG → normal × distance. C5/C6: anchor 기준 유지 */
+/** C2/C3/C4: railLine → baseFG → normal × distance. C5/C6: anchor 기준 유지 */
 function computeVectorMarkTargetFG(x, y, mark) {
   const distance = getRailVectorDistance(mark);
   const railLine = getRailLineFromPosition(x, y);
@@ -122,23 +124,22 @@ function computeVectorMarkTargetFG(x, y, mark) {
 }
 
 function usesVectorRailMark(mark) {
-  return mark === "C3" || mark === "C4" || mark === "C5" || mark === "C6";
+  return mark === "C2" || mark === "C3" || mark === "C4" || mark === "C5" || mark === "C6";
 }
 
 function getRailVectorDistance(mark) {
-  if (mark === "C3") return CUSHION_HALF;
-  if (mark === "C4") return CUSHION_HALF;
+  if (mark === "C2" || mark === "C3" || mark === "C4") return CUSHION_HALF;
   if (mark === "C5" || mark === "C6") return MID_RANGE + MID_RANGE_BETA;
   return 0;
 }
 
 /**
- * C3~C6 라벨: SystemValueLabels 등에서 SystemGrid와 동일 벡터 파이프 사용
+ * C2~C6 라벨: SystemValueLabels 등에서 SystemGrid와 동일 벡터 파이프 사용
  * @param {object} p
  * @param {number} p.rawX
  * @param {number} p.rawY
  * @param {boolean} p.isFg
- * @param {"C3"|"C4"|"C5"|"C6"} p.mark
+ * @param {"C2"|"C3"|"C4"|"C5"|"C6"} p.mark
  */
 export function computeCushionVectorLabelPosition({ rawX, rawY, isFg, mark, scale, tableH, padding }) {
   const fg = isFg ? { x: rawX, y: rawY } : rgToFg({ x: rawX, y: rawY });

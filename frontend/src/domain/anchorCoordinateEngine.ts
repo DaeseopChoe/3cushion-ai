@@ -142,11 +142,38 @@ const MARK_TO_OUTPUT_KEY: Record<string, string> = {
 const MARK_SYS_CANDIDATES: Record<string, string[]> = {
   CO: ["CO_f", "CO_r", "CO"],
   C1: ["C1_f", "C1_r", "oneC", "1C"],
+  C2: ["C2_f", "C2_r", "2C"],
   C3: ["C3_f", "C3_r", "threeC", "3C"],
   C4: ["C4_f", "C4_r", "4C"],
   C5: ["C5_f", "C5_r", "5C"],
   C6: ["C6_f", "C6_r", "6C"],
 };
+
+/** SystemValueLabels UI 키 → MARK_SYS_CANDIDATES 엔진 mark */
+const LABEL_KEY_TO_ENGINE_MARK: Record<string, string> = {
+  CO: "CO",
+  "1C": "C1",
+  "2C": "C2",
+  "3C": "C3",
+  "4C": "C4",
+  "5C": "C5",
+  "6C": "C6",
+};
+
+/**
+ * 슬롯/뷰 병합 system values에서 라벨별 표시 숫자 하나만 추출 (중복 매핑 단일화).
+ * C4~C6는 공식/병합 결과 필드(C4_f 등) 우선.
+ */
+export function getLabelNumericSuffix(
+  labelKey: string,
+  sysValues: Record<string, unknown> | undefined
+): number | null {
+  const engineMark = LABEL_KEY_TO_ENGINE_MARK[labelKey];
+  if (!engineMark) return null;
+  const candidates = MARK_SYS_CANDIDATES[engineMark];
+  if (!candidates) return null;
+  return extractSysValue(sysValues, candidates);
+}
 
 const ENGINE_MARK_TO_LOOKUP_MARK: Record<string, AnchorLookupMark> = {
   CO: "CO",
@@ -193,6 +220,17 @@ function sysToCoordFromAnchors(
 
     const key = MARK_TO_OUTPUT_KEY[mark];
     result[key] = hit;
+    console.log("[ANCHOR_AFTER_ENGINE]", {
+      stage: "anchorCoordinateEngine:sysToCoordFromAnchors",
+      systemId,
+      track,
+      mark,
+      labelKey: key,
+      sysValue: extracted.value,
+      keyUsed: extracted.keyUsed,
+      coord: hit.coord,
+      valueSpace: hit.valueSpace,
+    });
 
     console.log("[ANCHOR_SPACE_TRACE]", {
       mark,
