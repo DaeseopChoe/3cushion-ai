@@ -9,28 +9,33 @@ const FRAME_TOL = 1e-3;
 
 export type AnchorLookupMark =
   | "CO"
-  | "1C"
-  | "2C"
-  | "3C"
-  | "4C"
-  | "5C"
-  | "6C";
+  | "C1"
+  | "C2"
+  | "C3"
+  | "C4"
+  | "C5"
+  | "C6";
 
 export type AnchorLookupResult = {
   coord: { x: number; y: number };
   valueSpace: "Fg" | "Rg";
 };
 
-/** engine 출력 키 / JSON id의 mark */
-function jsonMarkFromLookupMark(mark: AnchorLookupMark): string {
-  if (mark === "1C") return "C1";
-  if (mark === "2C") return "C2";
-  if (mark === "3C") return "C3";
-  if (mark === "4C") return "C4";
-  if (mark === "5C") return "C5";
-  if (mark === "6C") return "C6";
-  return "CO";
-}
+/**
+ * anchors.json id 접두(parsed mark)는 CO / C1 … 형식. lookup mark와 동일한 접두만 수집한다.
+ */
+const ANCHOR_JSON_MARKS_FOR_LOOKUP: Record<
+  AnchorLookupMark,
+  readonly string[]
+> = {
+  CO: ["CO"],
+  C1: ["C1"],
+  C2: ["C2"],
+  C3: ["C3"],
+  C4: ["C4"],
+  C5: ["C5"],
+  C6: ["C6"],
+};
 
 /**
  * id 파싱: <ID>_(x,y)_<sys>
@@ -89,16 +94,17 @@ function interpolatePoints(sorted: PointSys[], sysValue: number): { x: number; y
 function collectPointsForMark(
   anchorsData: AnchorsData | undefined,
   track: string,
-  jsonMark: string
+  lookupMark: AnchorLookupMark
 ): PointSys[] {
   const trackData = anchorsData?.trajectories?.[track];
   const list = trackData?.anchors;
   if (!list?.length) return [];
 
+  const accepted = ANCHOR_JSON_MARKS_FOR_LOOKUP[lookupMark];
   const out: PointSys[] = [];
   for (const item of list) {
     const p = parseAnchorIdFromJson(item.id);
-    if (p && p.mark === jsonMark) {
+    if (p && accepted.includes(p.mark)) {
       out.push({ x: p.x, y: p.y, sys: p.sys });
     }
   }
@@ -125,15 +131,13 @@ export function getAnchorCoordFromSys(
   const anchorsData = getAnchorsForSystem(sid);
   if (!anchorsData) return null;
 
-  const jsonMark = jsonMarkFromLookupMark(mark);
-  const points = collectPointsForMark(anchorsData, track, jsonMark);
+  const points = collectPointsForMark(anchorsData, track, mark);
   if (!points.length) return null;
   console.log("[ANCHOR_RAW]", {
     stage: "anchorLookupEngine:getAnchorCoordFromSys",
     systemId: sid,
     track,
     mark,
-    jsonMark,
     sysValue,
     points,
   });

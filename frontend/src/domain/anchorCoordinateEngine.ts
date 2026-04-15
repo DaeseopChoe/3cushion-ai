@@ -128,37 +128,26 @@ function extractSysValueWithKey(
 }
 
 // ---------------------------------------------------------------------------
-// Mark → 출력 키 매핑
+// UI/슬롯 키(C1 …) → system values 필드 후보 (엔진 mark 간접층 없음)
 // ---------------------------------------------------------------------------
-const MARK_TO_OUTPUT_KEY: Record<string, string> = {
-  CO: "CO",
-  C1: "1C",
-  C3: "3C",
-  C4: "4C",
-  C5: "5C",
-  C6: "6C",
-};
-
-const MARK_SYS_CANDIDATES: Record<string, string[]> = {
+const LABEL_SYS_CANDIDATES: Record<string, string[]> = {
   CO: ["CO_f", "CO_r", "CO"],
-  C1: ["C1_f", "C1_r", "oneC", "1C"],
-  C2: ["C2_f", "C2_r", "2C"],
-  C3: ["C3_f", "C3_r", "threeC", "3C"],
-  C4: ["C4_f", "C4_r", "4C"],
-  C5: ["C5_f", "C5_r", "5C"],
-  C6: ["C6_f", "C6_r", "6C"],
+  C1: ["C1_f", "C1_r"],
+  C2: ["C2_f", "C2_r"],
+  C3: ["C3_f", "C3_r"],
+  C4: ["C4_f", "C4_r"],
+  C5: ["C5_f", "C5_r"],
+  C6: ["C6_f", "C6_r"],
 };
 
-/** SystemValueLabels UI 키 → MARK_SYS_CANDIDATES 엔진 mark */
-const LABEL_KEY_TO_ENGINE_MARK: Record<string, string> = {
-  CO: "CO",
-  "1C": "C1",
-  "2C": "C2",
-  "3C": "C3",
-  "4C": "C4",
-  "5C": "C5",
-  "6C": "C6",
-};
+const SYS_COORD_FROM_ANCHORS_LABEL_ORDER = [
+  "CO",
+  "C1",
+  "C3",
+  "C4",
+  "C5",
+  "C6",
+] as const satisfies readonly string[];
 
 /**
  * 슬롯/뷰 병합 system values에서 라벨별 표시 숫자 하나만 추출 (중복 매핑 단일화).
@@ -168,21 +157,10 @@ export function getLabelNumericSuffix(
   labelKey: string,
   sysValues: Record<string, unknown> | undefined
 ): number | null {
-  const engineMark = LABEL_KEY_TO_ENGINE_MARK[labelKey];
-  if (!engineMark) return null;
-  const candidates = MARK_SYS_CANDIDATES[engineMark];
+  const candidates = LABEL_SYS_CANDIDATES[labelKey];
   if (!candidates) return null;
   return extractSysValue(sysValues, candidates);
 }
-
-const ENGINE_MARK_TO_LOOKUP_MARK: Record<string, AnchorLookupMark> = {
-  CO: "CO",
-  C1: "1C",
-  C3: "3C",
-  C4: "4C",
-  C5: "5C",
-  C6: "6C",
-};
 
 export type AnchorPointWithSpace = {
   coord: { x: number; y: number };
@@ -200,32 +178,28 @@ function sysToCoordFromAnchors(
 ): Record<string, AnchorPointWithSpace> {
   const result: Record<string, AnchorPointWithSpace> = {};
 
-  for (const mark of Object.keys(MARK_TO_OUTPUT_KEY)) {
-    const candidates = MARK_SYS_CANDIDATES[mark];
+  for (const labelKey of SYS_COORD_FROM_ANCHORS_LABEL_ORDER) {
+    const candidates = LABEL_SYS_CANDIDATES[labelKey];
     if (!candidates) continue;
 
     const extracted = extractSysValueWithKey(sysValues, candidates);
     if (extracted == null) continue;
 
-    const lookupMark = ENGINE_MARK_TO_LOOKUP_MARK[mark];
-    if (!lookupMark) continue;
-
+    const mark = labelKey as AnchorLookupMark;
     const hit = getAnchorCoordFromSys({
       systemId,
       track,
-      mark: lookupMark,
+      mark,
       sysValue: extracted.value,
     });
     if (!hit) continue;
 
-    const key = MARK_TO_OUTPUT_KEY[mark];
-    result[key] = hit;
+    result[labelKey] = hit;
     console.log("[ANCHOR_AFTER_ENGINE]", {
       stage: "anchorCoordinateEngine:sysToCoordFromAnchors",
       systemId,
       track,
-      mark,
-      labelKey: key,
+      labelKey,
       sysValue: extracted.value,
       keyUsed: extracted.keyUsed,
       coord: hit.coord,
@@ -233,7 +207,7 @@ function sysToCoordFromAnchors(
     });
 
     console.log("[ANCHOR_SPACE_TRACE]", {
-      mark,
+      labelKey,
       keyUsed: extracted.keyUsed,
       coord: hit.coord,
       valueSpace: hit.valueSpace,

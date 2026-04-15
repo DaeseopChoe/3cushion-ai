@@ -93,7 +93,7 @@ export function computeSystemFromPositions(params: {
 
 /**
  * SYS 시스템값 → 앵커 좌표 변환
- * 관리자 입력 시 anchors 생성 (B2T 기본: CO=bottom, 1C=top)
+ * 관리자 입력 시 anchors 생성 (B2T 기본: CO=bottom, C1=top)
  */
 export function sysValuesToAnchors(
   sysValues: Record<string, unknown> | undefined
@@ -110,17 +110,17 @@ export function sysValuesToAnchors(
   const co = num(sysValues.CO_f) ?? num(sysValues.CO_r) ?? num(sysValues.CO);
   if (co != null) anchors.CO = { x: Math.max(0, Math.min(RG_W, co)), y: 0 };
 
-  const c1 = num(sysValues.C1_f) ?? num(sysValues.C1_r) ?? num(sysValues.oneC) ?? num(sysValues["1C"]);
-  if (c1 != null) anchors["1C"] = { x: Math.max(0, Math.min(RG_W, c1)), y: RG_H };
+  const c1 = num(sysValues.C1_f) ?? num(sysValues.C1_r);
+  if (c1 != null) anchors["C1"] = { x: Math.max(0, Math.min(RG_W, c1)), y: RG_H };
 
-  const c2 = num(sysValues.C2_f) ?? num(sysValues.C2_r) ?? num(sysValues["2C"]);
-  if (c2 != null) anchors["2C"] = { x: RG_W, y: Math.max(0, Math.min(RG_H, c2)) };
+  const c2 = num(sysValues.C2_f) ?? num(sysValues.C2_r);
+  if (c2 != null) anchors["C2"] = { x: RG_W, y: Math.max(0, Math.min(RG_H, c2)) };
 
-  const c3 = num(sysValues.C3_f) ?? num(sysValues.C3_r) ?? num(sysValues.threeC) ?? num(sysValues["3C"]);
-  if (c3 != null) anchors["3C"] = { x: Math.max(0, Math.min(RG_W, c3)), y: 0 };
+  const c3 = num(sysValues.C3_f) ?? num(sysValues.C3_r);
+  if (c3 != null) anchors["C3"] = { x: Math.max(0, Math.min(RG_W, c3)), y: 0 };
 
-  const c4 = num(sysValues.C4_f) ?? num(sysValues.C4_r) ?? num(sysValues["4C"]);
-  if (c4 != null) anchors["4C"] = { x: 0, y: Math.max(0, Math.min(RG_H, c4)) };
+  const c4 = num(sysValues.C4_f) ?? num(sysValues.C4_r);
+  if (c4 != null) anchors["C4"] = { x: 0, y: Math.max(0, Math.min(RG_H, c4)) };
 
   return anchors;
 }

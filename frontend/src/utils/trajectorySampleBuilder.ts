@@ -82,7 +82,7 @@ export interface TrajectorySample {
  * TODO: 실제 샘플링 로직 구현 필요
  */
 function pointsToAnchors(points: TrajectoryPoints, segmentId: 'co_to_impact' | 'cushion_to_second'): TrajectorySampleAnchor[] {
-  // 현재는 기본 2개 anchor만 생성 (CO, 1C 또는 1C, 3C)
+  // 현재는 기본 2개 anchor만 생성 (CO, C1 또는 C1, C3)
   if (segmentId === 'co_to_impact') {
     return [
       {
@@ -145,7 +145,7 @@ function pointsToAnchors(points: TrajectoryPoints, segmentId: 'co_to_impact' | '
 }
 
 /**
- * 2C override 적용
+ * C2 override 적용
  * TODO: 실제 궤적 재계산 로직
  */
 function applyTwoCOverride(points: TrajectoryPoints, override: { point: Point }): TrajectoryPoints {

@@ -63,9 +63,7 @@ export function evaluateStrategy(
   let resolvedInputs = { ...sysInputs };
   const hasC1 =
     typeof sysInputs.C1_f === "number" ||
-    typeof sysInputs.C1_r === "number" ||
-    typeof sysInputs.oneC === "number" ||
-    typeof sysInputs["1C"] === "number";
+    typeof sysInputs.C1_r === "number";
   if (!hasC1 && profile?.formula?.expr) {
     const computed = calculateByProfileExpr(profile.formula.expr, sysInputs);
     const lhsKey = Object.keys(computed)[0];

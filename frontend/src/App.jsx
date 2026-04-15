@@ -108,12 +108,12 @@ const { SCALE, TABLE_W_UNITS, TABLE_H_UNITS, TABLE_W, TABLE_H, PADDING } = TABLE
 const ADMIN_BUTTONS = ["SYS", "HPT", "STR", "AI"];
 
 const SHOTS = [
-  { id: "H001_05", label: "H001 – B2T_R / 4C", file: "canonical.json" },
-  { id: "H001_05_SB1", label: "H001 – B2T_R / 4C - SB1", file: "B2T_R/H001_05_SB1.json" },
-  { id: "H001_05_SB2", label: "H001 – B2T_R / 4C - SB2", file: "B2T_R/H001_05_SB2.json" },
-  { id: "H001_05_SB3", label: "H001 – B2T_R / 4C - SB3", file: "B2T_R/H001_05_SB3.json" },
-  { id: "H001_05_SB4", label: "H001 – B2T_R / 4C - SB4", file: "B2T_R/H001_05_SB4.json" },
-  { id: "H001_05_SB5", label: "H001 – B2T_R / 4C - SB5", file: "B2T_R/H001_05_SB5.json" },
+  { id: "H001_05", label: "H001 – B2T_R / C4", file: "canonical.json" },
+  { id: "H001_05_SB1", label: "H001 – B2T_R / C4 - SB1", file: "B2T_R/H001_05_SB1.json" },
+  { id: "H001_05_SB2", label: "H001 – B2T_R / C4 - SB2", file: "B2T_R/H001_05_SB2.json" },
+  { id: "H001_05_SB3", label: "H001 – B2T_R / C4 - SB3", file: "B2T_R/H001_05_SB3.json" },
+  { id: "H001_05_SB4", label: "H001 – B2T_R / C4 - SB4", file: "B2T_R/H001_05_SB4.json" },
+  { id: "H001_05_SB5", label: "H001 – B2T_R / C4 - SB5", file: "B2T_R/H001_05_SB5.json" },
  ];
 
 const BALL_DIAMETER_MM = 61.5;
@@ -140,7 +140,7 @@ const FRAME_RG = FRAME_MM / RG_UNIT_MM;
 const POINT_OFFSET_RG = POINT_OFFSET_MM / RG_UNIT_MM;
 
 /**
- * 궤적·CO→1C 선분용 시작점만 Rg 레일로 보정.
+ * 궤적·CO→C1 선분용 시작점만 Rg 레일로 보정.
  * CO_rail 이 Fg(-2.25 등)에 머물면 빨간 선이 프레임·라벨과 겹침.
  * 라벨(allAnchors.CO) 정책과 CO_rail(의미/교점) 변수는 그대로 두고, draw path 첫 점만 교정.
  */
@@ -213,7 +213,7 @@ function spinPathApplySpin(v, spin, type) {
 /*
 -------------------------------------------------------
 Overlay: STR (Striking parameter adjust)
-@useTrajectoryState.ts 참고하여 시스템 1C 보정값과 3C 입력값 표시 및 입력 제어 구현
+@useTrajectoryState.ts 참고하여 시스템 C1 보정값과 C3 입력값 표시 및 입력 제어 구현
 -------------------------------------------------------
 */
 
@@ -222,7 +222,7 @@ function STRContent({ trajectoryState }) {
   const threeC = state?.adjusted?.sys?.threeC ?? '';
   const oneC = state?.adjusted?.sys?.oneC ?? '';
 
-  // 3C 입력창 핸들러 (input type=number)
+  // C3 입력창 핸들러 (input type=number)
   const handleThreeCChange = e => {
     const value = e.target.value;
     // 숫자로 변환. 빈 값이면 바로 처리
@@ -3766,14 +3766,14 @@ function handleJoyPadPointerCancel(e) {
         });
         const finalAnchors = anchorKeys.length > 0 ? anchors : (display.anchors ?? {});
         if (import.meta.env.DEV) {
-          console.log("[ANCHORS]", finalAnchors["3C"]);
+          console.log("[ANCHORS]", finalAnchors["C3"]);
         }
         console.log("[ANCHOR_SPACE_TRACE] rawAnchors 최종", {
           keys: Object.keys(finalAnchors || {}),
           hasSpaceInfo: Object.values(finalAnchors || {}).some(
             (v) => v && typeof v === "object" && ("space" in v || "keyUsed" in v)
           ),
-          sample: finalAnchors?.["1C"] ? { "1C": finalAnchors["1C"] } : null,
+          sample: finalAnchors?.["C1"] ? { "C1": finalAnchors["C1"] } : null,
         });
         return finalAnchors;
       })()
@@ -3782,13 +3782,13 @@ function handleJoyPadPointerCancel(e) {
   // [ANCHOR_COMPARE] 정상(display.anchors) vs 계산(rawAnchors) — reflection 입력 비교
   console.log("[ANCHOR_COMPARE] display.anchors (정상 경로)", {
     CO: display?.anchors?.CO,
-    "1C": display?.anchors?.["1C"],
-    "3C": display?.anchors?.["3C"],
+    "C1": display?.anchors?.["C1"],
+    "C3": display?.anchors?.["C3"],
   });
   console.log("[ANCHOR_COMPARE] rawAnchors (계산 경로)", {
     CO: rawAnchors?.CO,
-    "1C": rawAnchors?.["1C"],
-    "3C": rawAnchors?.["3C"],
+    "C1": rawAnchors?.["C1"],
+    "C3": rawAnchors?.["C3"],
   });
 
   const strategy = display.strategy;
@@ -4126,11 +4126,11 @@ function handlePointerCancel(e) {
   anchors = { ...anchors, ...override };
 
   // ⚠️ convertCanonicalAnchors가 이미 Fg → Rg 변환을 함!
-  // 따라서 anchors.CO, anchors["1C"]는 Rg 좌표
+  // 따라서 anchors.CO, anchors["C1"]는 Rg 좌표
   // determineRotation에는 원본 Fg 좌표가 필요
   
   const CO_rg_converted = anchors.CO;      // 이미 Rg
-  const C1_rg_converted = anchors["1C"];   // 이미 Rg
+  const C1_rg_converted = anchors["C1"];   // 이미 Rg
 
   const resolveAnchorCtx = {
     track: trackForAnchors,
@@ -4138,7 +4138,7 @@ function handlePointerCancel(e) {
   };
 
   const CO_anchor = normalizeAnchor(rawAnchors.CO);
-  const C1_anchor = normalizeAnchor(rawAnchors["1C"]);
+  const C1_anchor = normalizeAnchor(rawAnchors["C1"]);
   const CO_prep = resolveAnchorPoint(CO_anchor, resolveAnchorCtx);
   const C1_prep = resolveAnchorPoint(C1_anchor, resolveAnchorCtx);
 
@@ -4160,13 +4160,13 @@ function handlePointerCancel(e) {
 
   const C1_rail =
     CO_prep && C1_prep
-      ? computeRailImpactPoint(CO_prep, C1_prep, { ...resolveAnchorCtx, mark: "1C" })
+      ? computeRailImpactPoint(CO_prep, C1_prep, { ...resolveAnchorCtx, mark: "C1" })
       : null;
 
-  /** 빨간 궤적·CO→1C 선 시작점 (Rg). isBottomCO 외 Fg CO_rail 보정 */
+  /** 빨간 궤적·CO→C1 선 시작점 (Rg). isBottomCO 외 Fg CO_rail 보정 */
   const CO_path0 = coStartForCushionPath(CO_rail, CO_prep, C1_prep);
 
-  // 2C fallback: anchors["2C"] 없을 때 reflection engine으로 C2 자동 생성
+  // C2 fallback: anchors["C2"] 없을 때 reflection engine으로 C2 자동 생성
   const currentTip = (() => {
     const hp = adminState?.hpt?.hit_point ?? adminState?.hpt?.hp;
     if (!hp || typeof hp.x !== "number" || typeof hp.y !== "number") return null;
@@ -4179,7 +4179,7 @@ function handlePointerCancel(e) {
     return { hp: { x: hp.x, y: hp.y }, side };
   })();
 
-  const C3_anchor = anchors["3C"];
+  const C3_anchor = anchors["C3"];
   const C3_prep = resolveAnchorPoint(normalizeAnchor(C3_anchor), resolveAnchorCtx);
   const C3_point =
     C3_prep ??
@@ -4188,14 +4188,14 @@ function handlePointerCancel(e) {
       : C3_anchor);
   const C3_snapped = snapToRail(C3_point) ?? C3_point;
 
-  if (anchors["2C"]) {
-    console.log("[C2_ANALYZE] 2C from anchors (stored), reflection skip", {
-      "anchors[2C]": anchors["2C"],
+  if (anchors["C2"]) {
+    console.log("[C2_ANALYZE] C2 from anchors (stored), reflection skip", {
+      "anchors[C2]": anchors["C2"],
     });
   }
 
   const reflected =
-    !anchors["2C"] && CO_rail && C1_rail && C3_snapped
+    !anchors["C2"] && CO_rail && C1_rail && C3_snapped
       ? (() => {
           const c1Rail = detectRail(C1_rail);
           const c3Rail = detectRail(C3_snapped);
@@ -4391,16 +4391,16 @@ function handlePointerCancel(e) {
         })()
       : null;
 
-  const C2 = anchors["2C"] ?? reflected?.c2 ?? null;
+  const C2 = anchors["C2"] ?? reflected?.c2 ?? null;
   // 라벨 표시는 원본 좌표를 유지하고, snapped는 trajectory/계산 전용으로 분리한다.
   const C3_label = C3_point ?? C3_anchor;
 
   if (reflected && canEdit) {
     console.log("🔷 C2 reflection fallback:", reflected.diagnostics);
   }
-  const C4 = anchors["4C"];
-  const C5 = anchors["5C"];
-  const C6 = anchors["6C"];
+  const C4 = anchors["C4"];
+  const C5 = anchors["C5"];
+  const C6 = anchors["C6"];
 
   const impactCO = CO_prep ?? CO_rail ?? { x: balls.cue?.x ?? 0, y: balls.cue?.y ?? 0 };
   const impactC1 = C1_prep ?? C1_rail ?? impactCO;
@@ -4420,7 +4420,7 @@ function handlePointerCancel(e) {
   );
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
 
-  // CO→1C 선은 레일(Rg) 시작점 — Fg 의미점과 분리 (CO_line ≠ 라벨 좌표일 수 있음)
+  // CO→C1 선은 레일(Rg) 시작점 — Fg 의미점과 분리 (CO_line ≠ 라벨 좌표일 수 있음)
   const C1_line = C1_rail;
 
   // CO Dual Trajectory: 보정선 (slide/curve_ratio/p_push !== 0일 때)
@@ -4524,7 +4524,7 @@ function handlePointerCancel(e) {
 
   const cushionPathAttr = dragState.dragging ? (dragState.frozenCushionPathAttr || cushionPathAttrRaw) : cushionPathAttrRaw;
 
-  const orderedKeys = ["CO", "1C", "2C", "3C", "4C", "5C", "6C"];
+  const orderedKeys = ["CO", "C1", "C2", "C3", "C4", "C5", "C6"];
   // NOTE: 라벨 미표시 원인 구분용 — 현재는 좌표계 이슈와 별개로
   // visibleKeysForLabels(cushionPath 길이 기반) 정책이 먼저 라벨 대상을 제한한다.
   const visibleKeysForLabels = orderedKeys.slice(
@@ -4533,13 +4533,13 @@ function handlePointerCancel(e) {
   );
   const allAnchors = {
     CO: { coord: override.CO ?? CO_rail },
-    // FIX: 1C는 항상 궤적 꺾임점(C1_rail)과 동일한 좌표를 사용
-    "1C": { coord: C1_rail },
-    "2C": { coord: C2 },
-    "3C": { coord: C3_label },
-    "4C": { coord: C4 }, 
-    "5C": { coord: C5 }, 
-    "6C": { coord: C6 } 
+    // FIX: C1은 항상 궤적 꺾임점(C1_rail)과 동일한 좌표를 사용
+    "C1": { coord: C1_rail },
+    "C2": { coord: C2 },
+    "C3": { coord: C3_label },
+    "C4": { coord: C4 }, 
+    "C5": { coord: C5 }, 
+    "C6": { coord: C6 } 
   };
   console.log("[ANCHOR_BEFORE_RENDER]", {
     stage: "App:allAnchors",
@@ -4554,8 +4554,22 @@ function handlePointerCancel(e) {
       .map((k) => [k, allAnchors[k]])
       .filter(([, v]) => v && v.coord != null)
   );
+  console.log("[LABEL_VISIBILITY_TRACE]", {
+    cushionPathLength: cushionPath.length,
+    visibleKeysForLabels,
+    allAnchorsKeys: Object.keys(allAnchors),
+    passedToLabels: Object.keys(allAnchorsForLabels),
+    rawAllAnchors: allAnchors
+  });
+  console.log("[LABEL_VISIBILITY_TRACE]", {
+    orderedKeys,
+    visibleKeysForLabels,
+    cushionPathLength: cushionPath.length,
+    allAnchorsKeys: Object.keys(allAnchors),
+    passedToLabels: Object.keys(allAnchorsForLabels)
+  });
   console.log("LABEL_INPUT_CO", allAnchorsForLabels["CO"]);
-  const LABEL_ORDER = ["CO", "1C", "2C", "3C", "4C", "5C", "6C"];
+  const LABEL_ORDER = ["CO", "C1", "C2", "C3", "C4", "C5", "C6"];
   const labelRank = Object.fromEntries(LABEL_ORDER.map((k, idx) => [k, idx]));
   const overlapEps = 1.0;
   const forceRgByLabel = {};
