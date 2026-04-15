@@ -264,3 +264,40 @@ Status: Stable (2026-04 완료)
 - C4 = 쿠션 중앙
 - C5/C6 = mid + BETA
 - geometry 구조 = symmetry 대응 가능 상태
+
+---
+
+# 📎 부록: 2026-04-15 — 쿠션 마크 명명 `1C` → `C1` 마이그레이션 (프론트 도메인)
+
+**브랜치:** `restore-from-v1-admin` (커밋은 로컬 PowerShell로 반영)
+
+## 해결한 문제 (What we fixed)
+
+1. **앵커·lookup·sysValues 키 체계 불일치**  
+   숫자 접두(`"1C"` … `"6C"`)와 C-prefix(`C1` … `C6`)가 혼용되면서 `getAnchorCoordFromSys`, `sysValuesToAnchors`, UI 라벨 순서가 서로 어긋날 수 있던 상태를 정리함.
+
+2. **lookup 단계의 alias 의존**  
+   `anchorLookupEngine`에서 `"1C"` / JSON id `C1` 복수 허용 구조를 제거하고, `AnchorLookupMark`를 `C1` … `C6`로 단일화함.
+
+3. **좌표 엔진·시스템 엔진·렌더 경로 정렬**  
+   - `anchorCoordinateEngine`: 슬롯 키·`LABEL_SYS_CANDIDATES`를 `C1` 체계로 통일, 레거시 필드 후보(`oneC`, `threeC`, `"1C"` 등) 제거.  
+   - `systemEngine.sysValuesToAnchors`: `C*_f` / `C*_r`만 사용, 앵커 키 `anchors["C1"]` 등으로 통일.  
+   - `App.jsx`: `orderedKeys`, `LABEL_ORDER`, `allAnchors`, `anchors["C?"]`, `mark: "C1"` 등 렌더·궤적 계층을 C-prefix로 치환.  
+   - `evaluateStrategy.ts`: `hasC1`에서 레거시 `oneC` 검사 제거 → `C1_f` / `C1_r`만으로 “C1 확정 여부” 판단 (불필요한 formula 보조 실행 감소).
+
+4. **부가 파일**  
+   `trajectorySampleBuilder.ts` 주석 정리, `evaluateStrategy` 외 변경은 동일 마이그레이션 맥락.
+
+## 아직 하지 않은 것 / 다음 단계 (Next Step)
+
+| 항목 | 설명 |
+|------|------|
+| **저장소 동기화** | 로컬에서 커밋만 한 경우, `git push origin restore-from-v1-admin` 및 PR·`main` 병합 여부 확인. |
+| **엔진·규칙 JSON·샘플 데이터** | 이번 작업 범위에서 `rules.json`·샘플 JSON은 건드리지 않음. expr·저장 포맷에 옛 키가 남아 있으면 별도 마이그레이션 또는 호환 검증 필요. |
+| **`hasC1` vs `sysInputs.C1`** | 현재 `hasC1`은 `C1_f` / `C1_r`만 본다. **통합 필드 `C1`만** 채우는 입력 경로가 있으면 formula가 다시 돌 수 있음 → 데이터 소스별로 한 번 확인 권장. |
+| **회귀 테스트** | 실제 샷/시스템별로 궤적·라벨·수치 표시 스모크 테스트 (문서상 자동 테스트 추가는 §9 항목과 별개). |
+| **기하·normal 작업본문(§1–§10)** | 위 부록은 **명명/키 마이그레이션** 기록. §9의 symmetry·rail enum·unit test 등은 여전히 후속 과제로 남음. |
+
+---
+
+**Status (2026-04-15 supplement):** 프론트 도메인 쿠션 마크 C-prefix 전환 및 `oneC` 제거까지 반영. 규칙 파일·원격 브랜치·전체 회귀는 다음 단계.
