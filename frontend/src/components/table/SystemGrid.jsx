@@ -200,7 +200,7 @@ export default function SystemGrid({ anchorsData, track, visible = true, debugLa
         const parsed = parseAnchor(anchor.id);
         if (!parsed) return null;
 
-        const { mark, x, y, value } = parsed;
+        const { mark, x, y } = parsed;
         const layer = getLayer(mark);
 
         let baseX;
@@ -238,38 +238,22 @@ export default function SystemGrid({ anchorsData, track, visible = true, debugLa
         const tx = baseX + dx;
         const ty = baseY + dy;
 
-        const fill = getMarkColor(mark);
         const fontSize = getFontSizeForLayer(layer);
+
+        if (!debugLayerBounds) return null;
 
         return (
           <g key={anchor.id || idx}>
-            {debugLayerBounds ? (
-              <circle
-                cx={tx}
-                cy={ty}
-                r={Math.max(10, fontSize * 1.1)}
-                fill="none"
-                stroke={layerDebugStroke(layer)}
-                strokeWidth={1}
-                strokeDasharray="3 2"
-                style={{ pointerEvents: "none" }}
-              />
-            ) : null}
-            <text
-              x={tx}
-              y={ty}
-              fontSize={fontSize}
-              fill={fill}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              style={{
-                pointerEvents: "none",
-                userSelect: "none",
-                opacity: 0.95,
-              }}
-            >
-              {value}
-            </text>
+            <circle
+              cx={tx}
+              cy={ty}
+              r={Math.max(10, fontSize * 1.1)}
+              fill="none"
+              stroke={layerDebugStroke(layer)}
+              strokeWidth={1}
+              strokeDasharray="3 2"
+              style={{ pointerEvents: "none" }}
+            />
           </g>
         );
       })}

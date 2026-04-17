@@ -2278,14 +2278,14 @@ function RailFrame() {
       {/* 포인트 (흰색) */}
       {[0, 10, 20, 30, 40, 50, 60, 70, 80].map((x) => (
         <React.Fragment key={`px-${x}`}>
-          <circle cx={x * SCALE + PADDING} cy={TABLE_H + PADDING + pointOffset} r={3} fill="#fff" />
-          <circle cx={x * SCALE + PADDING} cy={PADDING - pointOffset} r={3} fill="#fff" />
+          <circle cx={x * SCALE + PADDING} cy={TABLE_H + PADDING + pointOffset} r={3} fill="#111" />
+          <circle cx={x * SCALE + PADDING} cy={PADDING - pointOffset} r={3} fill="#111" />
         </React.Fragment>
       ))}
       {[0, 10, 20, 30, 40].map((y) => (
         <React.Fragment key={`py-${y}`}>
-          <circle cx={PADDING - pointOffset} cy={(TABLE_H_UNITS - y) * SCALE + PADDING} r={3} fill="#fff" />
-          <circle cx={TABLE_W + PADDING + pointOffset} cy={(TABLE_H_UNITS - y) * SCALE + PADDING} r={3} fill="#fff" />
+          <circle cx={PADDING - pointOffset} cy={(TABLE_H_UNITS - y) * SCALE + PADDING} r={3} fill="#111" />
+          <circle cx={TABLE_W + PADDING + pointOffset} cy={(TABLE_H_UNITS - y) * SCALE + PADDING} r={3} fill="#111" />
         </React.Fragment>
       ))}
     </g>
@@ -4541,6 +4541,27 @@ function handlePointerCancel(e) {
     "C5": { coord: C5 }, 
     "C6": { coord: C6 } 
   };
+  const trackAnchorItems =
+    getAnchorsForSystem(systemIdForGrid)?.trajectories?.[trackForAnchors]?.anchors ?? [];
+  const labelAnchorsForRaw = {};
+  trackAnchorItems.forEach((a) => {
+    const id = a?.id;
+    if (typeof id !== "string") return;
+    const match = id.match(/^([A-Z0-9]+)_\(([-\d.]+),([-\d.]+)\)_(\d+)/);
+    if (!match) return;
+    const label = match[1];
+    const x = parseFloat(match[2]);
+    const y = parseFloat(match[3]);
+    const value = parseFloat(match[4]);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(value)) return;
+    if (!labelAnchorsForRaw[label]) {
+      labelAnchorsForRaw[label] = [];
+    }
+    labelAnchorsForRaw[label].push({
+      coord: { x, y },
+      value,
+    });
+  });
   console.log("[ANCHOR_BEFORE_RENDER]", {
     stage: "App:allAnchors",
     rawAnchors,
@@ -4797,6 +4818,7 @@ function handlePointerCancel(e) {
       )}
       <SystemValueLabels
         anchors={allAnchorsForLabels}
+        labelAnchors={labelAnchorsForRaw}
         scale={SCALE}
         tableH={TABLE_H}
         padding={PADDING}

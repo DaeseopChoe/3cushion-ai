@@ -3,10 +3,7 @@ import { toPx, formatResultNum } from "../../utils/geometry/coords";
 import { cushionMarkToDisplayLabel } from "../../utils/cushionDisplayLabel";
 import { getLabelNumericSuffix } from "../../domain/anchorCoordinateEngine";
 import AnchorPoint from "./AnchorPoint";
-import {
-  getSpace,
-  toRenderRg,
-} from "../../utils/geometry/systemLabelPlacement";
+import LabelText from "./LabelText";
 
 const LABEL_PRIORITY = {
   CO: 0,
@@ -17,20 +14,6 @@ const LABEL_PRIORITY = {
   "5C": 5,
   "6C": 6,
 };
-const SPACE_EPS = 0.02;
-
-function detectRailForCoord(coord, eps = SPACE_EPS) {
-  const { x, y } = coord;
-  if (Math.abs(x + 2.25) <= eps) return "LEFT";
-  if (Math.abs(x - 82.25) <= eps) return "RIGHT";
-  if (Math.abs(y + 2.25) <= eps) return "BOTTOM";
-  if (Math.abs(y - 42.25) <= eps) return "TOP";
-  if (Math.abs(x - 0) <= eps) return "LEFT";
-  if (Math.abs(x - 80) <= eps) return "RIGHT";
-  if (Math.abs(y - 0) <= eps) return "BOTTOM";
-  if (Math.abs(y - 40) <= eps) return "TOP";
-  return null;
-}
 
 function byPriority(a, b) {
   const pa = LABEL_PRIORITY[a.label] ?? 999;
@@ -39,11 +22,7 @@ function byPriority(a, b) {
   return String(a.label).localeCompare(String(b.label));
 }
 
-function resolveSpace(coord) {
-  return getSpace(coord);
-}
-
-function collectBaseNodes(anchors, forceRgByLabel, forceMidByLabel, railByLabel) {
+function collectBaseNodes(anchors) {
   return Object.entries(anchors)
     .map(([label, data]) => {
       if (!data?.coord) return null;
@@ -51,7 +30,6 @@ function collectBaseNodes(anchors, forceRgByLabel, forceMidByLabel, railByLabel)
       const y = Number(data.coord.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
       const coord = { x, y };
-      const space = resolveSpace(coord);
       if (label === "CO" || label === "2C" || label === "3C") {
         // #region agent log
         fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
@@ -66,7 +44,7 @@ function collectBaseNodes(anchors, forceRgByLabel, forceMidByLabel, railByLabel)
             hypothesisId: "H3",
             location: "SystemValueLabels.jsx:collectBaseNodes",
             message: "base node resolved",
-            data: { label, coord, space, labelStrategy: "anchor_ssot" },
+            data: { label, coord, labelStrategy: "anchor_ssot" },
             timestamp: Date.now(),
           }),
         }).catch(() => {});
@@ -75,10 +53,6 @@ function collectBaseNodes(anchors, forceRgByLabel, forceMidByLabel, railByLabel)
       return {
         label,
         coord,
-        space,
-        rail: railByLabel?.[label] ?? detectRailForCoord(coord),
-        forceRg: !!forceRgByLabel?.[label],
-        forceMid: !!forceMidByLabel?.[label],
       };
     })
     .filter(Boolean)
@@ -87,14 +61,7 @@ function collectBaseNodes(anchors, forceRgByLabel, forceMidByLabel, railByLabel)
 
 
 function renderNode(node, { scale, tableH, padding, systemValues, onAnchorDoubleClick }) {
-  if (node.id === "CO") {
-    console.log("TO_RENDER_INPUT_CO", node.coord, node.space);
-  }
-  const rg = toRenderRg(node.coord, node.space, {
-    forceRg: node.forceRg,
-    forceMid: node.forceMid,
-    rail: node.rail,
-  });
+  const rg = node.coord;
   console.log("[RENDER_RG]", rg);
   console.log("[TO_PX_INPUT]", rg);
   console.log("[FINAL_COORD_BEFORE_RENDER]", rg);
@@ -112,7 +79,7 @@ function renderNode(node, { scale, tableH, padding, systemValues, onAnchorDouble
         hypothesisId: "H4",
         location: "SystemValueLabels.jsx:renderNode",
         message: "toPx input on common path",
-        data: { label: node.label, coord: node.coord, space: node.space, rg, path: "anchor_ssot" },
+        data: { label: node.label, coord: node.coord, rg, path: "anchor_ssot" },
         timestamp: Date.now(),
       }),
     }).catch(() => {});
@@ -125,25 +92,143 @@ function renderNode(node, { scale, tableH, padding, systemValues, onAnchorDouble
   console.log("[FINAL_COORD]", { label: node.label, cx, cy, rg });
   const num = getLabelNumericSuffix(node.label, systemValues);
   const systemValue = num != null ? formatResultNum(num) : null;
+  const displayMark = cushionMarkToDisplayLabel(node.label);
+  const textContent =
+    systemValue != null ? `${displayMark}_${systemValue}` : displayMark;
   return (
-    <AnchorPoint
-      key={node.label}
-      cx={cx}
-      cy={cy}
-      dx={0}
-      dy={0}
-      textAnchor="middle"
-      fontSize={20}
-      label={node.label}
-      displayLabel={cushionMarkToDisplayLabel(node.label)}
-      systemValue={systemValue}
-      onDoubleClick={onAnchorDoubleClick}
-    />
+    <g key={node.label}>
+      <AnchorPoint
+        cx={cx}
+        cy={cy}
+        dx={0}
+        dy={0}
+        textAnchor="middle"
+        fontSize={20}
+        label={node.label}
+        displayLabel={displayMark}
+        systemValue={systemValue}
+        onDoubleClick={onAnchorDoubleClick}
+      />
+      <text
+        x={cx}
+        y={cy}
+        fill="#FFFFFF"
+        fontSize={20}
+        fontWeight="bold"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        style={{ pointerEvents: "none" }}
+      >
+        {textContent}
+      </text>
+    </g>
   );
+}
+
+function renderRawLabelAnchors(labelAnchors, scale, tableH, padding) {
+  if (!labelAnchors) return null;
+
+  const nodes = [];
+
+  Object.entries(labelAnchors).forEach(([label, item]) => {
+    let fillColor = "#FFD700";
+    if (label === "C4") fillColor = "#00E5FF";
+    if (label === "C5") fillColor = "#FF4D6D";
+    if (label === "C6") fillColor = "#A8FF60";
+
+    if (Array.isArray(item)) {
+      item.forEach((nodeItem, idx) => {
+        const coord = nodeItem?.coord;
+        const value = nodeItem?.value;
+        if (!coord) return;
+        let { x, y } = coord;
+
+        // --- STEP 3: C4 / C5 / C6 축 이동 ---
+        if (label === "C4") {
+          if (x === -2.25) x = -0.5;
+          if (x === 82.25) x = 80.5;
+          if (y === -2.25) y = -0.5;
+          if (y === 42.25) y = 40.5;
+        }
+
+        if (label === "C5") {
+          if (x === -2.25) x = 0.5;
+          if (x === 82.25) x = 79.5;
+          if (y === -2.25) y = 0.5;
+          if (y === 42.25) y = 39.5;
+        }
+
+        if (label === "C6") {
+          if (x === -2.25) x = -1;
+          if (x === 82.25) x = 81;
+          if (y === -2.25) y = -1;
+          if (y === 42.25) y = 41;
+        }
+
+        const p = toPx({ x, y }, scale, tableH);
+        nodes.push(
+          <LabelText
+            key={`RAW-${label}-${idx}`}
+            x={p.x + padding}
+            y={p.y + padding}
+            text={value != null ? String(value) : ""}
+            fontSize={10}
+            color={fillColor}
+          />
+        );
+      });
+      return;
+    }
+
+    const coord = item?.coord;
+    const value = item?.value;
+
+    if (!coord) return;
+
+    let { x, y } = coord;
+
+    // --- STEP 3: C4 / C5 / C6 축 이동 ---
+    if (label === "C4") {
+      if (x === -2.25) x = -0.5;
+      if (x === 82.25) x = 80.5;
+      if (y === -2.25) y = -0.5;
+      if (y === 42.25) y = 40.5;
+    }
+
+    if (label === "C5") {
+      if (x === -2.25) x = 0.5;
+      if (x === 82.25) x = 79.5;
+      if (y === -2.25) y = 0.5;
+      if (y === 42.25) y = 39.5;
+    }
+
+    if (label === "C6") {
+      if (x === -2.25) x = -1;
+      if (x === 82.25) x = 81;
+      if (y === -2.25) y = -1;
+      if (y === 42.25) y = 41;
+    }
+
+    const p = toPx({ x, y }, scale, tableH);
+
+    nodes.push(
+      <LabelText
+        key={`RAW-${label}`}
+        x={p.x + padding}
+        y={p.y + padding}
+        text={value != null ? String(value) : ""}
+        fontSize={10}
+        color={fillColor}
+      />
+    );
+  });
+
+  return nodes;
 }
 
 export default function SystemValueLabels({
   anchors,
+  labelAnchors,
   scale,
   tableH,
   padding,
@@ -151,9 +236,6 @@ export default function SystemValueLabels({
   onAnchorDoubleClick,
   labelStrategy = "anchor_ssot",
   systemId,
-  forceRgByLabel,
-  forceMidByLabel,
-  railByLabel,
 }) {
   const renderProps = {
     scale,
@@ -204,10 +286,17 @@ export default function SystemValueLabels({
   }).catch(() => {});
   // #endregion
 
-  const nodes = collectBaseNodes(anchors, forceRgByLabel, forceMidByLabel, railByLabel);
+  const nodes = collectBaseNodes(anchors);
+  const rawLabels = renderRawLabelAnchors(
+    labelAnchors,
+    scale,
+    tableH,
+    padding
+  );
 
   return (
     <>
+      {rawLabels}
       {nodes.map((node) => renderNode(node, renderProps))}
     </>
   );

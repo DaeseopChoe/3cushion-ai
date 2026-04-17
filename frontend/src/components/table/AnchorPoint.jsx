@@ -14,7 +14,6 @@ export default function AnchorPoint({
   fontSize = 20,
   onDoubleClick,
 }) {
-  const text = displayLabel ?? label;
   return (
     <g
       onDoubleClick={(e) => {
@@ -24,19 +23,6 @@ export default function AnchorPoint({
       style={{ cursor: onDoubleClick ? "pointer" : undefined }}
     >
       <circle cx={cx} cy={cy} r={2.5} fill="#facc15" />
-      <text
-        x={cx + dx}
-        y={cy + dy}
-        fill="#facc15"
-        textAnchor={textAnchor}
-        dominantBaseline="middle"
-        fontWeight="bold"
-      >
-        <tspan fontSize={fontSize}>{text}</tspan>
-        {systemValue != null && (
-          <tspan fontSize={fontSize}>{" "}_{systemValue}</tspan>
-        )}
-      </text>
     </g>
   );
 }
