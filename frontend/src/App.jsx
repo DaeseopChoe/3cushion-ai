@@ -111,6 +111,13 @@ const { SCALE, TABLE_W_UNITS, TABLE_H_UNITS, TABLE_W, TABLE_H, PADDING } = TABLE
 
 const ADMIN_BUTTONS = ["SYS", "HPT", "STR", "AI"];
 
+/** 최초 진입·canonical 샷 기본 공 배치 (Rg 그리드) */
+const INITIAL_BALLS_RG = {
+  cue: { x: 20, y: 16 },
+  target_center: { x: 20, y: 20 },
+  second: { x: 60, y: 20 },
+};
+
 const SHOTS = [
   { id: "H001_05", label: "H001 – B2T_R / C4", file: "canonical.json" },
   { id: "H001_05_SB1", label: "H001 – B2T_R / C4 - SB1", file: "B2T_R/H001_05_SB1.json" },
@@ -2394,11 +2401,7 @@ export default function App({
     },
     // 앱 시작 시 항상 빈 상태 (이전 세션 영향 제거)
     anchorsOverride: {},
-    balls: {
-      cue: { x: 10, y: 10 },
-      target: { x: 50, y: 25 },
-      second: { x: 40, y: 20 }
-    }
+    balls: { ...INITIAL_BALLS_RG },
   };
     } catch {
       return {
@@ -2433,16 +2436,12 @@ export default function App({
       onePointLessons: []
     },
     anchorsOverride: {},
-    balls: {
-      cue: { x: 10, y: 10 },
-      target: { x: 50, y: 25 },
-      second: { x: 40, y: 20 }
-    }
+    balls: { ...INITIAL_BALLS_RG },
   };
     }
   });
 
-  const [ballsState, setBallsState] = useState(null);
+  const [ballsState, setBallsState] = useState(() => ({ ...INITIAL_BALLS_RG }));
   const { shotEditor, actions } = useShotSlots({
     setBallsState,
     setAdminState,
@@ -3565,7 +3564,22 @@ function handleJoyPadPointerCancel(e) {
           "data.ui?.anchors 키": data?.ui?.anchors ? Object.keys(data.ui.anchors) : null,
           "data.ui?.system?.values": data?.ui?.system?.values,
         });
-        setView(data);
+        const isCanonicalEntry =
+          shot.file === "canonical.json";
+        const dataToSet =
+          isCanonicalEntry
+            ? {
+                ...data,
+                ui: {
+                  ...data.ui,
+                  balls: { ...INITIAL_BALLS_RG },
+                  system: { values: {}, human_readable: {} },
+                  anchors: data.ui?.anchors || {},
+                  strategy: [],
+                },
+              }
+            : data;
+        setView(dataToSet);
         setLoading(false);
       })
       .catch((err) => {
@@ -4659,6 +4673,27 @@ function handlePointerCancel(e) {
       value,
     });
   });
+  // #region agent log
+  console.log("[STEP1] labelAnchorsForRaw:", labelAnchorsForRaw);
+  fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e5472" },
+    body: JSON.stringify({
+      sessionId: "5e5472",
+      hypothesisId: "STEP1",
+      location: "App.jsx:labelAnchorsForRaw",
+      message: "STEP1 labelAnchorsForRaw built",
+      data: {
+        keys: Object.keys(labelAnchorsForRaw),
+        isEmpty: Object.keys(labelAnchorsForRaw).length === 0,
+        sampleArrays: Object.fromEntries(
+          Object.entries(labelAnchorsForRaw).map(([k, v]) => [k, Array.isArray(v)])
+        ),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   console.log("[ANCHOR_BEFORE_RENDER]", {
     stage: "App:allAnchors",
     rawAnchors,
@@ -4687,78 +4722,6 @@ function handlePointerCancel(e) {
     passedToLabels: Object.keys(allAnchorsForLabels)
   });
   console.log("LABEL_INPUT_CO", allAnchorsForLabels["CO"]);
-  const LABEL_ORDER = ["CO", "C1", "C2", "C3", "C4", "C5", "C6"];
-  const labelRank = Object.fromEntries(LABEL_ORDER.map((k, idx) => [k, idx]));
-  const overlapEps = 1.0;
-  const forceRgByLabel = {};
-  const forceMidByLabel = {};
-  const railByLabel = {};
-  const getRailAxisValue = (coord, rail) => {
-    if (!coord || !rail) return Number.NaN;
-    if (rail === "TOP" || rail === "BOTTOM") return coord.x;
-    return coord.y;
-  };
-  const overlapsByRail = { TOP: [], BOTTOM: [], LEFT: [], RIGHT: [] };
-  Object.entries(allAnchorsForLabels).forEach(([label, data]) => {
-    const coord = data?.coord;
-    if (!coord) return;
-    const rail = detectRail(coord);
-    if (!rail) return;
-    railByLabel[label] = rail;
-    overlapsByRail[rail].push({
-      label,
-      coord,
-      axis: getRailAxisValue(coord, rail),
-    });
-  });
-  Object.values(overlapsByRail).forEach((items) => {
-    const applyClusterPolicy = (cluster) => {
-      if (!cluster || cluster.length < 2) return;
-      const byPriority = [...cluster].sort(
-        (a, b) => (labelRank[a.label] ?? 999) - (labelRank[b.label] ?? 999)
-      );
-      if (byPriority.length === 2) {
-        forceRgByLabel[byPriority[1].label] = true;
-        return;
-      }
-      for (let i = 1; i < byPriority.length - 1; i += 1) {
-        forceRgByLabel[byPriority[i].label] = true;
-      }
-      forceMidByLabel[byPriority[byPriority.length - 1].label] = true;
-    };
-
-    items.sort((a, b) => a.axis - b.axis);
-    let cluster = [];
-    for (let i = 0; i < items.length; i += 1) {
-      if (cluster.length === 0) {
-        cluster.push(items[i]);
-        continue;
-      }
-      const prev = cluster[cluster.length - 1];
-      const curr = items[i];
-      if (Math.abs(curr.axis - prev.axis) <= overlapEps) {
-        cluster.push(curr);
-      } else {
-        applyClusterPolicy(cluster);
-        cluster = [curr];
-      }
-    }
-    applyClusterPolicy(cluster);
-  });
-  Object.keys(forceMidByLabel).forEach((label) => {
-    delete forceRgByLabel[label];
-  });
-  if (import.meta.env.DEV) {
-    console.log("[LABEL_VISIBILITY_TRACE]", {
-      orderedKeys,
-      visibleKeysForLabels,
-      cushionPathLength: cushionPath.length,
-      passedToLabels: Object.keys(allAnchorsForLabels),
-      forceRgByLabel,
-      forceMidByLabel,
-      railByLabel,
-    });
-  }
   const strategyResult = buildRailGroupedStrategy({
     strategy,
     systemValues: canEdit ? { values: resolvedSlotSysValues } : system,
@@ -4774,7 +4737,29 @@ function handlePointerCancel(e) {
         ? resolvedSlotSysValues
         : (system?.values ?? {}))
     : (system?.values ?? {});
-  const labelStrategy = "anchor_ssot";
+  const labelStrategy =
+    systemIdForGrid === "5_half_system"
+      ? "five_half_reference"
+      : "anchor_ssot";
+
+  // #region agent log
+  console.log("[STEP2] props.labelAnchors:", labelAnchorsForRaw);
+  fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e5472" },
+    body: JSON.stringify({
+      sessionId: "5e5472",
+      hypothesisId: "STEP2",
+      location: "App.jsx:before tableSVG",
+      message: "STEP2 props passed to SystemValueLabels",
+      data: {
+        labelAnchorsForRawKeys: Object.keys(labelAnchorsForRaw),
+        isUndefined: labelAnchorsForRaw === undefined,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
@@ -4921,10 +4906,14 @@ function handlePointerCancel(e) {
         padding={PADDING}
         systemValues={systemValuesForLabels}
         labelStrategy={labelStrategy}
-        systemId={systemIdForGrid}
-        forceRgByLabel={forceRgByLabel}
-        forceMidByLabel={forceMidByLabel}
-        railByLabel={railByLabel}
+        outputs={
+          canEdit
+            ? resolvedSlotSys?.outputs
+            : system?.outputs ??
+              (Object.keys(system?.values ?? {}).length > 0
+                ? { result: system.values }
+                : undefined)
+        }
         onAnchorDoubleClick={canEdit ? openAnchorEdit : undefined}
       />
      </svg>
