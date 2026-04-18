@@ -42,7 +42,11 @@ import {
   pointerToRg,
 } from "./utils/geometry/coords";
 import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel";
-import { computeRailPoints, snapToRail } from "./utils/geometry/rail";
+import {
+  computeRailPoints,
+  lineToRailIntersections,
+  snapToRail,
+} from "./utils/geometry/rail";
 import { resolveBalls, uiBallsToBallArray } from "./utils/ballRoleResolver";
 import { isSegmentHitBall } from "./utils/geometry";
 import {
@@ -154,6 +158,19 @@ function coStartForCushionPath(coRail, coPrep, c1Prep) {
   if (onRgPlayingRail) return coRail;
   const { CO_rail: snapped } = computeRailPoints(coPrep, c1Prep);
   return snapped ?? coRail;
+}
+
+/** 이전 궤적 점 → 앵커 의미점 방향, 세그먼트 [from, toward] 기준 첫 레일 교점 (rail.ts) */
+function firstRailHitTowardTarget(from, toward) {
+  if (!from || !toward) return toward ?? null;
+  const hit = lineToRailIntersections(from, toward)?.C1_rail;
+  return hit || snapToRail(toward) || toward;
+}
+
+/** 궤적용: 앵커 원본에서 의미 좌표만 (라벨/데이터와 독립, 표시 좌표는 변경하지 않음) */
+function anchorSemanticForPath(raw, resolveCtx) {
+  const n = normalizeAnchor(raw);
+  return n ? resolveAnchorPoint(n, resolveCtx) : null;
 }
 
 /** pathNodes (C3 이후) spin decay + forward/reverse 보정 — 앵커 엔진과 무관 */
@@ -4398,9 +4415,33 @@ function handlePointerCancel(e) {
   if (reflected && canEdit) {
     console.log("🔷 C2 reflection fallback:", reflected.diagnostics);
   }
-  const C4 = anchors["C4"];
-  const C5 = anchors["C5"];
-  const C6 = anchors["C6"];
+
+  const C4_anchor = anchors["C4"];
+  const C4_prep = resolveAnchorPoint(normalizeAnchor(C4_anchor), resolveAnchorCtx);
+  const C4_point =
+    C4_prep ??
+    (C4_anchor && typeof C4_anchor === "object" && "coord" in C4_anchor && C4_anchor.coord
+      ? C4_anchor.coord
+      : C4_anchor);
+  const C4 = C4_anchor;
+
+  const C5_anchor = anchors["C5"];
+  const C5_prep = resolveAnchorPoint(normalizeAnchor(C5_anchor), resolveAnchorCtx);
+  const C5_point =
+    C5_prep ??
+    (C5_anchor && typeof C5_anchor === "object" && "coord" in C5_anchor && C5_anchor.coord
+      ? C5_anchor.coord
+      : C5_anchor);
+  const C5 = C5_anchor;
+
+  const C6_anchor = anchors["C6"];
+  const C6_prep = resolveAnchorPoint(normalizeAnchor(C6_anchor), resolveAnchorCtx);
+  const C6_point =
+    C6_prep ??
+    (C6_anchor && typeof C6_anchor === "object" && "coord" in C6_anchor && C6_anchor.coord
+      ? C6_anchor.coord
+      : C6_anchor);
+  const C6 = C6_anchor;
 
   const impactCO = CO_prep ?? CO_rail ?? { x: balls.cue?.x ?? 0, y: balls.cue?.y ?? 0 };
   const impactC1 = C1_prep ?? C1_rail ?? impactCO;
@@ -4457,9 +4498,37 @@ function handlePointerCancel(e) {
   });
 
   const HIT_TOLERANCE = Math.max(2, BALL_RADIUS_RG * 4);
-  const C3_for_path = C3_snapped ?? C3_point ?? C3_anchor;
-  const pathNodesRaw = [CO_path0, C1_rail, C2, C3_for_path, C4, C5, C6];
+
+  // 궤적: 각 구간은 이전 레일 교점 → 다음 앵커 의미점 방향의 첫 레일 교점까지만 (anchor.coord는 방향 기준, 노란점/앵커 데이터는 변경 없음)
+  const c2Sem = anchorSemanticForPath(C2, resolveAnchorCtx);
+  const c3Sem = C3_point ?? anchorSemanticForPath(C3_anchor, resolveAnchorCtx);
+  const c4Sem = C4_point ?? anchorSemanticForPath(C4_anchor, resolveAnchorCtx);
+  const c5Sem = C5_point ?? anchorSemanticForPath(C5_anchor, resolveAnchorCtx);
+  const c6Sem = C6_point ?? anchorSemanticForPath(C6_anchor, resolveAnchorCtx);
+
+  const C2_path =
+    C1_rail && c2Sem ? firstRailHitTowardTarget(C1_rail, c2Sem) : null;
+  const C3_path =
+    C2_path && c3Sem ? firstRailHitTowardTarget(C2_path, c3Sem) : null;
+  const C4_path =
+    C3_path && c4Sem ? firstRailHitTowardTarget(C3_path, c4Sem) : null;
+  const C5_path =
+    C4_path && c5Sem ? firstRailHitTowardTarget(C4_path, c5Sem) : null;
+  const C6_path =
+    C5_path && c6Sem ? firstRailHitTowardTarget(C5_path, c6Sem) : null;
+
+  const pathNodesRaw = [
+    CO_path0,
+    C1_rail,
+    C2_path,
+    C3_path,
+    C4_path,
+    C5_path,
+    C6_path,
+  ];
+  // DEBUG: spin 보정 비활성화 — pathNodesRaw(순수 교점 궤적) 그대로 사용. 아래 for 블록 주석 해제로 복구.
   const adjustedNodes = [...pathNodesRaw];
+  /*
   for (let i = 3; i < adjustedNodes.length - 1; i++) {
     const A = adjustedNodes[i - 1];
     const B = adjustedNodes[i];
@@ -4478,6 +4547,7 @@ function handlePointerCancel(e) {
       console.log("[SPIN]", { index: i, progress, spinFactor, type });
     }
   }
+  */
   const pathNodes = adjustedNodes;
 
   const pathSecondBallRole =
@@ -4491,6 +4561,9 @@ function handlePointerCancel(e) {
       ? { x: secondBallRole.x, y: secondBallRole.y }
       : null;
 
+  // DEBUG: C4~C6까지 polyline 전부 표시 (toward/교점 검증용). second 볼 구간 자르기는 아래 주석 블록으로 복구.
+  let pathEndIndex = pathNodes.length - 1;
+  /*
   let pathEndIndex = 3;
   if (secondPoint) {
     const postC3Segments = [
@@ -4507,6 +4580,7 @@ function handlePointerCancel(e) {
       }
     }
   }
+  */
 
   const cushionPath = [];
   for (let i = 0; i <= pathEndIndex && i < pathNodes.length; i++) {
@@ -4531,15 +4605,38 @@ function handlePointerCancel(e) {
     0,
     Math.min(cushionPath.length, orderedKeys.length)
   );
+
+  // SystemValueLabels는 data.coord.{x,y}를 기대. anchorLookupEngine 형태 { coord, valueSpace }는 그대로 두고, plain {x,y}(예: reflection C2)만 감싼다. 좌표 숫자는 변경하지 않음.
+  const labelPayload = (anchorOrPoint) => {
+    if (anchorOrPoint == null) return null;
+    if (
+      typeof anchorOrPoint === "object" &&
+      anchorOrPoint.coord != null &&
+      typeof anchorOrPoint.coord === "object" &&
+      Number.isFinite(anchorOrPoint.coord.x) &&
+      Number.isFinite(anchorOrPoint.coord.y)
+    ) {
+      return anchorOrPoint;
+    }
+    if (
+      typeof anchorOrPoint === "object" &&
+      Number.isFinite(anchorOrPoint.x) &&
+      Number.isFinite(anchorOrPoint.y)
+    ) {
+      return { coord: { x: anchorOrPoint.x, y: anchorOrPoint.y } };
+    }
+    return null;
+  };
+
+  // 노란점(라벨): resolveAnchorPoint·anchor 원본 좌표 유지 (FG/RG 변환 없음). 궤적은 cushionPath·computeRailImpactPoint 쪽에서 레일 교점 유지.
   const allAnchors = {
-    CO: { coord: override.CO ?? CO_rail },
-    // FIX: C1은 항상 궤적 꺾임점(C1_rail)과 동일한 좌표를 사용
-    "C1": { coord: C1_rail },
-    "C2": { coord: C2 },
-    "C3": { coord: C3_label },
-    "C4": { coord: C4 }, 
-    "C5": { coord: C5 }, 
-    "C6": { coord: C6 } 
+    CO: labelPayload(override.CO) ?? labelPayload(CO_prep),
+    "C1": labelPayload(C1_prep),
+    "C2": labelPayload(C2),
+    "C3": labelPayload(C3_label ?? anchors["C3"]),
+    "C4": labelPayload(C4),
+    "C5": labelPayload(C5),
+    "C6": labelPayload(C6),
   };
   const trackAnchorItems =
     getAnchorsForSystem(systemIdForGrid)?.trajectories?.[trackForAnchors]?.anchors ?? [];
