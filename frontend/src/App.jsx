@@ -47,7 +47,6 @@ import {
   lineToRailIntersections,
   snapToRail,
 } from "./utils/geometry/rail";
-import { resolveBalls, uiBallsToBallArray } from "./utils/ballRoleResolver";
 import { isSegmentHitBall } from "./utils/geometry";
 import {
   normalizeAnchor,
@@ -279,16 +278,25 @@ function STRContent({ trajectoryState }) {
   );
 }
 
-/** 임팩트·코칭용 1적구 좌표 (targetColor: 관리자 확정 타겟) */
+/** 슬롯 고정: target_center = 노란 공 좌표, second = 빨간 공 좌표 (렌더와 동일), cue = 큐 */
+function getYellowBallCoords(ballsObj) {
+  if (!ballsObj) return null;
+  return ballsObj.target_center ?? ballsObj.target ?? null;
+}
+
+function getRedBallCoords(ballsObj) {
+  if (!ballsObj) return null;
+  return ballsObj.second ?? null;
+}
+
+/** 임팩트·코칭용 1적구 좌표 (targetColor: 실제 타겟 공 색 — 좌표는 슬롯만 사용) */
 function resolveImpactTargetBall(ballsObj, targetColorSel) {
   if (!ballsObj) return null;
-  if (targetColorSel === "red") {
-    return ballsObj.second ?? ballsObj.target_center ?? ballsObj.target ?? null;
-  }
-  if (targetColorSel === "yellow") {
-    return ballsObj.target_center ?? ballsObj.target ?? ballsObj.second ?? null;
-  }
-  return ballsObj.target_center ?? ballsObj.target ?? null;
+  const yellowBall = getYellowBallCoords(ballsObj);
+  const redBall = getRedBallCoords(ballsObj);
+  if (targetColorSel === "red") return redBall ?? yellowBall ?? null;
+  if (targetColorSel === "yellow") return yellowBall ?? redBall ?? null;
+  return yellowBall ?? redBall ?? null;
 }
 
 /** 조이스틱이 붙은 공 id → 임팩트 타겟 색 (후보/확정 공통 매핑) */
@@ -4457,14 +4465,30 @@ function handlePointerCancel(e) {
       : C6_anchor);
   const C6 = C6_anchor;
 
-  const impactCO = CO_prep ?? CO_rail ?? { x: balls.cue?.x ?? 0, y: balls.cue?.y ?? 0 };
+  const cueBall = balls.cue;
+  const yellowBall = getYellowBallCoords(balls);
+  const redBall = getRedBallCoords(balls);
+  const targetBall =
+    targetColor === "red"
+      ? redBall
+      : targetColor === "yellow"
+        ? yellowBall
+        : yellowBall ?? redBall ?? null;
+  const secondBall =
+    targetColor === "red"
+      ? yellowBall
+      : targetColor === "yellow"
+        ? redBall
+        : redBall ?? yellowBall ?? null;
+
+  const impactCO = CO_prep ?? CO_rail ?? { x: cueBall?.x ?? 0, y: cueBall?.y ?? 0 };
   const impactC1 = C1_prep ?? C1_rail ?? impactCO;
   const impactTargetBall =
-    resolveImpactTargetBall(balls, targetColor) ??
-    balls.target_center ??
-    balls.target;
+    targetBall && Number.isFinite(targetBall.x) && Number.isFinite(targetBall.y)
+      ? targetBall
+      : balls.target_center ?? balls.target ?? null;
   const impactRaw = calculateImpact(
-    balls.cue,
+    cueBall ?? balls.cue,
     impactTargetBall,
     impactCO,
     impactC1,
@@ -4564,20 +4588,13 @@ function handlePointerCancel(e) {
   */
   const pathNodes = adjustedNodes;
 
-  const pathSecondBallRole =
-    view?.target_ball_color === "red" ? "red" : "yellow";
-  const ballsForRoles = uiBallsToBallArray(balls, pathSecondBallRole);
-  const { second: secondBallRole } = resolveBalls(ballsForRoles, pathSecondBallRole);
   const secondPoint =
-    secondBallRole &&
-    Number.isFinite(secondBallRole.x) &&
-    Number.isFinite(secondBallRole.y)
-      ? { x: secondBallRole.x, y: secondBallRole.y }
+    secondBall &&
+    Number.isFinite(secondBall.x) &&
+    Number.isFinite(secondBall.y)
+      ? { x: secondBall.x, y: secondBall.y }
       : null;
 
-  // DEBUG: C4~C6까지 polyline 전부 표시 (toward/교점 검증용). second 볼 구간 자르기는 아래 주석 블록으로 복구.
-  let pathEndIndex = pathNodes.length - 1;
-  /*
   let pathEndIndex = 3;
   if (secondPoint) {
     const postC3Segments = [
@@ -4594,7 +4611,6 @@ function handlePointerCancel(e) {
       }
     }
   }
-  */
 
   const cushionPath = [];
   for (let i = 0; i <= pathEndIndex && i < pathNodes.length; i++) {
@@ -4899,6 +4915,7 @@ function handlePointerCancel(e) {
         />
       )}
       <SystemValueLabels
+        showSystemGrid={showSystemGrid}
         anchors={allAnchorsForLabels}
         labelAnchors={labelAnchorsForRaw}
         scale={SCALE}

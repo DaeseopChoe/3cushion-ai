@@ -253,6 +253,7 @@ export default function SystemValueLabels({
   onAnchorDoubleClick,
   labelStrategy = "anchor_ssot",
   outputs,
+  showSystemGrid = true,
 }) {
   if (!outputs?.result) return null;
 
@@ -295,7 +296,7 @@ export default function SystemValueLabels({
 
   return (
     <>
-      {rawLabels}
+      {showSystemGrid && rawLabels}
       {nodes.map((node) => renderNode(node, renderProps))}
     </>
   );
