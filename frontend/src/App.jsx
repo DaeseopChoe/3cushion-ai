@@ -38,7 +38,6 @@ import {
   toRg,
   fmt,
   formatResultNum,
-  escapeRegExp,
   pointerToRg,
 } from "./utils/geometry/coords";
 import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel";
@@ -351,7 +350,291 @@ function mergeSysOverlayPayloadToNumericInputs(newData) {
   const fromSystemValues = normalize(newData?.system_values);
   const fromCalc = normalize(newData?.calculated ?? newData?.output);
   const fromAdjusted = normalize(newData?.adjustedInputs);
-  return { ...fromInputs, ...fromSystemValues, ...fromCalc, ...fromAdjusted };
+  // system_values(base 숫자 맵)가 최종 승자 — adjustedInputs보다 우선
+  return { ...fromInputs, ...fromCalc, ...fromAdjusted, ...fromSystemValues };
+}
+
+function resolveCoC1C3Keys(forced, spaceSel) {
+  const co = forced?.CO ? `CO_${forced.CO}` : `CO_${spaceSel.CO}`;
+  const c1 = forced?.C1 ? `C1_${forced.C1}` : `C1_${spaceSel.C1}`;
+  const c3 = forced?.C3 ? `C3_${forced.C3}` : `C3_${spaceSel.C3}`;
+  return { coKey: co, c1Key: c1, c3Key: c3 };
+}
+
+/** 입력 기준에 따라 CO/C1/C3 중 하나를 나머지 두 값으로 환산 (계산 직전 payload). */
+function normalizeToFormulaInputsApp(numericPayload, basis, coKey, c1Key, c3Key) {
+  const out = { ...numericPayload };
+  const coN = Number(out[coKey]);
+  const c1N = Number(out[c1Key]);
+  const c3N = Number(out[c3Key]);
+  const co = Number.isFinite(coN) ? coN : 0;
+  const c1 = Number.isFinite(c1N) ? c1N : 0;
+  const c3 = Number.isFinite(c3N) ? c3N : 0;
+  if (basis === "CO_C3_C1") {
+    if (c1Key) out[c1Key] = co - c3;
+  } else if (basis === "CO_C1_C3") {
+    if (c3Key) out[c3Key] = co - c1;
+  } else if (basis === "C1_C3_CO") {
+    if (coKey) out[coKey] = c1 + c3;
+  }
+  return out;
+}
+
+function isRhsKeyReadOnlyForBasis(key, basis) {
+  if (!key || key === "HP_n" || key === "An") return false;
+  if (basis === "CO_C3_C1" && key.startsWith("C1_")) return true;
+  if (basis === "CO_C1_C3" && key.startsWith("C3_")) return true;
+  if (basis === "C1_C3_CO" && key.startsWith("CO_")) return true;
+  return false;
+}
+
+function isMarkBasisReadOnly(mark, basis) {
+  if (basis === "CO_C3_C1" && mark === "C1") return true;
+  if (basis === "CO_C1_C3" && mark === "C3") return true;
+  if (basis === "C1_C3_CO" && mark === "CO") return true;
+  return false;
+}
+
+function lhsTokenFromExpr(expr) {
+  if (!expr || !expr.trim()) return "";
+  const parts = expr.trim().split("=");
+  return parts[0]?.trim() ?? "";
+}
+
+function showMarkRowExtraForBasis(mark, basis, lhsToken) {
+  if (basis === "CO_C3_C1" && mark === "C1" && lhsToken.startsWith("C1_")) return true;
+  if (basis === "CO_C1_C3" && mark === "C3" && lhsToken.startsWith("C3_")) return true;
+  if (basis === "C1_C3_CO" && mark === "CO" && lhsToken.startsWith("CO_")) return true;
+  return false;
+}
+
+/** 적용 시 저장된 system_values(base)를 입력 필드 초기값으로 병합 */
+function buildSysOverlayInitialInputs(data) {
+  const ins = {
+    CO_f: data?.inputs?.CO_f ?? "",
+    CO_r: data?.inputs?.CO_r ?? "",
+    C1_f: data?.inputs?.C1_f ?? "",
+    C1_r: data?.inputs?.C1_r ?? "",
+    C2_f: data?.inputs?.C2_f ?? "",
+    C2_r: data?.inputs?.C2_r ?? "",
+    C3_f: data?.inputs?.C3_f ?? "",
+    C3_r: data?.inputs?.C3_r ?? "",
+    C4_f: data?.inputs?.C4_f ?? "",
+    C4_r: data?.inputs?.C4_r ?? "",
+    HP_n: data?.inputs?.HP_n ?? 0,
+    An: data?.inputs?.An ?? 0.0,
+  };
+  const saved = data?.system_values;
+  if (saved && typeof saved === "object") {
+    for (const [k, v] of Object.entries(saved)) {
+      if (!(k in ins)) continue;
+      if (v === undefined || v === null) continue;
+      if (k === "HP_n") ins.HP_n = typeof v === "number" ? v : Number(v) || 0;
+      else if (k === "An") ins.An = typeof v === "number" ? v : Number(v) || 0;
+      else ins[k] = v;
+    }
+  }
+  return ins;
+}
+
+/** normalize 전 숫자 payload (rhs + CO/C1/C3 토큰 + HP/An) */
+function buildSysOverlayNumericPayload(
+  inputs,
+  rhsKeys,
+  coKey,
+  c1Key,
+  c3Key,
+  needsHP,
+  needsAn
+) {
+  const payload = {};
+  (rhsKeys || []).forEach((k) => {
+    const v = inputs[k];
+    payload[k] = v === "" || v == null ? 0 : Number(v);
+  });
+  [coKey, c1Key, c3Key].forEach((k) => {
+    if (!k) return;
+    if (!(k in payload)) {
+      const v = inputs[k];
+      payload[k] = v === "" || v == null ? 0 : Number(v);
+    }
+  });
+  if (needsHP) payload.HP_n = Number(inputs.HP_n ?? 0);
+  if (needsAn) payload.An = Number(inputs.An ?? 0);
+  return payload;
+}
+
+/** SysOverlay·슬롯 렌더 공통: 공식에서 강제 cushion면·RHS 키 집합 추출 */
+function parseSysFormulaExpr(expr) {
+  if (!expr) return { forced: {}, neededKeys: new Set(), needsHP: false, needsAn: false };
+
+  const rx = /\b(CO|C1|C2|C3|C4)_(f|r)\b/g;
+  const forced = { CO: null, C1: null, C2: null, C3: null, C4: null };
+  const neededKeys = new Set();
+
+  let m;
+  while ((m = rx.exec(expr)) !== null) {
+    const mark = m[1];
+    const sp = m[2];
+    forced[mark] = sp;
+    neededKeys.add(`${mark}_${sp}`);
+  }
+
+  const needsHP = /\bHP_n\b/.test(expr);
+  const needsAn = /\bAn\b/.test(expr);
+
+  return { forced, neededKeys, needsHP, needsAn };
+}
+
+/**
+ * 슬롯 sys 병합값(base) + adminState.sys(CV·input_basis·spaceSel) → 표시/앵커/궤적용 effective 맵.
+ * SysOverlay의 normalizedBase → adjustedInputs → effDisplayMap 규약과 동일.
+ */
+function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
+  if (!merged || typeof merged !== "object") return {};
+
+  const mergedNums = {};
+  for (const [k, v] of Object.entries(merged)) {
+    if (v === "" || v == null) continue;
+    const n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n)) continue;
+    mergedNums[k] = n;
+  }
+
+  const rawSid = resolvedSlotSys?.systemId ?? "5_half_system";
+  const systemId = rawSid === "5_HALF" ? "5_half_system" : rawSid;
+  const profile = SYSTEM_PROFILES[systemId];
+  const expr =
+    typeof profile?.formula === "string"
+      ? profile.formula
+      : profile?.formula?.expr || "";
+  if (!expr || !expr.trim()) return {};
+
+  const { forced, neededKeys, needsHP, needsAn } = parseSysFormulaExpr(expr);
+  const lhs = expr.trim().split("=")[0].trim();
+  const rhsKeys = Array.from(neededKeys || []).filter((k) => k !== lhs);
+
+  const spaceSel = adminSys?.spaceSel ?? {
+    CO: "f",
+    C1: "f",
+    C2: "f",
+    C3: "f",
+    C4: "f",
+  };
+  const inputBasis = adminSys?.input_basis ?? adminSys?.inputBasis ?? "CO_C3_C1";
+  const { coKey, c1Key, c3Key } = resolveCoC1C3Keys(forced, spaceSel);
+
+  const hasAll = rhsKeys.every((k) => {
+    if (isRhsKeyReadOnlyForBasis(k, inputBasis)) return true;
+    const v = mergedNums[k];
+    return v !== undefined && v !== null && Number.isFinite(v);
+  });
+  if (!hasAll) return {};
+
+  const numericPayload = buildSysOverlayNumericPayload(
+    mergedNums,
+    rhsKeys,
+    coKey,
+    c1Key,
+    c3Key,
+    needsHP,
+    needsAn
+  );
+  const normalizedBase = normalizeToFormulaInputsApp(
+    numericPayload,
+    inputBasis,
+    coKey,
+    c1Key,
+    c3Key
+  );
+
+  const corrections = adminSys?.corrections ?? {};
+  const p_push = Number(corrections.slide) || 0;
+  const p_pull = Number(corrections.draw) || 0;
+  const p_spin = Number(corrections.spin) || 0;
+
+  const snFor5Half =
+    systemId === "5_half_system"
+      ? (() => {
+          const CO_f = Number(normalizedBase.CO_f) || 0;
+          const C3_r = Number(normalizedBase.C3_r) || 0;
+          return { Sn: (CO_f - 50) * 0.5, C4_f: C3_r + (CO_f - 50) * 0.5, CO_f, C3_r };
+        })()
+      : null;
+  const p_start =
+    systemId === "5_half_system" && snFor5Half
+      ? snFor5Half.Sn
+      : Number(corrections.departure) || 0;
+
+  const adjusted = { ...normalizedBase };
+  if ("CO_f" in adjusted) adjusted.CO_f += p_push;
+  if ("CO_r" in adjusted) adjusted.CO_r += p_push;
+  const pullSpin = p_pull + p_spin;
+  if ("C3_f" in adjusted) adjusted.C3_f -= pullSpin;
+  if ("C3_r" in adjusted) adjusted.C3_r -= pullSpin;
+  ["C4_f", "C4_r", "C5_f", "C5_r", "C6_f", "C6_r"].forEach((k) => {
+    if (k in adjusted) adjusted[k] += p_start;
+  });
+
+  const finalCalc = calculateByProfileExpr(expr, adjusted);
+
+  const base = normalizedBase;
+  const adj = adjusted;
+  const CO_eff = Number(adj?.CO_f ?? base?.CO_f ?? 0);
+  const effDisplayMap = { ...base, CO_f: CO_eff };
+  if (inputBasis === "CO_C3_C1") {
+    const C3 = Number(base?.C3_r ?? 0);
+    effDisplayMap.C1_f = CO_eff - C3;
+  } else if (inputBasis === "CO_C1_C3") {
+    const C1 = Number(base?.C1_f ?? 0);
+    effDisplayMap.C3_r = CO_eff - C1;
+  } else if (inputBasis === "C1_C3_CO") {
+    const C1 = Number(base?.C1_f ?? 0);
+    const C3 = Number(base?.C3_r ?? 0);
+    effDisplayMap.CO_f = C1 + C3;
+  }
+
+  const out = { ...mergedNums, ...finalCalc, ...effDisplayMap };
+
+  if (systemId === "5_half_system") {
+    const CO_used = Number(effDisplayMap.CO_f ?? 0);
+    const C3_used = Number(effDisplayMap.C3_r ?? 0);
+    const Sn_eff = (CO_used - 50) * 0.5;
+    out.Sn = Sn_eff;
+    out.C4_f = C3_used + Sn_eff;
+    out.C5_f = out.C4_f;
+    out.C6_f = out.C4_f;
+    out.CO_f = CO_used;
+    out.C3_r = C3_used;
+  }
+
+  return out;
+}
+
+/** 표시용 식 LHS만 basis에 맞게 바꿈. 내부 계산 expr은 그대로 두며 5½ 외 시스템은 원본 표시 유지. */
+function getDisplayExprByBasis(expr, inputBasis, systemId) {
+  if (inputBasis === "CO_C3_C1") return expr;
+  if (systemId !== "5_half_system") return expr;
+  if (!expr || !expr.trim()) return expr;
+  if (inputBasis === "CO_C1_C3") return "C3_r = CO_f - C1_f";
+  if (inputBasis === "C1_C3_CO") return "CO_f = C1_f + C3_r";
+  return expr;
+}
+
+/** SysOverlay 표시 전용 — admin/sys SysOverlay.tsx와 동일 규약 */
+function formatFormulaDisplay(expr, output) {
+  const idx = expr.indexOf("=");
+  if (idx < 0) return expr;
+  const lhs = expr.slice(0, idx).trim();
+  const rhs = expr.slice(idx + 1).trim();
+  const lhsVal = lhs in output ? formatResultNum(output[lhs]) : "?";
+  const rhsSubstituted = rhs.replace(/[A-Za-z_][A-Za-z0-9_]*/g, (token) => {
+    if (token in output) {
+      return `${token}_${formatResultNum(output[token])}`;
+    }
+    return token;
+  });
+  return `${lhs}_${lhsVal} = ${rhsSubstituted}`;
 }
 
 function SysOverlay({ data, onSave, onCancel }) {
@@ -438,59 +721,20 @@ function SysOverlay({ data, onSave, onCancel }) {
   ];
 
   // ==========================================
-  // 공식 파서 함수
-  // ==========================================
-  function parseExpr(expr) {
-    if (!expr) return { forced: {}, neededKeys: new Set(), needsHP: false, needsAn: false };
-    
-    // 예: CO_f, C3_r, C1_f ...
-    const rx = /\b(CO|C1|C2|C3|C4)_(f|r)\b/g;
-    const forced = { CO: null, C1: null, C2: null, C3: null, C4: null };
-    const neededKeys = new Set();
-
-    let m;
-    while ((m = rx.exec(expr)) !== null) {
-      const mark = m[1];     // CO..C4
-      const sp = m[2];       // f/r
-      forced[mark] = sp;     // 이 시스템은 이 mark의 space가 고정임
-      neededKeys.add(`${mark}_${sp}`);
-    }
-
-    const needsHP = /\bHP_n\b/.test(expr);
-    const needsAn = /\bAn\b/.test(expr);
-
-    return { forced, neededKeys, needsHP, needsAn };
-  }
-
-  // ==========================================
   // 상태 관리 (완성 키 방식)
   // ==========================================
   const [formData, setFormData] = useState({
-    shotType: data?.shotType || '뒤돌리기',
-    system: data?.system || SYSTEM_OPTIONS[0]?.id || '5_half_system',
+    shotType: data?.shotType || "뒤돌리기",
+    system: data?.system || data?.system_id || SYSTEM_OPTIONS[0]?.id || "5_half_system",
     track: data?.track || "B2T_L",
-    // 완성 키 방식: CO_f, CO_r, C1_f, C1_r, ..., C4_f, C4_r, HP_n, An
-    inputs: {
-      CO_f: data?.inputs?.CO_f ?? "",
-      CO_r: data?.inputs?.CO_r ?? "",
-      C1_f: data?.inputs?.C1_f ?? "",
-      C1_r: data?.inputs?.C1_r ?? "",
-      C2_f: data?.inputs?.C2_f ?? "",
-      C2_r: data?.inputs?.C2_r ?? "",
-      C3_f: data?.inputs?.C3_f ?? "",
-      C3_r: data?.inputs?.C3_r ?? "",
-      C4_f: data?.inputs?.C4_f ?? "",
-      C4_r: data?.inputs?.C4_r ?? "",
-      HP_n: data?.inputs?.HP_n ?? 0,
-      An: data?.inputs?.An ?? 0.0
-    },
+    inputs: buildSysOverlayInitialInputs(data),
     corrections: {
       slide: data?.corrections?.slide || 0,
       curve_ratio: data?.corrections?.curve_ratio || 0,
       draw: data?.corrections?.draw || 0,
       departure: data?.corrections?.departure || 0,
-      spin: data?.corrections?.spin || 0
-    }
+      spin: data?.corrections?.spin || 0,
+    },
   });
 
   useEffect(() => {
@@ -507,6 +751,32 @@ function SysOverlay({ data, onSave, onCancel }) {
     C4: data?.spaceSel?.C4 || "f"
   });
 
+  const [inputBasis, setInputBasis] = useState(
+    () => data?.input_basis ?? data?.inputBasis ?? "CO_C3_C1"
+  );
+  const [cvEntryMode, setCvEntryMode] = useState(
+    () => data?.cv_entry_mode ?? data?.cvEntryMode ?? "manual"
+  );
+
+  /** true면 저장값 복원 직후 — normalizeToFormulaInputsApp 비활성(덮어쓰기 방지) */
+  const [isRestored, setIsRestored] = useState(() => {
+    const s = data?.system_values;
+    return !!(s && typeof s === "object" && Object.keys(s).length > 0);
+  });
+
+  useEffect(() => {
+    const saved = data?.system_values;
+    if (!saved || typeof saved !== "object" || Object.keys(saved).length === 0) return;
+    setFormData((prev) => ({
+      ...prev,
+      inputs: buildSysOverlayInitialInputs(data),
+      corrections: data.corrections ?? prev.corrections,
+    }));
+    setInputBasis(data?.input_basis ?? data?.inputBasis ?? "CO_C3_C1");
+    setCvEntryMode(data?.cv_entry_mode ?? data?.cvEntryMode ?? "manual");
+    setIsRestored(true);
+  }, [data?.system_values]);
+
   // ==========================================
   // 공식 로딩 및 파싱 (expr 변경 시에만 재계산 — 매 렌더 새 참조 방지)
   // ==========================================
@@ -515,7 +785,7 @@ function SysOverlay({ data, onSave, onCancel }) {
     ? profile.formula
     : profile?.formula?.expr || "";
 
-  const parsed = useMemo(() => parseExpr(expr), [expr]);
+  const parsed = useMemo(() => parseSysFormulaExpr(expr), [expr]);
   const { forced, neededKeys, needsHP, needsAn } = parsed;
 
   // rhsKeys: expr에 의존, neededKeys는 parsed 내부이므로 expr과 동기화
@@ -525,6 +795,29 @@ function SysOverlay({ data, onSave, onCancel }) {
     const lhs = expr.trim().split('=')[0].trim();
     return keyList.filter((k) => k !== lhs);
   }, [expr, neededKeys]);
+
+  const exprLhsToken = useMemo(() => lhsTokenFromExpr(expr), [expr]);
+  const { coKey, c1Key, c3Key } = useMemo(
+    () => resolveCoC1C3Keys(forced, spaceSel),
+    [forced, spaceSel]
+  );
+
+  const normalizedBasePayload = useMemo(() => {
+    if (!expr || !expr.trim()) return {};
+    const payload = buildSysOverlayNumericPayload(
+      formData.inputs,
+      rhsKeys,
+      coKey,
+      c1Key,
+      c3Key,
+      needsHP,
+      needsAn
+    );
+    if (isRestored) {
+      return payload;
+    }
+    return normalizeToFormulaInputsApp(payload, inputBasis, coKey, c1Key, c3Key);
+  }, [expr, rhsKeys, formData.inputs, needsHP, needsAn, inputBasis, coKey, c1Key, c3Key, isRestored]);
 
   // 공식 로딩 시 f/r 스위치 자동 고정
   useEffect(() => {
@@ -538,11 +831,12 @@ function SysOverlay({ data, onSave, onCancel }) {
     });
   }, [expr]);
 
-  // 공식에 필요한 입력: 우변(RHS) 변수만 검사, 좌변(목표 변수)은 제외. HP_n/An은 0도 유효.
+  // 공식에 필요한 입력: 우변(RHS) 변수만 검사. 입력 기준으로 자동 환산되는 키는 비워도 됨.
   const hasAllInputs = useMemo(() => {
     if (!rhsKeys || rhsKeys.length === 0) return false;
 
     const ok = rhsKeys.every((k) => {
+      if (isRhsKeyReadOnlyForBasis(k, inputBasis)) return true;
       const v = formData.inputs && formData.inputs[k];
       return v !== '' && v !== null && v !== undefined;
     });
@@ -557,7 +851,7 @@ function SysOverlay({ data, onSave, onCancel }) {
       if (v === '' || v === null || v === undefined) return false;
     }
     return true;
-  }, [formData.inputs, rhsKeys, needsHP, needsAn]);
+  }, [formData.inputs, rhsKeys, needsHP, needsAn, inputBasis]);
 
   // ==========================================
   // 계산 엔진 연결 (실시간 업데이트) — 입력값 부족 시 계산 안 함
@@ -574,22 +868,14 @@ function SysOverlay({ data, onSave, onCancel }) {
       return;
     }
 
-    const payload = {};
-    rhsKeys.forEach((k) => {
-      const val = formData.inputs[k];
-      payload[k] = val === '' || val === null || val === undefined ? 0 : Number(val);
-    });
-    if (needsHP) payload.HP_n = Number(formData.inputs.HP_n ?? 0);
-    if (needsAn) payload.An = Number(formData.inputs.An ?? 0);
-
-    const result = calculateByProfileExpr(expr, payload);
+    const result = calculateByProfileExpr(expr, normalizedBasePayload);
     setCalcResult((prev) => {
       const prevKey = Object.keys(prev)[0];
       const nextKey = Object.keys(result)[0];
       if (prevKey === nextKey && prev[prevKey] === result[nextKey]) return prev;
       return result;
     });
-  }, [expr, hasAllInputs, formData.inputs, rhsKeys, needsHP, needsAn]);
+  }, [expr, hasAllInputs, normalizedBasePayload]);
 
   const baseResultValue = Object.keys(calcResult).length > 0 ? Object.values(calcResult)[0] : null;
   const baseResultKey = Object.keys(calcResult).length > 0 ? Object.keys(calcResult)[0] : null;
@@ -612,11 +898,11 @@ function SysOverlay({ data, onSave, onCancel }) {
   const p_pull = Number(formData.corrections.draw) || 0;
   const p_spin = Number(formData.corrections.spin) || 0;
   const snFor5Half = useMemo(() => {
-    if (formData.system !== '5_half_system') return null;
-    const CO_f = Number(formData.inputs?.CO_f) || 0;
-    const C3_r = Number(formData.inputs?.C3_r) || 0;
-    return { Sn: (CO_f - 50) * 0.5, C4_f: C3_r + (CO_f - 50) * 0.5 };
-  }, [formData.system, formData.inputs?.CO_f, formData.inputs?.C3_r]);
+    if (formData.system !== "5_half_system") return null;
+    const CO_f = Number(normalizedBasePayload.CO_f) || 0;
+    const C3_r = Number(normalizedBasePayload.C3_r) || 0;
+    return { Sn: (CO_f - 50) * 0.5, C4_f: C3_r + (CO_f - 50) * 0.5, CO_f, C3_r };
+  }, [formData.system, normalizedBasePayload]);
   const p_start = formData.system === '5_half_system' && snFor5Half
     ? snFor5Half.Sn
     : (Number(formData.corrections.departure) || 0);
@@ -624,15 +910,7 @@ function SysOverlay({ data, onSave, onCancel }) {
   const { adjustedInputs, finalCalc, lhsKey } = useMemo(() => {
     if (!expr || !expr.trim()) return { adjustedInputs: {}, finalCalc: {}, lhsKey: null };
     if (!hasAllInputs) return { adjustedInputs: {}, finalCalc: {}, lhsKey: null };
-    const payload = {};
-    rhsKeys.forEach((k) => {
-      const val = formData.inputs[k];
-      payload[k] = val === '' || val === null || val === undefined ? 0 : Number(val);
-    });
-    if (needsHP) payload.HP_n = Number(formData.inputs.HP_n || 0);
-    if (needsAn) payload.An = Number(formData.inputs.An || 0);
-
-    const adjusted = { ...payload };
+    const adjusted = { ...normalizedBasePayload };
     if ('CO_f' in adjusted) adjusted['CO_f'] += p_push;
     if ('CO_r' in adjusted) adjusted['CO_r'] += p_push;
     const pullSpin = p_pull + p_spin;
@@ -645,7 +923,44 @@ function SysOverlay({ data, onSave, onCancel }) {
     const final = calculateByProfileExpr(expr, adjusted);
     const keys = Object.keys(final);
     return { adjustedInputs: adjusted, finalCalc: final, lhsKey: keys.length > 0 ? keys[0] : null };
-  }, [expr, hasAllInputs, formData.inputs, rhsKeys, p_push, p_pull, p_spin, p_start, needsHP, needsAn]);
+  }, [expr, hasAllInputs, normalizedBasePayload, p_push, p_pull, p_spin, p_start, needsHP, needsAn]);
+
+  /** base 유지 + CO_effective + inputBasis에 따른 변동 변수 1개만 덮어씀 (표시용, finalCalc 미병합). */
+  const effDisplayMap = useMemo(() => {
+    if (!hasAllInputs) return {};
+    const base = normalizedBasePayload;
+    const adj = adjustedInputs;
+    const CO_eff = Number(adj?.CO_f ?? base?.CO_f ?? 0);
+    const out = { ...base, CO_f: CO_eff };
+    if (inputBasis === "CO_C3_C1") {
+      const C3 = Number(base?.C3_r ?? 0);
+      out.C1_f = CO_eff - C3;
+    } else if (inputBasis === "CO_C1_C3") {
+      const C1 = Number(base?.C1_f ?? 0);
+      out.C3_r = CO_eff - C1;
+    } else if (inputBasis === "C1_C3_CO") {
+      const C1 = Number(base?.C1_f ?? 0);
+      const C3 = Number(base?.C3_r ?? 0);
+      out.CO_f = C1 + C3;
+    }
+    return out;
+  }, [hasAllInputs, normalizedBasePayload, adjustedInputs, inputBasis]);
+
+  const snFor5HalfEffective = useMemo(() => {
+    if (formData.system !== "5_half_system" || !hasAllInputs) return null;
+    const basePl = normalizedBasePayload;
+    if (!effDisplayMap || Object.keys(effDisplayMap).length === 0) return null;
+    const CO_used = Number(effDisplayMap?.CO_f ?? basePl?.CO_f ?? 0);
+    const C3_used = Number(effDisplayMap?.C3_r ?? basePl?.C3_r ?? 0);
+    const Sn_eff = (CO_used - 50) * 0.5;
+    const C4_eff = C3_used + Sn_eff;
+    return {
+      Sn: Sn_eff,
+      C4_f: C4_eff,
+      CO_f: CO_used,
+      C3_r: C3_used,
+    };
+  }, [formData.system, hasAllInputs, effDisplayMap, normalizedBasePayload]);
 
   const finalResultDisplay = (() => {
     if (!lhsKey) return null;
@@ -654,9 +969,10 @@ function SysOverlay({ data, onSave, onCancel }) {
   })();
 
   const handleInputChange = (key, value) => {
-    setFormData(prev => ({
+    setIsRestored(false);
+    setFormData((prev) => ({
       ...prev,
-      inputs: { ...prev.inputs, [key]: value }
+      inputs: { ...prev.inputs, [key]: value },
     }));
   };
 
@@ -664,75 +980,48 @@ function SysOverlay({ data, onSave, onCancel }) {
   // 저장 핸들러
   // ==========================================
   const handleSave = () => {
+    const systemValuesBase =
+      hasAllInputs &&
+      normalizedBasePayload &&
+      Object.keys(normalizedBasePayload).length > 0
+        ? { ...normalizedBasePayload }
+        : undefined;
+    console.log("[SAVE] system_values (base) =", systemValuesBase);
     const saveData = {
       ...formData,
       track: formData.track,
       spaceSel,
       calculated: calcResult,
       finalResult: finalResultDisplay,
-      adjustedInputs
+      adjustedInputs,
+      ...(systemValuesBase != null ? { system_values: systemValuesBase } : {}),
+      input_basis: inputBasis,
+      cv_entry_mode: cvEntryMode,
     };
     onSave(saveData);
   };
 
-  // 기준 계산값 치환 문자열 (입력값 부족 시 계산/표시 안 함)
-  const substitutionDisplay = useMemo(() => {
-    if (!expr || !expr.trim()) return { text: '입력 대기 중...' };
-    if (!hasAllInputs) return { text: '입력 대기 중...' };
-    const trimmed = expr.trim();
-    const parts = trimmed.split('=').map((p) => p.trim());
-    if (parts.length < 2 || !parts[0] || !parts[1]) return { text: '입력 대기 중...' };
-    const rawLhs = parts[0];
-    const rawRhs = parts[1];
-    const resultVal = calcResult[rawLhs];
-    const numVal = resultVal != null && typeof resultVal === 'number' ? resultVal : 0;
+  const displayExpr = useMemo(
+    () => getDisplayExprByBasis(expr, inputBasis, formData.system),
+    [expr, inputBasis, formData.system]
+  );
 
-    let substitutedRhs = rawRhs;
-    for (const k of (rhsKeys || [])) {
-      const v = formData.inputs[k];
-      const num = v === '' || v === null || v === undefined ? 0 : Number(v);
-      substitutedRhs = substitutedRhs.replace(new RegExp('\\b' + escapeRegExp(k) + '\\b', 'g'), formatResultNum(num));
-    }
-    if (needsHP) {
-      const v = formData.inputs.HP_n;
-      substitutedRhs = substitutedRhs.replace(/\bHP_n\b/g, formatResultNum(v === '' || v === null || v === undefined ? 0 : Number(v)));
-    }
-    if (needsAn) {
-      const v = formData.inputs.An;
-      substitutedRhs = substitutedRhs.replace(/\bAn\b/g, formatResultNum(v === '' || v === null || v === undefined ? 0 : Number(v)));
-    }
+  const baseDisplayMap = useMemo(
+    () => ({ ...normalizedBasePayload, ...calcResult }),
+    [normalizedBasePayload, calcResult]
+  );
 
-    const base = rawLhs.replace(/_f$|_r$/, '');
-    const lhsDisplay = base + '_' + formatResultNum(numVal);
-    return { text: lhsDisplay + ' = ' + substitutedRhs };
-  }, [expr, hasAllInputs, formData.inputs, calcResult, rhsKeys, needsHP, needsAn]);
+  const baseFormulaLine = useMemo(() => {
+    if (!displayExpr || !displayExpr.trim()) return "입력 대기 중...";
+    if (!hasAllInputs) return "입력 대기 중...";
+    return formatFormulaDisplay(displayExpr, baseDisplayMap);
+  }, [displayExpr, hasAllInputs, baseDisplayMap]);
 
-  // 최종 결과 치환 문자열: C1_35 = (50 + 5) - 20 형태, 괄호는 기본값+보정, 소수점 제거
-  const finalResultSubstitution = useMemo(() => {
-    if (!lhsKey || !expr || !expr.trim()) return null;
+  const effectiveFormulaLine = useMemo(() => {
+    if (!displayExpr || !displayExpr.trim()) return null;
     if (!hasAllInputs) return null;
-    const parts = expr.trim().split('=').map((p) => p.trim());
-    if (parts.length < 2 || !parts[1]) return null;
-    const rawRhs = parts[1];
-    const resultVal = finalCalc[lhsKey];
-    const numVal = resultVal != null && typeof resultVal === 'number' ? resultVal : 0;
-    const pullSpin = p_pull + p_spin;
-    let substitutedRhs = rawRhs;
-    for (const k of (rhsKeys || [])) {
-      const baseVal = Number(formData.inputs[k]) || 0;
-      const adjVal = adjustedInputs[k] != null ? Number(adjustedInputs[k]) : 0;
-      let disp;
-      if ((k === 'CO_f' || k === 'CO_r') && p_push !== 0) disp = `(${formatResultNum(baseVal)} + ${formatResultNum(p_push)})`;
-      else if ((k === 'C3_f' || k === 'C3_r') && pullSpin !== 0) disp = `(${formatResultNum(baseVal)} - ${formatResultNum(pullSpin)})`;
-      else if (['C4_f', 'C4_r', 'C5_f', 'C5_r', 'C6_f', 'C6_r'].includes(k) && p_start !== 0) disp = `(${formatResultNum(baseVal)} + ${formatResultNum(p_start)})`;
-      else disp = formatResultNum(adjVal);
-      substitutedRhs = substitutedRhs.replace(new RegExp('\\b' + escapeRegExp(k) + '\\b', 'g'), disp);
-    }
-    if (needsHP) substitutedRhs = substitutedRhs.replace(/\bHP_n\b/g, formatResultNum(adjustedInputs.HP_n != null ? adjustedInputs.HP_n : 0));
-    if (needsAn) substitutedRhs = substitutedRhs.replace(/\bAn\b/g, formatResultNum(adjustedInputs.An != null ? adjustedInputs.An : 0));
-    const base = lhsKey.replace(/_f$|_r$/, '');
-    return base + '_' + formatResultNum(numVal) + ' = ' + substitutedRhs;
-  }, [expr, lhsKey, hasAllInputs, finalCalc, adjustedInputs, formData.inputs, rhsKeys, p_push, p_pull, p_spin, p_start, needsHP, needsAn]);
+    return formatFormulaDisplay(displayExpr, effDisplayMap);
+  }, [displayExpr, hasAllInputs, effDisplayMap]);
 
   return (
     <div
@@ -753,7 +1042,10 @@ function SysOverlay({ data, onSave, onCancel }) {
         <div style={{ flex: '0 0 160px' }}>
           <select
             value={formData.shotType}
-            onChange={(e) => setFormData({ ...formData, shotType: e.target.value })}
+            onChange={(e) => {
+              setIsRestored(false);
+              setFormData({ ...formData, shotType: e.target.value });
+            }}
             style={{
               width: '100%',
               height: '36px',
@@ -773,7 +1065,10 @@ function SysOverlay({ data, onSave, onCancel }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <select
             value={formData.system}
-            onChange={(e) => setFormData({ ...formData, system: e.target.value })}
+            onChange={(e) => {
+              setIsRestored(false);
+              setFormData({ ...formData, system: e.target.value });
+            }}
             style={{
               width: '100%',
               height: '36px',
@@ -796,9 +1091,10 @@ function SysOverlay({ data, onSave, onCancel }) {
         <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>트랙 (Track)</span>
         <select
           value={formData.track}
-          onChange={(e) =>
-            setFormData({ ...formData, track: e.target.value })
-          }
+          onChange={(e) => {
+            setIsRestored(false);
+            setFormData({ ...formData, track: e.target.value });
+          }}
           style={{
             width: '100%',
             height: '36px',
@@ -830,6 +1126,91 @@ function SysOverlay({ data, onSave, onCancel }) {
         계산 공식 : {expr || "(공식 없음)"}
       </div>
 
+      <div style={{ marginTop: "4px" }}>
+        <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "6px" }}>
+          입력 기준
+        </span>
+        <div
+          style={{
+            padding: "10px 12px",
+            backgroundColor: "#f8fafc",
+            borderRadius: "6px",
+            border: "1px solid #e2e8f0",
+            fontSize: "13px",
+            color: "#334155",
+          }}
+        >
+          <label style={{ display: "block", marginBottom: "6px", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="sysInputBasis"
+              checked={inputBasis === "CO_C3_C1"}
+              onChange={() => {
+                setIsRestored(false);
+                setInputBasis("CO_C3_C1");
+              }}
+            />{" "}
+            CO − C3 = C1 (기본)
+          </label>
+          <label style={{ display: "block", marginBottom: "6px", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="sysInputBasis"
+              checked={inputBasis === "CO_C1_C3"}
+              onChange={() => {
+                setIsRestored(false);
+                setInputBasis("CO_C1_C3");
+              }}
+            />{" "}
+            CO − C1 = C3
+          </label>
+          <label style={{ display: "block", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="sysInputBasis"
+              checked={inputBasis === "C1_C3_CO"}
+              onChange={() => {
+                setIsRestored(false);
+                setInputBasis("C1_C3_CO");
+              }}
+            />{" "}
+            C1 + C3 = CO
+          </label>
+        </div>
+      </div>
+
+      <div style={{ marginTop: "8px" }}>
+        <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "6px" }}>
+          보정 방식
+        </span>
+        <div style={{ fontSize: "13px", color: "#334155" }}>
+          <label style={{ display: "block", marginBottom: "4px", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="sysCvEntryMode"
+              checked={cvEntryMode === "manual"}
+              onChange={() => {
+                setIsRestored(false);
+                setCvEntryMode("manual");
+              }}
+            />{" "}
+            CV 직접 입력
+          </label>
+          <label style={{ display: "block", cursor: "pointer", color: "#64748b" }}>
+            <input
+              type="radio"
+              name="sysCvEntryMode"
+              checked={cvEntryMode === "targetArrival"}
+              onChange={() => {
+                setIsRestored(false);
+                setCvEntryMode("targetArrival");
+              }}
+            />{" "}
+            목표 도착값 입력 (자동 보정) — 준비 중
+          </label>
+        </div>
+      </div>
+
       {/* [D] 기준 입력값: flex-wrap, 폭 하드 지정 */}
       <div
         style={{
@@ -842,8 +1223,35 @@ function SysOverlay({ data, onSave, onCancel }) {
         {["CO", "C1", "C2", "C3", "C4"].map(mark => {
           const sel = spaceSel[mark];
           const key = `${mark}_${sel}`;
-          const enabled = neededKeys.has(key);
+          let inputKey = key;
+          if (
+            showMarkRowExtraForBasis(mark, inputBasis, exprLhsToken) &&
+            mark === "C1" &&
+            exprLhsToken.startsWith("C1_")
+          ) {
+            inputKey = exprLhsToken;
+          } else if (
+            showMarkRowExtraForBasis(mark, inputBasis, exprLhsToken) &&
+            mark === "C3" &&
+            exprLhsToken.startsWith("C3_")
+          ) {
+            inputKey = exprLhsToken;
+          } else if (
+            showMarkRowExtraForBasis(mark, inputBasis, exprLhsToken) &&
+            mark === "CO" &&
+            exprLhsToken.startsWith("CO_")
+          ) {
+            inputKey = exprLhsToken;
+          }
+          const enabled = neededKeys.has(key) || showMarkRowExtraForBasis(mark, inputBasis, exprLhsToken);
           const lock = !!forced[mark];
+          const basisRO =
+            (mark === "CO" || mark === "C1" || mark === "C3") && isMarkBasisReadOnly(mark, inputBasis);
+          const readOnly = basisRO;
+          const numDisplay =
+            normalizedBasePayload[inputKey] != null && Number.isFinite(Number(normalizedBasePayload[inputKey]))
+              ? normalizedBasePayload[inputKey]
+              : formData.inputs[inputKey] ?? "";
           return (
             <div
               key={mark}
@@ -859,8 +1267,9 @@ function SysOverlay({ data, onSave, onCancel }) {
               <input
                 type="number"
                 step="0.5"
-                value={formData.inputs[key] ?? ''}
-                onChange={(e) => handleInputChange(key, e.target.value)}
+                readOnly={readOnly}
+                value={readOnly ? numDisplay : formData.inputs[inputKey] ?? ""}
+                onChange={(e) => !readOnly && handleInputChange(inputKey, e.target.value)}
                 style={{
                   width: '70px',
                   height: '32px',
@@ -868,14 +1277,18 @@ function SysOverlay({ data, onSave, onCancel }) {
                   border: '1px solid #cbd5e1',
                   borderRadius: '4px',
                   fontSize: '13px',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  backgroundColor: readOnly ? "#f1f5f9" : "#fff"
                 }}
               />
               <div style={{ display: 'flex', gap: '1px' }}>
                 <button
                   type="button"
-                  disabled={lock}
-                  onClick={() => setSpaceSel(p => ({ ...p, [mark]: "f" }))}
+                  disabled={lock || basisRO}
+                  onClick={() => {
+                    setIsRestored(false);
+                    setSpaceSel((p) => ({ ...p, [mark]: "f" }));
+                  }}
                   style={{
                     width: '24px',
                     height: '32px',
@@ -884,7 +1297,7 @@ function SysOverlay({ data, onSave, onCancel }) {
                     borderRadius: '4px',
                     fontSize: '10px',
                     fontWeight: '600',
-                    cursor: lock ? 'not-allowed' : 'pointer',
+                    cursor: lock || basisRO ? 'not-allowed' : 'pointer',
                     backgroundColor: sel === "f" ? '#3b82f6' : '#fff',
                     color: sel === "f" ? '#fff' : '#64748b'
                   }}
@@ -893,8 +1306,11 @@ function SysOverlay({ data, onSave, onCancel }) {
                 </button>
                 <button
                   type="button"
-                  disabled={lock}
-                  onClick={() => setSpaceSel(p => ({ ...p, [mark]: "r" }))}
+                  disabled={lock || basisRO}
+                  onClick={() => {
+                    setIsRestored(false);
+                    setSpaceSel((p) => ({ ...p, [mark]: "r" }));
+                  }}
                   style={{
                     width: '24px',
                     height: '32px',
@@ -903,7 +1319,7 @@ function SysOverlay({ data, onSave, onCancel }) {
                     borderRadius: '4px',
                     fontSize: '10px',
                     fontWeight: '600',
-                    cursor: lock ? 'not-allowed' : 'pointer',
+                    cursor: lock || basisRO ? 'not-allowed' : 'pointer',
                     backgroundColor: sel === "r" ? '#ef4444' : '#fff',
                     color: sel === "r" ? '#fff' : '#64748b'
                   }}
@@ -977,41 +1393,11 @@ function SysOverlay({ data, onSave, onCancel }) {
           minHeight: '36px'
         }}
       >
-        <span style={{ flex: '0 0 auto' }}>기준 계산값 :</span>
+        <span style={{ flex: '0 0 auto' }}>기준 계산값 (보정 전, base) :</span>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {substitutionDisplay.text}
+          {baseFormulaLine}
         </span>
       </div>
-
-      {/* [E-1] 5_half 전용 출발값 보정 (Sn = (CO_f - 50) * 0.5) */}
-      {formData.system === '5_half_system' && snFor5Half && (() => {
-        const { Sn, C4_f } = snFor5Half;
-        const CO_f = Number(formData.inputs?.CO_f) || 0;
-        const C3_r = Number(formData.inputs?.C3_r) || 0;
-        return (
-          <div
-            style={{
-              marginTop: '12px',
-              padding: '12px 16px',
-              backgroundColor: '#f0fdf4',
-              borderRadius: '6px',
-              border: '1px solid #bbf7d0',
-              fontSize: '13px',
-              lineHeight: '1.7',
-              fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-              color: '#166534',
-            }}
-          >
-            <div style={{ fontWeight: '700', fontSize: '16px', marginBottom: '10px' }}>
-              최종 도착값 : {fmt(C4_f)}
-            </div>
-            <div>C4_f = C5_f = C6_f = C3_r_{fmt(C3_r)} + Sn_{fmt(Sn)} = C4_f_{fmt(C4_f)}</div>
-            <div style={{ marginTop: '6px' }}>
-              Sn = (CO_f_{fmt(CO_f)} - 50) × 0.5 = Sn_{fmt(Sn)}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* [E] 물리 보정: 밀림 곡구 끌림 출발값 보정 스핀 한 줄 */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1023,8 +1409,8 @@ function SysOverlay({ data, onSave, onCancel }) {
           { key: 'spin', label: '스핀' }
         ].map(({ key, label }) => {
           const isDeparture = key === 'departure';
-          const displayValue = isDeparture && snFor5Half
-            ? snFor5Half.Sn
+          const displayValue = isDeparture && snFor5HalfEffective
+            ? snFor5HalfEffective.Sn
             : formData.corrections[key];
           return (
           <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1033,11 +1419,15 @@ function SysOverlay({ data, onSave, onCancel }) {
               type="number"
               step="0.5"
               value={displayValue}
-              readOnly={isDeparture && !!snFor5Half}
-              onChange={(e) => !(isDeparture && snFor5Half) && setFormData({
-                ...formData,
-                corrections: { ...formData.corrections, [key]: Number(e.target.value) }
-              })}
+              readOnly={isDeparture && !!snFor5HalfEffective}
+              onChange={(e) => {
+                if (isDeparture && snFor5HalfEffective) return;
+                setIsRestored(false);
+                setFormData({
+                  ...formData,
+                  corrections: { ...formData.corrections, [key]: Number(e.target.value) },
+                });
+              }}
               style={{
                 width: '70px',
                 height: '32px',
@@ -1054,7 +1444,7 @@ function SysOverlay({ data, onSave, onCancel }) {
         })}
       </div>
 
-      {/* [F] 최종 결과 (보정 입력변수 반영 후 재계산, 연초록 / 정수 표시) */}
+      {/* [F] 보정 적용 결과 (effective, 연초록 / 정수 표시) */}
       <div
         style={{
           padding: '8px 12px',
@@ -1069,15 +1459,49 @@ function SysOverlay({ data, onSave, onCancel }) {
           overflow: 'hidden'
         }}
       >
-        <span style={{ flex: '0 0 auto' }}>최종 결과 :</span>
-        {finalResultSubstitution != null ? (
+        <span style={{ flex: '0 0 auto' }}>보정 적용 결과 (effective) :</span>
+        {effectiveFormulaLine != null ? (
           <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {finalResultSubstitution}
+            {effectiveFormulaLine}
           </span>
         ) : (
           <span style={{ color: '#64748b' }}>—</span>
         )}
       </div>
+
+      {formData.system === "5_half_system" && hasAllInputs && snFor5HalfEffective && (() => {
+        const { Sn: Sn_eff, C4_f: C4_eff, CO_f: CO_used, C3_r: C3_used } = snFor5HalfEffective;
+        const fmt = (n) => {
+          const x = Number(n);
+          if (Number.isNaN(x)) return "0";
+          return x % 1 === 0 ? String(Math.round(x)) : String(Math.round(x * 10) / 10);
+        };
+        return (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "12px 16px",
+              backgroundColor: "#f0fdf4",
+              borderRadius: "6px",
+              border: "1px solid #bbf7d0",
+              fontSize: "13px",
+              lineHeight: "1.7",
+              fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+              color: "#166534",
+            }}
+          >
+            <div style={{ fontWeight: "700", fontSize: "16px", marginBottom: "10px" }}>
+              최종 도착값 : {fmt(C4_eff)}
+            </div>
+            <div>
+              C4_f = C5_f = C6_f = C3_r_{fmt(C3_used)} + Sn_{fmt(Sn_eff)} = C4_f_{fmt(C4_eff)}
+            </div>
+            <div style={{ marginTop: "6px" }}>
+              Sn = (CO_f_{fmt(CO_used)} - 50) × 0.5 = Sn_{fmt(Sn_eff)}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 버튼 */}
       <div style={{ display: 'flex', gap: '10px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
@@ -2468,17 +2892,26 @@ export default function App({
       ...(resolvedSlotSys.inputs ?? {}),
       ...(resolvedSlotSys.outputs?.result ?? {}),
     };
+    const effectiveNums = buildSlotEffectiveRenderSysValues(
+      merged,
+      resolvedSlotSys,
+      adminState?.sys
+    );
+    const out =
+      effectiveNums && Object.keys(effectiveNums).length > 0
+        ? { ...merged, ...effectiveNums }
+        : merged;
     const sid = resolvedSlotSys?.systemId;
     const needsC3r = sid === "5_half_system" || sid === "5_HALF";
-    if (import.meta.env.DEV && needsC3r && merged.C3_r == null) {
+    if (import.meta.env.DEV && needsC3r && out.C3_r == null) {
       console.warn(
         "[resolvedSlotSysValues] C3_r missing (5_half)",
         shotEditor.activeSlot,
-        merged
+        out
       );
     }
-    return merged;
-  }, [resolvedSlotSys, shotEditor.activeSlot]);
+    return out;
+  }, [resolvedSlotSys, shotEditor.activeSlot, adminState?.sys]);
 
   /** C3 오염 추적: 슬롯별 C3_r/CO_f/Sn/C4_f 비교 */
   useEffect(() => {

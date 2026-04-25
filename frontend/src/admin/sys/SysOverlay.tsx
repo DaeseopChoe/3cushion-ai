@@ -41,6 +41,67 @@ function formatFormulaDisplay(expr: string, output: Record<string, number>): str
   return `${lhs}_${lhsVal} = ${rhsSubstituted}`;
 }
 
+function getLhsToken(expr: string): string | null {
+  const idx = expr.indexOf("=");
+  if (idx < 0) return null;
+  const lhs = expr.slice(0, idx).trim();
+  return lhs || null;
+}
+
+export type InputBasis = "CO_C3_C1" | "CO_C1_C3" | "C1_C3_CO";
+export type CvEntryMode = "manual" | "targetArrival";
+console.log("🔥 NEW SYS OVERLAY LOADED")
+/**
+ * 입력 기준에 따라 CO_f / C1_f / C3_r 관계를 공식 C1_f = CO_f - C3_r 형태에 맞게 맞춤.
+ * expr 변경 없이 payload만 정규화.
+ */
+function normalizeToFormulaInputs(
+  values: Record<string, number>,
+  basis: InputBasis
+): Record<string, number> {
+  const out = { ...values };
+  const co = Number(out.CO_f);
+  const c1 = Number(out.C1_f);
+  const c3 = Number(out.C3_r);
+  const coN = Number.isFinite(co) ? co : 0;
+  const c1N = Number.isFinite(c1) ? c1 : 0;
+  const c3N = Number.isFinite(c3) ? c3 : 0;
+
+  if (basis === "CO_C3_C1") {
+    if ("C1_f" in out) out.C1_f = coN - c3N;
+  } else if (basis === "CO_C1_C3") {
+    if ("C3_r" in out) out.C3_r = coN - c1N;
+  } else if (basis === "C1_C3_CO") {
+    if ("CO_f" in out) out.CO_f = c1N + c3N;
+  }
+  return out;
+}
+
+function isTokenUserEditable(
+  token: string,
+  basis: InputBasis
+): boolean {
+  if (basis === "CO_C3_C1") {
+    if (token.startsWith("C1_")) return false;
+    return true;
+  }
+  if (basis === "CO_C1_C3") {
+    if (token.startsWith("C3_")) return false;
+    return true;
+  }
+  if (basis === "C1_C3_CO") {
+    if (token.startsWith("CO_")) return false;
+    return true;
+  }
+  return true;
+}
+
+function buildDisplayTokens(inputTokens: string[], lhsToken: string | null): string[] {
+  const set = new Set<string>(inputTokens);
+  if (lhsToken) set.add(lhsToken);
+  return Array.from(set);
+}
+
 /* ===============================
  * SysOverlay 상태 타입
  * =============================== */
@@ -49,6 +110,8 @@ interface SysOverlayState {
   systemId: string;
   strategyType: string;
   systemValues: Record<string, number>;
+  inputBasis: InputBasis;
+  cvEntryMode: CvEntryMode;
   corrections: {
     curve_ratio: number;
     slide: number;
@@ -125,6 +188,24 @@ export function SysOverlay({
   onApply,
   onCancel,
 }: SysOverlayProps) {
+  // #region agent log
+  fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "071abe",
+    },
+    body: JSON.stringify({
+      sessionId: "071abe",
+      runId: "sys-render-trace",
+      hypothesisId: "H2",
+      location: "admin/sys/SysOverlay.tsx:mount",
+      message: "module SysOverlay (admin/sys) rendered",
+      data: { source: "frontend/src/admin/sys/SysOverlay.tsx" },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   const handleSaveExternal = onApply ?? onSave;
   const handleCloseExternal = onCancel ?? onClose;
   const initial = initialState ?? sys;
@@ -137,6 +218,8 @@ export function SysOverlay({
       C1_f: 20,
       C3_r: 20,
     },
+    inputBasis: initial?.inputBasis ?? "CO_C3_C1",
+    cvEntryMode: initial?.cvEntryMode ?? "manual",
     corrections: {
       curve_ratio: initial?.corrections?.curve_ratio || 0,
       slide: initial?.corrections?.slide || 0,
@@ -153,17 +236,34 @@ export function SysOverlay({
     [formulaExpr]
   );
 
+  const lhsToken = useMemo(
+    () => (formulaExpr ? getLhsToken(formulaExpr) : null),
+    [formulaExpr]
+  );
+
+  const displayTokens = useMemo(
+    () => buildDisplayTokens(inputTokens, lhsToken),
+    [inputTokens, lhsToken]
+  );
+
+  const normalizedSystemValues = useMemo(
+    () => normalizeToFormulaInputs(sysState.systemValues, sysState.inputBasis),
+    [sysState.systemValues, sysState.inputBasis]
+  );
 
   const systemValuesWithDefaults = useMemo(() => {
-    const base = { ...sysState.systemValues };
-    const defaults = getDefaultSystemValues(inputTokens);
-    for (const t of inputTokens) {
-      if (!(t in base) || typeof base[t] !== "number") {
-        base[t] = defaults[t] ?? 0;
+    const tokenUnion = Array.from(
+      new Set<string>([...inputTokens, ...(lhsToken ? [lhsToken] : [])])
+    );
+    const merged = { ...normalizedSystemValues };
+    const defaults = getDefaultSystemValues(tokenUnion);
+    for (const t of tokenUnion) {
+      if (!(t in merged) || typeof merged[t] !== "number") {
+        merged[t] = defaults[t] ?? 0;
       }
     }
-    return base;
-  }, [sysState.systemValues, inputTokens]);
+    return merged;
+  }, [normalizedSystemValues, inputTokens, lhsToken]);
 
   const systemValuesWithCorrections = useMemo(
     () => applyCorrections(systemValuesWithDefaults, sysState.corrections),
@@ -176,13 +276,22 @@ export function SysOverlay({
         ? {
             system_id: sysState.systemId,
             system_values: systemValuesWithCorrections,
+            system_values_base: { ...systemValuesWithDefaults },
+            system_values_effective: { ...systemValuesWithCorrections },
           }
         : null,
-    [sysState.systemId, systemValuesWithCorrections, formulaExpr]
+    [
+      sysState.systemId,
+      systemValuesWithCorrections,
+      systemValuesWithDefaults,
+      formulaExpr,
+    ]
   );
 
-  const { expr, output, error } = useSysCalculation(sysCalcInput);
+  const { expr, output, base, effective, error } = useSysCalculation(sysCalcInput);
   const hasResult = output && Object.keys(output).length > 0;
+  const hasBase = base && Object.keys(base).length > 0;
+  const eff = effective ?? output;
 
   function updateSystemId(systemId: string) {
     const nextProfileKey = PROFILE_KEY_MAP[systemId] ?? systemId;
@@ -216,6 +325,19 @@ export function SysOverlay({
       corrections: { ...prev.corrections, [key]: value },
     }));
   }
+
+  function updateInputBasis(next: InputBasis) {
+    setSysState((prev) => ({ ...prev, inputBasis: next }));
+  }
+
+  function updateCvEntryMode(next: CvEntryMode) {
+    setSysState((prev) => ({ ...prev, cvEntryMode: next }));
+  }
+
+  const displayDefaults = useMemo(
+    () => getDefaultSystemValues(displayTokens),
+    [displayTokens]
+  );
 
   function handleSave() {
     if (!output || Object.keys(output).length === 0) {
@@ -357,8 +479,60 @@ export function SysOverlay({
         </div>
       </div>
 
-      {/* 시스템값 입력 — expr RHS 토큰 기반 동적 생성 */}
-      {inputTokens.length > 0 && (
+      <div style={{ marginBottom: "16px" }}>
+        <label
+          style={{
+            display: "block",
+            fontSize: "14px",
+            fontWeight: "500",
+            marginBottom: "8px",
+            color: "#374151",
+          }}
+        >
+          입력 기준
+        </label>
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#f9fafb",
+            borderRadius: "8px",
+            border: "1px solid #e5e7eb",
+            fontSize: "14px",
+            color: "#374151",
+          }}
+        >
+          <label style={{ display: "block", marginBottom: "8px", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="inputBasis"
+              checked={sysState.inputBasis === "CO_C3_C1"}
+              onChange={() => updateInputBasis("CO_C3_C1")}
+            />{" "}
+            기본: CO − C3 = C1
+          </label>
+          <label style={{ display: "block", marginBottom: "8px", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="inputBasis"
+              checked={sysState.inputBasis === "CO_C1_C3"}
+              onChange={() => updateInputBasis("CO_C1_C3")}
+            />{" "}
+            보조: CO − C1 = C3
+          </label>
+          <label style={{ display: "block", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="inputBasis"
+              checked={sysState.inputBasis === "C1_C3_CO"}
+              onChange={() => updateInputBasis("C1_C3_CO")}
+            />{" "}
+            보조: C1 + C3 = CO
+          </label>
+        </div>
+      </div>
+
+      {/* 시스템값 입력 — 공식 LHS + RHS 토큰, 입력 기준에 따른 활성/비활성 */}
+      {displayTokens.length > 0 && (
         <div
           style={{
             marginBottom: "16px",
@@ -378,40 +552,50 @@ export function SysOverlay({
           >
             시스템값 입력
           </h3>
-          {inputTokens.map((token) => (
-            <div key={token} className="input-group" style={{ marginBottom: "14px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: "500",
-                  marginBottom: "8px",
-                  color: "#374151",
-                }}
-              >
-                {token}
-              </label>
-              <input
-                type="number"
-                value={
-                  sysState.systemValues[token] ??
-                  getDefaultSystemValues(inputTokens)[token] ??
-                  0
-                }
-                onChange={(e) => updateSystemValue(token, Number(e.target.value))}
-                step="0.5"
-                style={{
-                  width: "100%",
-                  height: "40px",
-                  fontSize: "15px",
-                  padding: "0 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  backgroundColor: "#ffffff",
-                }}
-              />
-            </div>
-          ))}
+          {displayTokens.map((token) => {
+            const editable = isTokenUserEditable(token, sysState.inputBasis);
+            const raw = sysState.systemValues[token];
+            const def = displayDefaults[token] ?? 0;
+            const userVal =
+              typeof raw === "number" && !Number.isNaN(raw) ? raw : def;
+            const displayVal = editable
+              ? userVal
+              : normalizedSystemValues[token] ?? userVal;
+            return (
+              <div key={token} className="input-group" style={{ marginBottom: "14px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    marginBottom: "8px",
+                    color: "#374151",
+                  }}
+                >
+                  {token}
+                  {!editable ? " (자동)" : ""}
+                </label>
+                <input
+                  type="number"
+                  value={displayVal}
+                  readOnly={!editable}
+                  onChange={(e) =>
+                    editable && updateSystemValue(token, Number(e.target.value))
+                  }
+                  step="0.5"
+                  style={{
+                    width: "100%",
+                    height: "40px",
+                    fontSize: "15px",
+                    padding: "0 12px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "6px",
+                    backgroundColor: editable ? "#ffffff" : "#f3f4f6",
+                  }}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -426,6 +610,39 @@ export function SysOverlay({
           border: "1px solid #e5e7eb",
         }}
       >
+        <div style={{ marginBottom: "16px" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: "500",
+              marginBottom: "8px",
+              color: "#374151",
+            }}
+          >
+            보정 방식
+          </label>
+          <div style={{ fontSize: "14px", color: "#374151" }}>
+            <label style={{ display: "block", marginBottom: "6px", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="cvEntryMode"
+                checked={sysState.cvEntryMode === "manual"}
+                onChange={() => updateCvEntryMode("manual")}
+              />{" "}
+              CV 직접 입력
+            </label>
+            <label style={{ display: "block", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="cvEntryMode"
+                checked={sysState.cvEntryMode === "targetArrival"}
+                onChange={() => updateCvEntryMode("targetArrival")}
+              />{" "}
+              목표 도착값 입력 (자동 보정) — 준비 중
+            </label>
+          </div>
+        </div>
         <h3
           style={{
             fontSize: "16px",
@@ -446,8 +663,8 @@ export function SysOverlay({
         ).map(([key, label]) => {
           const isDeparture = key === "departure";
           const displayValue =
-            isDeparture && output?.Sn !== undefined
-              ? output.Sn
+            isDeparture && eff?.Sn !== undefined
+              ? eff.Sn
               : sysState.corrections[key];
           return (
           <div key={key} className="input-group" style={{ marginBottom: "14px" }}>
@@ -465,9 +682,9 @@ export function SysOverlay({
             <input
               type="number"
               value={displayValue}
-              readOnly={isDeparture && output?.Sn !== undefined}
+              readOnly={isDeparture && eff?.Sn !== undefined}
               onChange={(e) =>
-                !(isDeparture && output?.Sn !== undefined) &&
+                !(isDeparture && eff?.Sn !== undefined) &&
                 updateCorrection(key, Number(e.target.value))
               }
               step="0.5"
@@ -486,7 +703,49 @@ export function SysOverlay({
         })}
       </div>
 
-      {/* 계산 결과 — formatFormulaDisplay(expr, output) */}
+      {/* 기준 계산값 (보정 전) */}
+      {hasBase && (
+        <div
+          className="result-section-base"
+          style={{
+            marginTop: "24px",
+            padding: "20px",
+            backgroundColor: "#f8fafc",
+            borderRadius: "8px",
+            border: "1px solid #cbd5e1",
+          }}
+        >
+          <h3
+            style={{
+              fontSize: "16px",
+              fontWeight: "600",
+              marginBottom: "16px",
+              color: "#334155",
+            }}
+          >
+            기준 계산값 (미저장)
+          </h3>
+          <div
+            className="formula-display"
+            style={{
+              fontSize: "15px",
+              lineHeight: "1.8",
+              padding: "12px 16px",
+              backgroundColor: "#ffffff",
+              borderRadius: "6px",
+              border: "1px solid #e2e8f0",
+              fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+              fontWeight: "600",
+              color: "#1f2937",
+              textAlign: "center",
+            }}
+          >
+            {formatFormulaDisplay(expr, base)}
+          </div>
+        </div>
+      )}
+
+      {/* 보정 적용 결과 (effective) */}
       {hasResult && (
         <div
           className="result-section"
@@ -506,7 +765,7 @@ export function SysOverlay({
               color: "#1e40af",
             }}
           >
-            계산 결과 (미저장)
+            보정 적용 결과 (미저장)
           </h3>
           <div
             className="formula-display"
@@ -523,39 +782,8 @@ export function SysOverlay({
               textAlign: "center",
             }}
           >
-            {formatFormulaDisplay(expr, output)}
+            {formatFormulaDisplay(expr, eff)}
           </div>
-          {/* 5_half 전용 출발값 보정 표시 — output.Sn 있으면 표시 (systemId 비교 제거) */}
-          {hasResult &&
-            output.Sn !== undefined &&
-            output.C4_f !== undefined && (
-              <div
-                className="departure-correction"
-                style={{
-                  marginTop: "16px",
-                  padding: "12px 16px",
-                  backgroundColor: "#f0fdf4",
-                  borderRadius: "6px",
-                  border: "1px solid #bbf7d0",
-                  fontSize: "14px",
-                  lineHeight: "1.8",
-                  fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-                  color: "#166534",
-                }}
-              >
-                <div style={{ fontWeight: "700", fontSize: "16px", marginBottom: "10px" }}>
-                  최종 도착값 : {formatDepartureNum(output.C4_f)}
-                </div>
-                <div>
-                  C4_f = C5_f = C6_f = C3_r_{formatDepartureNum(output.C3_r ?? 0)} + Sn_
-                  {formatDepartureNum(output.Sn)} = C4_f_{formatDepartureNum(output.C4_f)}
-                </div>
-                <div style={{ marginTop: "6px" }}>
-                  Sn = (CO_f_{formatDepartureNum(output.CO_f ?? 0)} - 50) × 0.5 = Sn_
-                  {formatDepartureNum(output.Sn)}
-                </div>
-              </div>
-            )}
         </div>
       )}
 
@@ -575,6 +803,37 @@ export function SysOverlay({
           <strong>⚠️ 계산 오류:</strong> {error}
         </div>
       )}
+
+      {hasResult &&
+        eff?.Sn !== undefined &&
+        eff?.C4_f !== undefined && (
+          <div
+            className="departure-correction"
+            style={{
+              marginTop: "24px",
+              padding: "12px 16px",
+              backgroundColor: "#f0fdf4",
+              borderRadius: "6px",
+              border: "1px solid #bbf7d0",
+              fontSize: "14px",
+              lineHeight: "1.8",
+              fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+              color: "#166534",
+            }}
+          >
+            <div style={{ fontWeight: "700", fontSize: "16px", marginBottom: "10px" }}>
+              최종 도착값 : {formatDepartureNum(eff.C4_f)}
+            </div>
+            <div>
+              C4_f = C5_f = C6_f = C3_r_{formatDepartureNum(eff.C3_r ?? 0)} + Sn_
+              {formatDepartureNum(eff.Sn)} = C4_f_{formatDepartureNum(eff.C4_f)}
+            </div>
+            <div style={{ marginTop: "6px" }}>
+              Sn = (CO_f_{formatDepartureNum(eff.CO_f ?? 0)} - 50) × 0.5 = Sn_
+              {formatDepartureNum(eff.Sn)}
+            </div>
+          </div>
+        )}
 
       <div
         className="button-group"

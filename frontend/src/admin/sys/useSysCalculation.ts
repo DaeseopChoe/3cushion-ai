@@ -9,12 +9,20 @@ type Values = Record<string, number>;
 
 export type SysCalcInput = {
   system_id: string;
-  system_values: Record<string, number>;
+  /** 레거시: 단일 맵 — base/effective 모두 동일 입력으로 계산 */
+  system_values?: Record<string, number>;
+  /** 보정 전(또는 CO_base 기준) 시스템값 */
+  system_values_base?: Record<string, number>;
+  /** applyCorrections 등 반영 후 시스템값 — `output`은 항상 이 트랙 결과(effective) */
+  system_values_effective?: Record<string, number>;
 };
 
 export type SysCalcResult = {
   expr: string;
+  /** 기존 호환: effective 트랙과 동일한 flat 맵 */
   output: Values;
+  base?: Values;
+  effective?: Values;
   error?: string;
 };
 
@@ -115,56 +123,100 @@ function evaluateExpr(expr: string, values: Values): Values {
   return out;
 }
 
+type ProfileBundle = {
+  profileKey: string;
+  profile: (typeof SYSTEM_PROFILES)[string];
+  expr: string;
+};
+
+function resolveProfileBundle(system_id: string): ProfileBundle | { error: string } {
+  const profileKey =
+    SYSTEM_ID_TO_PROFILE_KEY[system_id] ??
+    system_id.toLowerCase().replace(/-/g, "_");
+  const profile = SYSTEM_PROFILES[profileKey];
+  if (!profile) {
+    return { error: `Unknown systemId: ${system_id}` };
+  }
+  const expr: string = profile?.formula?.expr;
+  if (!expr || typeof expr !== "string") {
+    return { error: "profile.formula.expr not found" };
+  }
+  return { profileKey, profile, expr };
+}
+
+/** expr + system_values 한 번 평가 (5_half Sn/C4 체인 포함) — 기존 단일 경로와 동일 */
+function runCalculation(
+  expr: string,
+  profile: (typeof SYSTEM_PROFILES)[string],
+  systemValues: Record<string, number>
+): Values {
+  const values = buildValuesFromInput(expr, systemValues);
+  let out = evaluateExpr(expr, values);
+  if (profile?.system === "5_half_system") {
+    const CO_f = out.CO_f ?? 0;
+    const C3_r = out.C3_r ?? 0;
+    const Sn = (CO_f - 50) * 0.5;
+    const C4_f = C3_r + Sn;
+    out = {
+      ...out,
+      Sn,
+      C4_f,
+      C5_f: C4_f,
+      C6_f: C4_f,
+    };
+  }
+  return out;
+}
+
 /**
  * useSysCalculation(input)
- * - input: { system_id, system_values } | null
- * - 반환: { expr, output, error }
+ * - input: { system_id, system_values } | { system_id, system_values_base, system_values_effective } | null
+ * - 반환: output === effective (flat), base / effective 병행
  * 좌표 엔진(calculateSystemV1, trajectory) 미참조
  */
 export function useSysCalculation(input: SysCalcInput | null): SysCalcResult {
   const res = useMemo<SysCalcResult>(() => {
-    if (!input || !input.system_values) {
-      return { expr: "", output: {}, error: "입력 없음" };
+    const empty = { expr: "", output: {}, base: {}, effective: {}, error: "입력 없음" as string };
+
+    if (!input) {
+      return empty;
     }
 
-    const profileKey =
-      SYSTEM_ID_TO_PROFILE_KEY[input.system_id] ??
-      input.system_id.toLowerCase().replace(/-/g, "_");
-    const profile = SYSTEM_PROFILES[profileKey];
-
-    if (!profile) {
-      return { expr: "", output: {}, error: `Unknown systemId: ${input.system_id}` };
+    const hasAnyValues =
+      input.system_values != null ||
+      input.system_values_base != null ||
+      input.system_values_effective != null;
+    if (!hasAnyValues) {
+      return empty;
     }
 
-    const expr: string = profile?.formula?.expr;
-    if (!expr || typeof expr !== "string") {
-      return { expr: "", output: {}, error: "profile.formula.expr not found" };
-    }
+    const baseIn =
+      input.system_values_base ??
+      input.system_values ??
+      ({} as Record<string, number>);
+    const effectiveIn =
+      input.system_values_effective ??
+      input.system_values ??
+      baseIn;
 
-    const values = buildValuesFromInput(expr, input.system_values);
+    const bundle = resolveProfileBundle(input.system_id);
+    if ("error" in bundle) {
+      return { expr: "", output: {}, base: {}, effective: {}, error: bundle.error };
+    }
+    const { profile, expr } = bundle;
 
     try {
-      let out = evaluateExpr(expr, values);
-
-      // 3️⃣ 5_half 분기: profile.system 기준 (profileKey 미사용)
-      if (profile?.system === "5_half_system") {
-        const CO_f = out.CO_f ?? 0;
-        const C3_r = out.C3_r ?? 0;
-        const Sn = (CO_f - 50) * 0.5;
-        const C4_f = C3_r + Sn;
-        out = {
-          ...out,
-          Sn,
-          C4_f,
-          C5_f: C4_f,
-          C6_f: C4_f,
-        };
-      }
-
-      return { expr, output: out };
+      const base = runCalculation(expr, profile, baseIn);
+      const effective = runCalculation(expr, profile, effectiveIn);
+      return {
+        expr,
+        output: effective,
+        base,
+        effective,
+      };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      return { expr, output: {}, error: msg };
+      return { expr: "", output: {}, base: {}, effective: {}, error: msg };
     }
   }, [input ? JSON.stringify(input) : null]);
 
