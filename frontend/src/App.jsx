@@ -361,38 +361,125 @@ function resolveCoC1C3Keys(forced, spaceSel) {
   return { coKey: co, c1Key: c1, c3Key: c3 };
 }
 
-/** 입력 기준에 따라 CO/C1/C3 중 하나를 나머지 두 값으로 환산 (계산 직전 payload). */
-function normalizeToFormulaInputsApp(numericPayload, basis, coKey, c1Key, c3Key) {
+/** 시스템별 SYS 입력 유도·Sn 사용 (신규 시스템은 이 테이블에만 등록) */
+const SYS_SYSTEM_CONFIG = {
+  five_half: { mode: "derived", useSn: true },
+  "5_half_system": { mode: "derived", useSn: true },
+  "5_HALF": { mode: "derived", useSn: true },
+  sunrise_sunset: { mode: "full_input", useSn: false },
+  sunset: { mode: "full_input", useSn: false },
+};
+
+function canonicalSystemIdForConfig(systemId) {
+  if (systemId == null || systemId === "") return "5_half_system";
+  return systemId === "5_HALF" ? "5_half_system" : systemId;
+}
+
+function getSysSystemMode(systemId) {
+  const sid = canonicalSystemIdForConfig(systemId);
+  return SYS_SYSTEM_CONFIG[sid]?.mode ?? "full_input";
+}
+
+function getSysUseSn(systemId) {
+  const sid = canonicalSystemIdForConfig(systemId);
+  return SYS_SYSTEM_CONFIG[sid]?.useSn ?? false;
+}
+
+function isFiveHalfSystemId(systemId) {
+  const s = systemId == null ? "" : String(systemId);
+  return s === "5_half_system" || s === "5_HALF" || s === "five_half";
+}
+
+/** formData.inputs 기준: 비어 있지 않고 유한 숫자면 값 반환, 아니면 null */
+function sysOverlayInputFinite(inputs, key) {
+  if (!inputs || !(key in inputs)) return null;
+  const v = inputs[key];
+  if (v === "" || v === null || v === undefined) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * 5&Half 전용 2-of-3: CO·C1·C3 중 2개 입력 시 나머지 1개 계산 (base만, CV 미사용).
+ * C1 = CO − C3 정합: CO+C1→C3, CO+C3→C1, C1+C3→CO 모두 CO_base(co)만 사용.
+ */
+function solveFiveHalfTwoOfThree(inputs, coKey, c1Key, c3Key) {
+  const co = sysOverlayInputFinite(inputs, coKey);
+  const c1 = sysOverlayInputFinite(inputs, c1Key);
+  const c3 = sysOverlayInputFinite(inputs, c3Key);
+  const out = {};
+  if (co != null && c1 != null) {
+    out[coKey] = co;
+    out[c1Key] = c1;
+    out[c3Key] = co - c1;
+    return out;
+  }
+  if (co != null && c3 != null) {
+    out[coKey] = co;
+    out[c3Key] = c3;
+    out[c1Key] = co - c3;
+    return out;
+  }
+  if (c1 != null && c3 != null) {
+    out[c1Key] = c1;
+    out[c3Key] = c3;
+    out[coKey] = c1 + c3;
+    return out;
+  }
+  return null;
+}
+
+/** CO/C1/C3 중 자동으로 채워지는 입력 키 (2-of-3) */
+function fiveHalfComputedInputKey(inputs, coKey, c1Key, c3Key) {
+  const co = sysOverlayInputFinite(inputs, coKey);
+  const c1 = sysOverlayInputFinite(inputs, c1Key);
+  const c3 = sysOverlayInputFinite(inputs, c3Key);
+  if (co != null && c1 != null) return c3Key;
+  if (co != null && c3 != null) return c1Key;
+  if (c1 != null && c3 != null) return coKey;
+  return null;
+}
+
+/** 5&Half SYS 표시용 숫자 포맷 (계산 로직과 무관) */
+function fmtFiveHalfDisplayNum(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "?";
+  return x % 1 === 0 ? String(Math.round(x)) : String(Math.round(x * 10) / 10);
+}
+
+/**
+ * derived: CO·C1으로 c3Key 자동 (C3 = CO + coSlide − C1). coSlide는 기본 0(공식 C1_f=CO_f−C3_r 정합).
+ * full_input: CO/C1/C3 등 사용자 입력 필드는 수정하지 않음.
+ */
+function normalizeToFormulaInputsApp(
+  numericPayload,
+  systemMode,
+  coKey,
+  c1Key,
+  c3Key,
+  coSlide = 0
+) {
   const out = { ...numericPayload };
+  if (systemMode !== "derived" || !c3Key || !coKey || !c1Key) {
+    return out;
+  }
   const coN = Number(out[coKey]);
   const c1N = Number(out[c1Key]);
-  const c3N = Number(out[c3Key]);
   const co = Number.isFinite(coN) ? coN : 0;
   const c1 = Number.isFinite(c1N) ? c1N : 0;
-  const c3 = Number.isFinite(c3N) ? c3N : 0;
-  if (basis === "CO_C3_C1") {
-    if (c1Key) out[c1Key] = co - c3;
-  } else if (basis === "CO_C1_C3") {
-    if (c3Key) out[c3Key] = co - c1;
-  } else if (basis === "C1_C3_CO") {
-    if (coKey) out[coKey] = c1 + c3;
-  }
+  const coEff = co + (Number(coSlide) || 0);
+  out[c3Key] = coEff - c1;
   return out;
 }
 
-function isRhsKeyReadOnlyForBasis(key, basis) {
+function isRhsKeyReadOnlyForSys(key, systemMode, c3Key) {
   if (!key || key === "HP_n" || key === "An") return false;
-  if (basis === "CO_C3_C1" && key.startsWith("C1_")) return true;
-  if (basis === "CO_C1_C3" && key.startsWith("C3_")) return true;
-  if (basis === "C1_C3_CO" && key.startsWith("CO_")) return true;
+  if (systemMode === "derived" && c3Key && key === c3Key) return true;
   return false;
 }
 
-function isMarkBasisReadOnly(mark, basis) {
-  if (basis === "CO_C3_C1" && mark === "C1") return true;
-  if (basis === "CO_C1_C3" && mark === "C3") return true;
-  if (basis === "C1_C3_CO" && mark === "CO") return true;
-  return false;
+function isMarkBasisReadOnly(mark, systemMode) {
+  return systemMode === "derived" && mark === "C3";
 }
 
 function lhsTokenFromExpr(expr) {
@@ -401,10 +488,10 @@ function lhsTokenFromExpr(expr) {
   return parts[0]?.trim() ?? "";
 }
 
-function showMarkRowExtraForBasis(mark, basis, lhsToken) {
-  if (basis === "CO_C3_C1" && mark === "C1" && lhsToken.startsWith("C1_")) return true;
-  if (basis === "CO_C1_C3" && mark === "C3" && lhsToken.startsWith("C3_")) return true;
-  if (basis === "C1_C3_CO" && mark === "CO" && lhsToken.startsWith("CO_")) return true;
+function showMarkRowExtraForSys(mark, systemMode, lhsToken) {
+  if (systemMode !== "derived" || !lhsToken) return false;
+  if (mark === "C1" && lhsToken.startsWith("C1_")) return true;
+  if (mark === "C3" && lhsToken.startsWith("C3_")) return true;
   return false;
 }
 
@@ -487,7 +574,7 @@ function parseSysFormulaExpr(expr) {
 }
 
 /**
- * 슬롯 sys 병합값(base) + adminState.sys(CV·input_basis·spaceSel) → 표시/앵커/궤적용 effective 맵.
+ * 슬롯 sys 병합값(base) + adminState.sys(CV·spaceSel·systemConfig) → 표시/앵커/궤적용 effective 맵.
  * SysOverlay의 normalizedBase → adjustedInputs → effDisplayMap 규약과 동일.
  */
 function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
@@ -503,6 +590,8 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
 
   const rawSid = resolvedSlotSys?.systemId ?? "5_half_system";
   const systemId = rawSid === "5_HALF" ? "5_half_system" : rawSid;
+  const systemMode = getSysSystemMode(systemId);
+  const useSn = getSysUseSn(systemId);
   const profile = SYSTEM_PROFILES[systemId];
   const expr =
     typeof profile?.formula === "string"
@@ -521,14 +610,30 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
     C3: "f",
     C4: "f",
   };
-  const inputBasis = adminSys?.input_basis ?? adminSys?.inputBasis ?? "CO_C3_C1";
   const { coKey, c1Key, c3Key } = resolveCoC1C3Keys(forced, spaceSel);
 
-  const hasAll = rhsKeys.every((k) => {
-    if (isRhsKeyReadOnlyForBasis(k, inputBasis)) return true;
-    const v = mergedNums[k];
-    return v !== undefined && v !== null && Number.isFinite(v);
-  });
+  const corrections = adminSys?.corrections ?? {};
+
+  let hasAll;
+  if (isFiveHalfSystemId(systemId)) {
+    const fhIn = {};
+    for (const k of [coKey, c1Key, c3Key]) {
+      if (mergedNums[k] != null && Number.isFinite(mergedNums[k])) fhIn[k] = mergedNums[k];
+    }
+    if (Object.keys(fhIn).length < 2) return {};
+    hasAll = rhsKeys.every((k) => {
+      const comp = fiveHalfComputedInputKey(fhIn, coKey, c1Key, c3Key);
+      if (comp && k === comp) return true;
+      const v = mergedNums[k];
+      return v !== undefined && v !== null && Number.isFinite(v);
+    });
+  } else {
+    hasAll = rhsKeys.every((k) => {
+      if (isRhsKeyReadOnlyForSys(k, systemMode, c3Key)) return true;
+      const v = mergedNums[k];
+      return v !== undefined && v !== null && Number.isFinite(v);
+    });
+  }
   if (!hasAll) return {};
 
   const numericPayload = buildSysOverlayNumericPayload(
@@ -540,29 +645,40 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
     needsHP,
     needsAn
   );
-  const normalizedBase = normalizeToFormulaInputsApp(
-    numericPayload,
-    inputBasis,
-    coKey,
-    c1Key,
-    c3Key
-  );
+  let normalizedBase;
+  if (isFiveHalfSystemId(systemId)) {
+    const fhIn = {};
+    for (const k of [coKey, c1Key, c3Key]) {
+      if (mergedNums[k] != null && Number.isFinite(mergedNums[k])) fhIn[k] = mergedNums[k];
+    }
+    const solved = solveFiveHalfTwoOfThree(fhIn, coKey, c1Key, c3Key);
+    normalizedBase = solved ? { ...numericPayload, ...solved } : numericPayload;
+  } else {
+    normalizedBase = normalizeToFormulaInputsApp(
+      numericPayload,
+      systemMode,
+      coKey,
+      c1Key,
+      c3Key,
+      0
+    );
+  }
 
-  const corrections = adminSys?.corrections ?? {};
   const p_push = Number(corrections.slide) || 0;
   const p_pull = Number(corrections.draw) || 0;
   const p_spin = Number(corrections.spin) || 0;
 
   const snFor5Half =
-    systemId === "5_half_system"
+    useSn && isFiveHalfSystemId(systemId)
       ? (() => {
-          const CO_f = Number(normalizedBase.CO_f) || 0;
+          const CO_base = Number(normalizedBase.CO_f) || 0;
+          const CO_eff = CO_base + p_push;
           const C3_r = Number(normalizedBase.C3_r) || 0;
-          return { Sn: (CO_f - 50) * 0.5, C4_f: C3_r + (CO_f - 50) * 0.5, CO_f, C3_r };
+          return { Sn: (CO_eff - 50) * 0.5, C4_f: C3_r + (CO_eff - 50) * 0.5, CO_f: CO_base, C3_r };
         })()
       : null;
   const p_start =
-    systemId === "5_half_system" && snFor5Half
+    useSn && isFiveHalfSystemId(systemId) && snFor5Half
       ? snFor5Half.Sn
       : Number(corrections.departure) || 0;
 
@@ -580,45 +696,39 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
 
   const base = normalizedBase;
   const adj = adjusted;
-  const CO_eff = Number(adj?.CO_f ?? base?.CO_f ?? 0);
-  const effDisplayMap = { ...base, CO_f: CO_eff };
-  if (inputBasis === "CO_C3_C1") {
-    const C3 = Number(base?.C3_r ?? 0);
-    effDisplayMap.C1_f = CO_eff - C3;
-  } else if (inputBasis === "CO_C1_C3") {
-    const C1 = Number(base?.C1_f ?? 0);
-    effDisplayMap.C3_r = CO_eff - C1;
-  } else if (inputBasis === "C1_C3_CO") {
-    const C1 = Number(base?.C1_f ?? 0);
-    const C3 = Number(base?.C3_r ?? 0);
-    effDisplayMap.CO_f = C1 + C3;
+  let effDisplayMap;
+  if (systemMode === "full_input") {
+    effDisplayMap = { ...base, ...adjusted };
+  } else {
+    const CO_eff = Number(adj?.CO_f ?? base?.CO_f ?? 0);
+    const c1 = Number((c1Key && base[c1Key]) ?? 0);
+    effDisplayMap = { ...base, CO_f: CO_eff };
+    if (c3Key) effDisplayMap[c3Key] = CO_eff - c1;
   }
 
   const out = { ...mergedNums, ...finalCalc, ...effDisplayMap };
 
-  if (systemId === "5_half_system") {
+  if (useSn && isFiveHalfSystemId(systemId)) {
     const CO_used = Number(effDisplayMap.CO_f ?? 0);
-    const C3_used = Number(effDisplayMap.C3_r ?? 0);
+    const C3_used = Number(effDisplayMap.C3_r ?? effDisplayMap.C3_f ?? 0);
     const Sn_eff = (CO_used - 50) * 0.5;
     out.Sn = Sn_eff;
     out.C4_f = C3_used + Sn_eff;
     out.C5_f = out.C4_f;
     out.C6_f = out.C4_f;
     out.CO_f = CO_used;
-    out.C3_r = C3_used;
+    if (effDisplayMap.C3_r != null) out.C3_r = C3_used;
   }
 
   return out;
 }
 
-/** 표시용 식 LHS만 basis에 맞게 바꿈. 내부 계산 expr은 그대로 두며 5½ 외 시스템은 원본 표시 유지. */
-function getDisplayExprByBasis(expr, inputBasis, systemId) {
-  if (inputBasis === "CO_C3_C1") return expr;
-  if (systemId !== "5_half_system") return expr;
+/** 표시용 식: full_input은 profile 그대로, derived(5½)는 C3 자동 관계 안내 문구 */
+function getDisplayExprForSys(expr, systemId, systemMode) {
   if (!expr || !expr.trim()) return expr;
-  if (inputBasis === "CO_C1_C3") return "C3_r = CO_f - C1_f";
-  if (inputBasis === "C1_C3_CO") return "CO_f = C1_f + C3_r";
-  return expr;
+  if (systemMode === "full_input") return expr;
+  if (!isFiveHalfSystemId(systemId)) return expr;
+  return "C3_r = CO_f - C1_f";
 }
 
 /** SysOverlay 표시 전용 — admin/sys SysOverlay.tsx와 동일 규약 */
@@ -751,13 +861,6 @@ function SysOverlay({ data, onSave, onCancel }) {
     C4: data?.spaceSel?.C4 || "f"
   });
 
-  const [inputBasis, setInputBasis] = useState(
-    () => data?.input_basis ?? data?.inputBasis ?? "CO_C3_C1"
-  );
-  const [cvEntryMode, setCvEntryMode] = useState(
-    () => data?.cv_entry_mode ?? data?.cvEntryMode ?? "manual"
-  );
-
   /** true면 저장값 복원 직후 — normalizeToFormulaInputsApp 비활성(덮어쓰기 방지) */
   const [isRestored, setIsRestored] = useState(() => {
     const s = data?.system_values;
@@ -772,8 +875,6 @@ function SysOverlay({ data, onSave, onCancel }) {
       inputs: buildSysOverlayInitialInputs(data),
       corrections: data.corrections ?? prev.corrections,
     }));
-    setInputBasis(data?.input_basis ?? data?.inputBasis ?? "CO_C3_C1");
-    setCvEntryMode(data?.cv_entry_mode ?? data?.cvEntryMode ?? "manual");
     setIsRestored(true);
   }, [data?.system_values]);
 
@@ -802,6 +903,9 @@ function SysOverlay({ data, onSave, onCancel }) {
     [forced, spaceSel]
   );
 
+  const systemMode = getSysSystemMode(formData.system);
+  const useSnForSystem = getSysUseSn(formData.system);
+
   const normalizedBasePayload = useMemo(() => {
     if (!expr || !expr.trim()) return {};
     const payload = buildSysOverlayNumericPayload(
@@ -816,8 +920,27 @@ function SysOverlay({ data, onSave, onCancel }) {
     if (isRestored) {
       return payload;
     }
-    return normalizeToFormulaInputsApp(payload, inputBasis, coKey, c1Key, c3Key);
-  }, [expr, rhsKeys, formData.inputs, needsHP, needsAn, inputBasis, coKey, c1Key, c3Key, isRestored]);
+    if (isFiveHalfSystemId(formData.system)) {
+      const solved = solveFiveHalfTwoOfThree(formData.inputs, coKey, c1Key, c3Key);
+      if (solved) {
+        return { ...payload, ...solved };
+      }
+      return payload;
+    }
+    const mode = getSysSystemMode(formData.system);
+    return normalizeToFormulaInputsApp(payload, mode, coKey, c1Key, c3Key, 0);
+  }, [
+    expr,
+    rhsKeys,
+    formData.inputs,
+    formData.system,
+    needsHP,
+    needsAn,
+    coKey,
+    c1Key,
+    c3Key,
+    isRestored,
+  ]);
 
   // 공식 로딩 시 f/r 스위치 자동 고정
   useEffect(() => {
@@ -831,27 +954,40 @@ function SysOverlay({ data, onSave, onCancel }) {
     });
   }, [expr]);
 
-  // 공식에 필요한 입력: 우변(RHS) 변수만 검사. 입력 기준으로 자동 환산되는 키는 비워도 됨.
+  // 공식에 필요한 입력: 5&Half는 CO/C1/C3 중 2개 이상, 그 외는 RHS 규칙.
   const hasAllInputs = useMemo(() => {
     if (!rhsKeys || rhsKeys.length === 0) return false;
 
-    const ok = rhsKeys.every((k) => {
-      if (isRhsKeyReadOnlyForBasis(k, inputBasis)) return true;
-      const v = formData.inputs && formData.inputs[k];
-      return v !== '' && v !== null && v !== undefined;
-    });
+    const mode = getSysSystemMode(formData.system);
+    let ok;
+    if (isFiveHalfSystemId(formData.system)) {
+      const filled = [coKey, c1Key, c3Key].filter(
+        (k) => sysOverlayInputFinite(formData.inputs, k) != null
+      ).length;
+      ok = filled >= 2;
+      if (ok) {
+        const preview = solveFiveHalfTwoOfThree(formData.inputs, coKey, c1Key, c3Key);
+        ok = !!preview && rhsKeys.every((k) => Number.isFinite(Number(preview[k])));
+      }
+    } else {
+      ok = rhsKeys.every((k) => {
+        if (isRhsKeyReadOnlyForSys(k, mode, c3Key)) return true;
+        const v = formData.inputs && formData.inputs[k];
+        return v !== "" && v !== null && v !== undefined;
+      });
+    }
     if (!ok) return false;
 
     if (needsHP) {
       const v = formData.inputs.HP_n;
-      if (v === '' || v === null || v === undefined) return false;
+      if (v === "" || v === null || v === undefined) return false;
     }
     if (needsAn) {
       const v = formData.inputs.An;
-      if (v === '' || v === null || v === undefined) return false;
+      if (v === "" || v === null || v === undefined) return false;
     }
     return true;
-  }, [formData.inputs, rhsKeys, needsHP, needsAn, inputBasis]);
+  }, [formData.inputs, rhsKeys, needsHP, needsAn, formData.system, c3Key, coKey, c1Key]);
 
   // ==========================================
   // 계산 엔진 연결 (실시간 업데이트) — 입력값 부족 시 계산 안 함
@@ -880,8 +1016,9 @@ function SysOverlay({ data, onSave, onCancel }) {
   const baseResultValue = Object.keys(calcResult).length > 0 ? Object.values(calcResult)[0] : null;
   const baseResultKey = Object.keys(calcResult).length > 0 ? Object.keys(calcResult)[0] : null;
 
-  // 기준 계산값 → inputs[baseResultKey] 강제 동기화 (계산되면 무조건 주입, 숫자 같을 때만 스킵)
+  // 기준 계산값 → inputs[baseResultKey] 강제 동기화 (5&Half 2-of-3과 충돌하므로 5&Half에서는 생략)
   useEffect(() => {
+    if (isFiveHalfSystemId(formData.system)) return;
     if (!baseResultKey || baseResultValue == null) return;
 
     setFormData(prev => {
@@ -891,21 +1028,23 @@ function SysOverlay({ data, onSave, onCancel }) {
         inputs: { ...prev.inputs, [baseResultKey]: formatResultNum(baseResultValue) }
       };
     });
-  }, [baseResultValue, baseResultKey]);
+  }, [baseResultValue, baseResultKey, formData.system]);
 
   // 물리 보정 매핑: p_push→CO, p_pull/p_spin→C3, p_start→C4/C5/C6 (입력 변수 선반영 후 재계산)
   const p_push = Number(formData.corrections.slide) || 0;
   const p_pull = Number(formData.corrections.draw) || 0;
   const p_spin = Number(formData.corrections.spin) || 0;
   const snFor5Half = useMemo(() => {
-    if (formData.system !== "5_half_system") return null;
-    const CO_f = Number(normalizedBasePayload.CO_f) || 0;
+    if (!useSnForSystem || !isFiveHalfSystemId(formData.system)) return null;
+    const CO_base = Number(normalizedBasePayload.CO_f) || 0;
+    const CO_eff = CO_base + (Number(formData.corrections.slide) || 0);
     const C3_r = Number(normalizedBasePayload.C3_r) || 0;
-    return { Sn: (CO_f - 50) * 0.5, C4_f: C3_r + (CO_f - 50) * 0.5, CO_f, C3_r };
-  }, [formData.system, normalizedBasePayload]);
-  const p_start = formData.system === '5_half_system' && snFor5Half
-    ? snFor5Half.Sn
-    : (Number(formData.corrections.departure) || 0);
+    return { Sn: (CO_eff - 50) * 0.5, C4_f: C3_r + (CO_eff - 50) * 0.5, CO_f: CO_base, C3_r };
+  }, [formData.system, normalizedBasePayload, useSnForSystem, formData.corrections.slide]);
+  const p_start =
+    useSnForSystem && isFiveHalfSystemId(formData.system) && snFor5Half
+      ? snFor5Half.Sn
+      : Number(formData.corrections.departure) || 0;
 
   const { adjustedInputs, finalCalc, lhsKey } = useMemo(() => {
     if (!expr || !expr.trim()) return { adjustedInputs: {}, finalCalc: {}, lhsKey: null };
@@ -925,29 +1064,23 @@ function SysOverlay({ data, onSave, onCancel }) {
     return { adjustedInputs: adjusted, finalCalc: final, lhsKey: keys.length > 0 ? keys[0] : null };
   }, [expr, hasAllInputs, normalizedBasePayload, p_push, p_pull, p_spin, p_start, needsHP, needsAn]);
 
-  /** base 유지 + CO_effective + inputBasis에 따른 변동 변수 1개만 덮어씀 (표시용, finalCalc 미병합). */
+  /** 표시용: full_input은 base 그대로, derived는 CO 보정 후 C3 = CO_eff − C1(base). */
   const effDisplayMap = useMemo(() => {
     if (!hasAllInputs) return {};
     const base = normalizedBasePayload;
+    if (systemMode === "full_input") {
+      return { ...base, ...adjustedInputs };
+    }
     const adj = adjustedInputs;
     const CO_eff = Number(adj?.CO_f ?? base?.CO_f ?? 0);
+    const c1 = Number((c1Key && base[c1Key]) ?? 0);
     const out = { ...base, CO_f: CO_eff };
-    if (inputBasis === "CO_C3_C1") {
-      const C3 = Number(base?.C3_r ?? 0);
-      out.C1_f = CO_eff - C3;
-    } else if (inputBasis === "CO_C1_C3") {
-      const C1 = Number(base?.C1_f ?? 0);
-      out.C3_r = CO_eff - C1;
-    } else if (inputBasis === "C1_C3_CO") {
-      const C1 = Number(base?.C1_f ?? 0);
-      const C3 = Number(base?.C3_r ?? 0);
-      out.CO_f = C1 + C3;
-    }
+    if (c3Key) out[c3Key] = CO_eff - c1;
     return out;
-  }, [hasAllInputs, normalizedBasePayload, adjustedInputs, inputBasis]);
+  }, [hasAllInputs, normalizedBasePayload, adjustedInputs, systemMode, c1Key, c3Key]);
 
   const snFor5HalfEffective = useMemo(() => {
-    if (formData.system !== "5_half_system" || !hasAllInputs) return null;
+    if (!useSnForSystem || !isFiveHalfSystemId(formData.system) || !hasAllInputs) return null;
     const basePl = normalizedBasePayload;
     if (!effDisplayMap || Object.keys(effDisplayMap).length === 0) return null;
     const CO_used = Number(effDisplayMap?.CO_f ?? basePl?.CO_f ?? 0);
@@ -960,7 +1093,7 @@ function SysOverlay({ data, onSave, onCancel }) {
       CO_f: CO_used,
       C3_r: C3_used,
     };
-  }, [formData.system, hasAllInputs, effDisplayMap, normalizedBasePayload]);
+  }, [formData.system, hasAllInputs, effDisplayMap, normalizedBasePayload, useSnForSystem]);
 
   const finalResultDisplay = (() => {
     if (!lhsKey) return null;
@@ -995,15 +1128,15 @@ function SysOverlay({ data, onSave, onCancel }) {
       finalResult: finalResultDisplay,
       adjustedInputs,
       ...(systemValuesBase != null ? { system_values: systemValuesBase } : {}),
-      input_basis: inputBasis,
-      cv_entry_mode: cvEntryMode,
+      sys_system_mode: systemMode,
+      sys_use_sn: useSnForSystem,
     };
     onSave(saveData);
   };
 
   const displayExpr = useMemo(
-    () => getDisplayExprByBasis(expr, inputBasis, formData.system),
-    [expr, inputBasis, formData.system]
+    () => getDisplayExprForSys(expr, formData.system, systemMode),
+    [expr, formData.system, systemMode]
   );
 
   const baseDisplayMap = useMemo(
@@ -1016,6 +1149,34 @@ function SysOverlay({ data, onSave, onCancel }) {
     if (!hasAllInputs) return "입력 대기 중...";
     return formatFormulaDisplay(displayExpr, baseDisplayMap);
   }, [displayExpr, hasAllInputs, baseDisplayMap]);
+
+  /** 기준(base): 항상 C1 = CO − C3, 값은 normalizedBasePayload만 */
+  const fiveHalfBaseDisplayLine = useMemo(() => {
+    if (!isFiveHalfSystemId(formData.system) || !hasAllInputs) return null;
+    const co = Number(normalizedBasePayload[coKey]);
+    const c1 = Number(normalizedBasePayload[c1Key]);
+    const c3 = Number(normalizedBasePayload[c3Key]);
+    return `${c1Key}_${fmtFiveHalfDisplayNum(c1)} = ${coKey}_${fmtFiveHalfDisplayNum(co)} - ${c3Key}_${fmtFiveHalfDisplayNum(c3)}`;
+  }, [formData.system, hasAllInputs, normalizedBasePayload, coKey, c1Key, c3Key]);
+
+  /** 보정(effective): C1=CO−C3와 동일 방향, CO_eff는 adjusted CO, C3는 표시용으로 CO_eff−C1(저장/맵 로직 불변) */
+  const fiveHalfEffectiveDisplayLine = useMemo(() => {
+    if (!isFiveHalfSystemId(formData.system) || !hasAllInputs) return null;
+    if (!adjustedInputs || Object.keys(adjustedInputs).length === 0) return null;
+    const c1 = Number(normalizedBasePayload[c1Key]);
+    const coEff = Number(adjustedInputs[coKey]);
+    if (!Number.isFinite(coEff) || !Number.isFinite(c1)) return null;
+    const c3Eff = coEff - c1;
+    return `${c1Key}_${fmtFiveHalfDisplayNum(c1)} = CO_eff_${fmtFiveHalfDisplayNum(coEff)} - ${c3Key}_${fmtFiveHalfDisplayNum(c3Eff)}`;
+  }, [
+    formData.system,
+    hasAllInputs,
+    normalizedBasePayload,
+    adjustedInputs,
+    coKey,
+    c1Key,
+    c3Key,
+  ]);
 
   const effectiveFormulaLine = useMemo(() => {
     if (!displayExpr || !displayExpr.trim()) return null;
@@ -1126,91 +1287,6 @@ function SysOverlay({ data, onSave, onCancel }) {
         계산 공식 : {expr || "(공식 없음)"}
       </div>
 
-      <div style={{ marginTop: "4px" }}>
-        <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "6px" }}>
-          입력 기준
-        </span>
-        <div
-          style={{
-            padding: "10px 12px",
-            backgroundColor: "#f8fafc",
-            borderRadius: "6px",
-            border: "1px solid #e2e8f0",
-            fontSize: "13px",
-            color: "#334155",
-          }}
-        >
-          <label style={{ display: "block", marginBottom: "6px", cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="sysInputBasis"
-              checked={inputBasis === "CO_C3_C1"}
-              onChange={() => {
-                setIsRestored(false);
-                setInputBasis("CO_C3_C1");
-              }}
-            />{" "}
-            CO − C3 = C1 (기본)
-          </label>
-          <label style={{ display: "block", marginBottom: "6px", cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="sysInputBasis"
-              checked={inputBasis === "CO_C1_C3"}
-              onChange={() => {
-                setIsRestored(false);
-                setInputBasis("CO_C1_C3");
-              }}
-            />{" "}
-            CO − C1 = C3
-          </label>
-          <label style={{ display: "block", cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="sysInputBasis"
-              checked={inputBasis === "C1_C3_CO"}
-              onChange={() => {
-                setIsRestored(false);
-                setInputBasis("C1_C3_CO");
-              }}
-            />{" "}
-            C1 + C3 = CO
-          </label>
-        </div>
-      </div>
-
-      <div style={{ marginTop: "8px" }}>
-        <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "6px" }}>
-          보정 방식
-        </span>
-        <div style={{ fontSize: "13px", color: "#334155" }}>
-          <label style={{ display: "block", marginBottom: "4px", cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="sysCvEntryMode"
-              checked={cvEntryMode === "manual"}
-              onChange={() => {
-                setIsRestored(false);
-                setCvEntryMode("manual");
-              }}
-            />{" "}
-            CV 직접 입력
-          </label>
-          <label style={{ display: "block", cursor: "pointer", color: "#64748b" }}>
-            <input
-              type="radio"
-              name="sysCvEntryMode"
-              checked={cvEntryMode === "targetArrival"}
-              onChange={() => {
-                setIsRestored(false);
-                setCvEntryMode("targetArrival");
-              }}
-            />{" "}
-            목표 도착값 입력 (자동 보정) — 준비 중
-          </label>
-        </div>
-      </div>
-
       {/* [D] 기준 입력값: flex-wrap, 폭 하드 지정 */}
       <div
         style={{
@@ -1225,28 +1301,34 @@ function SysOverlay({ data, onSave, onCancel }) {
           const key = `${mark}_${sel}`;
           let inputKey = key;
           if (
-            showMarkRowExtraForBasis(mark, inputBasis, exprLhsToken) &&
+            showMarkRowExtraForSys(mark, systemMode, exprLhsToken) &&
             mark === "C1" &&
             exprLhsToken.startsWith("C1_")
           ) {
             inputKey = exprLhsToken;
           } else if (
-            showMarkRowExtraForBasis(mark, inputBasis, exprLhsToken) &&
+            showMarkRowExtraForSys(mark, systemMode, exprLhsToken) &&
             mark === "C3" &&
             exprLhsToken.startsWith("C3_")
           ) {
             inputKey = exprLhsToken;
           } else if (
-            showMarkRowExtraForBasis(mark, inputBasis, exprLhsToken) &&
+            showMarkRowExtraForSys(mark, systemMode, exprLhsToken) &&
             mark === "CO" &&
             exprLhsToken.startsWith("CO_")
           ) {
             inputKey = exprLhsToken;
           }
-          const enabled = neededKeys.has(key) || showMarkRowExtraForBasis(mark, inputBasis, exprLhsToken);
+          const enabled = neededKeys.has(key) || showMarkRowExtraForSys(mark, systemMode, exprLhsToken);
           const lock = !!forced[mark];
+          const fiveHalfComp = isFiveHalfSystemId(formData.system)
+            ? fiveHalfComputedInputKey(formData.inputs, coKey, c1Key, c3Key)
+            : null;
           const basisRO =
-            (mark === "CO" || mark === "C1" || mark === "C3") && isMarkBasisReadOnly(mark, inputBasis);
+            (mark === "CO" || mark === "C1" || mark === "C3") &&
+            (isFiveHalfSystemId(formData.system)
+              ? fiveHalfComp != null && inputKey === fiveHalfComp
+              : isMarkBasisReadOnly(mark, systemMode));
           const readOnly = basisRO;
           const numDisplay =
             normalizedBasePayload[inputKey] != null && Number.isFinite(Number(normalizedBasePayload[inputKey]))
@@ -1393,9 +1475,11 @@ function SysOverlay({ data, onSave, onCancel }) {
           minHeight: '36px'
         }}
       >
-        <span style={{ flex: '0 0 auto' }}>기준 계산값 (보정 전, base) :</span>
+        <span style={{ flex: '0 0 auto' }}>기준 계산값 :</span>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {baseFormulaLine}
+          {isFiveHalfSystemId(formData.system) && fiveHalfBaseDisplayLine != null
+            ? fiveHalfBaseDisplayLine
+            : baseFormulaLine}
         </span>
       </div>
 
@@ -1444,7 +1528,7 @@ function SysOverlay({ data, onSave, onCancel }) {
         })}
       </div>
 
-      {/* [F] 보정 적용 결과 (effective, 연초록 / 정수 표시) */}
+      {/* [F] 보정된 계산값 (effective) — 5&Half는 C1=CO−C3 고정 표기 */}
       <div
         style={{
           padding: '8px 12px',
@@ -1459,8 +1543,16 @@ function SysOverlay({ data, onSave, onCancel }) {
           overflow: 'hidden'
         }}
       >
-        <span style={{ flex: '0 0 auto' }}>보정 적용 결과 (effective) :</span>
-        {effectiveFormulaLine != null ? (
+        <span style={{ flex: '0 0 auto' }}>보정된 계산값 :</span>
+        {isFiveHalfSystemId(formData.system) ? (
+          fiveHalfEffectiveDisplayLine != null ? (
+            <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {fiveHalfEffectiveDisplayLine}
+            </span>
+          ) : (
+            <span style={{ color: '#64748b' }}>—</span>
+          )
+        ) : effectiveFormulaLine != null ? (
           <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {effectiveFormulaLine}
           </span>
@@ -1469,7 +1561,7 @@ function SysOverlay({ data, onSave, onCancel }) {
         )}
       </div>
 
-      {formData.system === "5_half_system" && hasAllInputs && snFor5HalfEffective && (() => {
+      {useSnForSystem && isFiveHalfSystemId(formData.system) && hasAllInputs && snFor5HalfEffective && (() => {
         const { Sn: Sn_eff, C4_f: C4_eff, CO_f: CO_used, C3_r: C3_used } = snFor5HalfEffective;
         const fmt = (n) => {
           const x = Number(n);
@@ -1491,13 +1583,13 @@ function SysOverlay({ data, onSave, onCancel }) {
             }}
           >
             <div style={{ fontWeight: "700", fontSize: "16px", marginBottom: "10px" }}>
-              최종 도착값 : {fmt(C4_eff)}
+              최종 도착값: C4_f = C5_f = C6_f = {fmt(C4_eff)}
             </div>
             <div>
-              C4_f = C5_f = C6_f = C3_r_{fmt(C3_used)} + Sn_{fmt(Sn_eff)} = C4_f_{fmt(C4_eff)}
+              C4_f = C3_r_{fmt(C3_used)} + Sn_{fmt(Sn_eff)} = C4_f_{fmt(C4_eff)}
             </div>
             <div style={{ marginTop: "6px" }}>
-              Sn = (CO_f_{fmt(CO_used)} - 50) × 0.5 = Sn_{fmt(Sn_eff)}
+              Sn = (CO_eff_{fmt(CO_used)} - 50) × 0.5 = Sn_{fmt(Sn_eff)}
             </div>
           </div>
         );
