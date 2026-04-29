@@ -8,6 +8,17 @@ import {
   type AnchorLookupMark,
 } from "./anchorLookupEngine";
 
+/** DEV: Vite `/__debug/ingest` → repo `debug-6a4663.log`; else Cursor ingest URL */
+const CURSOR_DEBUG_INGEST_FALLBACK =
+  "http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454";
+
+function debugIngestUrl(): string {
+  if (import.meta.env.DEV && typeof window !== "undefined") {
+    return new URL("/__debug/ingest", window.location.href).href;
+  }
+  return CURSOR_DEBUG_INGEST_FALLBACK;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -191,10 +202,62 @@ function sysToCoordFromAnchors(
       track,
       mark,
       sysValue: extracted.value,
+      sysFieldKey: extracted.keyUsed,
     });
     if (!hit) continue;
 
     result[labelKey] = hit;
+    // #region agent log
+    if (labelKey === "C3") {
+      const comp = result.C3;
+      const judgment =
+        comp?.valueSpace === "Rg"
+          ? "Rg OK"
+          : comp?.valueSpace === "Fg"
+            ? "H2_FAIL valueSpace Fg"
+            : "unknown valueSpace";
+      const approxLong32 =
+        comp &&
+        (Math.abs(comp.coord.x - 32) < 1.5 || Math.abs(comp.coord.y - 32) < 1.5);
+      fetch(debugIngestUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6a4663" },
+        body: JSON.stringify({
+          sessionId: "6a4663",
+          runId: "c3-rg-check",
+          hypothesisId: "H2",
+          location: "anchorCoordinateEngine.ts:sysToCoordFromAnchors",
+          message: "computed[C3] Rg check (C3_r=32 case)",
+          data: {
+            computedC3: comp,
+            coord: comp?.coord,
+            valueSpace: comp?.valueSpace,
+            sysFieldKey: extracted.keyUsed,
+            sysValue: extracted.value,
+            judgment,
+            approxAxis32ForSys32: approxLong32,
+            track,
+            systemId,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      console.log(
+        "[C3_RG_VERIFY]",
+        JSON.stringify({
+          computedC3: comp,
+          coord: comp?.coord,
+          valueSpace: comp?.valueSpace,
+          sysFieldKey: extracted.keyUsed,
+          sysValue: extracted.value,
+          judgment,
+          approxAxis32ForSys32: approxLong32,
+          track,
+          systemId,
+        })
+      );
+    }
+    // #endregion
     console.log("[ANCHOR_AFTER_ENGINE]", {
       stage: "anchorCoordinateEngine:sysToCoordFromAnchors",
       systemId,
@@ -241,7 +304,45 @@ function getAnchorsForRendering(
     Object.keys(sysValues).length > 0
   ) {
     const computed = sysToCoordFromAnchors(anchorsData, track, sysValues, systemId);
-    if (Object.keys(computed).length > 0) return computed;
+    // #region agent log
+    if ("C3" in computed) {
+      fetch(debugIngestUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6a4663" },
+        body: JSON.stringify({
+          sessionId: "6a4663",
+          runId: "c3-rg-check",
+          hypothesisId: "H_merge",
+          location: "anchorCoordinateEngine.ts:getAnchorsForRendering",
+          message: "computed snapshot before merge",
+          data: { computedC3: computed.C3, computedKeys: Object.keys(computed) },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+    } else {
+      fetch(debugIngestUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6a4663" },
+        body: JSON.stringify({
+          sessionId: "6a4663",
+          runId: "c3-rg-check",
+          hypothesisId: "H_missing_C3",
+          location: "anchorCoordinateEngine.ts:getAnchorsForRendering",
+          message: "computed has no C3 key",
+          data: { computedKeys: Object.keys(computed) },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+    }
+    // #endregion
+    const fb =
+      fallback && typeof fallback === "object" ? { ...fallback } : {};
+    /** 엔진이 채운 키가 우선. 부분 실패 시 나머지 라벨은 fallback(sysValuesToAnchors 등)으로 채움. */
+    const merged: Record<string, AnchorPointWithSpace | { x: number; y: number }> = {
+      ...fb,
+      ...computed,
+    };
+    if (Object.keys(merged).length > 0) return merged;
   }
 
   if (fallback && typeof fallback === "object") return fallback;

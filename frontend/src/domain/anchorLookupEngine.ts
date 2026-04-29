@@ -1,8 +1,10 @@
 /**
  * anchorLookupEngine.ts
- * anchors.json SSOT: sys 값 → 앵커 좌표 직접 매핑 (선형 보간, fgToRg 없음)
+ * anchors.json SSOT: sys 값 → 앵커 좌표 직접 매핑 (선형 보간).
+ * `_r` 필드로 조회할 때는 Rg 좌표가 나오도록 Rg 앵커만 쓰거나, Fg 보간 결과를 fgToRg 한다.
  */
 
+import { fgToRg } from "./finalCoordinateEngine";
 import { getAnchorsForSystem, type AnchorsData } from "../data/systems/anchorsRegistry";
 
 const FRAME_TOL = 1e-3;
@@ -68,6 +70,11 @@ function coordValueSpace(x: number, y: number): "Fg" | "Rg" {
   return "Rg";
 }
 
+/** anchors.json id 좌표 (x,y)의 값 공간 — getAnchorCoordFromSys와 동일 */
+export function inferAnchorCoordValueSpace(x: number, y: number): "Fg" | "Rg" {
+  return coordValueSpace(x, y);
+}
+
 type PointSys = { x: number; y: number; sys: number };
 
 function interpolatePoints(sorted: PointSys[], sysValue: number): { x: number; y: number } {
@@ -94,7 +101,8 @@ function interpolatePoints(sorted: PointSys[], sysValue: number): { x: number; y
 function collectPointsForMark(
   anchorsData: AnchorsData | undefined,
   track: string,
-  lookupMark: AnchorLookupMark
+  lookupMark: AnchorLookupMark,
+  options?: { rgOnly?: boolean }
 ): PointSys[] {
   const trackData = anchorsData?.trajectories?.[track];
   const list = trackData?.anchors;
@@ -105,6 +113,7 @@ function collectPointsForMark(
   for (const item of list) {
     const p = parseAnchorIdFromJson(item.id);
     if (p && accepted.includes(p.mark)) {
+      if (options?.rgOnly && coordValueSpace(p.x, p.y) !== "Rg") continue;
       out.push({ x: p.x, y: p.y, sys: p.sys });
     }
   }
@@ -116,6 +125,8 @@ export type GetAnchorCoordFromSysInput = {
   track: string | null | undefined;
   mark: AnchorLookupMark;
   sysValue: number;
+  /** systemValues에서 실제로 쓰인 키(예: C3_r). `_r`이면 coord를 Rg 기준으로 맞춤. */
+  sysFieldKey?: string;
 };
 
 /**
@@ -124,26 +135,47 @@ export type GetAnchorCoordFromSysInput = {
 export function getAnchorCoordFromSys(
   input: GetAnchorCoordFromSysInput
 ): AnchorLookupResult | null {
-  const { systemId, track, mark, sysValue } = input;
+  const { systemId, track, mark, sysValue, sysFieldKey } = input;
   if (!track || !Number.isFinite(sysValue)) return null;
+
+  const wantsRgCoord =
+    typeof sysFieldKey === "string" && /_r$/.test(sysFieldKey);
 
   const sid = systemId === "5_HALF" ? "5_half_system" : systemId;
   const anchorsData = getAnchorsForSystem(sid);
   if (!anchorsData) return null;
 
-  const points = collectPointsForMark(anchorsData, track, mark);
+  let points = collectPointsForMark(anchorsData, track, mark);
   if (!points.length) return null;
+
+  if (wantsRgCoord) {
+    const rgOnly = collectPointsForMark(anchorsData, track, mark, {
+      rgOnly: true,
+    });
+    if (rgOnly.length) {
+      points = rgOnly;
+    }
+  }
+
   console.log("[ANCHOR_RAW]", {
     stage: "anchorLookupEngine:getAnchorCoordFromSys",
     systemId: sid,
     track,
     mark,
     sysValue,
+    sysFieldKey,
+    wantsRgCoord,
     points,
   });
 
   const coord = interpolatePoints(points, sysValue);
-  const valueSpace = coordValueSpace(coord.x, coord.y);
+  let outCoord = coord;
+  let valueSpace = coordValueSpace(coord.x, coord.y);
 
-  return { coord, valueSpace };
+  if (wantsRgCoord && valueSpace === "Fg") {
+    outCoord = fgToRg(coord);
+    valueSpace = "Rg";
+  }
+
+  return { coord: outCoord, valueSpace };
 }

@@ -39,13 +39,15 @@ function collectBaseNodes(anchors) {
     .sort(byPriority);
 }
 
-
 function renderNode(node, { scale, tableH, padding, systemValues, onAnchorDoubleClick }) {
-  const rg = node.coord;
-  const p = toPx(rg, scale, tableH);
+  const p = toPx(node.coord, scale, tableH);
   const cx = p.x + padding;
   const cy = p.y + padding;
-  const num = getLabelNumericSuffix(node.label, systemValues);
+  let num = getLabelNumericSuffix(node.label, systemValues);
+  if (node.label === "C4" && num != null && Number.isFinite(Number(num))) {
+    const displayC4 = Number(Number(num).toFixed(1));
+    num = displayC4;
+  }
   const systemValue = num != null ? formatResultNum(num) : null;
   const displayMark = cushionMarkToDisplayLabel(node.label);
   const textContent =
@@ -165,25 +167,6 @@ function renderRawLabelAnchors(
         let { x, y } = coord;
         ({ x, y } = applyRawLabelFrameNudges(label, x, y, applyCushionNudges));
 
-        // #region agent log
-        console.log("[STEP6] render label:", {
-          label,
-          coord,
-          value,
-        });
-        fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e5472" },
-          body: JSON.stringify({
-            sessionId: "5e5472",
-            hypothesisId: "STEP6",
-            location: "SystemValueLabels.jsx:array branch",
-            message: "STEP6 before LabelText",
-            data: { label, coord, value },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         const p = toPx({ x, y }, scale, tableH);
         nodes.push(
           <LabelText
@@ -207,25 +190,6 @@ function renderRawLabelAnchors(
     let { x, y } = coord;
     ({ x, y } = applyRawLabelFrameNudges(label, x, y, applyCushionNudges));
 
-    // #region agent log
-    console.log("[STEP6] render label:", {
-      label,
-      coord,
-      value,
-    });
-    fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e5472" },
-      body: JSON.stringify({
-        sessionId: "5e5472",
-        hypothesisId: "STEP6",
-        location: "SystemValueLabels.jsx:single branch",
-        message: "STEP6 before LabelText",
-        data: { label, coord, value },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     const p = toPx({ x, y }, scale, tableH);
 
     nodes.push(
