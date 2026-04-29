@@ -3005,6 +3005,40 @@ export default function App({
     return out;
   }, [resolvedSlotSys, shotEditor.activeSlot, adminState?.sys]);
 
+  const adminSysNoCorrections = useMemo(() => {
+    if (!adminState?.sys) return undefined;
+    return {
+      ...adminState.sys,
+      corrections: {
+        ...(adminState.sys.corrections ?? {}),
+        slide: 0,
+        draw: 0,
+        spin: 0,
+        curve_ratio: 0,
+      },
+    };
+  }, [adminState?.sys]);
+
+  const resolvedSlotBaseSysValues = useMemo(() => {
+    if (!resolvedSlotSys) {
+      return null;
+    }
+    const merged = {
+      ...(resolvedSlotSys.inputs ?? {}),
+      ...(resolvedSlotSys.outputs?.result ?? {}),
+    };
+    const built = buildSlotEffectiveRenderSysValues(
+      merged,
+      resolvedSlotSys,
+      adminSysNoCorrections
+    );
+    const out =
+      built && typeof built === "object" && Object.keys(built).length > 0
+        ? { ...merged, ...built }
+        : merged;
+    return out;
+  }, [resolvedSlotSys, shotEditor.activeSlot, adminSysNoCorrections]);
+
   /** C3 오염 추적: 슬롯별 C3_r/CO_f/Sn/C4_f 비교 */
   useEffect(() => {
     const mergeSlotSysValues = (id) => {
@@ -3045,6 +3079,7 @@ export default function App({
   });
 
   const [showSystemGrid, setShowSystemGrid] = useState(true);
+  const [showBaseLine, setShowBaseLine] = useState(false);
   const autoSave = true;
 
   /** 우측 패널: 상태 가시성 (버튼 = 시스템 상태 표현) */
@@ -4343,6 +4378,24 @@ function handleJoyPadPointerCancel(e) {
       })()
     : (display.anchors ?? {});
 
+  const rawAnchorsBase =
+    canEdit && resolvedSlotSys && resolvedSlotBaseSysValues
+      ? (() => {
+          const sysValues = { ...resolvedSlotBaseSysValues };
+          const rawSystemId = resolvedSlotSys?.systemId ?? "5_half_system";
+          const systemId = rawSystemId === "5_HALF" ? "5_half_system" : rawSystemId;
+          const ab = getAnchorsForRendering({
+            systemId,
+            track: trackForAnchors,
+            sysValues,
+            anchorsData: getAnchorsForSystem(systemId),
+            fallback: sysValuesToAnchors(sysValues),
+          });
+          const keys = Object.keys(ab);
+          return keys.length > 0 ? ab : (display?.anchors ?? {});
+        })()
+      : null;
+
   // [ANCHOR_COMPARE] 정상(display.anchors) vs 계산(rawAnchors) — reflection 입력 비교
   console.log("[ANCHOR_COMPARE] display.anchors (정상 경로)", {
     CO: display?.anchors?.CO,
@@ -4689,6 +4742,25 @@ function handlePointerCancel(e) {
   const override = adminState?.anchorsOverride ?? {};
   anchors = { ...anchors, ...override };
 
+  let anchorsBase = null;
+  if (rawAnchorsBase) {
+    anchorsBase = rawAnchorsBase;
+    if (hasConversionData) {
+      try {
+        const canonicalConfigBase = {
+          track: canonical,
+          coords: {
+            offset_fg2rg: offsetFg2rg ?? 2.25,
+          },
+        };
+        anchorsBase = convertCanonicalAnchors(rawAnchorsBase, canonicalConfigBase);
+      } catch (e) {
+        console.warn("base trajectory 좌표 변환 실패, 원본 사용:", e);
+      }
+    }
+    anchorsBase = { ...anchorsBase, ...override };
+  }
+
   // ⚠️ convertCanonicalAnchors가 이미 Fg → Rg 변환을 함!
   // 따라서 anchors.CO, anchors["C1"]는 Rg 좌표
   // determineRotation에는 원본 Fg 좌표가 필요
@@ -4742,6 +4814,67 @@ function handlePointerCancel(e) {
     }
     return { hp: { x: hp.x, y: hp.y }, side };
   })();
+
+  /** Base Line 앞구간(CO→C1→C2): anchorsBase 전용 레일 교점 */
+  let CO_path0_base = null;
+  let C1_rail_base = null;
+  let C2_path_base = null;
+  if (anchorsBase) {
+    const CO_anchor_bb = normalizeAnchor(anchorsBase.CO);
+    const C1_anchor_bb = normalizeAnchor(anchorsBase["C1"]);
+    const CO_prep_bb = resolveAnchorPoint(CO_anchor_bb, resolveAnchorCtx);
+    const C1_prep_bb = resolveAnchorPoint(C1_anchor_bb, resolveAnchorCtx);
+    if (CO_prep_bb && C1_prep_bb) {
+      let CO_rail_bb = CO_prep_bb;
+      const isBottomCO_bb = Math.abs(CO_prep_bb.y + 2.25) < 0.5;
+      if (isBottomCO_bb) {
+        const ptCO = computeRailImpactPoint(CO_prep_bb, C1_prep_bb, {
+          ...resolveAnchorCtx,
+          mark: "CO",
+        });
+        if (ptCO) CO_rail_bb = ptCO;
+      }
+      const C1_rail_bb = computeRailImpactPoint(CO_prep_bb, C1_prep_bb, {
+        ...resolveAnchorCtx,
+        mark: "C1",
+      });
+      CO_path0_base = coStartForCushionPath(CO_rail_bb, CO_prep_bb, C1_prep_bb);
+      C1_rail_base = C1_rail_bb;
+
+      const C3_anchor_bb = anchorsBase["C3"];
+      const C3_prep_bb = resolveAnchorPoint(
+        normalizeAnchor(C3_anchor_bb),
+        resolveAnchorCtx
+      );
+      const C3_point_bb =
+        C3_prep_bb ??
+        (C3_anchor_bb &&
+        typeof C3_anchor_bb === "object" &&
+        "coord" in C3_anchor_bb &&
+        C3_anchor_bb.coord
+          ? C3_anchor_bb.coord
+          : C3_anchor_bb);
+      const C3_snapped_bb = snapToRail(C3_point_bb) ?? C3_point_bb;
+
+      let C2_bb = anchorsBase["C2"];
+      if (!C2_bb && CO_rail_bb && C1_rail_bb && C3_snapped_bb) {
+        const refBb = computeReflectionC2({
+          co: CO_rail_bb,
+          c1: C1_rail_bb,
+          c3: C3_snapped_bb,
+          tip: currentTip ?? null,
+          track: trackForAnchors ?? undefined,
+          manualHint: c2ManualHint ?? null,
+        });
+        C2_bb = refBb?.c2 ?? null;
+      }
+      const c2Sem_bb = anchorSemanticForPath(C2_bb, resolveAnchorCtx);
+      C2_path_base =
+        C1_rail_base && c2Sem_bb
+          ? firstRailHitTowardTarget(C1_rail_base, c2Sem_bb)
+          : null;
+    }
+  }
 
   const C3_anchor = anchors["C3"];
   const C3_prep = resolveAnchorPoint(normalizeAnchor(C3_anchor), resolveAnchorCtx);
@@ -5153,6 +5286,107 @@ function handlePointerCancel(e) {
 
   const cushionPathAttr = dragState.dragging ? (dragState.frozenCushionPathAttr || cushionPathAttrRaw) : cushionPathAttrRaw;
 
+  let cushionPathAttrBase = null;
+  if (anchorsBase && CO_path0_base && C1_rail_base) {
+    const C3_anchor_b = anchorsBase["C3"];
+    const C3_prep_b = resolveAnchorPoint(normalizeAnchor(C3_anchor_b), resolveAnchorCtx);
+    const C3_point_b =
+      C3_prep_b ??
+      (C3_anchor_b &&
+      typeof C3_anchor_b === "object" &&
+      "coord" in C3_anchor_b &&
+      C3_anchor_b.coord
+        ? C3_anchor_b.coord
+        : C3_anchor_b);
+    const C4_anchor_b = anchorsBase["C4"];
+    const C4_prep_b = resolveAnchorPoint(normalizeAnchor(C4_anchor_b), resolveAnchorCtx);
+    const C4_point_b =
+      C4_prep_b ??
+      (C4_anchor_b &&
+      typeof C4_anchor_b === "object" &&
+      "coord" in C4_anchor_b &&
+      C4_anchor_b.coord
+        ? C4_anchor_b.coord
+        : C4_anchor_b);
+    const C5_anchor_b = anchorsBase["C5"];
+    const C5_prep_b = resolveAnchorPoint(normalizeAnchor(C5_anchor_b), resolveAnchorCtx);
+    const C5_point_b =
+      C5_prep_b ??
+      (C5_anchor_b &&
+      typeof C5_anchor_b === "object" &&
+      "coord" in C5_anchor_b &&
+      C5_anchor_b.coord
+        ? C5_anchor_b.coord
+        : C5_anchor_b);
+    const C6_anchor_b = anchorsBase["C6"];
+    const C6_prep_b = resolveAnchorPoint(normalizeAnchor(C6_anchor_b), resolveAnchorCtx);
+    const C6_point_b =
+      C6_prep_b ??
+      (C6_anchor_b &&
+      typeof C6_anchor_b === "object" &&
+      "coord" in C6_anchor_b &&
+      C6_anchor_b.coord
+        ? C6_anchor_b.coord
+        : C6_anchor_b);
+
+    const c3Sem_b = C3_point_b ?? anchorSemanticForPath(C3_anchor_b, resolveAnchorCtx);
+    const c4Sem_b = C4_point_b ?? anchorSemanticForPath(C4_anchor_b, resolveAnchorCtx);
+    const c5Sem_b = C5_point_b ?? anchorSemanticForPath(C5_anchor_b, resolveAnchorCtx);
+    const c6Sem_b = C6_point_b ?? anchorSemanticForPath(C6_anchor_b, resolveAnchorCtx);
+
+    const C3_path_b =
+      C2_path_base && c3Sem_b
+        ? firstRailHitTowardTarget(C2_path_base, c3Sem_b)
+        : null;
+    const C4_path_b =
+      C3_path_b && c4Sem_b ? firstRailHitTowardTarget(C3_path_b, c4Sem_b) : null;
+    const C5_path_b =
+      C4_path_b && c5Sem_b ? firstRailHitTowardTarget(C4_path_b, c5Sem_b) : null;
+    const C6_path_b =
+      C5_path_b && c6Sem_b ? firstRailHitTowardTarget(C5_path_b, c6Sem_b) : null;
+
+    const pathNodesBase = [
+      CO_path0_base,
+      C1_rail_base,
+      C2_path_base,
+      C3_path_b,
+      C4_path_b,
+      C5_path_b,
+      C6_path_b,
+    ];
+
+    let pathEndIndexBase = 3;
+    if (secondPoint) {
+      const postC3SegmentsB = [
+        [pathNodesBase[3], pathNodesBase[4]],
+        [pathNodesBase[4], pathNodesBase[5]],
+        [pathNodesBase[5], pathNodesBase[6]],
+      ];
+      for (let i = 0; i < postC3SegmentsB.length; i++) {
+        const [A, B] = postC3SegmentsB[i];
+        if (!A || !B) continue;
+        if (isSegmentHitBall(A, B, secondPoint, HIT_TOLERANCE)) {
+          pathEndIndexBase = 4 + i;
+          break;
+        }
+      }
+    }
+
+    const cushionPathBase = [];
+    for (let i = 0; i <= pathEndIndexBase && i < pathNodesBase.length; i++) {
+      const p = pathNodesBase[i];
+      if (p == null) break;
+      cushionPathBase.push(p);
+    }
+
+    cushionPathAttrBase = cushionPathBase
+      .map((pt) => {
+        const p = toPx(pt, SCALE, TABLE_H);
+        return `${p.x + PADDING},${p.y + PADDING}`;
+      })
+      .join(" ");
+  }
+
   const orderedKeys = ["CO", "C1", "C2", "C3", "C4", "C5", "C6"];
   // NOTE: 라벨 미표시 원인 구분용 — 현재는 좌표계 이슈와 별개로
   // visibleKeysForLabels(cushionPath 길이 기반) 정책이 먼저 라벨 대상을 제한한다.
@@ -5325,6 +5559,9 @@ function handlePointerCancel(e) {
         CO_corrected_line={hasCorrection ? CO_corrected_line : null}
         cushionPath={cushionPath}
         cushionPathAttr={cushionPathAttr}
+        cushionPathAttrBase={cushionPathAttrBase}
+        anchorsBase={anchorsBase}
+        showBaseLine={showBaseLine}
         scale={SCALE}
         tableH={TABLE_H}
         padding={PADDING}
@@ -5798,6 +6035,17 @@ function handlePointerCancel(e) {
               }}
             >
               Grid
+            </button>
+            <button
+              type="button"
+              className={`control-button${showBaseLine ? " active" : ""}`}
+              onClick={() => setShowBaseLine((v) => !v)}
+              style={{
+                backgroundColor: showBaseLine ? "#FFD700" : "#64748b",
+                color: showBaseLine ? "#1f2937" : "white",
+              }}
+            >
+              Base Line
             </button>
             <button
               type="button"
