@@ -117,11 +117,10 @@ function renderRawLabelAnchors(
 ) {
   // #region agent log
   console.log("[STEP4] renderRawLabelAnchors called", labelAnchors);
-  fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
+  fetch("/__debug/ingest", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e5472" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      sessionId: "5e5472",
       hypothesisId: "STEP4",
       location: "SystemValueLabels.jsx:renderRawLabelAnchors",
       message: "STEP4 entry",
@@ -141,11 +140,10 @@ function renderRawLabelAnchors(
   Object.entries(labelAnchors).forEach(([label, item]) => {
     // #region agent log
     console.log("[STEP5] label loop:", label, item);
-    fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
+    fetch("/__debug/ingest", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e5472" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sessionId: "5e5472",
         hypothesisId: "STEP5",
         location: "SystemValueLabels.jsx:renderRawLabelAnchors forEach",
         message: "STEP5 label loop",
@@ -225,11 +223,10 @@ export default function SystemValueLabels({
   console.log("[STEP3] SystemValueLabels mounted", {
     labelAnchors,
   });
-  fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
+  fetch("/__debug/ingest", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e5472" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      sessionId: "5e5472",
       hypothesisId: "STEP3",
       location: "SystemValueLabels.jsx:component",
       message: "STEP3 render",

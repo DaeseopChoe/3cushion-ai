@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { toPx } from "../../utils/geometry/coords";
 
 /** 놀이구역 Rg 직사각형 (toPx 이전에만 사용) */
@@ -16,10 +16,6 @@ function pointInsideTableRg(p) {
   );
 }
 
-/**
- * C3→C4 등: p1에서 p2 방향 선분을 테이블 경계에서 잘라, 안쪽에 남는 끝점(Rg).
- * projection/toPx와 무관.
- */
 function intersectWithTableBounds(p1, p2) {
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
@@ -52,7 +48,6 @@ function intersectWithTableBounds(p1, p2) {
   };
 }
 
-/** 앵커/점 객체 → Rg {x,y} (로그·검증용, 투영 로직 없음) */
 function anchorToRgPoint(a) {
   if (a == null) return null;
   if (
@@ -74,20 +69,51 @@ function anchorToRgPoint(a) {
   return null;
 }
 
+function isStraightLine(rgPoints) {
+  if (!Array.isArray(rgPoints) || rgPoints.length < 3) return true;
+  const a = rgPoints[0];
+  const b = rgPoints[rgPoints.length - 1];
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-12) return true;
+  const eps = 0.02;
+  for (let i = 1; i < rgPoints.length - 1; i++) {
+    const p = rgPoints[i];
+    const cross = Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx);
+    const dist = cross / len;
+    if (dist > eps) return false;
+  }
+  return true;
+}
+
 export default function ImpactLines({
   CO_line,
   C1_line,
   CO_corrected_line,
   cushionPath,
-  cushionPathAttr,
   cushionPathAttrBase,
   anchorsBase,
   showBaseLine = false,
+  /** 픽셀 좌표 { x1, y1, x2, y2 } — 전달 시 베이스 라인으로 우선 렌더 */
+  guideLineNode = null,
+  /** SVG polyline points 문자열(픽셀) — guideLineNode 없을 때 선택 */
+  baseLinePoints = null,
   scale,
   tableH,
-  padding
+  padding,
 }) {
-  /** 렌더 검증용: CO→C3 고정 + C4 존재 시 연장 */
+  const usedEffectivePolylinePoints = useMemo(() => {
+    if (!cushionPath || cushionPath.length <= 1) return "";
+    const parts = [];
+    for (const pt of cushionPath) {
+      if (pt == null) break;
+      const p = toPx(pt, scale, tableH);
+      parts.push(`${p.x + padding},${p.y + padding}`);
+    }
+    return parts.join(" ");
+  }, [cushionPath, scale, tableH, padding]);
+
   const basePoints = [];
   if (anchorsBase) {
     basePoints.push(
@@ -99,8 +125,7 @@ export default function ImpactLines({
     if (anchorsBase["C4"]) {
       const p1 = anchorToRgPoint(anchorsBase["C3"]);
       const p2 = anchorToRgPoint(anchorsBase["C4"]);
-      const clipped =
-        p1 && p2 ? intersectWithTableBounds(p1, p2) : null;
+      const clipped = p1 && p2 ? intersectWithTableBounds(p1, p2) : null;
       basePoints.push(clipped ?? anchorsBase["C4"]);
     }
   }
@@ -120,47 +145,59 @@ export default function ImpactLines({
     }
   }
 
-  if (import.meta.env.DEV) {
-    console.log("BASE_EXTENDED", basePoints);
-    if (pC3 && pC4) {
-      console.log("BASE_CLIP_RG", {
-        p1: pC3,
-        p2: pC4,
-        clipped: intersectWithTableBounds(pC3, pC4),
-      });
-    }
-    console.log("BASE_CHAIN_CHECK", {
-      hasCO: !!anchorsBase?.CO,
-      hasC1: !!anchorsBase?.["C1"],
-      hasC2: !!anchorsBase?.["C2"],
-      hasC3: !!anchorsBase?.["C3"],
-      hasC4: !!anchorsBase?.["C4"],
-    });
-    if (cushionPathAttrBase) {
-      const segs = cushionPathAttrBase.trim().split(/\s+/).filter(Boolean);
-      console.log("BASE_CUSHION_SEGS", segs.length, segs);
-    }
-  }
-
-  /** App에서 온 레일 체인은 기본 pathEnd가 C3까지 — C4 앵커가 있으면 렌더만 C3→C4 연장 */
-  let basePolylinePoints = null;
+  let basePolylinePointsFromAnchors = null;
   if (typeof cushionPathAttrBase === "string" && cushionPathAttrBase.trim()) {
-    basePolylinePoints = cushionPathAttrBase.trim();
+    basePolylinePointsFromAnchors = cushionPathAttrBase.trim();
     const p1 = anchorToRgPoint(anchorsBase?.["C3"]);
     const p2 = anchorToRgPoint(anchorsBase?.["C4"]);
     const clippedRg = p1 && p2 ? intersectWithTableBounds(p1, p2) : null;
     if (clippedRg) {
       const p = toPx(clippedRg, scale, tableH);
-      basePolylinePoints += ` ${p.x + padding},${p.y + padding}`;
+      basePolylinePointsFromAnchors += ` ${p.x + padding},${p.y + padding}`;
     }
   } else if (baseRgPoints.length >= 2) {
-    basePolylinePoints = baseRgPoints
+    basePolylinePointsFromAnchors = baseRgPoints
       .map((pt) => {
         const p = toPx(pt, scale, tableH);
         return `${p.x + padding},${p.y + padding}`;
       })
       .join(" ");
   }
+
+  let basePolylineFromAnchorsValid = false;
+  if (basePolylinePointsFromAnchors) {
+    const segs = basePolylinePointsFromAnchors.trim().split(/\s+/).filter(Boolean);
+    if (segs.length >= 2) {
+      basePolylineFromAnchorsValid = true;
+      for (const seg of segs) {
+        const comma = seg.indexOf(",");
+        if (comma < 0) {
+          basePolylineFromAnchorsValid = false;
+          break;
+        }
+        const x = Number(seg.slice(0, comma));
+        const y = Number(seg.slice(comma + 1));
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          basePolylineFromAnchorsValid = false;
+          break;
+        }
+      }
+    }
+  }
+
+  const hasGuideLine =
+    guideLineNode != null &&
+    Number.isFinite(guideLineNode.x1) &&
+    Number.isFinite(guideLineNode.y1) &&
+    Number.isFinite(guideLineNode.x2) &&
+    Number.isFinite(guideLineNode.y2);
+
+  const basePolylinePoints =
+    typeof baseLinePoints === "string" && baseLinePoints.trim()
+      ? baseLinePoints.trim()
+      : basePolylineFromAnchorsValid
+        ? basePolylinePointsFromAnchors
+        : null;
 
   let basePolylineValid = false;
   if (basePolylinePoints) {
@@ -182,6 +219,38 @@ export default function ImpactLines({
       }
     }
   }
+
+  const showGuideLineBaseline = showBaseLine && hasGuideLine;
+  const showAnchorsBaselinePolyline =
+    showBaseLine && !hasGuideLine && basePolylineValid;
+
+  if (import.meta.env.DEV) {
+    console.log("[DRAW BASELINE]", guideLineNode);
+    console.log("[DRAW CURVE]", cushionPath?.length);
+  }
+
+  const redPolyline = (() => {
+    if (!Array.isArray(cushionPath) || cushionPath.length <= 2) return null;
+
+    const rgPoints = [];
+    for (const pt of cushionPath) {
+      const q = anchorToRgPoint(pt);
+      if (q == null) return null;
+      rgPoints.push(q);
+    }
+
+    const isCurvePath = cushionPath.length > 2 && !isStraightLine(rgPoints);
+    if (!isCurvePath) return null;
+
+    return (
+      <polyline
+        points={usedEffectivePolylinePoints}
+        stroke="#ff4444"
+        strokeWidth={2}
+        fill="none"
+      />
+    );
+  })();
 
   return (
     <>
@@ -206,7 +275,21 @@ export default function ImpactLines({
         />
       )}
 
-      {showBaseLine && basePolylineValid && (
+      {showGuideLineBaseline && (
+        <line
+          x1={guideLineNode.x1}
+          y1={guideLineNode.y1}
+          x2={guideLineNode.x2}
+          y2={guideLineNode.y2}
+          stroke="#FFD400"
+          strokeWidth={1.25}
+          strokeDasharray="4 4"
+          opacity={0.8}
+          pointerEvents="none"
+        />
+      )}
+
+      {showAnchorsBaselinePolyline && (
         <polyline
           points={basePolylinePoints}
           stroke="#FFD700"
@@ -214,16 +297,11 @@ export default function ImpactLines({
           strokeDasharray="none"
           opacity={0.9}
           fill="none"
+          pointerEvents="none"
         />
       )}
-      {cushionPath.length > 1 && (
-        <polyline
-          points={cushionPathAttr}
-          stroke="#ef4444"
-          strokeWidth={2}
-          fill="none"
-        />
-      )}
+
+      {redPolyline}
     </>
   );
 }

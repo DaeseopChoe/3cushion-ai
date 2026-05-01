@@ -189,14 +189,10 @@ export function SysOverlay({
   onCancel,
 }: SysOverlayProps) {
   // #region agent log
-  fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
+  fetch("/__debug/ingest", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "071abe",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      sessionId: "071abe",
       runId: "sys-render-trace",
       hypothesisId: "H2",
       location: "admin/sys/SysOverlay.tsx:mount",
