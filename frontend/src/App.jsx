@@ -5167,8 +5167,17 @@ function handlePointerCancel(e) {
 
   // CO Dual Trajectory: 보정선 (slide/curve_ratio/p_push !== 0일 때)
   const corrections = canEdit ? (resolvedSlotSys?.corrections || {}) : {};
-  const slideVal = Number(corrections.slide) || 0;
-  const drawVal = Number(corrections.draw) || 0;
+  /** slide/draw: curve 및 레일 보정 오프셋 — SYS UI와 동기 (canEdit와 무관, 소스 fallback) */
+  const rawSlideForCurve =
+    resolvedSlotSys?.corrections?.slide ??
+    adminState?.sys?.corrections?.slide ??
+    formData?.corrections?.slide;
+  const rawDrawForCurve =
+    resolvedSlotSys?.corrections?.draw ??
+    adminState?.sys?.corrections?.draw ??
+    formData?.corrections?.draw;
+  const slideVal = Number(rawSlideForCurve) || 0;
+  const drawVal = Number(rawDrawForCurve) || 0;
   const curveVal = Number(corrections.curve_ratio) || 0;
   const totalCorrection = slideVal + curveVal;
   const hasCorrection = slideVal !== 0 || curveVal !== 0;
@@ -5302,9 +5311,18 @@ function handlePointerCancel(e) {
   let curvePointsLen = 0;
   let curvePointsSampleRg = [];
 
-  /** CO → curve(P…M) → 이후 쿠션 궤적. tail은 pathEndIndex 반영된 cushionPath 사용 */
+  /** CO → curve(P…M) → 이후 쿠션 궤적. tail은 pathEndIndex 반영된 cushionPath 사용. CO는 polyline에 넣지 않음(직선 구간 제거). */
   let cushionPathForRender;
   if (useCurveDeform) {
+    console.log("[H-App]", {
+      canEdit,
+      slideVal,
+      drawVal,
+      rawSlide: corrections?.slide,
+      rawDraw: corrections?.draw,
+      rawSlideForCurve,
+      rawDrawForCurve,
+    });
     const curveSegment = createCurveSegment(
       impactContactRg,
       pathNodes[0],
@@ -5312,15 +5330,41 @@ function handlePointerCancel(e) {
       slideVal,
       drawVal
     );
+    console.log("[PATH AFTER CURVE]", {
+      curveLast: curveSegment[curveSegment.length - 1],
+      nextTailFirst: cushionPath?.[1],
+      tailPreview: cushionPath?.slice(1, 4),
+    });
+    // #region agent log
+    fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "6a4663",
+      },
+      body: JSON.stringify({
+        sessionId: "6a4663",
+        location: "App.jsx:cushionPathForRender:path_after_curve",
+        message: "tail_assembly",
+        hypothesisId: "H-C",
+        data: {
+          curveLast: curveSegment[curveSegment.length - 1],
+          nextTailFirst: cushionPath?.[1],
+          tailPreviewLen: cushionPath ? cushionPath.length - 1 : null,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     curvePointsLen = curveSegment.length;
     curvePointsSampleRg = curveSegment
       .slice(0, 5)
       .map((p) => ({ x: p.x, y: p.y }));
-    cushionPathForRender = [
-      pathNodes[0],
-      ...curveSegment,
-      ...cushionPath.slice(1),
-    ];
+    /** 빨간 polyline에서 CO_eff→임팩트 접점 직선만 제외: curve는 이미 impactContactRg에서 시작 */
+    cushionPathForRender =
+      curveSegment.length > 0
+        ? [...curveSegment, ...cushionPath.slice(1)]
+        : cushionPath;
   } else {
     cushionPathForRender = cushionPath;
   }
@@ -5656,7 +5700,7 @@ function handlePointerCancel(e) {
       <ImpactLines
         CO_line={CO_line}
         C1_line={C1_line}
-        CO_corrected_line={hasCorrection ? CO_corrected_line : null}
+        CO_corrected_line={null}
         cushionPath={cushionPathForImpactLines}
         cushionPathAttrBase={cushionPathAttrBase}
         anchorsBase={anchorsBase}
@@ -5667,21 +5711,7 @@ function handlePointerCancel(e) {
       />
       {coaching.impactBallPx && (
         <CoachingOverlay
-          guideLine={
-            coaching.guideLineNode ? (
-              <line
-                x1={coaching.guideLineNode.x1}
-                y1={coaching.guideLineNode.y1}
-                x2={coaching.guideLineNode.x2}
-                y2={coaching.guideLineNode.y2}
-                stroke="#ffffff"
-                strokeDasharray="4 4"
-                strokeWidth={1.25}
-                opacity={0.7}
-                pointerEvents="none"
-              />
-            ) : null
-          }
+          guideLine={null}
           impactBallPx={coaching.impactBallPx}
           impactBallRadius={coaching.impactBallRadius}
           impactBallOpacity={coaching.impactBallOpacity}

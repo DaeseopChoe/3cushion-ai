@@ -239,6 +239,72 @@ export default function ImpactLines({
       rgPoints.push(q);
     }
 
+    const STRAIGHT_EPS = 0.02;
+    let deviation = null;
+    let isStraight = true;
+    if (rgPoints.length >= 3) {
+      const a = rgPoints[0];
+      const b = rgPoints[rgPoints.length - 1];
+      const sdx = b.x - a.x;
+      const sdy = b.y - a.y;
+      const slen = Math.hypot(sdx, sdy);
+      if (slen < 1e-12) {
+        deviation = 0;
+        isStraight = true;
+      } else {
+        let maxD = 0;
+        for (let i = 1; i < rgPoints.length - 1; i++) {
+          const p = rgPoints[i];
+          const cross = Math.abs((p.x - a.x) * sdy - (p.y - a.y) * sdx);
+          maxD = Math.max(maxD, cross / slen);
+        }
+        deviation = maxD;
+        isStraight = maxD <= STRAIGHT_EPS;
+      }
+    } else {
+      deviation = null;
+      isStraight = true;
+    }
+
+    console.log("[DRAW POINTS]", {
+      length: cushionPath?.length,
+      points: Array.isArray(cushionPath) ? cushionPath.slice(0, 5) : cushionPath,
+    });
+    console.log("[STRAIGHT CHECK]", {
+      deviation,
+      eps: STRAIGHT_EPS,
+      isStraight,
+    });
+    console.log("[POINTS STRING]", {
+      preview: usedEffectivePolylinePoints.slice(0, 160),
+      lengthChars: usedEffectivePolylinePoints.length,
+    });
+
+    // #region agent log
+    fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "6a4663",
+      },
+      body: JSON.stringify({
+        sessionId: "6a4663",
+        location: "ImpactLines.jsx:redPolyline:beforeRender",
+        message: "draw_red_polyline",
+        hypothesisId: "H-C",
+        data: {
+          cushionPathLen: cushionPath?.length,
+          deviation,
+          eps: STRAIGHT_EPS,
+          isStraight,
+          isCurvePath: cushionPath.length > 2 && !isStraightLine(rgPoints),
+          pointsStringLen: usedEffectivePolylinePoints.length,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+
     const isCurvePath = cushionPath.length > 2 && !isStraightLine(rgPoints);
     if (!isCurvePath) return null;
 
