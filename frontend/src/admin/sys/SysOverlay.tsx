@@ -651,9 +651,9 @@ export function SysOverlay({
         </h3>
         {(
           [
-            ["curve_ratio", "Curve (곡구)"],
             ["slide", "Slide (밀림)"],
             ["draw", "Draw (끌림)"],
+            ["curve_ratio", "Curve (기울기)"],
             ["departure", "Departure (출발값 보정)"],
           ] as const
         ).map(([key, label]) => {

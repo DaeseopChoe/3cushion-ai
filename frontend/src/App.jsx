@@ -1484,14 +1484,14 @@ function SysOverlay({ data, onSave, onCancel }) {
         </span>
       </div>
 
-      {/* [E] 물리 보정: 밀림 곡구 끌림 출발값 보정 스핀 한 줄 */}
+      {/* [E] 물리 보정: 밀림 · 끌림 · 기울기 · 스핀 · 출발값 보정 */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
         {[
           { key: 'slide', label: '밀림' },
-          { key: 'curve_ratio', label: '곡구' },
           { key: 'draw', label: '끌림' },
+          { key: 'curve_ratio', label: '기울기' },
+          { key: 'spin', label: '스핀' },
           { key: 'departure', label: '출발값 보정' },
-          { key: 'spin', label: '스핀' }
         ].map(({ key, label }) => {
           const isDeparture = key === 'departure';
           const displayValue = isDeparture && snFor5HalfEffective
@@ -3257,6 +3257,8 @@ export default function App({
   // Joystick (mobile fine control)
   const joyIntervalRef = useRef(null);
   const joyDragRef = useRef({ active: false, pointerId: null, lastX: 0, lastY: 0, ballId: null });
+  /** 테이블 SVG 볼 드래그 시 직전 포인터 Rg — delta 기반 이동(Ctrl/Shift 스케일)용 */
+  const ballDragLastPointerRgRef = useRef(null);
   const JOYSTICK_STEP = 0.1; // Rg
   const JOYSTICK_REPEAT_MS = 60;
 
@@ -3890,9 +3892,10 @@ function handleJoyPadPointerMove(e) {
   joyDragRef.current.lastX = e.clientX;
   joyDragRef.current.lastY = e.clientY;
 
+  const dragSpeedScale = e.ctrlKey ? 0.2 : e.shiftKey ? 1.5 : 1.0;
   // px -> Rg (SVG y is inverted in toPx/toRg)
-  const dxRg = dxPx / SCALE;
-  const dyRg = -dyPx / SCALE;
+  const dxRg = (dxPx / SCALE) * dragSpeedScale;
+  const dyRg = (-dyPx / SCALE) * dragSpeedScale;
 
   const ballId = joyDragRef.current.ballId;
   if (!ballId) return;
@@ -4464,6 +4467,7 @@ function handlePointerDown(e) {
     stopJoystick();
     // cancel any ongoing joystick drag
     joyDragRef.current = { active: false, pointerId: null, lastX: 0, lastY: 0, ballId: null };
+    ballDragLastPointerRgRef.current = null;
 
     setDragState((s) => ({
       ...s,
@@ -4526,6 +4530,8 @@ function handlePointerDown(e) {
     y: pointerRg.y - closestBall.pos.y,
   };
 
+  ballDragLastPointerRgRef.current = { x: pointerRg.x, y: pointerRg.y };
+
   setDragState((s) => ({
     ...s,
     dragging: true,
@@ -4553,6 +4559,22 @@ function handlePointerMove(e) {
   const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
   if (!pointerRg) return;
 
+  const lastRg = ballDragLastPointerRgRef.current;
+  if (!lastRg) {
+    ballDragLastPointerRgRef.current = { x: pointerRg.x, y: pointerRg.y };
+    return;
+  }
+
+  const deltaRg = {
+    x: pointerRg.x - lastRg.x,
+    y: pointerRg.y - lastRg.y,
+  };
+  ballDragLastPointerRgRef.current = { x: pointerRg.x, y: pointerRg.y };
+
+  const dragSpeedScale = e.ctrlKey ? 0.2 : e.shiftKey ? 1.5 : 1.0;
+  const scaledDx = deltaRg.x * dragSpeedScale;
+  const scaledDy = deltaRg.y * dragSpeedScale;
+
   let minX = 0.5;
   let maxX = 79.5;
   let minY = 0.5;
@@ -4564,65 +4586,99 @@ function handlePointerMove(e) {
     maxY = 40 + CUSHION_RG;
   }
 
-  const newRg = {
-    x: clamp(pointerRg.x - dragState.grabOffsetRg.x, minX, maxX),
-    y: clamp(pointerRg.y - dragState.grabOffsetRg.y, minY, maxY),
-  };
-
   if (dragState.ballId === "impact" && impactMode === "FREE") {
-    const cue = balls.cue;
-    const target =
-      resolveImpactTargetBall(balls, targetColor) ??
-      balls.target_center ??
-      balls.target;
+    let thicknessCue = null;
+    let thicknessTarget = null;
+    let nextImpactForThickness = null;
 
-    if (!cue || !target) return;
+    setBallsState((prev) => {
+      const cue = prev.cue;
+      const target =
+        resolveImpactTargetBall(prev, targetColor) ??
+        prev.target_center ??
+        prev.target;
 
-    let nextImpact = newRg;
+      if (!cue || !target) return prev;
 
-    const snap = snapImpactToOrbit(
-      target,
-      nextImpact,
-      cue,
-      PHYSICS_SCALE,
-      1.0
-    );
-
-    if (snap?.snapped) {
-      nextImpact = snap.impactBall;
-    }
-
-    setBallsState((prev) => ({
-      ...prev,
-      impact: nextImpact,
-    }));
-
-    const thicknessInfo = computeThicknessFromImpact(
-      cue,
-      target,
-      nextImpact,
-      PHYSICS_SCALE
-    );
-
-    if (thicknessInfo && canEdit) {
-      if (systemCtrl && typeof systemCtrl.onChangeT === "function") {
-        systemCtrl.onChangeT(thicknessInfo.legacyT);
+      const cur =
+        prev.impact ??
+        calcImpactBall(cue, target, adminState?.hpt?.T ?? "8/8");
+      if (
+        !cur ||
+        !Number.isFinite(cur.x) ||
+        !Number.isFinite(cur.y)
+      ) {
+        return prev;
       }
-      if (systemCtrl && typeof systemCtrl.onChangeThickness === "function") {
-        systemCtrl.onChangeThickness(
-          thicknessInfo.displayThickness,
-          thicknessInfo.side
-        );
+
+      let nextImpact = {
+        x: clamp(cur.x + scaledDx, minX, maxX),
+        y: clamp(cur.y + scaledDy, minY, maxY),
+      };
+
+      const snap = snapImpactToOrbit(
+        target,
+        nextImpact,
+        cue,
+        PHYSICS_SCALE,
+        1.0
+      );
+
+      if (snap?.snapped) {
+        nextImpact = snap.impactBall;
+      }
+
+      thicknessCue = cue;
+      thicknessTarget = target;
+      nextImpactForThickness = nextImpact;
+
+      return {
+        ...prev,
+        impact: nextImpact,
+      };
+    });
+
+    if (
+      thicknessCue &&
+      thicknessTarget &&
+      nextImpactForThickness &&
+      canEdit
+    ) {
+      const thicknessInfo = computeThicknessFromImpact(
+        thicknessCue,
+        thicknessTarget,
+        nextImpactForThickness,
+        PHYSICS_SCALE
+      );
+
+      if (thicknessInfo) {
+        if (systemCtrl && typeof systemCtrl.onChangeT === "function") {
+          systemCtrl.onChangeT(thicknessInfo.legacyT);
+        }
+        if (systemCtrl && typeof systemCtrl.onChangeThickness === "function") {
+          systemCtrl.onChangeThickness(
+            thicknessInfo.displayThickness,
+            thicknessInfo.side
+          );
+        }
       }
     }
 
     return;
   }
 
-  setBallsState((prev) => ({
-    ...prev,
-    [dragState.ballId]: newRg,
-  }));
+  setBallsState((prev) => {
+    const cur = prev?.[dragState.ballId];
+    if (!cur) return prev;
+    return {
+      ...prev,
+      [dragState.ballId]: {
+        ...cur,
+        x: clamp(cur.x + scaledDx, minX, maxX),
+        y: clamp(cur.y + scaledDy, minY, maxY),
+      },
+    };
+  });
 }
 
 function handlePointerUp(e) {
@@ -4687,6 +4743,8 @@ function handlePointerUp(e) {
   }
 
   // 드래그는 종료하되, 선택/조이스틱은 유지 (바깥 탭으로 닫기)
+  ballDragLastPointerRgRef.current = null;
+
   setDragState((s) => ({
     ...s,
     dragging: false,
@@ -5711,7 +5769,21 @@ function handlePointerCancel(e) {
       />
       {coaching.impactBallPx && (
         <CoachingOverlay
-          guideLine={null}
+          guideLine={
+            coaching.guideLineNode ? (
+              <line
+                x1={coaching.guideLineNode.x1}
+                y1={coaching.guideLineNode.y1}
+                x2={coaching.guideLineNode.x2}
+                y2={coaching.guideLineNode.y2}
+                stroke="#ffffff"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                opacity={0.75}
+                pointerEvents="none"
+              />
+            ) : null
+          }
           impactBallPx={coaching.impactBallPx}
           impactBallRadius={coaching.impactBallRadius}
           impactBallOpacity={coaching.impactBallOpacity}

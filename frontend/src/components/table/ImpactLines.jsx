@@ -327,7 +327,7 @@ export default function ImpactLines({
           x2={toPx(C1_line, scale, tableH).x + padding}
           y2={toPx(C1_line, scale, tableH).y + padding}
           stroke="#fb923c"
-          strokeWidth={2}
+          strokeWidth={1}
         />
       )}
       {CO_corrected_line && C1_line && (
