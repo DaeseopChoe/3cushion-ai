@@ -553,6 +553,30 @@ function buildSysOverlayNumericPayload(
 }
 
 /** SysOverlay·슬롯 렌더 공통: 공식에서 강제 cushion면·RHS 키 집합 추출 */
+/** slide(양수 밀림)와 draw(음수 끌림 저장) 상호 배타 → 단일 signed 스칼라 (물리·곡선 공통). */
+function unifiedSlideFromCorrections(corrections) {
+  if (!corrections || typeof corrections !== "object") return 0;
+  const s = Number(corrections.slide);
+  const d = Number(corrections.draw);
+  const slideVal = Math.abs(Number.isFinite(s) ? s : 0);
+  const drawVal = -Math.abs(Number.isFinite(d) ? d : 0);
+  return drawVal !== 0 ? drawVal : slideVal;
+}
+
+/** 저장·복원 시 slide≥0, draw≤0, 상호 배타(draw 우선 시 slide=0) */
+function normalizeSlideDrawCorrections(corrections) {
+  if (!corrections || typeof corrections !== "object") {
+    return { slide: 0, draw: 0 };
+  }
+  const s = Number(corrections.slide);
+  const d = Number(corrections.draw);
+  let slide = Math.abs(Number.isFinite(s) ? s : 0);
+  let draw = Number.isFinite(d) ? d : 0;
+  if (draw !== 0) draw = -Math.abs(draw);
+  if (draw !== 0) slide = 0;
+  return { slide, draw };
+}
+
 function parseSysFormulaExpr(expr) {
   if (!expr) return { forced: {}, neededKeys: new Set(), needsHP: false, needsAn: false };
 
@@ -614,6 +638,7 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
   const { coKey, c1Key, c3Key } = resolveCoC1C3Keys(forced, spaceSel);
 
   const corrections = adminSys?.corrections ?? {};
+  const unifiedSlide = unifiedSlideFromCorrections(corrections);
 
   let hasAll;
   if (isFiveHalfSystemId(systemId)) {
@@ -665,15 +690,13 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
     );
   }
 
-  const p_push = Number(corrections.slide) || 0;
-  const p_pull = Number(corrections.draw) || 0;
   const p_spin = Number(corrections.spin) || 0;
 
   const snFor5Half =
     useSn && isFiveHalfSystemId(systemId)
       ? (() => {
           const CO_base = Number(normalizedBase.CO_f) || 0;
-          const CO_eff = CO_base + p_push;
+          const CO_eff = CO_base + unifiedSlide;
           const C3_r = Number(normalizedBase.C3_r) || 0;
           return { Sn: (CO_eff - 50) * 0.5, C4_f: C3_r + (CO_eff - 50) * 0.5, CO_f: CO_base, C3_r };
         })()
@@ -684,9 +707,9 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
       : Number(corrections.departure) || 0;
 
   const adjusted = { ...normalizedBase };
-  if ("CO_f" in adjusted) adjusted.CO_f += p_push;
-  if ("CO_r" in adjusted) adjusted.CO_r += p_push;
-  const pullSpin = p_pull + p_spin;
+  if ("CO_f" in adjusted) adjusted.CO_f += unifiedSlide;
+  if ("CO_r" in adjusted) adjusted.CO_r += unifiedSlide;
+  const pullSpin = (unifiedSlide < 0 ? -unifiedSlide : 0) + p_spin;
   if ("C3_f" in adjusted) adjusted.C3_f -= pullSpin;
   if ("C3_r" in adjusted) adjusted.C3_r -= pullSpin;
   ["C4_f", "C4_r", "C5_f", "C5_r", "C6_f", "C6_r"].forEach((k) => {
@@ -840,11 +863,10 @@ function SysOverlay({ data, onSave, onCancel }) {
     track: data?.track || "B2T_L",
     inputs: buildSysOverlayInitialInputs(data),
     corrections: {
-      slide: data?.corrections?.slide || 0,
       curve_ratio: data?.corrections?.curve_ratio || 0,
-      draw: data?.corrections?.draw || 0,
       departure: data?.corrections?.departure || 0,
       spin: data?.corrections?.spin || 0,
+      ...normalizeSlideDrawCorrections(data?.corrections),
     },
   });
 
@@ -871,11 +893,17 @@ function SysOverlay({ data, onSave, onCancel }) {
   useEffect(() => {
     const saved = data?.system_values;
     if (!saved || typeof saved !== "object" || Object.keys(saved).length === 0) return;
-    setFormData((prev) => ({
-      ...prev,
-      inputs: buildSysOverlayInitialInputs(data),
-      corrections: data.corrections ?? prev.corrections,
-    }));
+    setFormData((prev) => {
+      const mergedCorr = { ...prev.corrections, ...(data.corrections || {}) };
+      return {
+        ...prev,
+        inputs: buildSysOverlayInitialInputs(data),
+        corrections: {
+          ...mergedCorr,
+          ...normalizeSlideDrawCorrections(mergedCorr),
+        },
+      };
+    });
     setIsRestored(true);
   }, [data?.system_values]);
 
@@ -1031,17 +1059,16 @@ function SysOverlay({ data, onSave, onCancel }) {
     });
   }, [baseResultValue, baseResultKey, formData.system]);
 
-  // 물리 보정 매핑: p_push→CO, p_pull/p_spin→C3, p_start→C4/C5/C6 (입력 변수 선반영 후 재계산)
-  const p_push = Number(formData.corrections.slide) || 0;
-  const p_pull = Number(formData.corrections.draw) || 0;
+  // 물리 보정 매핑: signed unifiedSlide→CO_eff·CO_r(+음수); 음수 분량은 C3에 pullSpin+spin; p_start→C4/C5/C6
+  const formUnifiedSlide = unifiedSlideFromCorrections(formData.corrections);
   const p_spin = Number(formData.corrections.spin) || 0;
   const snFor5Half = useMemo(() => {
     if (!useSnForSystem || !isFiveHalfSystemId(formData.system)) return null;
     const CO_base = Number(normalizedBasePayload.CO_f) || 0;
-    const CO_eff = CO_base + (Number(formData.corrections.slide) || 0);
+    const CO_eff = CO_base + formUnifiedSlide;
     const C3_r = Number(normalizedBasePayload.C3_r) || 0;
     return { Sn: (CO_eff - 50) * 0.5, C4_f: C3_r + (CO_eff - 50) * 0.5, CO_f: CO_base, C3_r };
-  }, [formData.system, normalizedBasePayload, useSnForSystem, formData.corrections.slide]);
+  }, [formData.system, normalizedBasePayload, useSnForSystem, formUnifiedSlide]);
   const p_start =
     useSnForSystem && isFiveHalfSystemId(formData.system) && snFor5Half
       ? snFor5Half.Sn
@@ -1051,19 +1078,20 @@ function SysOverlay({ data, onSave, onCancel }) {
     if (!expr || !expr.trim()) return { adjustedInputs: {}, finalCalc: {}, lhsKey: null };
     if (!hasAllInputs) return { adjustedInputs: {}, finalCalc: {}, lhsKey: null };
     const adjusted = { ...normalizedBasePayload };
-    if ('CO_f' in adjusted) adjusted['CO_f'] += p_push;
-    if ('CO_r' in adjusted) adjusted['CO_r'] += p_push;
-    const pullSpin = p_pull + p_spin;
-    if ('C3_f' in adjusted) adjusted['C3_f'] -= pullSpin;
-    if ('C3_r' in adjusted) adjusted['C3_r'] -= pullSpin;
-    ['C4_f', 'C4_r', 'C5_f', 'C5_r', 'C6_f', 'C6_r'].forEach((k) => {
+    if ("CO_f" in adjusted) adjusted.CO_f += formUnifiedSlide;
+    if ("CO_r" in adjusted) adjusted.CO_r += formUnifiedSlide;
+    const pullSpin =
+      (formUnifiedSlide < 0 ? -formUnifiedSlide : 0) + p_spin;
+    if ("C3_f" in adjusted) adjusted.C3_f -= pullSpin;
+    if ("C3_r" in adjusted) adjusted.C3_r -= pullSpin;
+    ["C4_f", "C4_r", "C5_f", "C5_r", "C6_f", "C6_r"].forEach((k) => {
       if (k in adjusted) adjusted[k] += p_start;
     });
 
     const final = calculateByProfileExpr(expr, adjusted);
     const keys = Object.keys(final);
     return { adjustedInputs: adjusted, finalCalc: final, lhsKey: keys.length > 0 ? keys[0] : null };
-  }, [expr, hasAllInputs, normalizedBasePayload, p_push, p_pull, p_spin, p_start, needsHP, needsAn]);
+  }, [expr, hasAllInputs, normalizedBasePayload, formUnifiedSlide, p_spin, p_start, needsHP, needsAn]);
 
   /** 표시용: full_input은 base 그대로, derived는 CO 보정 후 C3 = CO_eff − C1(base). */
   const effDisplayMap = useMemo(() => {
@@ -1508,9 +1536,21 @@ function SysOverlay({ data, onSave, onCancel }) {
               onChange={(e) => {
                 if (isDeparture && snFor5HalfEffective) return;
                 setIsRestored(false);
+                const raw = Number(e.target.value);
+                const fin = Number.isFinite(raw) ? raw : 0;
+                const nextCorr = { ...formData.corrections };
+                if (key === "slide") {
+                  nextCorr.slide = Math.abs(fin);
+                  nextCorr.draw = 0;
+                } else if (key === "draw") {
+                  nextCorr.draw = fin === 0 ? 0 : -Math.abs(fin);
+                  nextCorr.slide = 0;
+                } else {
+                  nextCorr[key] = fin;
+                }
                 setFormData({
                   ...formData,
-                  corrections: { ...formData.corrections, [key]: Number(e.target.value) },
+                  corrections: nextCorr,
                 });
               }}
               style={{
@@ -5223,22 +5263,24 @@ function handlePointerCancel(e) {
   // CO→C1 선은 레일(Rg) 시작점 — Fg 의미점과 분리 (CO_line ≠ 라벨 좌표일 수 있음)
   const C1_line = C1_rail;
 
-  // CO Dual Trajectory: 보정선 (slide/curve_ratio/p_push !== 0일 때)
+  // CO Dual Trajectory: 보정선 (양수 unifiedSlide / curve_ratio 시 CO_corrected 표시)
   const corrections = canEdit ? (resolvedSlotSys?.corrections || {}) : {};
-  /** slide/draw: curve 및 레일 보정 오프셋 — SYS UI와 동기 (canEdit와 무관, 소스 fallback) */
-  const rawSlideForCurve =
-    resolvedSlotSys?.corrections?.slide ??
-    adminState?.sys?.corrections?.slide ??
-    formData?.corrections?.slide;
-  const rawDrawForCurve =
-    resolvedSlotSys?.corrections?.draw ??
-    adminState?.sys?.corrections?.draw ??
-    formData?.corrections?.draw;
-  const slideVal = Number(rawSlideForCurve) || 0;
-  const drawVal = Number(rawDrawForCurve) || 0;
+  const corrBundleForCurve = {
+    slide:
+      resolvedSlotSys?.corrections?.slide ??
+      adminState?.sys?.corrections?.slide ??
+      formData?.corrections?.slide,
+    draw:
+      resolvedSlotSys?.corrections?.draw ??
+      adminState?.sys?.corrections?.draw ??
+      formData?.corrections?.draw,
+  };
+  const unifiedSlideForCurve = unifiedSlideFromCorrections(corrBundleForCurve);
   const curveVal = Number(corrections.curve_ratio) || 0;
-  const totalCorrection = slideVal + curveVal;
-  const hasCorrection = slideVal !== 0 || curveVal !== 0;
+  const slidePortionForCoLine =
+    unifiedSlideForCurve > 0 ? unifiedSlideForCurve : 0;
+  const totalCorrection = slidePortionForCoLine + curveVal;
+  const hasCorrection = slidePortionForCoLine !== 0 || curveVal !== 0;
 
   let CO_corrected_line = null;
   if (hasCorrection && CO_path0 && C1_rail) {
@@ -5362,7 +5404,7 @@ function handlePointerCancel(e) {
   //   impactContactRg &&
   //   pathNodes[0] &&
   //   pathNodes[1] &&
-  //   (slideVal !== 0 || drawVal !== 0);
+  //   (unifiedSlideForCurve !== 0);
   const useCurveDeform = true;
   console.log("[FIX] useCurveDeform:", useCurveDeform);
 
@@ -5374,19 +5416,16 @@ function handlePointerCancel(e) {
   if (useCurveDeform) {
     console.log("[H-App]", {
       canEdit,
-      slideVal,
-      drawVal,
-      rawSlide: corrections?.slide,
-      rawDraw: corrections?.draw,
-      rawSlideForCurve,
-      rawDrawForCurve,
+      unifiedSlideForCurve,
+      corrSlotSlide: corrections?.slide,
+      corrSlotDraw: corrections?.draw,
+      corrBundleForCurve,
     });
     const curveSegment = createCurveSegment(
       impactContactRg,
       pathNodes[0],
       pathNodes[1],
-      slideVal,
-      drawVal
+      unifiedSlideForCurve
     );
     console.log("[PATH AFTER CURVE]", {
       curveLast: curveSegment[curveSegment.length - 1],

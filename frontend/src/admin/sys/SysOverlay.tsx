@@ -142,19 +142,43 @@ const PROFILE_KEY_MAP: Record<string, string> = {
   "SUNRISE_SUNSET": "sunrise_sunset",
 };
 
-/** 보정값을 systemValues에 반영 (slide→CO, draw→C3 등) */
+/** slide(≥0)와 draw(≤0 저장) 상호 배타 → App의 unifiedSlide와 동일한 단일 스칼라 */
+function unifiedSlideFromCorrections(
+  corrections: Pick<SysOverlayState["corrections"], "slide" | "draw">
+): number {
+  const s = Number(corrections.slide);
+  const d = Number(corrections.draw);
+  const slideVal = Math.abs(Number.isFinite(s) ? s : 0);
+  const drawVal = -Math.abs(Number.isFinite(d) ? d : 0);
+  return drawVal !== 0 ? drawVal : slideVal;
+}
+
+/** 저장/초기값: draw는 항상 0 또는 음수, draw가 있으면 slide는 0 */
+function normalizeSlideDrawForState(
+  raw?: Partial<Pick<SysOverlayState["corrections"], "slide" | "draw">>
+): Pick<SysOverlayState["corrections"], "slide" | "draw"> {
+  const s = Number(raw?.slide);
+  const d = Number(raw?.draw);
+  let slide = Math.abs(Number.isFinite(s) ? s : 0);
+  let draw = Number.isFinite(d) ? d : 0;
+  if (draw !== 0) draw = -Math.abs(draw);
+  if (draw !== 0) slide = 0;
+  return { slide, draw };
+}
+
+/** 보정값을 systemValues에 반영 (signed unifiedSlide→CO_eff; 음수 시 pullSpin으로 C3도 동일 규모 보정 — App.jsx와 동일) */
 function applyCorrections(
   values: Record<string, number>,
   corrections: SysOverlayState["corrections"]
 ): Record<string, number> {
   const out = { ...values };
-  if (corrections.slide !== 0) {
-    if ("CO_f" in out) out.CO_f = (out.CO_f ?? 0) + corrections.slide;
-    if ("CO_r" in out) out.CO_r = (out.CO_r ?? 0) + corrections.slide;
-  }
-  if (corrections.draw !== 0) {
-    if ("C3_f" in out) out.C3_f = (out.C3_f ?? 0) - corrections.draw;
-    if ("C3_r" in out) out.C3_r = (out.C3_r ?? 0) - corrections.draw;
+  const unified = unifiedSlideFromCorrections(corrections);
+  if ("CO_f" in out) out.CO_f = (out.CO_f ?? 0) + unified;
+  if ("CO_r" in out) out.CO_r = (out.CO_r ?? 0) + unified;
+  const pullSpin = unified < 0 ? -unified : 0;
+  if (pullSpin !== 0) {
+    if ("C3_f" in out) out.C3_f = (out.C3_f ?? 0) - pullSpin;
+    if ("C3_r" in out) out.C3_r = (out.C3_r ?? 0) - pullSpin;
   }
   if (corrections.curve_ratio !== 0) {
     if ("CO_f" in out) out.CO_f = (out.CO_f ?? 0) + corrections.curve_ratio;
@@ -218,9 +242,8 @@ export function SysOverlay({
     cvEntryMode: initial?.cvEntryMode ?? "manual",
     corrections: {
       curve_ratio: initial?.corrections?.curve_ratio || 0,
-      slide: initial?.corrections?.slide || 0,
-      draw: initial?.corrections?.draw || 0,
       departure: initial?.corrections?.departure || 0,
+      ...normalizeSlideDrawForState(initial?.corrections),
     },
   });
 
@@ -316,10 +339,23 @@ export function SysOverlay({
   }
 
   function updateCorrection(key: keyof SysOverlayState["corrections"], value: number) {
-    setSysState((prev) => ({
-      ...prev,
-      corrections: { ...prev.corrections, [key]: value },
-    }));
+    setSysState((prev) => {
+      const c = { ...prev.corrections };
+      const n = Number(value);
+      const fin = Number.isFinite(n) ? n : 0;
+      if (key === "slide") {
+        c.slide = Math.abs(fin);
+        c.draw = 0;
+      } else if (key === "draw") {
+        c.draw = fin === 0 ? 0 : -Math.abs(fin);
+        c.slide = 0;
+      } else if (key === "curve_ratio") {
+        c.curve_ratio = fin;
+      } else if (key === "departure") {
+        c.departure = fin;
+      }
+      return { ...prev, corrections: c };
+    });
   }
 
   function updateInputBasis(next: InputBasis) {

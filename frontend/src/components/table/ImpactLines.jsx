@@ -290,7 +290,7 @@ export default function ImpactLines({
       body: JSON.stringify({
         sessionId: "6a4663",
         location: "ImpactLines.jsx:redPolyline:beforeRender",
-        message: "draw_red_polyline",
+        message: "red_polyline_preview",
         hypothesisId: "H-C",
         data: {
           cushionPathLen: cushionPath?.length,
