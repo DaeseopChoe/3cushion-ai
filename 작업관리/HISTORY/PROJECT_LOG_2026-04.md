@@ -781,3 +781,304 @@ Status: Updated (2026-04-19) — §15 Render base → effective (`effDisplayMap`
 ---
 
 Status: Updated (2026-04-19) — §16 5½ 표시/base 분리 + 보정 방식 UI 제거 (`App.jsx`)
+
+---
+
+# 📌 17. 2026-04-28 (Base Line 시스템 구현 & 렌더 개선)
+
+## 17.1 문제 배경
+
+- 기존에는 **보정이 반영된 trajectory(빨간 polyline)** 만 표시되는 경우가 많았고, **같은 슬롯 입력에 대한 “보정 전” 기준 궤적**을 한 화면에서 비교하기 어려움.
+- 사용자 입장에서 **왜 slide·끌림·스핀·곡구 보정이 필요한지** 직관적으로 설명하기 어렵다는 피드백.
+
+---
+
+## 17.2 핵심 개선 사항
+
+### 17.2.1 Base Line 개념
+
+- **Base** = 현재 슬롯의 시스템 입력을 유지한 채, **물리 보정만 제거한 상태**에서 계산한 표시/앵커용 값.
+- 보정 제거 대상(렌더 분기에서 `0`으로 덮어씀):
+  - `slide`, `draw`(pull), `spin`, `curve_ratio`(UI 상 곡구 / 스펙상 english에 해당)
+- **유지:** `departure`(출발값 보정) — Sn 관련 파이프라인과 혼동 방지 및 기존 §15 effective 규약과 정렬.
+- 5½ 경로에서 Sn·C4~C6는 여전히 **`buildSlotEffectiveRenderSysValues` → `computeSnPair`** 경로에서 도출되며, Base 분기에서는 위 보정만 빠진 입력으로 동일 함수를 한 번 더 호출한다.
+
+👉 요약: **Base ≈ 순수 시스템 계산 + 출발값 보정(departure) 유지 + Sn 자동 계산 유지**, slide/draw/spin/curve_ratio만 제거.
+
+---
+
+### 17.2.2 데이터 파이프라인 (effective와 분리)
+
+**기존 시도·문서에서 언급되던 `baseTrajectorySlotSysValues` / `buildBaseTrajectorySysValues` 는 도입하지 않고 제거됨.**  
+대신 **동일 함수 두 번 호출**으로 일관성 유지:
+
+| 구분 | 호출 | `adminSys` |
+|------|------|------------|
+| Effective (빨간 궤적·라벨 SSOT) | `buildSlotEffectiveRenderSysValues(merged, slotSys, adminState.sys)` | 실제 corrections |
+| Base (기준선용 값) | 동일 함수 | `adminSysNoCorrections`: `{ ...adminState.sys, corrections: { ...기존, slide:0, draw:0, spin:0, curve_ratio:0 } }` |
+
+- 병합 결과: `resolvedSlotSysValues`(effective), `resolvedSlotBaseSysValues`(`buildSlotEffectiveRenderSysValues` 출력을 `merged`와 직접 병합). ~~`slotTrajectoryBaseSnPair`~~ 는 반환 구조에 없어 사용하지 않음(§17.15).
+- **앵커:** `rawAnchorsBase` / `anchorsBase` = `getAnchorsForRendering`에 **base 병합 맵**을 넣어 계산. effective `rawAnchors`와 분리.
+
+---
+
+### 17.2.3 궤적 기하: Base 앞구간을 effective와 혼용하지 않음
+
+- 문제: Base polyline의 **CO→C1→C2**를 effective 레일 교점과 섞으면, 뒤쪽만 base일 때 **앞 선분이 안 보이거나** 의도와 다른 형태가 됨.
+- 조치 (`App.jsx`): **`anchorsBase` 전용**으로 `CO_path0_base`, `C1_rail_base`, `C2_path_base`를 계산(`coStartForCushionPath`, `computeRailImpactPoint`, `firstRailHitTowardTarget`, 필요 시 `computeReflectionC2`). C3 이후는 base 앵커 기준 레일 체인으로 연결.
+- `cushionPathAttrBase`는 위 점들을 **픽셀 문자열**로 합친 뒤 `ImpactLines`에 전달 (`toPx`·테이블 설정은 기존과 동일).
+
+---
+
+### 17.2.4 C3→C4 구간: 테이블 경계 클리핑 (Rg)
+
+- 목적: C4 의미점이 놀이구역 밖이어도 **선이 화면 밖으로 무한 연장되지 않도록** 표시만 제한.
+- 위치: `ImpactLines.jsx` — **`toPx 이전 Rg`**에서 선분 `C3–C4`를 축 정렬 직사각형 **`[0,80]×[0,40]`** 에 맞게 잘라 **경계상의 끝점**만 사용 후 `toPx` 적용.
+- 구현: 이분 탐색으로 “`p1`에서 `p2` 방향으로 마지막으로 안쪽에 남는 점” 근사 (`intersectWithTableBounds`).
+
+---
+
+### 17.2.5 스타일 & 토글 UI
+
+- Base Line polyline: **`stroke="#FFD700"`**, **`strokeWidth={0.5}`**, **`strokeDasharray="none"`(실선)**, **`opacity={0.9}`**.
+- **`showBaseLine` / `setShowBaseLine`** 상태 복구. 우측 패널 **Base Line 버튼은 `slotTrajectorySnPair?.base` 등으로 숨기지 않고 항상 표시**(ADMIN `canEdit` 영역), 클릭으로 on/off.
+- `ImpactLines`: **`showBaseLine && 유효한 base polyline points`** 일 때만 기준선 렌더.
+
+---
+
+### 17.2.6 디버깅·검증 로그 (DEV)
+
+- `ImpactLines`: `BASE_EXTENDED`, `BASE_CHAIN_CHECK`, `BASE_CLIP_RG`, `BASE_CUSHION_SEGS` 등 (앵커 키 존재·Rg 클립·세그먼트 수 확인).
+- `App.jsx`: `BASE_DEBUG`에 base 레일 접두 좌표 등(개발 모드).
+
+---
+
+## 17.3 관련 파일 (요약)
+
+| 파일 | 역할 |
+|------|------|
+| `frontend/src/App.jsx` | `adminSysNoCorrections`, `resolvedSlotBaseSysValues`, `rawAnchorsBase`, base 레일 접두 + `cushionPathAttrBase`, `showBaseLine` 상태·버튼 |
+| `frontend/src/components/table/ImpactLines.jsx` | Base polyline, Rg 클리핑, 스타일, `showBaseLine` 게이트 |
+| `frontend/src/admin/sys/sysCorrection.ts` | `computeSnPair`(호출 구조 유지; Base는 입력 corrections만 다름) |
+
+---
+
+## 17.4 설계상 주의 (기록)
+
+- **`toPx` / 좌표계 변환 함수 본문 수정 없이** “연결 순서·입력 소스”만 조정하는 방향으로 진행함.
+- Base 버튼 가시성은 **데이터 유무와 분리** — 경로 데이터가 없으면 polyline만 그려지지 않고, 버튼은 항상 노출.
+
+---
+
+### 17.5 Sn(departure) 유지 (재확인)
+
+- **`departure`(출발값 보정)는 Base 분기에서 제거하지 않음.** Slide·draw·spin·curve_ratio만 0으로 두어 “물리 보정”만 분리하고, Sn 관련 출발값 보정 경로는 유지한다.
+
+---
+
+### 17.6 렌더 구조 개선 (`ImpactLines.jsx`)
+
+- **보정선:** 빨간색 polyline — effective cushion 경로 (`cushionPathAttr` 등 기존 경로).
+- **기준선:** 노란색 polyline — Base 전용 `cushionPathAttrBase` (+ 조건 시 앵커 보조).
+- 두 레이어를 **별도 `<polyline>`** 로 두어 **동시 렌더** 가능 (서로 덮어쓰지 않음).
+
+---
+
+### 17.7 Base Line 스타일 정의
+
+| 항목 | 값 |
+|------|-----|
+| 색상 | `#FFD700` (노란색) |
+| 선 종류 | 실선 (`strokeDasharray` 비점선 처리) |
+| 두께 | 기존 대비 약 절반 수준 (`strokeWidth={0.5}`) |
+| 투명도 | `opacity={0.9}` |
+
+**목적:** 큐볼–목적구 구간 등 **점선/다른 색 궤적**과 시각적으로 구분.
+
+---
+
+### 17.8 C4까지 기준선 확장 & 레일 바깥 방지
+
+- **기존:** 경로 기본 종료가 C3 근처로 보이는 경우가 많아 기준선이 짧게 끊겨 보임.
+- **변경:** Base 표시를 **C4 방향까지 연장**. 구현상 `cushionPathAttrBase`에 C4 픽셀을 덧붙이거나, 앵커 폴백 체인에서 C4를 포함.
+- **레일/테이블 바깥 이탈 방지:** Rg에서 선분 **C3→C4**를 놀이구역 **`[0,80]×[0,40]`** 에 **클립**한 끝점만 사용 후 `toPx` — 무한 연장 방지 (§17.2.4와 동일 주제).
+
+---
+
+### 17.9 Base Line 토글 기능
+
+- **상태:** `const [showBaseLine, setShowBaseLine] = useState(false);`
+- **버튼:** 우측 패널에 **항상 표시** — `slotTrajectorySnPair?.base` 등 **base 존재 여부 조건 제거**.
+- **동작:** 클릭 시 `setShowBaseLine(v => !v)` 로 토글.
+- **ON:** 버튼을 노란색 계열 **활성 스타일**로 강조; **OFF:** 회색 계열 비활성 느낌.
+
+---
+
+## 17.10 주요 버그 및 해결
+
+### [버그 1] Base Line 버튼이 사라짐
+
+- **원인:** 버튼 렌더가 **`slotTrajectorySnPair?.base`** 에 묶여 있었으나, 리팩터 후 해당 값이 그 조건에서 채워지지 않음 → 조건 false → 버튼 미렌더.
+- **해결:** 조건 제거 → **항상 렌더** (토글만 제어).
+
+### [버그 2] 기준선 일부만 표시 (C3→C4만 보임 등)
+
+- **현상:** 앞선 **CO→C1→C2** 가 빠지고 뒷구간만 보이는 경우.
+- **원인:** Base polyline 앞구간을 effective 레일 점과 혼용하거나, 경로 노드 구성 순서 문제.
+- **해결:** **`anchorsBase` 전용** 레일 접두(`CO_path0_base`, `C1_rail_base`, `C2_path_base`)로 전체 경로 재구성 후 `cushionPathAttrBase` 생성.
+
+### [버그 3] 레일 밖으로 선 이탈
+
+- **해결:** Rg 선분 클리핑 (`intersectWithTableBounds` 등)으로 테이블 경계에서 끊김.
+
+---
+
+## 17.11 UI 개선
+
+- **Base Line 버튼:** 활성/비활성 시 **색·테두리·그림자** 대비 강화 (노란 강조 vs 회색).
+- **C4 표시:** 시스템 값 라벨에서 **소수점 1자리**로 표시 정리 (`SystemValueLabels.jsx` — C4 전용 `toFixed(1)` 표시 경로).
+
+---
+
+## 17.12 최종 결과
+
+- **기준선(Base Line) + 보정선(빨간선)** 을 **동시에** 시각화할 수 있음.
+- 사용자에게 **보정이 왜 필요한지** 비교로 전달 가능.
+- 시스템·궤적 **이해도** 향상.
+
+---
+
+## 17.13 현재 상태
+
+| 항목 | 상태 |
+|------|------|
+| Base Line 렌더 | ✅ 정상 |
+| 토글 | ✅ 정상 |
+| Sn 유지 구조 (`departure` 미제거) | ✅ 정상 |
+| C4까지 표시 + 경계 클립 | ✅ 반영 |
+
+---
+
+## 17.14 향후 고려 사항
+
+1. **Base Line ON 기본값** — 최초 진입 시 `showBaseLine` 기본 `true` 여부 UX 검토.
+2. **색상 테마** — 기준선/보정선 색 사용자 옵션화.
+3. **trajectory 비교 모드** — 두 궤적 차이(각도·길이) 강조 등 고급 모드.
+
+---
+
+## 17.15 App.jsx — Base 세그먼트 경로 복구 (2026-04-28, 커밋·푸시 반영)
+
+**배경:** 기준선이 앵커 좌표를 직접 이은 폴백으로 그려지며 CO–C1이 테이블 밖으로 나가거나 C1–C2 레일 구간이 빠지는 현상이 있었음. 원인은 **`cushionPathAttrBase`가 비어 `ImpactLines`가 앵커 체인으로 대체**한 경우였음.
+
+**원인 정리**
+
+1. **`resolvedSlotBaseSysValues` 병합 오류:** `buildSlotEffectiveRenderSysValues`는 **평탄한 숫자 맵**을 반환하는데, 코드가 존재하지 않는 **`built.values`**만 병합하려 해서 effective 계산 결과가 base 맵에 반영되지 않는 경우가 있었음.
+2. **잘못된 게이트 `slotTrajectoryBaseSnPair?.base`:** `buildSlotEffectiveRenderSysValues`는 **`snPair`를 반환하지 않음**. 따라서 해당 조건은 항상 거짓이었고, **`CO_path0_base` / `C1_rail_base` / `C2_path_base` 레일 접두 계산 블록이 사실상 실행되지 않음** → 세그먼트 기반 `cushionPathAttrBase` 미생성.
+
+**조치 (`frontend/src/App.jsx`만)**
+
+- **`resolvedSlotBaseSysValues`:** `buildSlotEffectiveRenderSysValues`의 반환값이 비어 있지 않으면 **`{ ...merged, ...built }`** 로 병합. **`slotTrajectoryBaseSnPair` 의존 제거**(미사용).
+- **Base 레일 접두:** `anchorsBase`만 있으면 **`coStartForCushionPath` · `computeRailImpactPoint` · `firstRailHitTowardTarget` · (필요 시) `computeReflectionC2`** 로 앞구간 세그먼트 계산 (`snPair?.base` 조건 삭제).
+- **`cushionPathAttrBase`:** 빨간 보정선과 동일한 노드 조립(CO→C1→C2→…) 후 픽셀 문자열 생성. 게이트는 **`anchorsBase && CO_path0_base && C1_rail_base`** — **`C2_path_base`는 필수 아님**(null이면 기존 cushion 루프와 같이 앞에서 끊김).
+
+**금지 준수:** `ImpactLines.jsx`, anchor/projection 핵심 엔진, 계산식 본문 변경 없음.
+
+**기대 결과:** 기준선이 **레일 세그먼트 체인**으로 생성되어 CO–C1이 레일 내부에서 시작하고 C1–C2 구간이 보정선과 같은 구조로 표시됨.
+
+---
+
+## 17.16 한 줄 정리
+
+👉 **Base Line은 “보정(slide·draw·spin·curve_ratio) 제거된 기준 궤적”이며, Sn(departure)은 유지한다.**
+
+---
+
+Status: Updated (2026-04-28) — §17 Base Line 전체 + §17.15 세그먼트 파이프라인 수정(커밋·푸시)
+
+---
+
+# 📌 18. 2026-04-28 작업 업데이트 (ImpactLines · 궤적 필터 · Base 복구 · 핸드오프)
+
+## 18.1 이번 구간에서 완료한 작업 (ImpactLines.jsx 중심)
+
+### A) 잘못된 / 퇴화된 빨간 궤적 완화
+
+- **문제:** 쿠션→임팩트 구간이 **수직 일직선**처럼 보이는 등, 곡구 의도와 무관한 **직선 polyline**이 그려지는 경우.
+- **조치:** `cushionPath`를 Rg 점열로 풀어 **`isStraightLine(rgPoints)`** 로 판별(끝점 직선 대비 최대 편차 `eps ≈ 0.02`). 직선에 가깝면 **빨간 polyline 미렌더**.
+- **SVG 규약:** `points` prop에는 **객체 배열이 아니라** `toPx`로 만든 **픽셀 문자열**(`usedEffectivePolylinePoints`)만 사용 — 스펙 예시의 `points={cushionPath}`는 유효하지 않아 적용하지 않음.
+
+### B) 관리자/베이스 쪽 “불필요한 추가 polyline” 정리 후 Base 복구
+
+- 한때 **금색 base polyline**만 제거·`cushionPath`만 남기는 방향이 있었으나, **Base Line 비교 UX**를 위해 **복구**.
+- **렌더 순서 (아래 → 위):** 오렌지/화이트 `line` → (조건부) Base → 빨간 `cushionPath` polyline.
+
+### C) Base Line 데이터 소스 (현재 구조)
+
+| 조건 | 렌더 |
+|------|------|
+| `showBaseLine` + 유효한 **`guideLineNode`** (`x1,y1,x2,y2` 픽셀) | 노란 **점선 `<line>`** (`#FFD400`, `strokeDasharray="4 4"`, `strokeWidth={1.25}`, `opacity={0.8}`) |
+| `showBaseLine` + `guideLineNode` 없음 + 유효한 base points | **기존과 동일:** `cushionPathAttrBase` 또는 `anchorsBase` 체인 → `toPx` 합성 **금색 `<polyline>`** (`#FFD700`, 실선, 얇은 stroke) + Rg **`intersectWithTableBounds`** 로 C3→C4 클립 |
+| 선택 prop **`baseLinePoints`** (픽셀 `points` 문자열) | `guideLineNode` 없을 때 앵커 기반 문자열보다 **우선** (base를 `cushionPath`로 합치지 않음) |
+
+- **`App.jsx`는 이 핸드오프 시점에서 `guideLineNode`를 `ImpactLines`에 넘기지 않음** — 코칭용 흰 점선은 `CoachingOverlay` 쪽에 남아 있을 수 있음. Base 토글 시 **금 polyline** 경로가 실사용.
+
+### D) 빨간 보정 궤적 (`cushionPath`)
+
+- **조건:** `Array.isArray(cushionPath) && cushionPath.length > 2` **그리고** `!isStraightLine(...)`.
+- **스타일:** `stroke="#ff4444"`, `strokeWidth={2}`, `fill="none"`.
+
+### E) 디버그 로그
+
+- 개발 모드에서 **`[DRAW BASELINE]`** (`guideLineNode` 값), **`[DRAW CURVE]`** (`cushionPath?.length`) 출력.
+
+---
+
+## 18.2 동일 시점 워킹트리에 포함될 수 있는 기타 변경 (브랜치 기준)
+
+아래는 **같은 체크포인트 커밋에 포함될 수 있는** 수정으로, 곡구·디버그·앵커와 연관된 작업이 섞여 있을 수 있음(정확한 diff는 `git show`로 확인).
+
+| 영역 | 파일 예시 |
+|------|-------------|
+| 곡구/렌더 경로 병합 | `frontend/src/App.jsx` (`useCurveDeform`, `cushionPathForImpactLines`, 코칭 `guideLine` 등) |
+| 디버그 ingest | `frontend/vite.config.js` |
+| SYS/앵커 | `SysOverlay.tsx`, `SystemValueLabels.jsx`, `anchorCoordinateEngine.ts` |
+
+---
+
+## 18.3 앞으로 새 창(GPT)에서 이어가야 할 과제 (우선순위)
+
+### P0 — 곡구(curve)가 **렌더·기하**에 일관되게 반영되는지
+
+- **`frontend/src/utils/trajectory/curveTrajectory.ts`** (또는 동등 모듈): `getMergePoint`, `getControlPoint`, `createCurveSegment`, 베지어 샘플링·클램프.
+- **`App.jsx`:** `pathNodes[0]` + curve segment + `cushionPath.slice(1)` 병합, **`useCurveDeform`** 기본/강제 여부, `cushionPathForImpactLines` SSOT.
+- **검증:** 직선 퇴화 케이스와 실제 곡선 케이스 모두에서 빨간선이 **의도한 호**인지; `isStraightLine`과의 상호작용(곡선인데 필터에 걸리지 않는지).
+
+### P1 — Base / 코칭 라인 **단일 진실원** 정리
+
+- `ImpactLines`에 **`guideLineNode={coaching.guideLineNode}`** 를 넘길지(픽셀 좌표계 일치 전제) 결정 후 `App.jsx` 연결 — 이번 핸드오프에서는 로그에만 “미연결”로 기록.
+- `showBaseLine` 기본값·버튼 복사 UI(`SysOverlay` 등)와 **중복 없이** 정리(§16 참고).
+
+### P2 — 디버그·운영 분리
+
+- NDJSON / `__debug/ingest` / 콘솔 대량 로그를 **DEV 전용** 또는 플래그로 묶기.
+- §13 **궤적 디버그**(`pathEndIndex`, 스핀 루프 주석) **제품 기본값 복구** 여부 결정.
+
+### P3 — 회귀 테스트
+
+- Base vs Effective, 여러 `input_basis`·슬롯 조합에서 **수동 스냅** 권장(§15·§17과 연계).
+
+---
+
+## 18.4 상태 요약 (핸드오프 시점)
+
+| 항목 | 상태 |
+|------|------|
+| ImpactLines 빨간선 | `length > 2` + 비직선일 때만 |
+| ImpactLines Base | `showBaseLine` + `guideLineNode` **또는** 앵커/`cushionPathAttrBase` 금 polyline |
+| `guideLineNode` → ImpactLines | **미연결** (선택 과제) |
+| 곡구 렌더 파이프라인 | **새 세션에서 P0로 계속** |
+
+---
+
+Status: Updated (2026-04-28) — §18 ImpactLines 필터·Base 복구·핸드오프 (곡구는 다음 세션)
