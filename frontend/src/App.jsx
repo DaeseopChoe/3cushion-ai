@@ -139,6 +139,8 @@ const PHYSICS_SCALE = {
 // Anti-aliasing compensation (렌더링 전용)
 const AA_EPSILON = 0.08; // rg 단위
 const RENDER_RADIUS_RG = BALL_RADIUS_RG - AA_EPSILON;
+/** slide/draw 통합값이 이 임계값 이하이면 곡선 변형 비활성(baseline cushionPath 사용) */
+const CURVE_EPS = 1e-6;
 
 // 송설님 치수
 const CUSHION_MM = 45;
@@ -5399,13 +5401,11 @@ function handlePointerCancel(e) {
   );
   const impactContactRg = balls.impact ?? calcImpactForContact;
 
-  // 🔥 강제 통과 테스트 — 원래 조건 복구 시 아래 주석 해제
-  // const useCurveDeform =
-  //   impactContactRg &&
-  //   pathNodes[0] &&
-  //   pathNodes[1] &&
-  //   (unifiedSlideForCurve !== 0);
-  const useCurveDeform = true;
+  const useCurveDeform =
+    !!impactContactRg &&
+    !!pathNodes[0] &&
+    !!pathNodes[1] &&
+    Math.abs(unifiedSlideForCurve) > CURVE_EPS;
   console.log("[FIX] useCurveDeform:", useCurveDeform);
 
   let curvePointsLen = 0;
@@ -5799,8 +5799,16 @@ function handlePointerCancel(e) {
         C1_line={C1_line}
         CO_corrected_line={null}
         cushionPath={cushionPathForImpactLines}
+        impactSplitRg={
+          impact &&
+          Number.isFinite(impact.x) &&
+          Number.isFinite(impact.y)
+            ? impact
+            : impactContactRg
+        }
         cushionPathAttrBase={cushionPathAttrBase}
         anchorsBase={anchorsBase}
+        curveDeformActive={useCurveDeform}
         showBaseLine={showBaseLine}
         scale={SCALE}
         tableH={TABLE_H}

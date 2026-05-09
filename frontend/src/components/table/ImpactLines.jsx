@@ -69,6 +69,80 @@ function anchorToRgPoint(a) {
   return null;
 }
 
+/** 기존 trajectory 폴리라인만 사용: impact를 가장 가까운 변에 정사영해 front / tail Rg 점열로 분할 */
+function splitCushionPathAtImpactProjection(path, impact) {
+  if (!impact || !Number.isFinite(impact.x) || !Number.isFinite(impact.y)) {
+    return null;
+  }
+  if (!Array.isArray(path) || path.length < 2) return null;
+
+  const pts = [];
+  for (const pt of path) {
+    const q = anchorToRgPoint(pt);
+    if (q == null) return null;
+    pts.push(q);
+  }
+
+  const RG_JOIN_MAX_DIST = 2.5;
+  const VERTEX_EPS = 1e-3;
+
+  let bestI = -1;
+  let bestDist = Infinity;
+  let bestP = /** @type {{ x: number; y: number } | null} */ (null);
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const A = pts[i];
+    const B = pts[i + 1];
+    const abx = B.x - A.x;
+    const aby = B.y - A.y;
+    const ab2 = abx * abx + aby * aby;
+    if (ab2 < 1e-18) continue;
+    let t = ((impact.x - A.x) * abx + (impact.y - A.y) * aby) / ab2;
+    t = Math.max(0, Math.min(1, t));
+    const Px = A.x + t * abx;
+    const Py = A.y + t * aby;
+    const d = Math.hypot(impact.x - Px, impact.y - Py);
+    if (d < bestDist) {
+      bestDist = d;
+      bestI = i;
+      bestP = { x: Px, y: Py };
+    }
+  }
+
+  if (bestI < 0 || !bestP || bestDist > RG_JOIN_MAX_DIST) return null;
+
+  const A = pts[bestI];
+  const B = pts[bestI + 1];
+  const dPA = Math.hypot(bestP.x - A.x, bestP.y - A.y);
+  const dPB = Math.hypot(bestP.x - B.x, bestP.y - B.y);
+
+  let front;
+  let tail;
+  if (dPA <= VERTEX_EPS) {
+    front = pts.slice(0, bestI + 1);
+    tail = pts.slice(bestI);
+  } else if (dPB <= VERTEX_EPS) {
+    front = pts.slice(0, bestI + 2);
+    tail = pts.slice(bestI + 1);
+  } else {
+    front = [...pts.slice(0, bestI + 1), bestP];
+    tail = [bestP, ...pts.slice(bestI + 1)];
+  }
+
+  return { front, tail };
+}
+
+function rgPolylineToPointsString(pts, scale, tableH, padding) {
+  if (!Array.isArray(pts) || pts.length < 2) return "";
+  const parts = [];
+  for (const q of pts) {
+    if (!q || !Number.isFinite(q.x) || !Number.isFinite(q.y)) return "";
+    const p = toPx(q, scale, tableH);
+    parts.push(`${p.x + padding},${p.y + padding}`);
+  }
+  return parts.join(" ");
+}
+
 function isStraightLine(rgPoints) {
   if (!Array.isArray(rgPoints) || rgPoints.length < 3) return true;
   const a = rgPoints[0];
@@ -92,8 +166,12 @@ export default function ImpactLines({
   C1_line,
   CO_corrected_line,
   cushionPath,
+  /** trajectory 폴리라인 분할 기준점 (Rg) — 기존 path 위 정사영만 사용 */
+  impactSplitRg = null,
   cushionPathAttrBase,
   anchorsBase,
+  /** true: slide/draw 곡선 변형 활성 — 빨간 trajectory + CO–C1 보조선 등 */
+  curveDeformActive = true,
   showBaseLine = false,
   /** 픽셀 좌표 { x1, y1, x2, y2 } — 전달 시 베이스 라인으로 우선 렌더 */
   guideLineNode = null,
@@ -220,17 +298,70 @@ export default function ImpactLines({
     }
   }
 
-  const showGuideLineBaseline = showBaseLine && hasGuideLine;
+  const showGuideLineBaseline =
+    curveDeformActive && showBaseLine && hasGuideLine;
   const showAnchorsBaselinePolyline =
-    showBaseLine && !hasGuideLine && basePolylineValid;
+    curveDeformActive && showBaseLine && !hasGuideLine && basePolylineValid;
 
   if (import.meta.env.DEV) {
     console.log("[DRAW BASELINE]", guideLineNode);
     console.log("[DRAW CURVE]", cushionPath?.length);
   }
 
-  const redPolyline = (() => {
+  const pathSplit = useMemo(() => {
+    if (!impactSplitRg || !Array.isArray(cushionPath) || cushionPath.length < 2) {
+      return null;
+    }
+    return splitCushionPathAtImpactProjection(cushionPath, impactSplitRg);
+  }, [cushionPath, impactSplitRg]);
+
+  const frontTrajectoryPx = useMemo(
+    () =>
+      pathSplit
+        ? rgPolylineToPointsString(
+            pathSplit.front,
+            scale,
+            tableH,
+            padding
+          )
+        : "",
+    [pathSplit, scale, tableH, padding]
+  );
+
+  const tailTrajectoryPx = useMemo(
+    () =>
+      pathSplit
+        ? rgPolylineToPointsString(pathSplit.tail, scale, tableH, padding)
+        : "",
+    [pathSplit, scale, tableH, padding]
+  );
+
+  const cushionTrajectoryPolyline = (() => {
     if (!Array.isArray(cushionPath) || cushionPath.length <= 2) return null;
+
+    if (pathSplit && (frontTrajectoryPx || tailTrajectoryPx)) {
+      return (
+        <>
+          {frontTrajectoryPx ? (
+            <polyline
+              points={frontTrajectoryPx}
+              stroke="#EAB308"
+              strokeWidth={1}
+              fill="none"
+              pointerEvents="none"
+            />
+          ) : null}
+          {tailTrajectoryPx ? (
+            <polyline
+              points={tailTrajectoryPx}
+              stroke="#ff4444"
+              strokeWidth={2}
+              fill="none"
+            />
+          ) : null}
+        </>
+      );
+    }
 
     const rgPoints = [];
     for (const pt of cushionPath) {
@@ -299,11 +430,24 @@ export default function ImpactLines({
           isStraight,
           isCurvePath: cushionPath.length > 2 && !isStraightLine(rgPoints),
           pointsStringLen: usedEffectivePolylinePoints.length,
+          curveDeformActive,
         },
         timestamp: Date.now(),
       }),
     }).catch(() => {});
     // #endregion
+
+    if (!curveDeformActive) {
+      return (
+        <polyline
+          points={usedEffectivePolylinePoints}
+          stroke="#ffffff"
+          strokeWidth={2}
+          fill="none"
+          pointerEvents="none"
+        />
+      );
+    }
 
     const isCurvePath = cushionPath.length > 2 && !isStraightLine(rgPoints);
     if (!isCurvePath) return null;
@@ -320,7 +464,7 @@ export default function ImpactLines({
 
   return (
     <>
-      {CO_line && C1_line && (
+      {curveDeformActive && CO_line && C1_line && (
         <line
           x1={toPx(CO_line, scale, tableH).x + padding}
           y1={toPx(CO_line, scale, tableH).y + padding}
@@ -367,7 +511,7 @@ export default function ImpactLines({
         />
       )}
 
-      {redPolyline}
+      {cushionTrajectoryPolyline}
     </>
   );
 }
