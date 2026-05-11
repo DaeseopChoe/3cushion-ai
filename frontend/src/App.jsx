@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
 import { useShotSlots } from "./hooks/useShotSlots";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
+import { angleSpinTargetRail } from "./domain/angleSpinCorrectionTarget";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
 import { convertThetaToClock } from "./utils/tipClockConverter";
@@ -105,6 +106,13 @@ import {
   deleteOldest30,
   updateSnapshotsExported,
 } from "./domain/workspaceHistory";
+
+// IMPORTANT:
+// Main app currently renders the LOCAL SysOverlay defined in this file.
+// admin/sys/SysOverlay.tsx is NOT used by main.jsx.
+// When modifying the SYS modal UI, edit the SysOverlay component inside App.jsx.
+// There are currently two SysOverlay implementations in the project.
+// Overlay modularization/refactor is planned after system stabilization.
 
 const { SCALE, TABLE_W_UNITS, TABLE_H_UNITS, TABLE_W, TABLE_H, PADDING } = TABLE_CONFIG;
 
@@ -641,6 +649,8 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
 
   const corrections = adminSys?.corrections ?? {};
   const unifiedSlide = unifiedSlideFromCorrections(corrections);
+  const p_spin = Number(corrections.spin) || 0;
+  const angleTilt = Number(corrections.curve_ratio) || 0;
 
   let hasAll;
   if (isFiveHalfSystemId(systemId)) {
@@ -692,8 +702,6 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
     );
   }
 
-  const p_spin = Number(corrections.spin) || 0;
-
   const snFor5Half =
     useSn && isFiveHalfSystemId(systemId)
       ? (() => {
@@ -711,9 +719,12 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
   const adjusted = { ...normalizedBase };
   if ("CO_f" in adjusted) adjusted.CO_f += unifiedSlide;
   if ("CO_r" in adjusted) adjusted.CO_r += unifiedSlide;
-  const pullSpin = (unifiedSlide < 0 ? -unifiedSlide : 0) + p_spin;
-  if ("C3_f" in adjusted) adjusted.C3_f -= pullSpin;
-  if ("C3_r" in adjusted) adjusted.C3_r -= pullSpin;
+  /* angleSpinTargetRail (domain/angleSpinCorrectionTarget): curve_ratio + spin → C3 only */
+  if (angleSpinTargetRail === "C3" && systemMode === "full_input") {
+    const c3AngleSpin = angleTilt + p_spin;
+    if ("C3_f" in adjusted) adjusted.C3_f += c3AngleSpin;
+    if ("C3_r" in adjusted) adjusted.C3_r += c3AngleSpin;
+  }
   ["C4_f", "C4_r", "C5_f", "C5_r", "C6_f", "C6_r"].forEach((k) => {
     if (k in adjusted) adjusted[k] += p_start;
   });
@@ -729,7 +740,13 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
     const CO_eff = Number(adj?.CO_f ?? base?.CO_f ?? 0);
     const c1 = Number((c1Key && base[c1Key]) ?? 0);
     effDisplayMap = { ...base, CO_f: CO_eff };
-    if (c3Key) effDisplayMap[c3Key] = CO_eff - c1;
+    if (c3Key) {
+      let c3Eff = CO_eff - c1;
+      if (angleSpinTargetRail === "C3") {
+        c3Eff += angleTilt + p_spin;
+      }
+      effDisplayMap[c3Key] = c3Eff;
+    }
   }
 
   const out = { ...mergedNums, ...finalCalc, ...effDisplayMap };
@@ -1061,9 +1078,10 @@ function SysOverlay({ data, onSave, onCancel }) {
     });
   }, [baseResultValue, baseResultKey, formData.system]);
 
-  // 물리 보정 매핑: signed unifiedSlide→CO_eff·CO_r(+음수); 음수 분량은 C3에 pullSpin+spin; p_start→C4/C5/C6
+  // 물리 보정: unifiedSlide→CO_eff만; curve_ratio+spin→C3( angleSpinTargetRail ); p_start→C4/C5/C6
   const formUnifiedSlide = unifiedSlideFromCorrections(formData.corrections);
   const p_spin = Number(formData.corrections.spin) || 0;
+  const formAngleTilt = Number(formData.corrections.curve_ratio) || 0;
   const snFor5Half = useMemo(() => {
     if (!useSnForSystem || !isFiveHalfSystemId(formData.system)) return null;
     const CO_base = Number(normalizedBasePayload.CO_f) || 0;
@@ -1082,10 +1100,11 @@ function SysOverlay({ data, onSave, onCancel }) {
     const adjusted = { ...normalizedBasePayload };
     if ("CO_f" in adjusted) adjusted.CO_f += formUnifiedSlide;
     if ("CO_r" in adjusted) adjusted.CO_r += formUnifiedSlide;
-    const pullSpin =
-      (formUnifiedSlide < 0 ? -formUnifiedSlide : 0) + p_spin;
-    if ("C3_f" in adjusted) adjusted.C3_f -= pullSpin;
-    if ("C3_r" in adjusted) adjusted.C3_r -= pullSpin;
+    if (angleSpinTargetRail === "C3" && systemMode === "full_input") {
+      const c3AngleSpin = formAngleTilt + p_spin;
+      if ("C3_f" in adjusted) adjusted.C3_f += c3AngleSpin;
+      if ("C3_r" in adjusted) adjusted.C3_r += c3AngleSpin;
+    }
     ["C4_f", "C4_r", "C5_f", "C5_r", "C6_f", "C6_r"].forEach((k) => {
       if (k in adjusted) adjusted[k] += p_start;
     });
@@ -1093,7 +1112,18 @@ function SysOverlay({ data, onSave, onCancel }) {
     const final = calculateByProfileExpr(expr, adjusted);
     const keys = Object.keys(final);
     return { adjustedInputs: adjusted, finalCalc: final, lhsKey: keys.length > 0 ? keys[0] : null };
-  }, [expr, hasAllInputs, normalizedBasePayload, formUnifiedSlide, p_spin, p_start, needsHP, needsAn]);
+  }, [
+    expr,
+    hasAllInputs,
+    normalizedBasePayload,
+    formUnifiedSlide,
+    p_spin,
+    formAngleTilt,
+    systemMode,
+    p_start,
+    needsHP,
+    needsAn,
+  ]);
 
   /** 표시용: full_input은 base 그대로, derived는 CO 보정 후 C3 = CO_eff − C1(base). */
   const effDisplayMap = useMemo(() => {
@@ -1106,9 +1136,24 @@ function SysOverlay({ data, onSave, onCancel }) {
     const CO_eff = Number(adj?.CO_f ?? base?.CO_f ?? 0);
     const c1 = Number((c1Key && base[c1Key]) ?? 0);
     const out = { ...base, CO_f: CO_eff };
-    if (c3Key) out[c3Key] = CO_eff - c1;
+    if (c3Key) {
+      let c3Eff = CO_eff - c1;
+      if (angleSpinTargetRail === "C3") {
+        c3Eff += formAngleTilt + p_spin;
+      }
+      out[c3Key] = c3Eff;
+    }
     return out;
-  }, [hasAllInputs, normalizedBasePayload, adjustedInputs, systemMode, c1Key, c3Key]);
+  }, [
+    hasAllInputs,
+    normalizedBasePayload,
+    adjustedInputs,
+    systemMode,
+    c1Key,
+    c3Key,
+    formAngleTilt,
+    p_spin,
+  ]);
 
   const snFor5HalfEffective = useMemo(() => {
     if (!useSnForSystem || !isFiveHalfSystemId(formData.system) || !hasAllInputs) return null;
@@ -1190,30 +1235,120 @@ function SysOverlay({ data, onSave, onCancel }) {
     return `${c1Key}_${fmtFiveHalfDisplayNum(c1)} = ${coKey}_${fmtFiveHalfDisplayNum(co)} - ${c3Key}_${fmtFiveHalfDisplayNum(c3)}`;
   }, [formData.system, hasAllInputs, normalizedBasePayload, coKey, c1Key, c3Key]);
 
-  /** 보정(effective): C1=CO−C3와 동일 방향, CO_eff는 adjusted CO, C3는 표시용으로 CO_eff−C1(저장/맵 로직 불변) */
-  const fiveHalfEffectiveDisplayLine = useMemo(() => {
-    if (!isFiveHalfSystemId(formData.system) || !hasAllInputs) return null;
-    if (!adjustedInputs || Object.keys(adjustedInputs).length === 0) return null;
-    const c1 = Number(normalizedBasePayload[c1Key]);
-    const coEff = Number(adjustedInputs[coKey]);
-    if (!Number.isFinite(coEff) || !Number.isFinite(c1)) return null;
-    const c3Eff = coEff - c1;
-    return `${c1Key}_${fmtFiveHalfDisplayNum(c1)} = CO_eff_${fmtFiveHalfDisplayNum(coEff)} - ${c3Key}_${fmtFiveHalfDisplayNum(c3Eff)}`;
-  }, [
-    formData.system,
-    hasAllInputs,
-    normalizedBasePayload,
-    adjustedInputs,
-    coKey,
-    c1Key,
-    c3Key,
-  ]);
-
   const effectiveFormulaLine = useMemo(() => {
     if (!displayExpr || !displayExpr.trim()) return null;
     if (!hasAllInputs) return null;
     return formatFormulaDisplay(displayExpr, effDisplayMap);
   }, [displayExpr, hasAllInputs, effDisplayMap]);
+
+  const hasSlideDraw = formUnifiedSlide !== 0;
+  const hasRailAngleSpin = formAngleTilt !== 0 || p_spin !== 0;
+  const hasManualDeparture =
+    !snFor5HalfEffective &&
+    Math.abs(Number(formData.corrections.departure) || 0) > 1e-9;
+  const hasAnyCorrection = hasSlideDraw || hasRailAngleSpin || hasManualDeparture;
+
+  /** 5½ derived: C3 after CO 슬라이드만 (레일 기울기·스핀 제외) */
+  const c3AfterSlideOnlyFiveHalf = useMemo(() => {
+    if (!isFiveHalfSystemId(formData.system) || !hasAllInputs || systemMode === "full_input") {
+      return null;
+    }
+    const coE = Number(adjustedInputs[coKey]);
+    const c1 = Number(normalizedBasePayload[c1Key]);
+    if (!Number.isFinite(coE) || !Number.isFinite(c1)) return null;
+    return coE - c1;
+  }, [
+    formData.system,
+    hasAllInputs,
+    systemMode,
+    adjustedInputs,
+    coKey,
+    c1Key,
+    normalizedBasePayload,
+  ]);
+
+  const eduStartCorrectionLine = useMemo(() => {
+    if (!hasSlideDraw || !hasAllInputs) return null;
+    const coBase = Number(normalizedBasePayload[coKey]);
+    const coEff = Number(adjustedInputs[coKey]);
+    if (!Number.isFinite(coBase) || !Number.isFinite(coEff)) return null;
+    const f = fmtFiveHalfDisplayNum;
+    if (formUnifiedSlide > 0) {
+      return `출발값 보정 : ${coKey}_${f(coBase)} + 밀림 ${f(formUnifiedSlide)} = ${coKey}_${f(coEff)}`;
+    }
+    return `출발값 보정 : ${coKey}_${f(coBase)} - 끌림 ${f(Math.abs(formUnifiedSlide))} = ${coKey}_${f(coEff)}`;
+  }, [
+    hasSlideDraw,
+    hasAllInputs,
+    normalizedBasePayload,
+    coKey,
+    adjustedInputs,
+    formUnifiedSlide,
+  ]);
+
+  const eduRailCorrectionLine = useMemo(() => {
+    if (!hasRailAngleSpin || !hasAllInputs || !c3Key) return null;
+    const c3Eff = Number(effDisplayMap[c3Key]);
+    if (!Number.isFinite(c3Eff)) return null;
+    const f = fmtFiveHalfDisplayNum;
+    let c3Mid;
+    if (isFiveHalfSystemId(formData.system) && systemMode !== "full_input" && c3AfterSlideOnlyFiveHalf != null) {
+      c3Mid = c3AfterSlideOnlyFiveHalf;
+    } else {
+      c3Mid = Number(normalizedBasePayload[c3Key]);
+    }
+    if (!Number.isFinite(c3Mid)) return null;
+    const parts = [`${c3Key}_${f(c3Mid)}`];
+    if (formAngleTilt !== 0) {
+      parts.push(
+        formAngleTilt > 0
+          ? `+ 기울기 ${f(formAngleTilt)}`
+          : `- 기울기 ${f(Math.abs(formAngleTilt))}`
+      );
+    }
+    if (p_spin !== 0) {
+      parts.push(p_spin > 0 ? `+ 스핀 ${f(p_spin)}` : `- 스핀 ${f(Math.abs(p_spin))}`);
+    }
+    return `3쿠션값 보정 : ${parts.join(" ")} = ${c3Key}_${f(c3Eff)}`;
+  }, [
+    hasRailAngleSpin,
+    hasAllInputs,
+    c3Key,
+    effDisplayMap,
+    normalizedBasePayload,
+    formAngleTilt,
+    p_spin,
+    formData.system,
+    systemMode,
+    c3AfterSlideOnlyFiveHalf,
+  ]);
+
+  const eduCorrectedFormulaLine = useMemo(() => {
+    if (!hasAnyCorrection || !hasAllInputs) return null;
+    if (isFiveHalfSystemId(formData.system) && (hasSlideDraw || hasRailAngleSpin)) {
+      const c1 = Number(normalizedBasePayload[c1Key]);
+      const coE = Number(effDisplayMap[coKey]);
+      const c3E = Number(effDisplayMap[c3Key]);
+      if (!Number.isFinite(c1) || !Number.isFinite(coE) || !Number.isFinite(c3E)) return null;
+      const f = fmtFiveHalfDisplayNum;
+      return `${c1Key}_${f(c1)} = ${coKey}_${f(coE)} - ${c3Key}_${f(c3E)}`;
+    }
+    if (!displayExpr || !displayExpr.trim()) return null;
+    return effectiveFormulaLine;
+  }, [
+    hasAnyCorrection,
+    hasAllInputs,
+    formData.system,
+    hasSlideDraw,
+    hasRailAngleSpin,
+    normalizedBasePayload,
+    c1Key,
+    coKey,
+    c3Key,
+    effDisplayMap,
+    displayExpr,
+    effectiveFormulaLine,
+  ]);
 
   return (
     <div
@@ -1222,7 +1357,7 @@ function SysOverlay({ data, onSave, onCancel }) {
         fontSize: '14px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
+        gap: '6px',
         flexWrap: 'wrap',
         maxHeight: '95vh',
         overflow: 'hidden',
@@ -1304,26 +1439,12 @@ function SysOverlay({ data, onSave, onCancel }) {
         </select>
       </div>
 
-      {/* [C] 계산 공식 표시 */}
-      <div
-        style={{
-          padding: '8px',
-          backgroundColor: '#f1f5f9',
-          borderRadius: '6px',
-          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-          fontSize: '13px',
-          border: '1px solid #e2e8f0'
-        }}
-      >
-        계산 공식 : {expr || "(공식 없음)"}
-      </div>
-
       {/* [D] 기준 입력값: flex-wrap, 폭 하드 지정 */}
       <div
         style={{
           display: 'flex',
           flexWrap: 'wrap',
-          gap: '10px',
+          gap: '6px',
           alignItems: 'center'
         }}
       >
@@ -1489,33 +1610,48 @@ function SysOverlay({ data, onSave, onCancel }) {
         </div>
       </div>
 
-      {/* [E] 기준 계산값 (이론값, 자동 계산만 / 연노랑) */}
+      {/* [C] 계산 공식 (입력 필드 아래) */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          flexWrap: 'wrap',
-          padding: '8px 10px',
-          backgroundColor: '#fff3bf',
+          padding: '6px 8px',
+          backgroundColor: '#f1f5f9',
           borderRadius: '6px',
-          fontWeight: '700',
-          fontSize: '13px',
           fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-          overflow: 'hidden',
-          minHeight: '36px'
+          fontSize: '13px',
+          border: '1px solid #e2e8f0'
         }}
       >
-        <span style={{ flex: '0 0 auto' }}>기준 계산값 :</span>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {isFiveHalfSystemId(formData.system) && fiveHalfBaseDisplayLine != null
-            ? fiveHalfBaseDisplayLine
-            : baseFormulaLine}
+        계산 공식 :{" "}
+        {isFiveHalfSystemId(formData.system) && systemMode !== "full_input"
+          ? "C1_f = CO_f - C3_r"
+          : (expr || "(공식 없음)")}
+      </div>
+
+      <div
+        style={{
+          padding: '6px 10px',
+          backgroundColor: '#f8fafc',
+          borderRadius: '6px',
+          border: '1px solid #e2e8f0',
+          fontSize: '15px',
+          color: '#0f172a',
+          fontWeight: 600,
+          lineHeight: 1.45,
+          wordBreak: 'keep-all'
+        }}
+      >
+        <span style={{ color: '#1e40af', fontWeight: 700 }}>[용어 설명]</span>
+        <span style={{ display: 'inline', marginLeft: '6px', letterSpacing: '0.04em' }}>
+          C1_f : 1쿠션 프레임 값
         </span>
+        <span style={{ color: '#94a3b8', margin: '0 10px', fontWeight: 400 }}>,</span>
+        <span style={{ letterSpacing: '0.04em' }}>CO_f : 출발 프레임 값</span>
+        <span style={{ color: '#94a3b8', margin: '0 10px', fontWeight: 400 }}>,</span>
+        <span style={{ letterSpacing: '0.04em' }}>C3_r : 3쿠션 레일 값</span>
       </div>
 
       {/* [E] 물리 보정: 밀림 · 끌림 · 기울기 · 스핀 · 출발값 보정 */}
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
         {[
           { key: 'slide', label: '밀림' },
           { key: 'draw', label: '끌림' },
@@ -1571,38 +1707,77 @@ function SysOverlay({ data, onSave, onCancel }) {
         })}
       </div>
 
-      {/* [F] 보정된 계산값 (effective) — 5&Half는 C1=CO−C3 고정 표기 */}
       <div
         style={{
-          padding: '8px 12px',
-          backgroundColor: '#d3f9d8',
-          borderRadius: '6px',
-          fontWeight: '700',
-          fontSize: '15px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          flexWrap: 'wrap',
-          overflow: 'hidden'
+          display: 'grid',
+          gridTemplateColumns:
+            hasAnyCorrection && eduCorrectedFormulaLine
+              ? 'repeat(2, minmax(0, 1fr))'
+              : 'minmax(0, 1fr)',
+          gap: '6px',
+          alignItems: 'stretch'
         }}
       >
-        <span style={{ flex: '0 0 auto' }}>보정된 계산값 :</span>
-        {isFiveHalfSystemId(formData.system) ? (
-          fiveHalfEffectiveDisplayLine != null ? (
-            <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {fiveHalfEffectiveDisplayLine}
-            </span>
-          ) : (
-            <span style={{ color: '#64748b' }}>—</span>
-          )
-        ) : effectiveFormulaLine != null ? (
-          <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {effectiveFormulaLine}
+        <div
+          style={{
+            padding: '6px 8px',
+            backgroundColor: '#fff3bf',
+            borderRadius: '6px',
+            border: '1px solid #fde68a',
+            fontSize: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px'
+          }}
+        >
+          <strong>기준 계산값</strong>
+          <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', lineHeight: 1.45 }}>
+            {isFiveHalfSystemId(formData.system) && fiveHalfBaseDisplayLine != null
+              ? fiveHalfBaseDisplayLine
+              : baseFormulaLine}
           </span>
-        ) : (
-          <span style={{ color: '#64748b' }}>—</span>
+        </div>
+
+        {hasAnyCorrection && eduCorrectedFormulaLine && (
+          <div
+            style={{
+              padding: '6px 8px',
+              backgroundColor: '#d3f9d8',
+              borderRadius: '6px',
+              border: '1px solid #86efac',
+              fontSize: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}
+          >
+            <strong>보정 계산값</strong>
+            <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', lineHeight: 1.45 }}>
+              {eduCorrectedFormulaLine}
+            </span>
+          </div>
         )}
       </div>
+
+      {hasAnyCorrection && (eduStartCorrectionLine || eduRailCorrectionLine) && (
+        <div
+          style={{
+            padding: '6px 8px',
+            backgroundColor: '#eff6ff',
+            borderRadius: '6px',
+            border: '1px solid #bfdbfe',
+            fontSize: '12px',
+            color: '#1e3a8a',
+            lineHeight: 1.45,
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+          }}
+        >
+          {eduStartCorrectionLine && (
+            <div style={{ marginBottom: eduRailCorrectionLine ? '4px' : 0 }}>{eduStartCorrectionLine}</div>
+          )}
+          {eduRailCorrectionLine && <div>{eduRailCorrectionLine}</div>}
+        </div>
+      )}
 
       {useSnForSystem && isFiveHalfSystemId(formData.system) && hasAllInputs && snFor5HalfEffective && (() => {
         const { Sn: Sn_eff, C4_f: C4_eff, CO_f: CO_used, C3_r: C3_used } = snFor5HalfEffective;
@@ -1611,28 +1786,32 @@ function SysOverlay({ data, onSave, onCancel }) {
           if (Number.isNaN(x)) return "0";
           return x % 1 === 0 ? String(Math.round(x)) : String(Math.round(x * 10) / 10);
         };
+        const c3Label = c3Key || "C3_r";
+        const coLabel = coKey || "CO_f";
+        const signMid = Sn_eff >= 0 ? "+" : "−";
+        const midAbs = fmt(Math.abs(Sn_eff));
         return (
           <div
             style={{
-              marginTop: "12px",
-              padding: "12px 16px",
+              marginTop: "4px",
+              padding: "6px 10px",
               backgroundColor: "#f0fdf4",
               borderRadius: "6px",
               border: "1px solid #bbf7d0",
-              fontSize: "13px",
-              lineHeight: "1.7",
+              fontSize: "12px",
+              lineHeight: 1.5,
               fontFamily: 'Consolas, Monaco, "Courier New", monospace',
               color: "#166534",
             }}
           >
-            <div style={{ fontWeight: "700", fontSize: "16px", marginBottom: "10px" }}>
-              최종 도착값: C4_f = C5_f = C6_f = {fmt(C4_eff)}
+            <div style={{ fontWeight: "700", fontSize: "14px", marginBottom: "4px" }}>
+              4쿠션 도착값 : {fmt(C4_eff)}
             </div>
             <div>
-              C4_f = C3_r_{fmt(C3_used)} + Sn_{fmt(Sn_eff)} = C4_f_{fmt(C4_eff)}
+              4쿠션 도착값 : {c3Label}_{fmt(C3_used)} {signMid} {midAbs} = {fmt(C4_eff)}
             </div>
-            <div style={{ marginTop: "6px" }}>
-              Sn = (CO_eff_{fmt(CO_used)} - 50) × 0.5 = Sn_{fmt(Sn_eff)}
+            <div style={{ marginTop: "4px" }}>
+              출발값 보정 계산 : ({coLabel}_{fmt(CO_used)} - 50) × 0.5 = {fmt(Sn_eff)}
             </div>
           </div>
         );
@@ -5530,6 +5709,8 @@ function handlePointerCancel(e) {
   // #endregion
 
   let cushionPathAttrBase = null;
+  /** Base Line ON 시 궤적 소스 — slide/draw/curve/spin 0·Sn 유지 슬롯과 동일 레일 교점 열 */
+  let cushionPathBaselineRg = null;
   if (anchorsBase && CO_path0_base && C1_rail_base) {
     const C3_anchor_b = anchorsBase["C3"];
     const C3_prep_b = resolveAnchorPoint(normalizeAnchor(C3_anchor_b), resolveAnchorCtx);
@@ -5598,22 +5779,8 @@ function handlePointerCancel(e) {
       C6_path_b,
     ];
 
-    let pathEndIndexBase = 3;
-    if (secondPoint) {
-      const postC3SegmentsB = [
-        [pathNodesBase[3], pathNodesBase[4]],
-        [pathNodesBase[4], pathNodesBase[5]],
-        [pathNodesBase[5], pathNodesBase[6]],
-      ];
-      for (let i = 0; i < postC3SegmentsB.length; i++) {
-        const [A, B] = postC3SegmentsB[i];
-        if (!A || !B) continue;
-        if (isSegmentHitBall(A, B, secondPoint, HIT_TOLERANCE)) {
-          pathEndIndexBase = 4 + i;
-          break;
-        }
-      }
-    }
+    /** 기준선 표시 정책: 세컨드볼·C5/C6 확장 없이 CO→C4(인덱스 0~4)까지만 */
+    const pathEndIndexBase = 4;
 
     const cushionPathBase = [];
     for (let i = 0; i <= pathEndIndexBase && i < pathNodesBase.length; i++) {
@@ -5622,6 +5789,7 @@ function handlePointerCancel(e) {
       cushionPathBase.push(p);
     }
 
+    cushionPathBaselineRg = cushionPathBase;
     cushionPathAttrBase = cushionPathBase
       .map((pt) => {
         const p = toPx(pt, SCALE, TABLE_H);
@@ -5633,9 +5801,13 @@ function handlePointerCancel(e) {
   const orderedKeys = ["CO", "C1", "C2", "C3", "C4", "C5", "C6"];
   // NOTE: 라벨 미표시 원인 구분용 — 현재는 좌표계 이슈와 별개로
   // visibleKeysForLabels(cushionPath 길이 기반) 정책이 먼저 라벨 대상을 제한한다.
+  const labelPathLengthForKeys =
+    showBaseLine && cushionPathBaselineRg?.length
+      ? cushionPathBaselineRg.length
+      : cushionPath.length;
   const visibleKeysForLabels = orderedKeys.slice(
     0,
-    Math.min(cushionPath.length, orderedKeys.length)
+    Math.min(labelPathLengthForKeys, orderedKeys.length)
   );
 
   // SystemValueLabels는 data.coord.{x,y}를 기대. anchorLookupEngine 형태 { coord, valueSpace }는 그대로 두고, plain {x,y}(예: reflection C2)만 감싼다. 좌표 숫자는 변경하지 않음.
@@ -5661,14 +5833,37 @@ function handlePointerCancel(e) {
   };
 
   // 노란점(라벨): resolveAnchorPoint·anchor 원본 좌표 유지 (FG/RG 변환 없음). 궤적은 cushionPath·computeRailImpactPoint 쪽에서 레일 교점 유지.
+  const blKeysForLabels = ["CO", "C1", "C2", "C3"];
+  const fromBaselinePath =
+    showBaseLine &&
+    cushionPathBaselineRg &&
+    cushionPathBaselineRg.length > 0 &&
+    anchorsBase
+      ? Object.fromEntries(
+          blKeysForLabels
+            .map((k, i) => {
+              const pt = cushionPathBaselineRg[i];
+              if (pt == null || !Number.isFinite(pt.x) || !Number.isFinite(pt.y))
+                return [k, null];
+              return [k, { coord: { x: pt.x, y: pt.y } }];
+            })
+            .filter(([, v]) => v != null)
+        )
+      : null;
   const allAnchors = {
-    CO: labelPayload(override.CO) ?? labelPayload(CO_prep),
-    "C1": labelPayload(C1_prep),
-    "C2": labelPayload(C2),
-    "C3": labelPayload(C3_label ?? anchors["C3"]),
-    "C4": labelPayload(C4),
-    "C5": labelPayload(C5),
-    "C6": labelPayload(C6),
+    CO:
+      (fromBaselinePath && fromBaselinePath.CO) ??
+      labelPayload(override.CO) ??
+      labelPayload(CO_prep),
+    "C1":
+      (fromBaselinePath && fromBaselinePath["C1"]) ?? labelPayload(C1_prep),
+    "C2": (fromBaselinePath && fromBaselinePath["C2"]) ?? labelPayload(C2),
+    "C3":
+      (fromBaselinePath && fromBaselinePath["C3"]) ??
+      labelPayload(C3_label ?? anchors["C3"]),
+    "C4": labelPayload(showBaseLine && anchorsBase ? anchorsBase["C4"] : C4),
+    "C5": labelPayload(showBaseLine && anchorsBase ? anchorsBase["C5"] : C5),
+    "C6": labelPayload(showBaseLine && anchorsBase ? anchorsBase["C6"] : C6),
   };
   const trackAnchorItems =
     getAnchorsForSystem(systemIdForGrid)?.trajectories?.[trackForAnchors]?.anchors ?? [];
@@ -5691,26 +5886,6 @@ function handlePointerCancel(e) {
       value,
     });
   });
-  // #region agent log
-  console.log("[STEP1] labelAnchorsForRaw:", labelAnchorsForRaw);
-  fetch("/__debug/ingest", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      hypothesisId: "STEP1",
-      location: "App.jsx:labelAnchorsForRaw",
-      message: "STEP1 labelAnchorsForRaw built",
-      data: {
-        keys: Object.keys(labelAnchorsForRaw),
-        isEmpty: Object.keys(labelAnchorsForRaw).length === 0,
-        sampleArrays: Object.fromEntries(
-          Object.entries(labelAnchorsForRaw).map(([k, v]) => [k, Array.isArray(v)])
-        ),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   console.log("[ANCHOR_BEFORE_RENDER]", {
     stage: "App:allAnchors",
     rawAnchors,
@@ -5749,33 +5924,30 @@ function handlePointerCancel(e) {
 
   const canEditPosition = !isPositionLocked;
 
-  const systemValuesForLabels = canEdit
-    ? (resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
-        ? resolvedSlotSysValues
-        : (system?.values ?? {}))
-    : (system?.values ?? {});
+  const systemValuesForLabels =
+    showBaseLine &&
+    canEdit &&
+    resolvedSlotBaseSysValues &&
+    typeof resolvedSlotBaseSysValues === "object" &&
+    Object.keys(resolvedSlotBaseSysValues).length > 0
+      ? resolvedSlotBaseSysValues
+      : canEdit
+        ? (resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
+            ? resolvedSlotSysValues
+            : (system?.values ?? {}))
+        : (system?.values ?? {});
   const labelStrategy =
     systemIdForGrid === "5_half_system"
       ? "five_half_reference"
       : "anchor_ssot";
 
-  // #region agent log
-  console.log("[STEP2] props.labelAnchors:", labelAnchorsForRaw);
-  fetch("/__debug/ingest", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      hypothesisId: "STEP2",
-      location: "App.jsx:before tableSVG",
-      message: "STEP2 props passed to SystemValueLabels",
-      data: {
-        labelAnchorsForRawKeys: Object.keys(labelAnchorsForRaw),
-        isUndefined: labelAnchorsForRaw === undefined,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
+  const cushionPathForTableImpact =
+    showBaseLine &&
+    Array.isArray(cushionPathBaselineRg) &&
+    cushionPathBaselineRg.length >= 2
+      ? cushionPathBaselineRg
+      : cushionPathForImpactLines;
+  const curveDeformActiveForImpact = showBaseLine ? false : useCurveDeform;
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
@@ -5798,17 +5970,19 @@ function handlePointerCancel(e) {
         CO_line={CO_line}
         C1_line={C1_line}
         CO_corrected_line={null}
-        cushionPath={cushionPathForImpactLines}
+        cushionPath={cushionPathForTableImpact}
         impactSplitRg={
-          impact &&
-          Number.isFinite(impact.x) &&
-          Number.isFinite(impact.y)
-            ? impact
-            : impactContactRg
+          showBaseLine
+            ? null
+            : impact &&
+                Number.isFinite(impact.x) &&
+                Number.isFinite(impact.y)
+              ? impact
+              : impactContactRg
         }
         cushionPathAttrBase={cushionPathAttrBase}
         anchorsBase={anchorsBase}
-        curveDeformActive={useCurveDeform}
+        curveDeformActive={curveDeformActiveForImpact}
         showBaseLine={showBaseLine}
         scale={SCALE}
         tableH={TABLE_H}
@@ -6296,7 +6470,7 @@ function handlePointerCancel(e) {
                 color: showBaseLine ? "#1f2937" : "white",
               }}
             >
-              Base Line
+              기준선
             </button>
             <button
               type="button"

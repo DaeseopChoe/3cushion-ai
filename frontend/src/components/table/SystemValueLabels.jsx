@@ -115,43 +115,12 @@ function renderRawLabelAnchors(
   padding,
   labelStrategy
 ) {
-  // #region agent log
-  console.log("[STEP4] renderRawLabelAnchors called", labelAnchors);
-  fetch("/__debug/ingest", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      hypothesisId: "STEP4",
-      location: "SystemValueLabels.jsx:renderRawLabelAnchors",
-      message: "STEP4 entry",
-      data: {
-        hasLabelAnchors: labelAnchors != null,
-        keys: labelAnchors ? Object.keys(labelAnchors) : [],
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   if (!labelAnchors) return null;
 
   const applyCushionNudges = true;
   const nodes = [];
 
   Object.entries(labelAnchors).forEach(([label, item]) => {
-    // #region agent log
-    console.log("[STEP5] label loop:", label, item);
-    fetch("/__debug/ingest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        hypothesisId: "STEP5",
-        location: "SystemValueLabels.jsx:renderRawLabelAnchors forEach",
-        message: "STEP5 label loop",
-        data: { label, isArray: Array.isArray(item) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     let fillColor = "#FFD700";
     if (label === "C4") fillColor = "#00E5FF";
     if (label === "C5") fillColor = "#FF4D6D";
@@ -219,25 +188,6 @@ export default function SystemValueLabels({
 }) {
   if (!outputs?.result) return null;
 
-  // #region agent log
-  console.log("[STEP3] SystemValueLabels mounted", {
-    labelAnchors,
-  });
-  fetch("/__debug/ingest", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      hypothesisId: "STEP3",
-      location: "SystemValueLabels.jsx:component",
-      message: "STEP3 render",
-      data: {
-        labelAnchorsKeys: labelAnchors ? Object.keys(labelAnchors) : null,
-        labelAnchorsUndefined: labelAnchors === undefined,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   const renderProps = {
     scale,
     tableH,

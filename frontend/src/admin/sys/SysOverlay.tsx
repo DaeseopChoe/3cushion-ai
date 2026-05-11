@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from "react";
 import { useSysCalculation, getInputTokensFromExpr } from "./useSysCalculation";
 import { SYSTEM_PROFILES } from "../../data/systems";
+import { angleSpinTargetRail } from "../../domain/angleSpinCorrectionTarget";
 
 /** 정수 출력 (포맷 표준) */
 function formatResultNum(n: number): number {
@@ -117,6 +118,7 @@ interface SysOverlayState {
     slide: number;
     draw: number;
     departure: number;
+    spin: number;
   };
 }
 
@@ -166,7 +168,7 @@ function normalizeSlideDrawForState(
   return { slide, draw };
 }
 
-/** 보정값을 systemValues에 반영 (signed unifiedSlide→CO_eff; 음수 시 pullSpin으로 C3도 동일 규모 보정 — App.jsx와 동일) */
+/** 보정값을 systemValues에 반영 — slide/draw→CO만; curve_ratio+spin→C3( angleSpinTargetRail ) (App buildSlot과 동일 규약) */
 function applyCorrections(
   values: Record<string, number>,
   corrections: SysOverlayState["corrections"]
@@ -175,13 +177,14 @@ function applyCorrections(
   const unified = unifiedSlideFromCorrections(corrections);
   if ("CO_f" in out) out.CO_f = (out.CO_f ?? 0) + unified;
   if ("CO_r" in out) out.CO_r = (out.CO_r ?? 0) + unified;
-  const pullSpin = unified < 0 ? -unified : 0;
-  if (pullSpin !== 0) {
-    if ("C3_f" in out) out.C3_f = (out.C3_f ?? 0) - pullSpin;
-    if ("C3_r" in out) out.C3_r = (out.C3_r ?? 0) - pullSpin;
-  }
-  if (corrections.curve_ratio !== 0) {
-    if ("CO_f" in out) out.CO_f = (out.CO_f ?? 0) + corrections.curve_ratio;
+  const angleTilt = Number(corrections.curve_ratio) || 0;
+  const spinCorr = Number(corrections.spin) || 0;
+  if (angleSpinTargetRail === "C3") {
+    const c3Delta = angleTilt + spinCorr;
+    if (c3Delta !== 0) {
+      if ("C3_f" in out) out.C3_f = (out.C3_f ?? 0) + c3Delta;
+      if ("C3_r" in out) out.C3_r = (out.C3_r ?? 0) + c3Delta;
+    }
   }
   if (corrections.departure !== 0) {
     if ("C4_f" in out) out.C4_f = (out.C4_f ?? 0) + corrections.departure;
@@ -243,6 +246,7 @@ export function SysOverlay({
     corrections: {
       curve_ratio: initial?.corrections?.curve_ratio || 0,
       departure: initial?.corrections?.departure || 0,
+      spin: initial?.corrections?.spin || 0,
       ...normalizeSlideDrawForState(initial?.corrections),
     },
   });
@@ -311,6 +315,12 @@ export function SysOverlay({
   const hasResult = output && Object.keys(output).length > 0;
   const hasBase = base && Object.keys(base).length > 0;
   const eff = effective ?? output;
+  const displayCalc = eff ?? output ?? {};
+  const hasStartCorrection =
+    Number(sysState.corrections.slide) !== 0 || Number(sysState.corrections.draw) !== 0;
+  const hasRailCorrection =
+    Number(sysState.corrections.curve_ratio) !== 0 || Number(sysState.corrections.spin) !== 0;
+  const hasAnyCorrection = hasStartCorrection || hasRailCorrection;
 
   function updateSystemId(systemId: string) {
     const nextProfileKey = PROFILE_KEY_MAP[systemId] ?? systemId;
@@ -351,6 +361,8 @@ export function SysOverlay({
         c.slide = 0;
       } else if (key === "curve_ratio") {
         c.curve_ratio = fin;
+      } else if (key === "spin") {
+        c.spin = fin;
       } else if (key === "departure") {
         c.departure = fin;
       }
@@ -395,8 +407,8 @@ export function SysOverlay({
       style={{
         minWidth: "520px",
         maxWidth: "90vw",
-        width: "560px",
-        padding: "24px",
+        width: "620px",
+        padding: "18px",
         backgroundColor: "#ffffff",
         borderRadius: "12px",
         boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)",
@@ -408,7 +420,7 @@ export function SysOverlay({
         style={{
           fontSize: "20px",
           fontWeight: "600",
-          marginBottom: "24px",
+          marginBottom: "16px",
           color: "#1f2937",
         }}
       >
@@ -482,36 +494,7 @@ export function SysOverlay({
         </select>
       </div>
 
-      <div style={{ marginBottom: "16px" }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: "14px",
-            fontWeight: "500",
-            marginBottom: "8px",
-            color: "#374151",
-          }}
-        >
-          계산 공식
-        </label>
-        <div
-          style={{
-            padding: "12px 16px",
-            backgroundColor: "#e5e7eb",
-            borderRadius: "6px",
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: "15px",
-            fontWeight: "600",
-            color: "#1f2937",
-            textAlign: "center",
-            letterSpacing: "1px",
-          }}
-        >
-          {formulaExpr || "-"}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: "16px" }}>
+      <div style={{ marginBottom: "12px" }}>
         <label
           style={{
             display: "block",
@@ -525,7 +508,7 @@ export function SysOverlay({
         </label>
         <div
           style={{
-            padding: "12px 16px",
+            padding: "10px 12px",
             backgroundColor: "#f9fafb",
             borderRadius: "8px",
             border: "1px solid #e5e7eb",
@@ -567,8 +550,8 @@ export function SysOverlay({
       {displayTokens.length > 0 && (
         <div
           style={{
-            marginBottom: "16px",
-            padding: "20px",
+            marginBottom: "10px",
+            padding: "12px",
             backgroundColor: "#f9fafb",
             borderRadius: "8px",
             border: "1px solid #e5e7eb",
@@ -578,13 +561,20 @@ export function SysOverlay({
             style={{
               fontSize: "16px",
               fontWeight: "600",
-              marginBottom: "16px",
+              marginBottom: "10px",
               color: "#1f2937",
             }}
           >
             시스템값 입력
           </h3>
-          {displayTokens.map((token) => {
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "8px",
+            }}
+          >
+            {displayTokens.map((token) => {
             const editable = isTokenUserEditable(token, sysState.inputBasis);
             const raw = sysState.systemValues[token];
             const def = displayDefaults[token] ?? 0;
@@ -594,7 +584,7 @@ export function SysOverlay({
               ? userVal
               : normalizedSystemValues[token] ?? userVal;
             return (
-              <div key={token} className="input-group" style={{ marginBottom: "14px" }}>
+              <div key={token} className="input-group" style={{ marginBottom: 0 }}>
                 <label
                   style={{
                     display: "block",
@@ -627,22 +617,59 @@ export function SysOverlay({
                 />
               </div>
             );
-          })}
+            })}
+          </div>
         </div>
       )}
+
+      <div style={{ marginBottom: "8px" }}>
+        <div
+          style={{
+            padding: "9px 12px",
+            backgroundColor: "#eef2ff",
+            borderRadius: "6px",
+            border: "1px solid #dbeafe",
+            fontSize: "16px",
+            fontWeight: "600",
+            color: "#1e3a8a",
+            lineHeight: "1.6",
+          }}
+        >
+          계산 공식 : C1_f = CO_f - C3_r
+        </div>
+      </div>
+
+      <div style={{ marginBottom: "10px" }}>
+        <div
+          style={{
+            padding: "8px 12px",
+            backgroundColor: "#f8fafc",
+            borderRadius: "6px",
+            border: "1px solid #e2e8f0",
+            fontSize: "15px",
+            lineHeight: "1.5",
+            color: "#334155",
+            letterSpacing: "0.2px",
+            whiteSpace: "normal",
+            wordBreak: "keep-all",
+          }}
+        >
+          [용어 설명] C1_f : 1쿠션 프레임 값   ,   CO_f : 출발 프레임 값   ,   C3_r : 3쿠션 레일 값
+        </div>
+      </div>
 
       {/* 보정값 */}
       <div
         style={{
-          marginTop: "24px",
-          marginBottom: "24px",
-          padding: "20px",
+          marginTop: "8px",
+          marginBottom: "10px",
+          padding: "10px 12px",
           backgroundColor: "#f9fafb",
           borderRadius: "8px",
           border: "1px solid #e5e7eb",
         }}
       >
-        <div style={{ marginBottom: "16px" }}>
+        <div style={{ marginBottom: "8px" }}>
           <label
             style={{
               display: "block",
@@ -654,7 +681,7 @@ export function SysOverlay({
           >
             보정 방식
           </label>
-          <div style={{ fontSize: "14px", color: "#374151" }}>
+          <div style={{ fontSize: "14px", color: "#374151", lineHeight: "1.4" }}>
             <label style={{ display: "block", marginBottom: "6px", cursor: "pointer" }}>
               <input
                 type="radio"
@@ -677,29 +704,33 @@ export function SysOverlay({
         </div>
         <h3
           style={{
-            fontSize: "16px",
+            fontSize: "15px",
             fontWeight: "600",
-            marginBottom: "16px",
+            marginBottom: "8px",
             color: "#1f2937",
           }}
         >
           보정값
         </h3>
-        {(
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "8px",
+          }}
+        >
+          {(
           [
             ["slide", "Slide (밀림)"],
             ["draw", "Draw (끌림)"],
             ["curve_ratio", "Curve (기울기)"],
+            ["spin", "Spin (스핀)"],
             ["departure", "Departure (출발값 보정)"],
           ] as const
-        ).map(([key, label]) => {
-          const isDeparture = key === "departure";
-          const displayValue =
-            isDeparture && eff?.Sn !== undefined
-              ? eff.Sn
-              : sysState.corrections[key];
+          ).map(([key, label]) => {
+          const displayValue = sysState.corrections[key];
           return (
-          <div key={key} className="input-group" style={{ marginBottom: "14px" }}>
+          <div key={key} className="input-group" style={{ marginBottom: 0 }}>
             <label
               style={{
                 display: "block",
@@ -714,11 +745,7 @@ export function SysOverlay({
             <input
               type="number"
               value={displayValue}
-              readOnly={isDeparture && eff?.Sn !== undefined}
-              onChange={(e) =>
-                !(isDeparture && eff?.Sn !== undefined) &&
-                updateCorrection(key, Number(e.target.value))
-              }
+              onChange={(e) => updateCorrection(key, Number(e.target.value))}
               step="0.5"
               style={{
                 width: "100%",
@@ -732,16 +759,15 @@ export function SysOverlay({
             />
           </div>
           );
-        })}
+          })}
+        </div>
       </div>
 
-      {/* 기준 계산값 (보정 전) */}
       {hasBase && (
         <div
-          className="result-section-base"
           style={{
-            marginTop: "24px",
-            padding: "20px",
+            marginTop: "6px",
+            padding: "10px 12px",
             backgroundColor: "#f8fafc",
             borderRadius: "8px",
             border: "1px solid #cbd5e1",
@@ -749,20 +775,20 @@ export function SysOverlay({
         >
           <h3
             style={{
-              fontSize: "16px",
+              fontSize: "15px",
               fontWeight: "600",
-              marginBottom: "16px",
+              marginBottom: "8px",
               color: "#334155",
             }}
           >
-            기준 계산값 (미저장)
+            기준 계산값
           </h3>
           <div
             className="formula-display"
             style={{
-              fontSize: "15px",
-              lineHeight: "1.8",
-              padding: "12px 16px",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              padding: "8px 10px",
               backgroundColor: "#ffffff",
               borderRadius: "6px",
               border: "1px solid #e2e8f0",
@@ -777,13 +803,45 @@ export function SysOverlay({
         </div>
       )}
 
-      {/* 보정 적용 결과 (effective) */}
-      {hasResult && (
+      {hasResult && hasAnyCorrection && (
         <div
-          className="result-section"
           style={{
-            marginTop: "24px",
-            padding: "20px",
+            marginTop: "8px",
+            padding: "9px 11px",
+            backgroundColor: "#eff6ff",
+            borderRadius: "8px",
+            border: "1px solid #bfdbfe",
+            fontSize: "14px",
+            lineHeight: "1.45",
+            color: "#1e3a8a",
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+          }}
+        >
+          {hasStartCorrection && (
+            <div style={{ marginBottom: hasRailCorrection ? "4px" : 0 }}>
+              출발값 보정 : CO_f_{formatDepartureNum(base?.CO_f ?? 0)} +{" "}
+              {formatDepartureNum(unifiedSlideFromCorrections(sysState.corrections))} = CO_f_
+              {formatDepartureNum(displayCalc.CO_f ?? 0)}
+            </div>
+          )}
+          {hasRailCorrection && (
+            <div>
+              3쿠션값 보정 : C3_r_{formatDepartureNum(base?.C3_r ?? 0)} +{" "}
+              {formatDepartureNum(
+                (Number(sysState.corrections.curve_ratio) || 0) +
+                  (Number(sysState.corrections.spin) || 0)
+              )}{" "}
+              = C3_r_{formatDepartureNum(displayCalc.C3_r ?? 0)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {hasResult && hasAnyCorrection && (
+        <div
+          style={{
+            marginTop: "8px",
+            padding: "10px 12px",
             backgroundColor: "#eff6ff",
             borderRadius: "8px",
             border: "1px solid #bfdbfe",
@@ -791,20 +849,20 @@ export function SysOverlay({
         >
           <h3
             style={{
-              fontSize: "16px",
+              fontSize: "15px",
               fontWeight: "600",
-              marginBottom: "16px",
+              marginBottom: "8px",
               color: "#1e40af",
             }}
           >
-            보정 적용 결과 (미저장)
+            보정 계산값
           </h3>
           <div
             className="formula-display"
             style={{
-              fontSize: "15px",
-              lineHeight: "1.8",
-              padding: "12px 16px",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              padding: "8px 10px",
               backgroundColor: "#ffffff",
               borderRadius: "6px",
               border: "1px solid #dbeafe",
@@ -814,7 +872,7 @@ export function SysOverlay({
               textAlign: "center",
             }}
           >
-            {formatFormulaDisplay(expr, eff)}
+            {formatFormulaDisplay(expr, displayCalc)}
           </div>
         </div>
       )}
@@ -836,33 +894,32 @@ export function SysOverlay({
         </div>
       )}
 
-      {hasResult &&
-        eff?.Sn !== undefined &&
-        eff?.C4_f !== undefined && (
+      {hasResult && displayCalc?.C4_f !== undefined && (
           <div
             className="departure-correction"
             style={{
-              marginTop: "24px",
-              padding: "12px 16px",
+              marginTop: "8px",
+              padding: "10px 12px",
               backgroundColor: "#f0fdf4",
               borderRadius: "6px",
               border: "1px solid #bbf7d0",
-              fontSize: "14px",
-              lineHeight: "1.8",
+              fontSize: "15px",
+              lineHeight: "1.5",
               fontFamily: 'Consolas, Monaco, "Courier New", monospace',
               color: "#166534",
             }}
           >
-            <div style={{ fontWeight: "700", fontSize: "16px", marginBottom: "10px" }}>
-              최종 도착값 : {formatDepartureNum(eff.C4_f)}
+            <div style={{ marginBottom: "4px", fontWeight: "600" }}>
+              4쿠션 도착값 : {formatDepartureNum(displayCalc.C4_f)}
+            </div>
+            <div style={{ marginBottom: "4px" }}>
+              출발값 보정 계산 : (CO_f_{formatDepartureNum(displayCalc.CO_f ?? 0)} - 50) × 0.5 ={" "}
+              {formatDepartureNum((Number(displayCalc.CO_f ?? 0) - 50) * 0.5)}
             </div>
             <div>
-              C4_f = C5_f = C6_f = C3_r_{formatDepartureNum(eff.C3_r ?? 0)} + Sn_
-              {formatDepartureNum(eff.Sn)} = C4_f_{formatDepartureNum(eff.C4_f)}
-            </div>
-            <div style={{ marginTop: "6px" }}>
-              Sn = (CO_f_{formatDepartureNum(eff.CO_f ?? 0)} - 50) × 0.5 = Sn_
-              {formatDepartureNum(eff.Sn)}
+              4쿠션 도착값 : C3_r_{formatDepartureNum(displayCalc.C3_r ?? 0)} -{" "}
+              {formatDepartureNum((Number(displayCalc.CO_f ?? 0) - 50) * 0.5)} ={" "}
+              {formatDepartureNum(displayCalc.C4_f)}
             </div>
           </div>
         )}
@@ -873,8 +930,8 @@ export function SysOverlay({
           display: "flex",
           gap: "12px",
           justifyContent: "flex-end",
-          marginTop: "28px",
-          paddingTop: "20px",
+          marginTop: "14px",
+          paddingTop: "12px",
           borderTop: "1px solid #e5e7eb",
         }}
       >
