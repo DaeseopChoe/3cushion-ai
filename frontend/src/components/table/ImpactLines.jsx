@@ -438,11 +438,12 @@ export default function ImpactLines({
     // #endregion
 
     if (!curveDeformActive) {
+      const whiteStrokeWidth = showBaseLine ? 1 : 2;
       return (
         <polyline
           points={usedEffectivePolylinePoints}
           stroke="#ffffff"
-          strokeWidth={2}
+          strokeWidth={whiteStrokeWidth}
           fill="none"
           pointerEvents="none"
         />
@@ -474,7 +475,7 @@ export default function ImpactLines({
           strokeWidth={1}
         />
       )}
-      {CO_corrected_line && C1_line && (
+      {CO_corrected_line && C1_line && !showBaseLine && (
         <line
           x1={toPx(CO_corrected_line, scale, tableH).x + padding}
           y1={toPx(CO_corrected_line, scale, tableH).y + padding}

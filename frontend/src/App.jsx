@@ -95,17 +95,7 @@ import { recallPosition, runPositionRecall } from "./domain/positionRecallEngine
 import { makeSignatureKey } from "./domain/search/signatureKey";
 import { initFileHandle, saveToFile } from "./domain/fileService";
 import { getAnchorsForSystem } from "./data/systems/anchorsRegistry";
-import {
-  generateUUID,
-  getNextVersion,
-  buildSnapshotName,
-  loadWorkspaceHistory,
-  saveWorkspaceHistory,
-  findSnapshotById,
-  deleteSnapshotById,
-  deleteOldest30,
-  updateSnapshotsExported,
-} from "./domain/workspaceHistory";
+import { useSettings } from "./hooks/useSettings";
 
 // IMPORTANT:
 // Main app currently renders the LOCAL SysOverlay defined in this file.
@@ -3329,6 +3319,33 @@ export default function App({
     }
   });
 
+  const {
+    workspaceHistory,
+    showHistoryModal,
+    setShowHistoryModal,
+    handleSaveWorkspaceSnapshot,
+    handleLoadWorkspaceSnapshot,
+    handleDeleteWorkspaceSnapshot,
+    handleDeleteOldest30,
+    handleExportSnapshots,
+  } = useSettings({
+    canUseSystemControls,
+    adminState,
+    ballsState,
+    dataset,
+    shotEditor,
+    targetColor,
+    actions,
+    setAdminState,
+    setBallsState,
+    setDataset,
+    setIsSaved,
+    setIsRecalled,
+    setIsPositionLocked,
+    setTargetColor,
+    setIsTargetSelected,
+  });
+
   /** SYS에서 계산된 HP_n 결과 임시 저장 (HP/T 열릴 때만 반영, UI 동기화용) */
   const [sysHpNResult, setSysHpNResult] = useState(null);
 
@@ -3786,15 +3803,6 @@ export default function App({
     alert("저장 완료");
   }
 
-  // Workspace History: 스냅샷 생성 및 저장
-  const [workspaceHistoryVersion, setWorkspaceHistoryVersion] = useState(0);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [exportDirHandle, setExportDirHandle] = useState(null);
-  const workspaceHistory = useMemo(
-    () => loadWorkspaceHistory(),
-    [workspaceHistoryVersion]
-  );
-
   function handleTogglePositionLock() {
     if (isPositionLocked) {
       setIsPositionLocked(false);
@@ -3833,184 +3841,6 @@ export default function App({
         );
       }
     }
-  }
-
-  function handleSaveWorkspaceSnapshot(silent = false) {
-    if (!canUseSystemControls) {
-      if (!silent) alert("Position LOCK 및 Target 확정 후 저장할 수 있습니다.");
-      return;
-    }
-    const systemId = adminState?.sys?.system_id ?? adminState?.sys?.system ?? "5_half_system";
-    if (!systemId || systemId === "null") {
-      alert("시스템을 선택하세요 (SYS 설정)");
-      return;
-    }
-    const pattern = adminState?.sys?.shotType ?? "뒤돌리기";
-    const history = loadWorkspaceHistory();
-    const version = getNextVersion(history, systemId, pattern);
-    const timestamp = new Date().toISOString();
-    const name = buildSnapshotName(pattern, systemId, version, timestamp);
-    const snapshot = {
-      id: generateUUID(),
-      name,
-      systemId,
-      pattern,
-      version,
-      timestamp,
-      exported: false,
-      state: {
-        adminState: JSON.parse(JSON.stringify(adminState)),
-        ballsState: ballsState ? JSON.parse(JSON.stringify(ballsState)) : null,
-        dataset: JSON.parse(JSON.stringify(dataset ?? [])),
-        shotEditor: JSON.parse(JSON.stringify(shotEditor)),
-        targetBall: targetColor ?? null,
-      },
-    };
-    const nextHistory = [...history, snapshot];
-    saveWorkspaceHistory(nextHistory);
-    setWorkspaceHistoryVersion((v) => v + 1);
-    setIsSaved(true);
-    console.log("💾 Workspace snapshot saved:", name);
-    if (!silent) alert(`스냅샷 저장: ${name}`);
-  }
-
-  // Workspace History: 스냅샷 복원 (전체 상태 overwrite)
-  function handleLoadWorkspaceSnapshot(id) {
-    const history = loadWorkspaceHistory();
-    const snapshot = findSnapshotById(history, id);
-    if (!snapshot) {
-      alert("스냅샷을 찾을 수 없습니다.");
-      return;
-    }
-    const s = snapshot.state;
-    setAdminState(s.adminState);
-    setBallsState(s.ballsState);
-    const nextDataset = normalizeDatasetFromStorage(s.dataset ?? []);
-    setDataset(nextDataset);
-    try {
-      localStorage.setItem("positions_dataset", JSON.stringify(nextDataset));
-    } catch (e) {
-      console.warn("Failed to persist dataset on restore", e);
-    }
-    actions.restoreShotEditor(s.shotEditor);
-    setWorkspaceHistoryVersion((v) => v + 1);
-    setIsSaved(false);
-    setIsRecalled(false);
-    setIsPositionLocked(false);
-    const restoredTarget = s.targetBall ?? null;
-    setTargetColor(restoredTarget);
-    setIsTargetSelected(!!restoredTarget);
-    console.log("📂 Workspace restored:", snapshot.name);
-    alert(`복원 완료: ${snapshot.name}`);
-  }
-
-  // Workspace History: 스냅샷 삭제
-  function handleDeleteWorkspaceSnapshot(id) {
-    deleteSnapshotById(id);
-    setWorkspaceHistoryVersion((v) => v + 1);
-  }
-
-  // Workspace History: 가장 오래된 30개 삭제
-  function handleDeleteOldest30() {
-    deleteOldest30();
-    setWorkspaceHistoryVersion((v) => v + 1);
-  }
-
-  // Export: systemId/pattern 기반 폴더에 자동 저장
-  async function pickExportFolder() {
-    if (!window.showDirectoryPicker) {
-      alert("이 브라우저는 폴더 선택을 지원하지 않습니다.");
-      return null;
-    }
-    alert("data 폴더를 선택하세요 (system 폴더가 아닌 상위 폴더)");
-    try {
-      const handle = await window.showDirectoryPicker();
-      setExportDirHandle(handle);
-      return handle;
-    } catch (e) {
-      if (e.name !== "AbortError") console.warn("Export folder pick cancelled or failed", e);
-      return null;
-    }
-  }
-
-  async function getOrCreateDir(parent, name) {
-    return await parent.getDirectoryHandle(name, { create: true });
-  }
-
-  async function getNextVersionFromDir(patternDir) {
-    let maxVer = 0;
-    try {
-      for await (const [fileName, handle] of patternDir.entries()) {
-        if (handle.kind === "file" && fileName.endsWith(".json")) {
-          const match = fileName.match(/v(\d+)/);
-          if (match) {
-            const v = parseInt(match[1], 10);
-            if (v > maxVer) maxVer = v;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("getNextVersionFromDir failed", e);
-    }
-    return maxVer + 1;
-  }
-
-  function buildExportFileName({ pattern, systemId, version, date }) {
-    const verStr = String(version).padStart(3, "0");
-    return `${systemId}_${pattern}_v${verStr}_${date}.json`;
-  }
-
-  function getToday() {
-    return new Date().toISOString().slice(0, 10);
-  }
-
-  async function saveSnapshotToFile(snapshot) {
-    let dir = exportDirHandle;
-    if (!dir) {
-      dir = await pickExportFolder();
-      if (!dir) return false;
-    }
-    try {
-      let systemDir;
-      if (dir.name === snapshot.systemId) {
-        systemDir = dir;
-      } else {
-        systemDir = await getOrCreateDir(dir, snapshot.systemId);
-      }
-      const patternDir = await getOrCreateDir(systemDir, snapshot.pattern);
-      const version = await getNextVersionFromDir(patternDir);
-      const fileName = buildExportFileName({
-        pattern: snapshot.pattern,
-        systemId: snapshot.systemId,
-        version,
-        date: getToday(),
-      });
-      const fileHandle = await patternDir.getFileHandle(fileName, { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(JSON.stringify(snapshot, null, 2));
-      await writable.close();
-      return true;
-    } catch (e) {
-      console.error("saveSnapshotToFile failed", e);
-      alert(`Export 실패: ${e.message}`);
-      return false;
-    }
-  }
-
-  // Workspace History: 선택 스냅샷 Export (폴더 저장 + exported=true)
-  async function handleExportSnapshots(ids) {
-    const history = loadWorkspaceHistory();
-    const toExport = ids
-      .map((id) => findSnapshotById(history, id))
-      .filter(Boolean);
-    if (toExport.length === 0) return;
-    for (const snap of toExport) {
-      const ok = await saveSnapshotToFile(snap);
-      if (!ok) return;
-    }
-    updateSnapshotsExported(ids);
-    setWorkspaceHistoryVersion((v) => v + 1);
-    alert(`${toExport.length}개 스냅샷 Export 완료`);
   }
 
   function invalidateSavedAndRecalledForBallId(ballId) {
@@ -6198,6 +6028,27 @@ function handlePointerCancel(e) {
               <SysOverlay
                 data={adminState.sys}
                 onSave={(newData) => {
+                  // #region agent log
+                  fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "X-Debug-Session-Id": "a98f58",
+                    },
+                    body: JSON.stringify({
+                      sessionId: "a98f58",
+                      location: "App.jsx:SysOverlay.onSave",
+                      message: "SYS_apply_start",
+                      data: {},
+                      timestamp: Date.now(),
+                      hypothesisId: "H_CORRELATE",
+                    }),
+                  }).catch(() => {});
+                  // #endregion
+                  console.log("[SYS_APPLY_START]", {
+                    hypothesisId: "SYS_APPLY_START",
+                    ts: Date.now(),
+                  });
                   const { system_id, calculated, ...rest } = newData;
                   const activeSlot = shotEditor.activeSlot;
                   const slot = shotEditor.slots[activeSlot];
@@ -6246,8 +6097,8 @@ function handlePointerCancel(e) {
                     setSysHpNResult(null);
                   }
 
+                  setIsSaved(false);
                   closeOverlay();
-                  setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                 }}
                 onCancel={closeOverlay}
               />
@@ -6258,10 +6109,14 @@ function handlePointerCancel(e) {
                 data={adminState.hpt}
                 sysHpNResult={sysHpNResult}
                 onSave={(newData) => {
+                  console.log("[HPT_APPLY_START]", {
+                    hypothesisId: "HPT_APPLY_START",
+                    ts: Date.now(),
+                  });
                   setAdminState({ ...adminState, hpt: newData });
                   actions.applyHptToSlot(shotEditor.activeSlot, newData);
+                  setIsSaved(false);
                   closeOverlay();
-                  setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                 }}
                 onCancel={closeOverlay}
               />
@@ -6271,10 +6126,14 @@ function handlePointerCancel(e) {
               <StrOverlay
                 data={adminState.str}
                 onSave={(newData) => {
+                  console.log("[STR_APPLY_START]", {
+                    hypothesisId: "STR_APPLY_START",
+                    ts: Date.now(),
+                  });
                   setAdminState({ ...adminState, str: newData });
                   actions.applyStrToSlot(shotEditor.activeSlot, newData);
+                  setIsSaved(false);
                   closeOverlay();
-                  setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                 }}
                 onCancel={closeOverlay}
               />
@@ -6303,8 +6162,8 @@ function handlePointerCancel(e) {
                     } catch (e) {
                       console.warn("anchorsOverride save failed", e);
                     }
+                    setIsSaved(false);
                     closeOverlay();
-                    setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                   }}
                   onCancel={closeOverlay}
                 />
@@ -6321,10 +6180,14 @@ function handlePointerCancel(e) {
                 appliedSys={actions?.getActiveSlot?.()?.draft?.sys ?? actions?.getActiveSlot?.()?.applied?.sys}
                 sysHpNResult={sysHpNResult}
                 onSave={(newData) => {
+                  console.log("[AI_APPLY_START]", {
+                    hypothesisId: "AI_APPLY_START",
+                    ts: Date.now(),
+                  });
                   setAdminState({ ...adminState, ai: newData });
                   actions.applyAiToSlot(shotEditor.activeSlot, newData);
+                  setIsSaved(false);
                   closeOverlay();
-                  setTimeout(() => handleSaveWorkspaceSnapshot(true), 0);
                 }}
                 onSaveStrategy={handleSaveStrategy}
                 onCancel={closeOverlay}

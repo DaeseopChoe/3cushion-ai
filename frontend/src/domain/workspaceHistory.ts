@@ -85,6 +85,41 @@ export function loadWorkspaceHistory(): WorkspaceSnapshot[] {
 
 /** workspace_history 저장 */
 export function saveWorkspaceHistory(history: WorkspaceSnapshot[]): void {
+  // #region agent log
+  fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "a98f58",
+    },
+    body: JSON.stringify({
+      sessionId: "a98f58",
+      location: "workspaceHistory.ts:saveWorkspaceHistory",
+      message: "saveWorkspaceHistory",
+      data: {
+        historyLength: Array.isArray(history) ? history.length : -1,
+        stack: String(new Error().stack ?? "").slice(0, 3500),
+      },
+      timestamp: Date.now(),
+      hypothesisId: "H1-H5",
+    }),
+  }).catch(() => {});
+  // #endregion
+  {
+    const ts = Date.now();
+    const last =
+      Array.isArray(history) && history.length > 0
+        ? history[history.length - 1]
+        : null;
+    console.group("[workspace_history save]");
+    console.log("historyLength:", history?.length ?? "?");
+    console.log("lastSnapshot:", last
+      ? { name: last.name, version: last.version, id: last.id }
+      : null);
+    console.log("timestamp:", ts);
+    console.trace();
+    console.groupEnd();
+  }
   try {
     localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify(history));
   } catch (e) {
