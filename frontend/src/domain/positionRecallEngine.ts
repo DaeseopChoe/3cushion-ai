@@ -1,7 +1,9 @@
 /**
  * Position Recall Engine
  * 순수 검색 엔진. UI 상태/localStorage/React 접근 금지.
- * slotAutoRecommend 로직을 추출·재구성. KD-tree 미사용.
+ * Recall v1.1: dataset → targetBall 버킷 → coarse (볼별 |dx|+|dy| ≤ 6, AND) →
+ * 전체 L1 거리합 최소인 단일 record (Top1 canonical).
+ * KD-tree 미사용.
  */
 
 import { createPositionId } from "./positionId";
@@ -18,38 +20,34 @@ import { ballsToPoint6D, dist2_6d as dist2_6d_raw } from "./search/kdTree6d";
 export type PositionRecallResult =
   | {
       kind: "no-match";
-      reason: "empty-dataset" | "signature-not-found" | "hard-threshold";
+      reason: "empty-dataset" | "coarse-empty";
     }
-  | { kind: "low-confidence"; record: PositionRecord; distance: number }
-  | { kind: "match"; record: PositionRecord; distance: number };
+  | {
+      kind: "match";
+      record: PositionRecord;
+      /** Σ(|Δx|+|Δy|) over cue, target, second — coarse 통과 후보 중 최소 */
+      distance: number;
+    };
 
 export type RunPositionRecallParams = {
   dataset: PositionRecord[];
   balls: Ball3;
-  signatureKey: string;
-  thresholds: { soft: number; hard: number };
   /** 현재 UI 타겟; null/undefined → yellow 버킷. 해당 버킷 레코드 없으면 필터 생략(레거시 호환) */
   targetBall?: TargetBall | null;
-  topK?: number;
-  /**
-   * @deprecated maxDist2 is no longer used for filtering.
-   * Distance filtering must only happen at threshold stage.
-   */
-  maxDist2?: number;
 };
 
 // ---------------------------------------------------------------------------
-// Constants (제곱 거리 기준)
+// Constants
 // ---------------------------------------------------------------------------
 
-const CUE_W = 2.0;
-const TARGET_W = 1.5;
-const SECOND_W = 1.0;
-
-const DEFAULT_TOP_K = 5;
+/**
+ * Recall v1.1 coarse: 각 볼(cue / target / second)에 대해
+ * Manhattan |dx|+|dy| ≤ 이 값이면 해당 볼 tolerance 통과 (세 볼 모두 AND).
+ */
+export const RECALL_COARSE_MANHATTAN_PER_BALL = 6;
 
 // ---------------------------------------------------------------------------
-// Helper: dist2_6d (Ball3 → 6D 변환 후 유클리드 제곱 거리)
+// Helper: dist2_6d (Ball3 → 6D 변환 후 유클리드 제곱 거리) — KD/검색 공용
 // ---------------------------------------------------------------------------
 
 export function dist2_6d(a: Ball3, b: Ball3): number {
@@ -59,19 +57,17 @@ export function dist2_6d(a: Ball3, b: Ball3): number {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: weightedBallDistance
-// 제곱 거리(weighted squared distance) 반환.
-// distance = 2.0*cueDist2 + 1.5*targetDist2 + 1.0*secondDist2
+// Recall v1: L1 (Manhattan) 합 — cue/target/second 동등
 // ---------------------------------------------------------------------------
 
-export function weightedBallDistance(a: Ball3, b: Ball3): number {
-  const cue =
-    (a.cue.x - b.cue.x) ** 2 + (a.cue.y - b.cue.y) ** 2;
-  const target =
-    (a.target.x - b.target.x) ** 2 + (a.target.y - b.target.y) ** 2;
-  const second =
-    (a.second.x - b.second.x) ** 2 + (a.second.y - b.second.y) ** 2;
-  return CUE_W * cue + TARGET_W * target + SECOND_W * second;
+export function ball3L1Sum(a: Ball3, b: Ball3): number {
+  const l1 = (p: { x: number; y: number }, q: { x: number; y: number }) =>
+    Math.abs(p.x - q.x) + Math.abs(p.y - q.y);
+  return (
+    l1(a.cue, b.cue) +
+    l1(a.target, b.target) +
+    l1(a.second, b.second)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -159,26 +155,27 @@ export function filterRecordsByTargetBall(
 }
 
 // ---------------------------------------------------------------------------
-// Helper: spatialCoarseFilter (slotAutoRecommend 로직 재사용)
+// Recall v1.1 coarse: 볼별 Manhattan (AND) — weighted 없음
 // ---------------------------------------------------------------------------
 
-const COARSE_FILTER_RANGE = 3;
+function withinBallTolerance(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  tolerance = RECALL_COARSE_MANHATTAN_PER_BALL
+): boolean {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) <= tolerance;
+}
 
 function spatialCoarseFilter(
   records: PositionRecord[],
   balls: Ball3,
-  range = COARSE_FILTER_RANGE
+  tolerance = RECALL_COARSE_MANHATTAN_PER_BALL
 ): PositionRecord[] {
   return records.filter((pos) => {
-    const cueOk =
-      Math.abs(pos.balls.cue.x - balls.cue.x) <= range &&
-      Math.abs(pos.balls.cue.y - balls.cue.y) <= range;
-    const targetOk =
-      Math.abs(pos.balls.target.x - balls.target.x) <= range &&
-      Math.abs(pos.balls.target.y - balls.target.y) <= range;
-    const secondOk =
-      Math.abs(pos.balls.second.x - balls.second.x) <= range &&
-      Math.abs(pos.balls.second.y - balls.second.y) <= range;
+    const b = pos.balls;
+    const cueOk = withinBallTolerance(b.cue, balls.cue, tolerance);
+    const targetOk = withinBallTolerance(b.target, balls.target, tolerance);
+    const secondOk = withinBallTolerance(b.second, balls.second, tolerance);
     return cueOk && targetOk && secondOk;
   });
 }
@@ -190,71 +187,52 @@ function spatialCoarseFilter(
 export function runPositionRecall(
   params: RunPositionRecallParams
 ): PositionRecallResult {
-  const {
-    dataset,
-    balls,
-    signatureKey,
-    thresholds,
-    targetBall,
-    topK = DEFAULT_TOP_K,
-  } = params;
+  const { dataset, balls, targetBall } = params;
 
-  // 1. dataset 비어 있으면 no-match
+  console.log("[runPositionRecall:entry]", {
+    datasetLength: dataset.length,
+    targetBall: targetBall ?? null,
+  });
+
   if (!dataset.length) {
+    console.log("[runPositionRecall]", { reason: "empty-dataset" });
     return { kind: "no-match", reason: "empty-dataset" };
   }
 
-  // 2. signatureKey 기준 필터
-  const withSignature = filterRecordsBySignature(dataset, signatureKey);
-  if (!withSignature.length) {
-    return { kind: "no-match", reason: "signature-not-found" };
+  const withTarget = filterRecordsByTargetBall(dataset, targetBall);
+
+  const candidates = spatialCoarseFilter(withTarget, balls);
+  if (!candidates.length) {
+    console.log("[runPositionRecall]", { reason: "coarse-empty" });
+    return { kind: "no-match", reason: "coarse-empty" };
   }
 
-  // 2b. targetBall 버킷 (없으면 전체 유지 — 레거시 dataset)
-  const withTarget = filterRecordsByTargetBall(withSignature, targetBall);
-
-  // 3. spatial coarse filter
-  let candidates = spatialCoarseFilter(withTarget, balls);
-  if (candidates.length < 2) {
-    candidates = withTarget;
+  let best: PositionRecord | null = null;
+  let bestL1 = Infinity;
+  for (const rec of candidates) {
+    const l1 = ball3L1Sum(rec.balls, balls);
+    if (
+      best == null ||
+      l1 < bestL1 ||
+      (l1 === bestL1 && rec.positionId.localeCompare(best.positionId) < 0)
+    ) {
+      best = rec;
+      bestL1 = l1;
+    }
   }
 
-  // 4. 6D distance (dist2_6d) 계산 및 정렬
-  const query6d = ballsToPoint6D(balls);
-  const scored = candidates.map((rec) => ({
-    rec,
-    dist2: dist2_6d_raw(query6d, ballsToPoint6D(rec.balls)),
-  }));
-  scored.sort((a, b) => a.dist2 - b.dist2);
-
-  // IMPORTANT:
-  // Do NOT apply distance cut-off here.
-  // Candidate filtering must be minimal (only coarse filter).
-  // Final distance decision must be done at threshold stage only.
-  // 5. TopK 선택
-  const nearestList = scored.slice(0, topK).map((x) => x.rec);
-
-  if (!nearestList.length) {
-    return { kind: "no-match", reason: "hard-threshold" };
+  if (!best) {
+    return { kind: "no-match", reason: "coarse-empty" };
   }
 
-  // 6. weighted distance 재정렬 (제곱 거리)
-  nearestList.sort((a, b) => {
-    const da = weightedBallDistance(a.balls, balls);
-    const db = weightedBallDistance(b.balls, balls);
-    return da - db;
+  console.log("[runPositionRecall:match]", {
+    positionId: best.positionId,
+    distance: bestL1,
   });
 
-  // 7. Top1 선택
-  const best = nearestList[0];
-  const distance = weightedBallDistance(best.balls, balls);
-
-  // 8. threshold 판정 (제곱 거리 기준)
-  if (distance > thresholds.hard) {
-    return { kind: "no-match", reason: "hard-threshold" };
-  }
-  if (distance > thresholds.soft) {
-    return { kind: "low-confidence", record: best, distance };
-  }
-  return { kind: "match", record: best, distance };
+  return {
+    kind: "match",
+    record: best,
+    distance: bestL1,
+  };
 }

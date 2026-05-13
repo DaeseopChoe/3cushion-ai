@@ -49,8 +49,8 @@ export type RunAutoRecommendParams = {
 /**
  * 슬롯 클릭 시 positionRecallEngine으로 nearest 검색 → Top1 StrategyEntry를 draft에 로딩
  *
- * flow: runPositionRecall (signature filter → spatial coarse → 6D TopK → weighted 재정렬 → Top1)
- * 기존 동작 유지: threshold 무제한(Infinity)으로 항상 적용 시도
+ * flow: runPositionRecall (coarse 볼별 Manhattan → L1 합 최소 Top1; nearest record의 entry 로딩)
+ * 슬롯 entry 시그니처 일치는 이 함수에서 별도 검증
  */
 export function runAutoRecommend(params: RunAutoRecommendParams): void {
   const {
@@ -67,10 +67,7 @@ export function runAutoRecommend(params: RunAutoRecommendParams): void {
   const result = runPositionRecall({
     dataset,
     balls: currentBalls,
-    signatureKey,
-    thresholds: { soft: Infinity, hard: Infinity },
     targetBall: targetBall ?? null,
-    topK: 5,
   });
 
   if (result.kind === "no-match") return;

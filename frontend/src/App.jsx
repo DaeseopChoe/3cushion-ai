@@ -93,6 +93,7 @@ import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecomme
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
 import { recallPosition, runPositionRecall } from "./domain/positionRecallEngine";
 import { makeSignatureKey } from "./domain/search/signatureKey";
+import { listStrategiesInRecord } from "./domain/positionSearchEngine";
 import { initFileHandle, saveToFile } from "./domain/fileService";
 import { getAnchorsForSystem } from "./data/systems/anchorsRegistry";
 import { useSettings } from "./hooks/useSettings";
@@ -3323,16 +3324,14 @@ export default function App({
     workspaceHistory,
     showHistoryModal,
     setShowHistoryModal,
-    handleSaveWorkspaceSnapshot,
+    commitWorkspaceHistoryWithStrategyDataset,
     handleLoadWorkspaceSnapshot,
     handleDeleteWorkspaceSnapshot,
     handleDeleteOldest30,
     handleExportSnapshots,
   } = useSettings({
-    canUseSystemControls,
     adminState,
     ballsState,
-    dataset,
     shotEditor,
     targetColor,
     actions,
@@ -3623,7 +3622,7 @@ export default function App({
 
     if (!sys?.inputs) {
       console.log("[SAVE] EARLY RETURN: sys?.inputs 없음");
-      return;
+      return { ok: false, reason: "missing-applied-sys-inputs" };
     }
 
     const systemId = sys.systemId ?? sys.system_id ?? "5_half_system";
@@ -3702,9 +3701,29 @@ export default function App({
         dataset: updated,
       });
     }
+
+    return { ok: true, updated };
   }
 
-  const HARD_THRESHOLD = 12.0; // 제곱 거리 기준, 초과 시 참고용 안내
+  /** 우측 SAVE: strategy persistence → workspace_history append (snapshot.dataset = result.updated) */
+  function handleCanonicalRightPanelSave() {
+    if (!canUseSystemControls) {
+      alert("Position LOCK 및 Target 확정 후 저장할 수 있습니다.");
+      return;
+    }
+    const systemId =
+      adminState?.sys?.system_id ?? adminState?.sys?.system ?? "5_half_system";
+    if (!systemId || systemId === "null") {
+      alert("시스템을 선택하세요 (SYS 설정)");
+      return;
+    }
+    const r = handleSaveStrategy();
+    if (!r?.ok) return;
+    commitWorkspaceHistoryWithStrategyDataset(r.updated);
+  }
+
+  /** L1 거리합(Recall v1) 상한 참고 — strict ±3 내 최대 18, 초과 시 참고용 안내 */
+  const HARD_THRESHOLD_L1 = 14;
 
   function handlePositionRecall() {
     const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
@@ -3712,23 +3731,110 @@ export default function App({
     const systemId = sys?.systemId ?? sys?.system_id ?? "5_half_system";
     const profile = SYSTEM_PROFILES[systemId];
     const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-    const shotType = sys?.shotType ?? "default";
-    const signatureKey = makeSignatureKey({ systemId, formulaHash, shotType });
+    /** 키는 systemId+formulaHash만; StrategySignature 타입상 shotType 필드는 더미 */
+    const signatureKey = makeSignatureKey({
+      systemId,
+      formulaHash,
+      shotType: "_",
+    });
+    const ds = dataset ?? [];
+    const datasetSigKeys = new Set();
+    for (const r of ds) {
+      for (const e of listStrategiesInRecord(r)) {
+        datasetSigKeys.add(makeSignatureKey(e.signature));
+      }
+    }
+    const recallDebugPayload = {
+      hypothesisId: "H_RECALL_QUERY",
+      signatureKey,
+      systemId,
+      formulaHash,
+      uiShotType: sys?.shotType ?? null,
+      datasetLength: ds.length,
+      uniqueSignatureKeysInDataset: [...datasetSigKeys].slice(0, 40),
+      uniqueKeyCount: datasetSigKeys.size,
+    };
+    // #region agent log
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "a98f58",
+      },
+      body: JSON.stringify({
+        sessionId: "a98f58",
+        location: "App.jsx:handlePositionRecall",
+        message: "RECALL_QUERY",
+        data: recallDebugPayload,
+        timestamp: Date.now(),
+        hypothesisId: "H_RECALL_QUERY",
+      }),
+    }).catch(() => {});
+    // #endregion
+    console.log("[RECALL_QUERY]", recallDebugPayload);
+    console.log("[RECALL_DATASET_SIGNATURES]", {
+      datasetLength: ds.length,
+      signatures: [...datasetSigKeys],
+    });
 
     const result = runPositionRecall({
-      dataset: dataset ?? [],
+      dataset: ds,
       balls: currentBalls,
-      signatureKey,
-      thresholds: { soft: Infinity, hard: Infinity },
       targetBall: targetColor ?? null,
     });
 
+    // #region agent log
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "a98f58",
+      },
+      body: JSON.stringify({
+        sessionId: "a98f58",
+        location: "App.jsx:handlePositionRecall:afterRun",
+        message: "RECALL_RESULT",
+        data: {
+          hypothesisId: "H_RECALL_RESULT",
+          kind: result?.kind,
+          reason: result?.kind === "no-match" ? result.reason : undefined,
+        },
+        timestamp: Date.now(),
+        hypothesisId: "H_RECALL_RESULT",
+      }),
+    }).catch(() => {});
+    // #endregion
+    console.log("[RECALL_RESULT]", result);
+
     if (!result || result.kind === "no-match") {
       alert(result?.reason === "empty-dataset" ? "추천 데이터 없음 (데이터셋 비어 있음)" :
-        result?.reason === "signature-not-found" ? "추천 데이터 없음 (해당 시그니처 없음)" :
+        result?.reason === "coarse-empty" ? "추천 데이터 없음 (±3 그리드 내 유사 포지션 없음)" :
         "추천 데이터 없음");
       return;
     }
+
+    // #region agent log
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "a98f58",
+      },
+      body: JSON.stringify({
+        sessionId: "a98f58",
+        location: "App.jsx:handlePositionRecall:beforeApply",
+        message: "RECALL_APPLY_POSITION_RECALL",
+        data: {
+          hypothesisId: "H_APPLY",
+          positionId: result.record?.positionId,
+          kind: result.kind,
+        },
+        timestamp: Date.now(),
+        hypothesisId: "H_APPLY",
+      }),
+    }).catch(() => {});
+    // #endregion
+    console.log("[RECALL_APPLY]", { positionId: result.record?.positionId, kind: result.kind });
 
     actions.applyPositionRecall(result.record);
     if (result.record.targetBall === "red" || result.record.targetBall === "yellow") {
@@ -3737,7 +3843,7 @@ export default function App({
     }
     setIsRecalled(true);
 
-    if (result.distance > HARD_THRESHOLD) {
+    if (result.distance > HARD_THRESHOLD_L1) {
       alert("유사도 낮음");
     }
   }
@@ -4129,19 +4235,10 @@ function handleJoyPadPointerCancel(e) {
   const strategyCountMap = useMemo(() => {
     const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
     if (!dataset?.length) return {};
-    const sys = adminState?.sys;
-    const systemId = sys?.systemId ?? sys?.system_id ?? "5_half_system";
-    const profile = SYSTEM_PROFILES?.[systemId];
-    const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1")?.slice(0, 32) ?? "v1";
-    const shotType = sys?.shotType ?? "default";
-    const signatureKey = makeSignatureKey({ systemId, formulaHash, shotType });
     const result = runPositionRecall({
       dataset: dataset ?? [],
       balls: currentBalls,
-      signatureKey,
-      thresholds: { soft: Infinity, hard: Infinity },
       targetBall: targetColor ?? null,
-      topK: 5,
     });
     const map = {};
     if (!result || result.kind === "no-match" || !result.record) return map;
@@ -6354,7 +6451,7 @@ function handlePointerCancel(e) {
               type="button"
               disabled={!canUseSystemControls}
               className={`control-button save-btn${isSaved ? " active" : ""}`}
-              onClick={() => handleSaveWorkspaceSnapshot()}
+              onClick={() => handleCanonicalRightPanelSave()}
               style={{
                 opacity: canUseSystemControls ? 1 : 0.45,
                 cursor: canUseSystemControls ? "pointer" : "not-allowed",

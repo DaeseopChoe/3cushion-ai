@@ -6,9 +6,9 @@
 import type { StrategySignature } from "../positionSearchEngine";
 
 /**
- * StrategySignature → unique key
- * systemId, formulaHash, shotType만 사용 (save 로직과 일치)
+ * StrategySignature → persistence / Recall 검색용 고유 키.
+ * UI 표현용 shotType은 객체에 보존되지만 키 문자열에는 포함하지 않음.
  */
 export function makeSignatureKey(sig: StrategySignature): string {
-  return `${sig.systemId}__${sig.formulaHash}__${sig.shotType}`;
+  return `${sig.systemId}__${sig.formulaHash}`;
 }
