@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { TrajectoryPhase } from './useTrajectoryState';
 import { SYSTEM_PROFILES } from '../data/systems';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
@@ -367,42 +368,55 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
   ):
     | { ok: true; appliedSys: NonNullable<DraftState["sys"]> }
     | { ok: false; reason: string } => {
-    const slot = shotEditorRef.current.slots[slotId];
-    const previewDraft = buildSlotDraftWithUpdatedSys(slot, slotId, nextSystemId, inputDelta, opts);
-    const v = validateDraftState(previewDraft);
-    if (!v.ok) return v;
-    let clonedPreview: NonNullable<DraftState["sys"]>;
+    let committedSys: NonNullable<DraftState["sys"]> | null = null;
+    let failReason = "";
+
     try {
-      clonedPreview = structuredClone(previewDraft.sys);
+      flushSync(() => {
+        setShotEditor((s) => {
+          const fresh = s.slots[slotId];
+          const nextDraft = buildSlotDraftWithUpdatedSys(
+            fresh,
+            slotId,
+            nextSystemId,
+            inputDelta,
+            opts
+          );
+          const v = validateDraftState(nextDraft);
+          if (!v.ok) {
+            failReason = v.reason;
+            return s;
+          }
+          const prevApplied = fresh.applied ?? {};
+          let clonedSys: NonNullable<DraftState["sys"]>;
+          try {
+            clonedSys = structuredClone(nextDraft.sys);
+          } catch (e) {
+            failReason = "structuredClone 실패: " + String(e);
+            return s;
+          }
+          committedSys = clonedSys;
+          return {
+            ...s,
+            slots: {
+              ...s.slots,
+              [slotId]: {
+                ...fresh,
+                draft: nextDraft,
+                applied: { ...prevApplied, sys: clonedSys },
+              },
+            },
+          };
+        });
+      });
     } catch (e) {
-      return { ok: false, reason: "structuredClone 실패: " + String(e) };
+      return { ok: false, reason: "commitDraftSys flush 실패: " + String(e) };
     }
 
-    setShotEditor((s) => {
-      const fresh = s.slots[slotId];
-      const nextDraft = buildSlotDraftWithUpdatedSys(fresh, slotId, nextSystemId, inputDelta, opts);
-      if (!validateDraftState(nextDraft).ok) return s;
-      const prevApplied = fresh.applied ?? {};
-      let clonedSys: NonNullable<DraftState["sys"]>;
-      try {
-        clonedSys = structuredClone(nextDraft.sys);
-      } catch {
-        return s;
-      }
-      return {
-        ...s,
-        slots: {
-          ...s.slots,
-          [slotId]: {
-            ...fresh,
-            draft: nextDraft,
-            applied: { ...prevApplied, sys: clonedSys },
-          },
-        },
-      };
-    });
-
-    return { ok: true, appliedSys: clonedPreview };
+    if (!committedSys) {
+      return { ok: false, reason: failReason || "SYS 적용 실패" };
+    }
+    return { ok: true, appliedSys: committedSys };
   };
 
   /*

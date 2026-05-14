@@ -91,7 +91,7 @@ import {
 import { createCaptureCandidate } from "./data/autoCaptureEngine";
 import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
-import { recallPosition, runPositionRecall } from "./domain/positionRecallEngine";
+import { runPositionRecall } from "./domain/positionRecallEngine";
 import { makeSignatureKey } from "./domain/search/signatureKey";
 import { listStrategiesInRecord } from "./domain/positionSearchEngine";
 import { initFileHandle, saveToFile } from "./domain/fileService";
@@ -354,6 +354,105 @@ function mergeSysOverlayPayloadToNumericInputs(newData) {
   const fromAdjusted = normalize(newData?.adjustedInputs);
   // system_values(base 숫자 맵)가 최종 승자 — adjustedInputs보다 우선
   return { ...fromInputs, ...fromCalc, ...fromAdjusted, ...fromSystemValues };
+}
+
+/**
+ * Position Recall 직후 SYS 모달 폼용: 한 StrategyEntry에서 슬롯 draft.sys와 동일한 수치 파이프라인 스냅샷.
+ * useShotSlots.buildDraftsFromRecord의 sys 산출과 동일 식(훅·저장·슬롯 SSOT 구조 비변경).
+ */
+function buildSlotSysSnapshotFromStrategyEntry(entry) {
+  if (!entry) return null;
+  const systemId =
+    entry.signature.systemId === "5_HALF"
+      ? "5_half_system"
+      : (entry.signature.systemId ?? "5_half_system");
+  const inputs = entry.sysInputs ?? {};
+  const profile = SYSTEM_PROFILES[systemId];
+  const expr = profile?.formula?.expr;
+  const baseThreeC =
+    typeof inputs.baseThreeC === "number"
+      ? inputs.baseThreeC
+      : typeof inputs.C3 === "number"
+        ? inputs.C3
+        : typeof inputs.C3_r === "number"
+          ? inputs.C3_r
+          : 0;
+  const baseOneC =
+    typeof inputs.baseOneC === "number"
+      ? inputs.baseOneC
+      : typeof inputs.CO === "number"
+        ? inputs.CO
+        : typeof inputs.CO_f === "number"
+          ? inputs.CO_f
+          : 0;
+  const exprInputs = {
+    ...inputs,
+    baseThreeC,
+    baseOneC,
+    CO_f: typeof inputs.CO_f === "number" ? inputs.CO_f : baseOneC,
+    C3_r: typeof inputs.C3_r === "number" ? inputs.C3_r : baseThreeC,
+  };
+  let calcResult = {};
+  if (expr) {
+    calcResult = calculateByProfileExpr(expr, exprInputs);
+  }
+  return {
+    systemId,
+    track: entry.track ?? "B2T_L",
+    inputs,
+    outputs: { result: calcResult },
+  };
+}
+
+function shotTypeForSysOverlayFromSignature(sigShotType, prevShotType) {
+  if (sigShotType && sigShotType !== "default" && sigShotType !== "_") {
+    return sigShotType;
+  }
+  return prevShotType || "뒤돌리기";
+}
+
+/**
+ * Recall 성공 직후 adminState.sys 1회 채움 (SYS 모달 표시/편집용). trajectory SSOT는 슬롯 draft 유지.
+ */
+function adminSysFromRecallStrategyEntry(entry, prevSys) {
+  const snap = buildSlotSysSnapshotFromStrategyEntry(entry);
+  if (!snap) return null;
+  const sid = snap.systemId;
+  const profile = SYSTEM_PROFILES[sid];
+  const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
+  const mergedInputs = {
+    ...(snap.inputs ?? {}),
+    ...(snap.outputs?.result ?? {}),
+  };
+  const corr = prevSys?.corrections ?? {};
+  return {
+    system_id: sid,
+    system: sid,
+    systemId: sid,
+    track: snap.track ?? "B2T_L",
+    shotType: shotTypeForSysOverlayFromSignature(entry.signature?.shotType, prevSys?.shotType),
+    inputs: mergedInputs,
+    outputs: snap.outputs,
+    formulaHash,
+    corrections: {
+      slide: Number(corr.slide) || 0,
+      curve_ratio: Number(corr.curve_ratio) || 0,
+      draw: Number(corr.draw) || 0,
+      departure: Number(corr.departure) || 0,
+      spin: Number(corr.spin) || 0,
+    },
+    ...(prevSys?.spaceSel ? { spaceSel: prevSys.spaceSel } : {}),
+  };
+}
+
+/** 디버그 전용: 정렬된 키 배열 간 added/removed */
+function diffSortedKeyArrays(prevSorted, nextSorted) {
+  const ps = new Set(prevSorted || []);
+  const ns = new Set(nextSorted || []);
+  return {
+    added: (nextSorted || []).filter((k) => !ps.has(k)),
+    removed: (prevSorted || []).filter((k) => !ns.has(k)),
+  };
 }
 
 function resolveCoC1C3Keys(forced, spaceSel) {
@@ -3184,6 +3283,7 @@ export default function App({
     setAdminState,
   });
   const trajectory = useTrajectoryState();
+  const debugSlotSysSnapshotPrevRef = useRef(null);
 
   /** 궤적/앵커 렌더 SSOT: 활성 슬롯의 sys만 사용 (adminState.sys / view.ui.system 혼합 금지) */
   const resolvedSlotSys = useMemo(() => {
@@ -3217,6 +3317,125 @@ export default function App({
     }
     return out;
   }, [resolvedSlotSys, shotEditor.activeSlot, adminState?.sys]);
+
+  // #region agent log
+  useEffect(() => {
+    const slot = shotEditor.slots[shotEditor.activeSlot];
+    const d = slot?.draft?.sys ?? slot?.applied?.sys;
+    const draftSys = slot?.draft?.sys;
+    const appliedSys = slot?.applied?.sys;
+    const merged = d
+      ? { ...(d.inputs ?? {}), ...(d.outputs?.result ?? {}) }
+      : {};
+    const mergedKeysSorted = Object.keys(merged).sort();
+    const prevSnap = debugSlotSysSnapshotPrevRef.current;
+    let slotMergedKeyDeltaSinceLast;
+    if (!prevSnap) {
+      slotMergedKeyDeltaSinceLast = { added: [], removed: [], note: "first_tick" };
+    } else if (prevSnap.activeSlot !== shotEditor.activeSlot) {
+      slotMergedKeyDeltaSinceLast = {
+        added: [],
+        removed: [],
+        note: "active_slot_changed",
+        prevActiveSlot: prevSnap.activeSlot,
+      };
+    } else {
+      slotMergedKeyDeltaSinceLast = diffSortedKeyArrays(
+        prevSnap.mergedKeysSorted,
+        mergedKeysSorted
+      );
+    }
+    debugSlotSysSnapshotPrevRef.current = {
+      activeSlot: shotEditor.activeSlot,
+      mergedKeysSorted,
+    };
+    const eff = d
+      ? buildSlotEffectiveRenderSysValues(merged, d, adminState?.sys)
+      : {};
+    const noCorr =
+      adminState?.sys &&
+      ({
+        ...adminState.sys,
+        corrections: {
+          ...(adminState.sys.corrections ?? {}),
+          slide: 0,
+          draw: 0,
+          spin: 0,
+          curve_ratio: 0,
+        },
+      });
+    const effBase = d
+      ? buildSlotEffectiveRenderSysValues(merged, d, noCorr)
+      : {};
+    const effKeysSorted = Object.keys(eff || {}).sort();
+    const effBaseKeysSorted = Object.keys(effBase || {}).sort();
+    const resolvedKeysSorted = Object.keys(resolvedSlotSysValues || {}).sort();
+    const draftMergedKeys = draftSys
+      ? Object.keys({
+          ...(draftSys.inputs ?? {}),
+          ...(draftSys.outputs?.result ?? {}),
+        }).sort()
+      : [];
+    const appliedMergedKeys = appliedSys
+      ? Object.keys({
+          ...(appliedSys.inputs ?? {}),
+          ...(appliedSys.outputs?.result ?? {}),
+        }).sort()
+      : [];
+    const draftAppliedMergedKeyDelta =
+      draftSys && appliedSys
+        ? diffSortedKeyArrays(draftMergedKeys, appliedMergedKeys)
+        : null;
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "a98f58",
+      },
+      body: JSON.stringify({
+        sessionId: "a98f58",
+        location: "App.jsx:debugSlotAdminSysSnapshot",
+        message: "slot_admin_sys_snapshot",
+        hypothesisId: "H_compare",
+        timestamp: Date.now(),
+        data: {
+          activeSlot: shotEditor.activeSlot,
+          hasSlotSys: !!d,
+          slotMergedKeyDeltaSinceLast,
+          draftAppliedMergedKeyDelta,
+          mergedKeysSorted,
+          mergedKeyCount: mergedKeysSorted.length,
+          resolvedSlotSysValuesKeys: resolvedKeysSorted,
+          resolvedSlotSysValuesCount: resolvedKeysSorted.length,
+          buildSlotEffectiveWithCorrKeys: effKeysSorted,
+          buildSlotEffectiveWithCorrCount: effKeysSorted.length,
+          buildSlotEffectiveBaseNoCorrKeys: effBaseKeysSorted,
+          buildSlotEffectiveBaseNoCorrCount: effBaseKeysSorted.length,
+          adminSysTopKeys: Object.keys(adminState?.sys || {}),
+          adminInputKeys: Object.keys(adminState?.sys?.inputs || {}).sort(),
+          adminOutputsResultKeys: Object.keys(
+            adminState?.sys?.outputs?.result || {}
+          ).sort(),
+          adminSystemValuesKeys: Object.keys(
+            adminState?.sys?.system_values || {}
+          ).sort(),
+          adminSpaceSel: adminState?.sys?.spaceSel ?? null,
+          adminHasOutputs: !!adminState?.sys?.outputs,
+          adminHasSystemValues: !!adminState?.sys?.system_values,
+          adminHasSpaceSel: !!adminState?.sys?.spaceSel,
+          track: d?.track,
+          slide: adminState?.sys?.corrections?.slide,
+          draw: adminState?.sys?.corrections?.draw,
+        },
+      }),
+    }).catch(() => {});
+  }, [
+    shotEditor.slots,
+    shotEditor.activeSlot,
+    adminState?.sys,
+    resolvedSlotSysValues,
+  ]);
+  // #endregion
 
   const adminSysNoCorrections = useMemo(() => {
     if (!adminState?.sys) return undefined;
@@ -3502,6 +3721,12 @@ export default function App({
   // KD-Tree 인덱스 (dataset 변경 시 rebuild, runAutoRecommend용)
   const kdIndexRef = useRef(null);
   const fileInputRef = useRef(null);
+  /**
+   * Stage `onFuncOverlayClose`가 currentButtonId를 SYS→S1 등으로 되돌릴 때,
+   * `[currentButtonId]` effect가 runAutoRecommend → loadDraftFromStrategyEntry로
+   * draft.sys(outputs 없음)를 덮어써 라벨/그리드가 한 틱 뒤 사라지는 것을 한 번만 건너뜀.
+   */
+  const skipSlotAutoRecommendOnceRef = useRef(false);
   useEffect(() => {
     kdIndexRef.current = new PositionKDIndex(dataset ?? []);
   }, [dataset]);
@@ -3562,13 +3787,19 @@ export default function App({
     setOverlayState({ open: true, type: "ANCHOR_EDIT", anchorKey });
   }
 
+  /** SYS/HPT/STR/AI 닫을 때 Stage가 슬롯 버튼으로 currentButtonId를 되돌림 → runAutoRecommend 1회 스킵 */
+  function notifyFuncOverlayClosedByAdminUi() {
+    skipSlotAutoRecommendOnceRef.current = true;
+    onFuncOverlayClose?.();
+  }
+
   // 오버레이 닫기
   function closeOverlay() {
     const wasType = overlayState.type;
     setOverlayState({ open: false, type: null, anchorKey: null });
     // SYS/HP/T/STR/AI 오버레이 닫힐 때 부모에 알려 선택 초기화 → 같은 버튼 재클릭 시 즉시 열림
     if (wasType && ["SYS", "HPT", "STR", "AI"].includes(wasType)) {
-      onFuncOverlayClose?.();
+      notifyFuncOverlayClosedByAdminUi();
     }
   }
 
@@ -3578,7 +3809,7 @@ export default function App({
     if (!overlayState.open) return;
     const t = overlayState.type;
     if (!t || !["SYS", "HPT", "STR", "AI"].includes(t)) return;
-    onFuncOverlayClose?.();
+    notifyFuncOverlayClosedByAdminUi();
     setOverlayState({ open: false, type: null, anchorKey: null });
   }, [
     appMode,
@@ -3837,6 +4068,14 @@ export default function App({
     console.log("[RECALL_APPLY]", { positionId: result.record?.positionId, kind: result.kind });
 
     actions.applyPositionRecall(result.record);
+    const recallEntry = result.record?.strategies?.[shotEditor.activeSlot];
+    if (recallEntry) {
+      setAdminState((prev) => {
+        const nextSys = adminSysFromRecallStrategyEntry(recallEntry, prev.sys);
+        if (!nextSys) return prev;
+        return { ...prev, sys: nextSys };
+      });
+    }
     if (result.record.targetBall === "red" || result.record.targetBall === "yellow") {
       setTargetColor(result.record.targetBall);
       setIsTargetSelected(true);
@@ -3884,7 +4123,7 @@ export default function App({
     });
     setOverlayState({ open: false, type: null });
     if (wasType && ["SYS", "HPT", "STR", "AI"].includes(wasType)) {
-      onFuncOverlayClose?.();
+      notifyFuncOverlayClosedByAdminUi();
     }
   }
 
@@ -3932,18 +4171,32 @@ export default function App({
       balls: JSON.parse(JSON.stringify(ball3)),
     }));
 
-    const recalled = recallPosition(ball3, dataset ?? []);
-    if (recalled) {
+    const lockRecallResult = runPositionRecall({
+      dataset: dataset ?? [],
+      balls: ball3,
+      targetBall: targetColor ?? null,
+    });
+    if (lockRecallResult.kind === "match") {
+      const recalled = lockRecallResult.record;
       const hasAny =
         recalled.strategies?.S1 ||
         recalled.strategies?.S2 ||
         recalled.strategies?.S3;
       if (hasAny) {
         actions.applyPositionRecall(recalled);
+        const lockEntry = recalled.strategies?.[shotEditor.activeSlot];
+        if (lockEntry) {
+          setAdminState((prev) => {
+            const nextSys = adminSysFromRecallStrategyEntry(lockEntry, prev.sys);
+            if (!nextSys) return prev;
+            return { ...prev, sys: nextSys };
+          });
+        }
         setIsRecalled(true);
         console.log(
-          "[Recall] Position LOCK: 유사 포지션 데이터 불러옴",
-          recalled.positionId
+          "[Recall] Position LOCK: canonical runPositionRecall 적용",
+          recalled.positionId,
+          { distance: lockRecallResult.distance }
         );
       }
     }
@@ -4142,6 +4395,27 @@ function handleJoyPadPointerCancel(e) {
       actions.switchSlot('S1');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
+      if (skipSlotAutoRecommendOnceRef.current) {
+        skipSlotAutoRecommendOnceRef.current = false;
+        // #region agent log
+        fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "a98f58",
+          },
+          body: JSON.stringify({
+            sessionId: "a98f58",
+            location: "App.jsx:slotButtonEffect",
+            message: "skip_runAutoRecommend_after_func_overlay_close",
+            hypothesisId: "H_overlay_slot_reset",
+            timestamp: Date.now(),
+            data: { currentButtonId: "S1" },
+          }),
+        }).catch(() => {});
+        // #endregion
+        return;
+      }
       const systemId = adminState.sys?.system_id;
       if (!systemId) return;
       if (!kdIndexRef.current) return;
@@ -4162,6 +4436,27 @@ function handleJoyPadPointerCancel(e) {
       actions.switchSlot('S2');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
+      if (skipSlotAutoRecommendOnceRef.current) {
+        skipSlotAutoRecommendOnceRef.current = false;
+        // #region agent log
+        fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "a98f58",
+          },
+          body: JSON.stringify({
+            sessionId: "a98f58",
+            location: "App.jsx:slotButtonEffect",
+            message: "skip_runAutoRecommend_after_func_overlay_close",
+            hypothesisId: "H_overlay_slot_reset",
+            timestamp: Date.now(),
+            data: { currentButtonId: "S2" },
+          }),
+        }).catch(() => {});
+        // #endregion
+        return;
+      }
       const systemId = adminState.sys?.system_id;
       if (!systemId) return;
       if (!kdIndexRef.current) return;
@@ -4182,6 +4477,27 @@ function handleJoyPadPointerCancel(e) {
       actions.switchSlot('S3');
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
+      if (skipSlotAutoRecommendOnceRef.current) {
+        skipSlotAutoRecommendOnceRef.current = false;
+        // #region agent log
+        fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "a98f58",
+          },
+          body: JSON.stringify({
+            sessionId: "a98f58",
+            location: "App.jsx:slotButtonEffect",
+            message: "skip_runAutoRecommend_after_func_overlay_close",
+            hypothesisId: "H_overlay_slot_reset",
+            timestamp: Date.now(),
+            data: { currentButtonId: "S3" },
+          }),
+        }).catch(() => {});
+        // #endregion
+        return;
+      }
       const systemId = adminState.sys?.system_id;
       if (!systemId) return;
       if (!kdIndexRef.current) return;
@@ -4517,6 +4833,39 @@ function handleJoyPadPointerCancel(e) {
           "실제 반환": usedFallback ? "display.anchors (fallback)" : "anchors",
         });
         const finalAnchors = anchorKeys.length > 0 ? anchors : (display.anchors ?? {});
+        if (Object.keys(finalAnchors || {}).length === 0) {
+          // #region agent log
+          fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Debug-Session-Id": "a98f58",
+            },
+            body: JSON.stringify({
+              sessionId: "a98f58",
+              location: "App.jsx:rawAnchors.emptyFinal",
+              message: "rawAnchors_final_empty",
+              hypothesisId: "H_empty_anchors",
+              timestamp: Date.now(),
+              data: {
+                finalAnchorsEmpty: true,
+                sysValuesKeyCount: Object.keys(sysValues || {}).length,
+                sysValuesKeys: Object.keys(sysValues || {}).sort(),
+                engineReturnedKeys: anchorKeys,
+                trackForAnchors,
+                systemIdForAnchors: systemId,
+                usedFallbackToDisplayAnchors: usedFallback,
+                displayAnchorsKeyCount: display?.anchors
+                  ? Object.keys(display.anchors).length
+                  : 0,
+                displayAnchorsKeys: display?.anchors
+                  ? Object.keys(display.anchors).sort()
+                  : [],
+              },
+            }),
+          }).catch(() => {});
+          // #endregion
+        }
         if (import.meta.env.DEV) {
           console.log("[ANCHORS]", finalAnchors["C3"]);
         }
@@ -6125,23 +6474,6 @@ function handlePointerCancel(e) {
               <SysOverlay
                 data={adminState.sys}
                 onSave={(newData) => {
-                  // #region agent log
-                  fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "X-Debug-Session-Id": "a98f58",
-                    },
-                    body: JSON.stringify({
-                      sessionId: "a98f58",
-                      location: "App.jsx:SysOverlay.onSave",
-                      message: "SYS_apply_start",
-                      data: {},
-                      timestamp: Date.now(),
-                      hypothesisId: "H_CORRELATE",
-                    }),
-                  }).catch(() => {});
-                  // #endregion
                   console.log("[SYS_APPLY_START]", {
                     hypothesisId: "SYS_APPLY_START",
                     ts: Date.now(),
@@ -6167,6 +6499,50 @@ function handlePointerCancel(e) {
                   // 2. slot.applied.sys 동기화 - 항상 수행 (SAVE 시 handleSaveStrategy에서 사용)
                   const systemId = newData.system || system_id || "5_half_system";
                   const numericInputs = mergeSysOverlayPayloadToNumericInputs(newData);
+                  // #region agent log
+                  fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "X-Debug-Session-Id": "a98f58",
+                    },
+                    body: JSON.stringify({
+                      sessionId: "a98f58",
+                      location: "App.jsx:sysOverlay.onSave",
+                      message: "SYS_apply_payload",
+                      hypothesisId: "H_apply_merge",
+                      timestamp: Date.now(),
+                      data: {
+                        payload: {
+                          newDataKeys: Object.keys(newData || {}),
+                          numericInputKeys: Object.keys(numericInputs || {}),
+                          restKeys: Object.keys(rest || {}),
+                          restInputKeys: rest.inputs
+                            ? Object.keys(rest.inputs).sort()
+                            : [],
+                          hasSystemValues: !!(
+                            newData.system_values &&
+                            typeof newData.system_values === "object" &&
+                            Object.keys(newData.system_values).length > 0
+                          ),
+                          systemValuesKeys:
+                            newData.system_values &&
+                            typeof newData.system_values === "object"
+                              ? Object.keys(newData.system_values).sort()
+                              : [],
+                          hasAdjustedInputs: !!newData.adjustedInputs,
+                          adjustedInputKeys:
+                            newData.adjustedInputs &&
+                            typeof newData.adjustedInputs === "object"
+                              ? Object.keys(newData.adjustedInputs).sort()
+                              : [],
+                          track: newData.track,
+                          systemId,
+                        },
+                      },
+                    }),
+                  }).catch(() => {});
+                  // #endregion
                   const trackVal = newData.track ?? "B2T_L";
                   const applyResult = actions.commitDraftSys(activeSlot, systemId, numericInputs, {
                     track: trackVal,
