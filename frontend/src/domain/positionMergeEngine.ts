@@ -3,6 +3,7 @@
  * positionId = createPositionId(balls), 슬롯당 전략 1개(slot 키 overwrite)
  */
 
+import { normalizeCanonicalStrategyEntry } from "./canonicalStrategy";
 import { createPositionId } from "./positionId";
 import type {
   Ball3,
@@ -101,6 +102,11 @@ export function normalizePositionRecord(raw: unknown): PositionRecord | null {
     }
   }
 
+  for (const id of ["S1", "S2", "S3"] as const) {
+    const ent = strategies[id];
+    if (ent) strategies[id] = normalizeCanonicalStrategyEntry(ent);
+  }
+
   const canonicalId = createPositionId(balls);
   const positionId =
     typeof r.positionId === "string" && r.positionId.length > 0
@@ -108,11 +114,36 @@ export function normalizePositionRecord(raw: unknown): PositionRecord | null {
       : canonicalId;
 
   const targetBall = r.targetBall as PositionRecord["targetBall"];
+
+  const schemaVersionRaw = r.schemaVersion;
+  const schemaVersion =
+    typeof schemaVersionRaw === "number" &&
+    Number.isFinite(schemaVersionRaw) &&
+    schemaVersionRaw >= 1
+      ? Math.floor(schemaVersionRaw)
+      : 1;
+
+  let source: PositionRecord["source"];
+  const rawSource = r.source;
+  if (rawSource && typeof rawSource === "object") {
+    const rs = rawSource as Record<string, unknown>;
+    const kind = rs.kind;
+    if (kind === "local" || kind === "import" || kind === "git") {
+      const ref = rs.ref;
+      source = {
+        kind,
+        ...(typeof ref === "string" && ref.length > 0 ? { ref } : {}),
+      };
+    }
+  }
+
   return {
     positionId,
     balls,
     strategies,
+    schemaVersion,
     ...(targetBall === "yellow" || targetBall === "red" ? { targetBall } : {}),
+    ...(source ? { source } : {}),
   };
 }
 

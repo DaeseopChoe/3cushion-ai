@@ -21,6 +21,15 @@ export type StrategyMeta = {
   angle_fs: number; // final -> second 방향 각도 (atan2)  ✅ 목계님 기준 반영
 };
 
+/** SYS 보정 (dataset canonical Phase 1; 구버전 JSON에는 없을 수 있음) */
+export type StrategySysCorrections = {
+  slide?: number;
+  curve_ratio?: number;
+  draw?: number;
+  departure?: number;
+  spin?: number;
+};
+
 export type StrategyEntry = {
   slot: "S1" | "S2" | "S3";
   signature: StrategySignature;
@@ -30,6 +39,10 @@ export type StrategyEntry = {
 
   // 보간 대상(원본 입력값)
   sysInputs: Record<string, number>;
+  /** 실전 보정; normalizeDatasetFromStorage 시 기본 0 hydrate */
+  corrections?: StrategySysCorrections;
+  /** 읽기 normalize: JSON에 corrections 키가 있었으면 true (Recall 시 prev 덮어쓰기 방지용) */
+  correctionsStored?: boolean;
   hpT?: unknown;
   str?: unknown;
   ai?: unknown;
@@ -41,12 +54,20 @@ export type StrategyEntry = {
 /** 슬롯당 최대 1전략 (S1/S2/S3 키) */
 export type SlotStrategiesMap = Partial<Record<"S1" | "S2" | "S3", StrategyEntry>>;
 
+export type PositionDatasetSource = {
+  kind: "local" | "import" | "git";
+  ref?: string;
+};
+
 export type PositionRecord = {
   positionId: string;
   balls: Ball3;
   /** 미지정·레거시는 undefined → 병합/리콜 시 yellow 버킷과 동일 취급 */
   targetBall?: TargetBall | null;
   strategies: SlotStrategiesMap;
+  /** 읽기 normalize 시 없으면 1로 hydrate (localStorage 원본은 Phase 1에서 rewrite 안 함) */
+  schemaVersion?: number;
+  source?: PositionDatasetSource;
 };
 
 /** PositionRecord의 전략을 슬롯 순 S1→S2→S3로 나열 (배열 API 대체용) */

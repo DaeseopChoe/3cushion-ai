@@ -26,6 +26,7 @@ Scope: Trajectory · 테이블 UX · SYS 설정 UI
 |------|------|------|
 | 2026-05-01 | `00b627c` | Base Line 렌더 복구, cushionPath 렌더 분리, 의도치 않은 polyline 제거, 곡선 디버깅 준비 |
 | 2026-05-03 | `a234fb9` | 단조(monotonic) 곡선 궤적 및 effect-line confinement 안정화 |
+| (Recall v1) | *(권장 메시지)* | `refactor: stabilize recall v1 canonical matching` — 관리자 Recall canonical 안정화(§8). 실제 해시는 로컬 `git log`로 확인. |
 
 *(로컬에서 커밋되지 않은 후속 수정은 아래 세션별 항목에만 적었음.)*
 
@@ -238,6 +239,106 @@ baseline 안정성 보호를 위해 모두 제거된 상태(현재 코드에 잔
 - Curve A/B (현 Hermite A + 직선 C) 시각 결과를 **여러 트랙·두께·draw/slide 조합**에서 회귀 스크린 검증.
 - 디버그 ingest/`console.log` 제거 또는 단일 플래그(`DEBUG_TRAJ`)로 일원화 — 현재 `curveTrajectory.ts`/`App.jsx`/`ImpactLines.jsx`에 잔존.
 - `PROJECT_LOG_2026-06.md` 분리 시 본 파일은 수정하지 않고 링크만 추가하는 방식 유지 권장.
+
+---
+
+## 8. Recall v1 canonical 안정화 (관리자 Authoring 전용)
+
+**상태**: 완료 (2026-05 세션 내 Recall 연쇄 작업: Step 제거/격리 → Manhattan coarse → Top1 단일 반환까지 반영)
+
+본 절은 단순 변경 이력이 아니라, **향후 “사용자 추천 엔진”과 “관리자 Recall”을 코드·정책·제품 언어에서 분리**하기 위한 **아키텍처 기준 문서**로 기록한다.
+
+### 8.1 완료 요약 (Recall v1 canonical)
+
+- **signature 기반 Recall 제거**: `filterRecordsBySignature` / `signature-not-found` / `formulaHash`를 Recall 경로에서 사용하지 않음. (스키마의 `signature` 필드는 dataset 호환을 위해 유지.)
+- **Ball3 위치 기반 canonical recall 구조 확정**: 현재 공 `cue` / `target` / `second`만으로 후보 탐색·선택.
+- **설명 가능한(strict) tolerance 정책 채택**: 볼별 Manhattan 한계; 아래 §8.2.
+
+### 8.2 Recall 정책 확정 (현재 canonical)
+
+**후보(coarse) 조건**
+
+- **cue / target / second 각각** 독립 검사(AND).
+- 각 볼에 대해: `abs(dx) + abs(dy) <= 6` (볼 중심 좌표 기준).
+- 세 볼 모두 통과해야 후보 인정(strict AND).
+
+**선택(랭킹)**
+
+- coarse 통과 후보에 대해 **`ball3L1Sum`**(세 볼에 걸친 Manhattan 합, 동등 가중)을 계산하고 **최소값인 `PositionRecord` 1건만** 반환(Top1).
+- **동률** 시 `positionId`의 **`localeCompare`**로 안정적으로 1건 결정.
+
+**의도적으로 제거·미사용**
+
+- **weighted** 개념 제거(Recall 경로에서 `weightedBallDistance` 미사용·제거).
+- **hard / soft / Infinity threshold**를 Recall 엔진 판정에서 제거(UI의 “유사도 낮음” 등 별도 안내는 `applyPositionRecall` 바깥에서 유지 가능).
+- **Top3 / `hits` / `RecallNearestHit`** 제거 — 반환은 `{ kind: "match", record, distance }`만.
+
+### 8.3 Recall 목적 정의 (매우 중요)
+
+**관리자 Recall의 목적**
+
+- **기존 dataset 레코드 수정**(저장된 포지션·전략 편집).
+- **근사 포지션을 호출한 뒤** 신규 데이터 **authoring** 보조.
+
+**특징(의도)**
+
+- **deterministic**: 동일 입력·동일 dataset이면 동일 선택(동률 규칙 포함).
+- **explainable**: “볼별 Manhattan ≤6 AND + 전역 L1 합 최소”로 설명 가능.
+- **strict tolerance 기반**: 느슨한 확률 모델이 아닌 명시적 기하 한계.
+- **interpolation 없음**(Recall 경로에 블렌드·보간 추천 없음).
+
+### 8.4 사용자 추천 엔진과의 구조적 분리 (반드시 구분)
+
+**관리자 Recall ≠ 사용자 추천 엔진**
+
+| 구분 | 관리자 Recall (현재 v1 canonical) | 사용자 추천 엔진(향후) |
+|------|-----------------------------------|-------------------------|
+| 역할 | **Dataset authoring / editing** 도구 | **Runtime inference**, nearest recommendation, 다양한 랭킹·혼합 정책 가능 |
+| 정책 | 위 §8.2 고정 | **별도 정의** — 본 Recall 정책을 그대로 확장·복붙하지 않는다 |
+| interpolation | 없음 | **가능**(blended recommendation 등 설계 여지) |
+
+**원칙**: 현재 Recall v1 canonical 정책을 **사용자 추천 엔진으로 자동 승격·확장하지 않는다.** 추천 엔진은 요구사항이 확정되면 **독립 사양**으로 추가한다.
+
+### 8.5 후보·선택 알고리즘 요약
+
+- **signature / formulaHash** 기준 Recall 비교 제거.
+- **Ball3 위치만**으로 탐색(`filterRecordsByTargetBall` 버킷 후 coarse).
+- coarse 통과 후 **`ball3L1Sum` 최소 1개** 선택.
+- 동률 시 **`positionId` `localeCompare`**.
+
+### 8.6 제거된 구조·분기 (기록)
+
+다음은 Recall canonical 정리 과정에서 **엔진/타입에서 제거**되었거나 **더 이상 Recall 성공 조건으로 사용되지 않음**을 의미한다.
+
+- `signature-not-found` 분기
+- `formulaHash` 기반 recall compare(시그니처 키 필터)
+- `weightedBallDistance`(Recall 랭킹)
+- hard / soft threshold(Recall 엔진)
+- Recall **Top3 / `hits`**
+- `RecallNearestHit` 타입
+
+### 8.7 변경하지 않은 영역 (영향 없음)
+
+아래는 본 Recall 작업에서 **의도적으로 수정하지 않음**(회귀·책임 분리).
+
+- trajectory 계산
+- SYS 계산
+- overlay
+- SAVE / history
+- `applyPositionRecall` 시그니처·책임(호출은 여전히 단일 `record`)
+- dataset schema
+- strategy schema
+- KD index 구조(Recall 경로에서 미사용 유지)
+
+### 8.8 Git 기록
+
+- **권장 커밋 메시지**: `refactor: stabilize recall v1 canonical matching`
+- 실제 커밋 해시는 로컬 저장소에서 확인.
+
+---
+
+**선언 (Recall vs 추천 엔진)**  
+Recall v1 canonical은 관리자(authoring) 전용 정책이며, 사용자 추천 엔진 정책은 향후 별도 정의한다.
 
 ---
 

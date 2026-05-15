@@ -75,6 +75,14 @@ import {
   normalizeDatasetFromStorage,
   upsertPositionRecord,
 } from "./domain/positionMergeEngine";
+import {
+  applySchemaVersionToDatasetRecord,
+  attachCanonicalFieldsToStrategyEntry,
+  mergeCorrectionsForRecallHydrate,
+  normalizeCanonicalSaveDraft,
+  toCanonicalStrategyEntry,
+} from "./domain/canonicalStrategy";
+import { logCanonicalPersistAudit } from "./domain/canonicalPersistAudit";
 import { evaluateStrategy } from "./domain/evaluateStrategy";
 import { makeSignature } from "./domain/strategySignature";
 import { computeSystemFromPositions, sysValuesToAnchors } from "./domain/systemEngine";
@@ -424,7 +432,7 @@ function adminSysFromRecallStrategyEntry(entry, prevSys) {
     ...(snap.inputs ?? {}),
     ...(snap.outputs?.result ?? {}),
   };
-  const corr = prevSys?.corrections ?? {};
+  const corr = mergeCorrectionsForRecallHydrate(entry, prevSys);
   return {
     system_id: sid,
     system: sid,
@@ -3859,7 +3867,7 @@ export default function App({
     const systemId = sys.systemId ?? sys.system_id ?? "5_half_system";
     const profile = SYSTEM_PROFILES[systemId];
     const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-    const shotType = "default";
+    const shotType = adminState?.sys?.shotType ?? "default";
     const signature = makeSignature({ systemId, formulaHash, shotType });
     console.log("[SAVE] signature:", signature);
 
@@ -3873,31 +3881,40 @@ export default function App({
       }
     };
 
-    const cleanBalls = safe(balls);
-    const cleanSysInputs = safe(sys.inputs ?? {});
-    const cleanHpt = safe(applied.hpt);
-    const cleanStr = safe(applied.str);
-    const cleanAi = safe(aiOverride ?? applied.ai);
-
     const ball3ForDataset = normalizeBallsToBall3(ballsState ?? adminState.balls ?? {});
     const cleanBall3 = safe(ball3ForDataset) ?? ball3ForDataset;
     const datasetTargetBall =
       targetColor === "red" || targetColor === "yellow" ? targetColor : undefined;
 
+    const canonicalDraft = normalizeCanonicalSaveDraft(
+      toCanonicalStrategyEntry({
+        slotId,
+        signature,
+        applied,
+        adminSys: adminState?.sys,
+      })
+    );
+    console.log("[CANONICAL_SAVE]", canonicalDraft);
+
+    const cleanHpt = safe(canonicalDraft.hpT);
+    const cleanStr = safe(canonicalDraft.str);
+    const cleanAi = safe(aiOverride ?? canonicalDraft.ai);
+
     console.log("[SAVE] Creating StrategyEntry");
     let strategy;
     try {
-      strategy = createStrategyEntry({
+      const baseEntry = createStrategyEntry({
         slot: slotId,
-        signature,
-        sysInputs: cleanSysInputs ?? {},
+        signature: canonicalDraft.signature,
+        sysInputs: canonicalDraft.sysInputs,
         hpT: cleanHpt,
         str: cleanStr,
         ai: cleanAi,
         balls: cleanBall3,
-        track: sys.track ?? "B2T_L",
+        track: canonicalDraft.track,
         evaluateStrategy: evalForSave,
       });
+      strategy = attachCanonicalFieldsToStrategyEntry(baseEntry, canonicalDraft);
       console.log("[SAVE] strategy JSON check:", JSON.stringify(strategy));
     } catch (e) {
       console.error("[SAVE] createStrategyEntry 에러:", e);
@@ -3905,19 +3922,42 @@ export default function App({
     }
 
     console.log("[SAVE] Running upsertPositionRecord");
-    const updated = upsertPositionRecord(
+    let updated = upsertPositionRecord(
       dataset,
       ball3ForDataset,
       strategy,
       MERGE_EPSILON,
       datasetTargetBall
     );
+    updated = applySchemaVersionToDatasetRecord(updated, cleanBall3);
     console.log("[SAVE] updated length:", updated?.length);
+
+    const savedRecord = updated.find((r) => {
+      const s = r.strategies?.[slotId];
+      return s != null;
+    });
+    const savedStrategy = savedRecord?.strategies?.[slotId] ?? strategy;
+
+    logCanonicalPersistAudit({
+      slotId,
+      strategy: savedStrategy,
+      dataset: updated,
+      boundary: {
+        adminInputs: adminState?.sys?.inputs,
+        appliedInputs: sys?.inputs,
+        canonicalSysInputs: canonicalDraft.sysInputs,
+        adminCorrections: adminState?.sys?.corrections,
+        systemValues: adminState?.sys?.system_values,
+      },
+      effectiveRenderKeys: Object.keys(resolvedSlotSysValues || {}),
+    });
 
     setDataset(updated);
 
     console.log("[SAVE] Saving dataset to localStorage");
-    console.log("[SAVE] updated dataset:", updated);
+    if (import.meta.env.DEV) {
+      console.log("[SAVE] persist strategy sample:", JSON.stringify(savedStrategy, null, 2));
+    }
     try {
       localStorage.setItem("positions_dataset", JSON.stringify(updated));
       console.log("[SAVE] localStorage 저장 완료");
