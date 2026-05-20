@@ -118,6 +118,11 @@ export function detectTrackTurn(track?: string): "L" | "R" | null {
   return null;
 }
 
+/** L suffix 트랙: C1→C2 spin 분리각은 R 트랙 대비 반사 좌표계에서 부호 반전 필요 */
+export function isLeftHandedTrack(track?: string): boolean {
+  return track === "B2T_L" || track === "T2B_L";
+}
+
 /** spin 부호 해석: track 선회방향과 tip.side가 같으면 +, 반대면 - */
 export function resolveSignedSpinDeg(
   track?: string,
@@ -285,7 +290,22 @@ export function computeReflectionC2(input: ReflectionInput): ReflectionOutput | 
     manualHint?.deltaAngleDeg ?? 0
   );
   const thetaReflectDeg = reflectAngle(thetaInDeg, c1Rail);
-  const thetaOutDeg = thetaReflectDeg + spinAdjustDeg + 180;
+  const handedSpinAdjustDeg =
+    spinAdjustDeg * (isLeftHandedTrack(track) ? -1 : 1);
+  const thetaOutDeg = thetaReflectDeg + handedSpinAdjustDeg + 180;
+
+  if (import.meta.env?.DEV) {
+    console.log("[C2_REFLECT_DEBUG]", {
+      track,
+      c1Rail,
+      thetaInDeg,
+      thetaReflectDeg,
+      spinAdjustDeg,
+      handedSpinAdjustDeg,
+      thetaOutDeg,
+      tipSide: tip?.side ?? null,
+    });
+  }
 
   const preferred = manualHint?.preferredRail;
   const chosen = chooseCandidateRail(c1Rail, track, preferred);
