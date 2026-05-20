@@ -78,6 +78,7 @@ import {
 import {
   applySchemaVersionToDatasetRecord,
   attachCanonicalFieldsToStrategyEntry,
+  getPersistableBaseSysInputs,
   mergeCorrectionsForRecallHydrate,
   normalizeCanonicalSaveDraft,
   toCanonicalStrategyEntry,
@@ -104,7 +105,12 @@ import { makeSignatureKey } from "./domain/search/signatureKey";
 import { listStrategiesInRecord } from "./domain/positionSearchEngine";
 import { initFileHandle, saveToFile } from "./domain/fileService";
 import { getAnchorsForSystem } from "./data/systems/anchorsRegistry";
-import { useSettings } from "./hooks/useSettings";
+import {
+  useSettings,
+  WORKSPACE_CLEANUP_CLEAR_ALL,
+  WORKSPACE_CLEANUP_PRESERVE_DATASET,
+  runWorkspaceLocalStorageCleanup,
+} from "./hooks/useSettings";
 
 // IMPORTANT:
 // Main app currently renders the LOCAL SysOverlay defined in this file.
@@ -3208,7 +3214,11 @@ export default function App({
   // 관리자 모드 상태 (v0)
   // ============================================
   const [appMode, setAppMode] = useState("USER"); // "USER" | "ADMIN"
-  
+  const [workspaceCleanupMode, setWorkspaceCleanupMode] = useState(
+    WORKSPACE_CLEANUP_PRESERVE_DATASET
+  );
+  const [workspaceCleanupOpen, setWorkspaceCleanupOpen] = useState(false);
+
   const ANCHORS_OVERRIDE_KEY = "ANCHORS_OVERRIDE_V1";
   const [adminState, setAdminState] = useState(() => {
     try {
@@ -3746,6 +3756,21 @@ export default function App({
   // 권한 체크
   const canEdit = appMode === "ADMIN";
 
+  function handleWorkspaceLocalStorageCleanup() {
+    if (workspaceCleanupMode === WORKSPACE_CLEANUP_CLEAR_ALL) {
+      const ok = window.confirm(
+        "Export하지 않은 Recall 데이터는 복구할 수 없습니다.\n정말 localStorage 전체를 삭제하시겠습니까?"
+      );
+      if (!ok) return;
+    }
+    const removedKeys = runWorkspaceLocalStorageCleanup(workspaceCleanupMode);
+    if (import.meta.env.DEV) {
+      console.log("[WorkspaceCleanup]", removedKeys);
+    }
+    setWorkspaceCleanupOpen(false);
+    window.location.reload();
+  }
+
   function handleImportDataset() {
     fileInputRef.current?.click();
   }
@@ -3845,26 +3870,46 @@ export default function App({
 
     const slotId = shotEditor.activeSlot;
     const slot = shotEditor.slots[slotId];
-    const applied = slot?.applied ?? {};
+    const applied = slot?.applied ?? null;
+    const draft = slot?.draft ?? null;
 
-    const sys = applied.sys;
+    const appliedForSave = {
+      ...(applied ?? {}),
+      sys: applied?.sys ?? draft?.sys,
+      hpt: applied?.hpt ?? draft?.hpt,
+      str: applied?.str ?? draft?.str,
+      ai: applied?.ai ?? draft?.ai,
+    };
+
+    const persistBaseSysInputs = getPersistableBaseSysInputs(
+      adminState?.sys,
+      appliedForSave?.sys ?? undefined
+    );
+
+    const sys = appliedForSave.sys;
 
     console.log("[SAVE] slotId:", slotId);
     console.log("[SAVE] adminState:", adminState);
     console.log("[SAVE] slot:", slot);
     console.log("[SAVE] sys:", sys);
-    console.log("[SAVE] sys?.inputs:", sys?.inputs);
+    console.log("[SAVE] persistBaseSysInputs:", persistBaseSysInputs);
     console.log("[SAVE] dataset length:", dataset?.length);
 
     const balls = adminState.balls ?? { cue: { x: 10, y: 10 }, target: { x: 50, y: 25 }, second: { x: 40, y: 20 } };
     console.log("[SAVE] balls:", balls);
 
-    if (!sys?.inputs) {
-      console.log("[SAVE] EARLY RETURN: sys?.inputs 없음");
-      return { ok: false, reason: "missing-applied-sys-inputs" };
+    if (Object.keys(persistBaseSysInputs).length === 0) {
+      console.log("[SAVE] EARLY RETURN: missing-persistable-base-sys-inputs");
+      return { ok: false, reason: "missing-persistable-base-sys-inputs" };
     }
 
-    const systemId = sys.systemId ?? sys.system_id ?? "5_half_system";
+    const systemId =
+      sys?.systemId ??
+      sys?.system_id ??
+      adminState?.sys?.systemId ??
+      adminState?.sys?.system_id ??
+      adminState?.sys?.system ??
+      "5_half_system";
     const profile = SYSTEM_PROFILES[systemId];
     const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
     const shotType = adminState?.sys?.shotType ?? "default";
@@ -3890,7 +3935,7 @@ export default function App({
       toCanonicalStrategyEntry({
         slotId,
         signature,
-        applied,
+        applied: appliedForSave,
         adminSys: adminState?.sys,
       })
     );
@@ -3944,7 +3989,7 @@ export default function App({
       dataset: updated,
       boundary: {
         adminInputs: adminState?.sys?.inputs,
-        appliedInputs: sys?.inputs,
+        appliedInputs: appliedForSave?.sys?.inputs,
         canonicalSysInputs: canonicalDraft.sysInputs,
         adminCorrections: adminState?.sys?.corrections,
         systemValues: adminState?.sys?.system_values,
@@ -3989,7 +4034,12 @@ export default function App({
       return;
     }
     const r = handleSaveStrategy();
-    if (!r?.ok) return;
+    if (!r?.ok) {
+      if (import.meta.env.DEV) {
+        console.warn("[SAVE] failed", r?.reason);
+      }
+      return;
+    }
     commitWorkspaceHistoryWithStrategyDataset(r.updated);
   }
 
@@ -6892,6 +6942,99 @@ function handlePointerCancel(e) {
             >
               Position
             </button>
+          </div>
+          <div className="right-panel-divider" aria-hidden="true" />
+          <div
+            className="workspace-cleanup-section"
+            style={{ width: "100%", marginTop: 16 }}
+          >
+            <button
+              type="button"
+              className="control-button"
+              onClick={() => setWorkspaceCleanupOpen((open) => !open)}
+              style={{
+                backgroundColor: workspaceCleanupOpen ? "#334155" : "#475569",
+                color: "#e2e8f0",
+                height: 52,
+                fontSize: 15,
+              }}
+              aria-expanded={workspaceCleanupOpen}
+            >
+              Data 정리
+            </button>
+            {workspaceCleanupOpen && (
+              <div
+                className="workspace-cleanup-expand"
+                style={{
+                  marginTop: 10,
+                  padding: "12px 10px",
+                  borderRadius: 8,
+                  background: "rgba(0, 0, 0, 0.35)",
+                  border: "1px solid #334155",
+                  fontSize: 12,
+                  color: "#cbd5e1",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    marginBottom: 8,
+                    cursor: "pointer",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="workspaceCleanupMode"
+                    checked={
+                      workspaceCleanupMode === WORKSPACE_CLEANUP_PRESERVE_DATASET
+                    }
+                    onChange={() =>
+                      setWorkspaceCleanupMode(WORKSPACE_CLEANUP_PRESERVE_DATASET)
+                    }
+                    style={{ marginTop: 2, flexShrink: 0 }}
+                  />
+                  <span>positions_dataset 제외 삭제</span>
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    marginBottom: 12,
+                    cursor: "pointer",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="workspaceCleanupMode"
+                    checked={workspaceCleanupMode === WORKSPACE_CLEANUP_CLEAR_ALL}
+                    onChange={() =>
+                      setWorkspaceCleanupMode(WORKSPACE_CLEANUP_CLEAR_ALL)
+                    }
+                    style={{ marginTop: 2, flexShrink: 0 }}
+                  />
+                  <span>전체 삭제</span>
+                </label>
+                <button
+                  type="button"
+                  className="control-button"
+                  onClick={handleWorkspaceLocalStorageCleanup}
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    fontSize: 14,
+                    backgroundColor: "#dc2626",
+                    color: "white",
+                  }}
+                >
+                  실행
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

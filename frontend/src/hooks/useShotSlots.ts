@@ -5,6 +5,7 @@ import { SYSTEM_PROFILES } from '../data/systems';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
 import { buildTrajectorySamples } from '../utils/trajectorySampleBuilder';
 import type { PositionRecord, StrategyEntry } from '../domain/positionSearchEngine';
+import { hydrateSysFromStrategyEntry } from '../domain/strategyHydrate';
 
 // ==========================================
 // Types (중복 없이 정리)
@@ -68,36 +69,14 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
     const entry = record.strategies[slotId];
     if (!entry) continue;
 
-    const systemId = entry.signature.systemId === "5_HALF" ? "5_half_system" : (entry.signature.systemId ?? "5_half_system");
-    const inputs = entry.sysInputs ?? {};
-    const profile = SYSTEM_PROFILES[systemId];
-    const expr = profile?.formula?.expr;
-
-    const baseThreeC =
-      typeof inputs.baseThreeC === "number" ? inputs.baseThreeC
-        : (typeof inputs.C3 === "number" ? inputs.C3 : (typeof inputs.C3_r === "number" ? inputs.C3_r : 0));
-    const baseOneC =
-      typeof inputs.baseOneC === "number" ? inputs.baseOneC
-        : (typeof inputs.CO === "number" ? inputs.CO : (typeof inputs.CO_f === "number" ? inputs.CO_f : 0));
-    const exprInputs: Record<string, number> = {
-      ...inputs,
-      baseThreeC,
-      baseOneC,
-      CO_f: typeof inputs.CO_f === "number" ? inputs.CO_f : baseOneC,
-      C3_r: typeof inputs.C3_r === "number" ? inputs.C3_r : baseThreeC,
-    } as Record<string, number>;
-
-    let calcResult: Record<string, number> = {};
-    if (expr) {
-      calcResult = calculateByProfileExpr(expr, exprInputs);
-    }
+    const hydrated = hydrateSysFromStrategyEntry(entry);
 
     map[slotId] = {
       sys: {
-        systemId,
-        track: entry.track ?? "B2T_L",
-        inputs,
-        outputs: { result: calcResult },
+        systemId: hydrated.systemId,
+        track: hydrated.track,
+        inputs: hydrated.inputs,
+        outputs: hydrated.outputs,
       },
       hpt: entry.hpT,
       str: entry.str,
