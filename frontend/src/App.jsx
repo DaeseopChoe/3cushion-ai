@@ -19,6 +19,7 @@ import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
 import { useShotSlots } from "./hooks/useShotSlots";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
 import { angleSpinTargetRail } from "./domain/angleSpinCorrectionTarget";
+import { getShotTypeCorrectionSign } from "./domain/englishCorrectionSign";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
 import { convertThetaToClock } from "./utils/tipClockConverter";
@@ -669,13 +670,14 @@ function buildSysOverlayNumericPayload(
 
 /** SysOverlay·슬롯 렌더 공통: 공식에서 강제 cushion면·RHS 키 집합 추출 */
 /** slide(양수 밀림)와 draw(음수 끌림 저장) 상호 배타 → 단일 signed 스칼라 (물리·곡선 공통). */
-function unifiedSlideFromCorrections(corrections) {
+function unifiedSlideFromCorrections(corrections, shotType) {
   if (!corrections || typeof corrections !== "object") return 0;
   const s = Number(corrections.slide);
   const d = Number(corrections.draw);
   const slideVal = Math.abs(Number.isFinite(s) ? s : 0);
   const drawVal = -Math.abs(Number.isFinite(d) ? d : 0);
-  return drawVal !== 0 ? drawVal : slideVal;
+  const raw = drawVal !== 0 ? drawVal : slideVal;
+  return raw * getShotTypeCorrectionSign(shotType);
 }
 
 /** 저장·복원 시 slide≥0, draw≤0, 상호 배타(draw 우선 시 slide=0) */
@@ -753,7 +755,7 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
   const { coKey, c1Key, c3Key } = resolveCoC1C3Keys(forced, spaceSel);
 
   const corrections = adminSys?.corrections ?? {};
-  const unifiedSlide = unifiedSlideFromCorrections(corrections);
+  const unifiedSlide = unifiedSlideFromCorrections(corrections, adminSys?.shotType);
   const p_spin = Number(corrections.spin) || 0;
   const angleTilt = Number(corrections.curve_ratio) || 0;
 
@@ -1231,7 +1233,10 @@ function SysOverlay({ data, onSave, onCancel }) {
   }, [baseResultValue, baseResultKey, formData.system]);
 
   // 물리 보정: unifiedSlide→CO_eff만; curve_ratio+spin→C3( angleSpinTargetRail ); p_start→C4/C5/C6
-  const formUnifiedSlide = unifiedSlideFromCorrections(formData.corrections);
+  const formUnifiedSlide = unifiedSlideFromCorrections(
+    formData.corrections,
+    formData.shotType
+  );
   const p_spin = Number(formData.corrections.spin) || 0;
   const formAngleTilt = Number(formData.corrections.curve_ratio) || 0;
   const snFor5Half = useMemo(() => {
@@ -1240,7 +1245,13 @@ function SysOverlay({ data, onSave, onCancel }) {
     const CO_eff = CO_base + formUnifiedSlide;
     const C3_r = Number(normalizedBasePayload.C3_r) || 0;
     return { Sn: (CO_eff - 50) * 0.5, C4_f: C3_r + (CO_eff - 50) * 0.5, CO_f: CO_base, C3_r };
-  }, [formData.system, normalizedBasePayload, useSnForSystem, formUnifiedSlide]);
+  }, [
+    formData.system,
+    formData.shotType,
+    normalizedBasePayload,
+    useSnForSystem,
+    formUnifiedSlide,
+  ]);
   const p_start =
     useSnForSystem && isFiveHalfSystemId(formData.system) && snFor5Half
       ? snFor5Half.Sn
@@ -5832,7 +5843,11 @@ function handlePointerCancel(e) {
       adminState?.sys?.corrections?.draw ??
       formData?.corrections?.draw,
   };
-  const unifiedSlideForCurve = unifiedSlideFromCorrections(corrBundleForCurve);
+  const shotTypeForCurve = adminState?.sys?.shotType ?? "뒤돌리기";
+  const unifiedSlideForCurve = unifiedSlideFromCorrections(
+    corrBundleForCurve,
+    shotTypeForCurve
+  );
   const curveVal = Number(corrections.curve_ratio) || 0;
   const slidePortionForCoLine =
     unifiedSlideForCurve > 0 ? unifiedSlideForCurve : 0;
