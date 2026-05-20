@@ -4,6 +4,7 @@
  * - Unexported: 미 export 목록, 체크박스, Export
  */
 import React, { useEffect, useState } from "react";
+import ModalShell from "./common/ModalShell";
 
 export default function WorkspaceHistoryModal({
   history,
@@ -73,33 +74,22 @@ export default function WorkspaceHistoryModal({
   const formatName = (name) => name.replace(/_(\d{4}-\d{2}-\d{2})$/, "");
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 100,
+    <ModalShell
+      open
+      onClose={onClose}
+      draggable
+      fixed
+      zIndex={100}
+      variant="history"
+      panelClassName="modal-panel--history"
+      panelStyle={{
+        maxHeight: "70vh",
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(500px, 90vw)",
-          maxHeight: "70vh",
-          backgroundColor: "#fff",
-          borderRadius: 12,
-          boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
         {/* Header */}
         <div
+          className="modal-panel-header"
+          data-modal-drag-handle="1"
           style={{
             display: "flex",
             alignItems: "center",
@@ -107,6 +97,7 @@ export default function WorkspaceHistoryModal({
             padding: "16px 20px",
             borderBottom: "1px solid #e2e8f0",
             flexShrink: 0,
+            marginBottom: 0,
           }}
         >
           <span
@@ -119,6 +110,8 @@ export default function WorkspaceHistoryModal({
             Workspace History
           </span>
           <button
+            type="button"
+            className="modal-panel-close"
             onClick={onClose}
             style={{
               fontSize: 24,
@@ -340,7 +333,6 @@ export default function WorkspaceHistoryModal({
             닫기
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

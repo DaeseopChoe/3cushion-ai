@@ -61,6 +61,7 @@ import {
 } from "./utils/physics/ImpactEngine";
 import SystemValueLabels from "./components/table/SystemValueLabels";
 import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
+import ModalShell from "./components/common/ModalShell";
 import ImpactLines from "./components/table/ImpactLines";
 import SystemGrid from "./components/table/SystemGrid";
 import CoachingOverlay from "./components/table/CoachingOverlay";
@@ -894,6 +895,53 @@ function formatFormulaDisplay(expr, output) {
   return `${lhs}_${lhsVal} = ${rhsSubstituted}`;
 }
 
+const SYS_FORMULA_TOKEN_RE = /[A-Z][A-Z0-9]*_[fr](?:_[-\d.]+)?/g;
+
+function renderMixedFormulaLine(line) {
+  if (!line) return null;
+  SYS_FORMULA_TOKEN_RE.lastIndex = 0;
+  const nodes = [];
+  let lastIndex = 0;
+  let match;
+  while ((match = SYS_FORMULA_TOKEN_RE.exec(line)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(
+        <span key={`t-${lastIndex}`} className="sys-info-box__text">
+          {line.slice(lastIndex, match.index)}
+        </span>
+      );
+    }
+    nodes.push(
+      <span key={`m-${match.index}`} className="sys-info-box__mono">
+        {match[0]}
+      </span>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < line.length) {
+    nodes.push(
+      <span key={`t-${lastIndex}`} className="sys-info-box__text">
+        {line.slice(lastIndex)}
+      </span>
+    );
+  }
+  return nodes;
+}
+
+function renderSysFormulaContent(line) {
+  if (!line) return null;
+  const hasKorean = /[\uAC00-\uD7A3]/.test(line);
+  SYS_FORMULA_TOKEN_RE.lastIndex = 0;
+  const hasFormulaToken = SYS_FORMULA_TOKEN_RE.test(line);
+  if (!hasKorean && hasFormulaToken) {
+    return <span className="sys-info-box__mono">{line}</span>;
+  }
+  if (hasKorean) {
+    return renderMixedFormulaLine(line);
+  }
+  return <span className="sys-info-box__text">{line}</span>;
+}
+
 function SysOverlay({ data, onSave, onCancel }) {
   // ==========================================
   // v1 공략 유형 (내부 상수 고정)
@@ -1459,12 +1507,11 @@ function SysOverlay({ data, onSave, onCancel }) {
       style={{
         color: '#334155',
         fontSize: '14px',
+        lineHeight: 1.55,
         display: 'flex',
         flexDirection: 'column',
-        gap: '6px',
+        gap: '10px',
         flexWrap: 'wrap',
-        maxHeight: '95vh',
-        overflow: 'hidden',
         overflowX: 'hidden'
       }}
     >
@@ -1812,74 +1859,45 @@ function SysOverlay({ data, onSave, onCancel }) {
       </div>
 
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns:
-            hasAnyCorrection && eduCorrectedFormulaLine
-              ? 'repeat(2, minmax(0, 1fr))'
-              : 'minmax(0, 1fr)',
-          gap: '6px',
-          alignItems: 'stretch'
-        }}
+        className={
+          hasAnyCorrection && eduCorrectedFormulaLine
+            ? "sys-info-grid sys-info-grid--two"
+            : "sys-info-grid sys-info-grid--one"
+        }
       >
-        <div
-          style={{
-            padding: '6px 8px',
-            backgroundColor: '#fff3bf',
-            borderRadius: '6px',
-            border: '1px solid #fde68a',
-            fontSize: '12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px'
-          }}
-        >
-          <strong>기준 계산값</strong>
-          <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', lineHeight: 1.45 }}>
-            {isFiveHalfSystemId(formData.system) && fiveHalfBaseDisplayLine != null
-              ? fiveHalfBaseDisplayLine
-              : baseFormulaLine}
-          </span>
+        <div className="sys-info-box sys-info-box--base">
+          <strong className="sys-info-box__title">기준 계산값</strong>
+          <div className="sys-info-box__line">
+            {renderSysFormulaContent(
+              isFiveHalfSystemId(formData.system) && fiveHalfBaseDisplayLine != null
+                ? fiveHalfBaseDisplayLine
+                : baseFormulaLine
+            )}
+          </div>
         </div>
 
         {hasAnyCorrection && eduCorrectedFormulaLine && (
-          <div
-            style={{
-              padding: '6px 8px',
-              backgroundColor: '#d3f9d8',
-              borderRadius: '6px',
-              border: '1px solid #86efac',
-              fontSize: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px'
-            }}
-          >
-            <strong>보정 계산값</strong>
-            <span style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', lineHeight: 1.45 }}>
-              {eduCorrectedFormulaLine}
-            </span>
+          <div className="sys-info-box sys-info-box--corrected">
+            <strong className="sys-info-box__title">보정 계산값</strong>
+            <div className="sys-info-box__line">
+              {renderSysFormulaContent(eduCorrectedFormulaLine)}
+            </div>
           </div>
         )}
       </div>
 
       {hasAnyCorrection && (eduStartCorrectionLine || eduRailCorrectionLine) && (
-        <div
-          style={{
-            padding: '6px 8px',
-            backgroundColor: '#eff6ff',
-            borderRadius: '6px',
-            border: '1px solid #bfdbfe',
-            fontSize: '12px',
-            color: '#1e3a8a',
-            lineHeight: 1.45,
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-          }}
-        >
+        <div className="sys-info-box sys-info-box--detail">
           {eduStartCorrectionLine && (
-            <div style={{ marginBottom: eduRailCorrectionLine ? '4px' : 0 }}>{eduStartCorrectionLine}</div>
+            <div className="sys-info-box--detail-line">
+              {renderMixedFormulaLine(eduStartCorrectionLine)}
+            </div>
           )}
-          {eduRailCorrectionLine && <div>{eduRailCorrectionLine}</div>}
+          {eduRailCorrectionLine && (
+            <div className="sys-info-box--detail-line">
+              {renderMixedFormulaLine(eduRailCorrectionLine)}
+            </div>
+          )}
         </div>
       )}
 
@@ -1895,27 +1913,19 @@ function SysOverlay({ data, onSave, onCancel }) {
         const signMid = Sn_eff >= 0 ? "+" : "−";
         const midAbs = fmt(Math.abs(Sn_eff));
         return (
-          <div
-            style={{
-              marginTop: "4px",
-              padding: "6px 10px",
-              backgroundColor: "#f0fdf4",
-              borderRadius: "6px",
-              border: "1px solid #bbf7d0",
-              fontSize: "12px",
-              lineHeight: 1.5,
-              fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-              color: "#166534",
-            }}
-          >
-            <div style={{ fontWeight: "700", fontSize: "14px", marginBottom: "4px" }}>
-              4쿠션 도착값 : {fmt(C4_eff)}
+          <div className="sys-info-box sys-info-box--arrival">
+            <div className="sys-info-box__title">
+              4쿠션 도착값 : <span className="sys-info-box__num">{fmt(C4_eff)}</span>
             </div>
-            <div>
-              4쿠션 도착값 : {c3Label}_{fmt(C3_used)} {signMid} {midAbs} = {fmt(C4_eff)}
+            <div className="sys-info-box--detail-line">
+              {renderMixedFormulaLine(
+                `4쿠션 도착값 : ${c3Label}_${fmt(C3_used)} ${signMid} ${midAbs} = ${fmt(C4_eff)}`
+              )}
             </div>
-            <div style={{ marginTop: "4px" }}>
-              출발값 보정 계산 : ({coLabel}_{fmt(CO_used)} - 50) × 0.5 = {fmt(Sn_eff)}
+            <div className="sys-info-box--detail-line">
+              {renderMixedFormulaLine(
+                `출발값 보정 계산 : (${coLabel}_${fmt(CO_used)} - 50) × 0.5 = ${fmt(Sn_eff)}`
+              )}
             </div>
           </div>
         );
@@ -3528,7 +3538,7 @@ export default function App({
     anchorKey: null,
   });
 
-  const [showSystemGrid, setShowSystemGrid] = useState(true);
+  const [showSystemGrid, setShowSystemGrid] = useState(false);
   const [showBaseLine, setShowBaseLine] = useState(false);
   const autoSave = true;
 
@@ -6510,56 +6520,28 @@ function handlePointerCancel(e) {
       )}
 
       {/* 관리자 모드 오버레이 */}
-      {overlayState.open && (
-        <div
-          onClick={closeOverlay}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            zIndex: 50,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              borderRadius: '16px',
-              padding: '40px',
-              minWidth: '700px',
-              width: '750px',
-              maxWidth: '90%',
-              maxHeight: '80%',
-              overflowY: 'auto',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>
-                {overlayState.type === 'SYS' && 'SYS 설정'}
-                {overlayState.type === 'HPT' && 'HP/T 설정'}
-                {overlayState.type === 'STR' && 'STR 설정'}
-                {overlayState.type === 'AI' && 'AI 코멘트'}
-                {overlayState.type === 'ANCHOR_EDIT' && 'Anchor 좌표 수정'}
-              </h2>
-              <button
-                onClick={closeOverlay}
-                style={{
-                  fontSize: '28px',
-                  color: '#94a3b8',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            </div>
-
+      <ModalShell
+        open={overlayState.open}
+        onClose={closeOverlay}
+        draggable
+        title={
+          overlayState.type === "SYS"
+            ? "SYS 설정"
+            : overlayState.type === "HPT"
+              ? "HP/T 설정"
+              : overlayState.type === "STR"
+                ? "STR 설정"
+                : overlayState.type === "AI"
+                  ? "AI 코멘트"
+                  : overlayState.type === "ANCHOR_EDIT"
+                    ? "Anchor 좌표 수정"
+                    : ""
+        }
+        panelStyle={{
+          maxHeight: "85vh",
+          overflowY: "auto",
+        }}
+      >
             {overlayState.type === 'SYS' && (
               <SysOverlay
                 data={adminState.sys}
@@ -6767,58 +6749,30 @@ function handlePointerCancel(e) {
                 onReorderLessons={reorderLessons}
               />
             )}
-          </div>
-        </div>
-      )}
+      </ModalShell>
       
       {/* 기존 USER 모드 오버레이 (조건 2: 완전 보존) */}
-      {overlayContent && (
-        <div
-          onClick={() => setOverlayContent(null)}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              borderRadius: '16px',
-              padding: '24px',
-              minWidth: '320px',
-              maxWidth: '70%',
-              maxHeight: '60%',
-              overflowY: 'auto',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>
-                {overlayContent === 'SYS' && 'SYS'}
-                {overlayContent === 'HPT' && 'HP/T'}
-                {overlayContent === 'STR' && 'STR'}
-                {overlayContent === 'AI' && 'AI'}
-              </h2>
-              <button
-                onClick={() => setOverlayContent(null)}
-                style={{
-                  fontSize: '28px',
-                  color: '#94a3b8',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            </div>
-
+      <ModalShell
+        open={!!overlayContent}
+        onClose={() => setOverlayContent(null)}
+        draggable
+        panelClassName="modal-panel--compact"
+        title={
+          overlayContent === "SYS"
+            ? "SYS"
+            : overlayContent === "HPT"
+              ? "HP/T"
+              : overlayContent === "STR"
+                ? "STR"
+                : overlayContent === "AI"
+                  ? "AI"
+                  : ""
+        }
+        panelStyle={{
+          maxHeight: "70vh",
+          overflowY: "auto",
+        }}
+      >
             <div style={{ color: '#334155', fontSize: '14px' }}>
               {overlayContent === 'SYS' && (
                 <div>
@@ -6861,9 +6815,7 @@ function handlePointerCancel(e) {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+      </ModalShell>
       </div>
 
       {canEdit && (
