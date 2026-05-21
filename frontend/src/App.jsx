@@ -3325,6 +3325,8 @@ export default function App({
   });
   const trajectory = useTrajectoryState();
   const debugSlotSysSnapshotPrevRef = useRef(null);
+  /** Last S1/S2/S3 button id — Position reset only on cross-slot navigation, not overlay→slot restore */
+  const lastSlotNavButtonRef = useRef(null);
 
   /**
    * PHASE 2 STEP 2: slot click = full runtime replace from slot container (no runAutoRecommend merge).
@@ -3439,6 +3441,12 @@ export default function App({
     return resolveSlotSysForRender(slot) ?? null;
   }, [shotEditor.slots, shotEditor.activeSlot]);
 
+  /** Render SSOT: active slot container (sync on paint; not adminState.sys mirror). */
+  const slotRenderSys = useMemo(() => {
+    const slot = shotEditor.slots[shotEditor.activeSlot];
+    return buildSlotRuntimePayload(slot).adminSys;
+  }, [shotEditor.slots, shotEditor.activeSlot]);
+
   const resolvedSlotSysValues = useMemo(() => {
     if (!resolvedSlotSys) return {};
     const merged = {
@@ -3448,7 +3456,7 @@ export default function App({
     const effectiveNums = buildSlotEffectiveRenderSysValues(
       merged,
       resolvedSlotSys,
-      adminState?.sys
+      slotRenderSys
     );
     const out =
       effectiveNums && Object.keys(effectiveNums).length > 0
@@ -3464,7 +3472,7 @@ export default function App({
       );
     }
     return out;
-  }, [resolvedSlotSys, shotEditor.activeSlot, adminState?.sys]);
+  }, [resolvedSlotSys, shotEditor.activeSlot, slotRenderSys]);
 
   // #region agent log
   useEffect(() => {
@@ -3498,20 +3506,22 @@ export default function App({
       mergedKeysSorted,
     };
     const eff = d
-      ? buildSlotEffectiveRenderSysValues(merged, d, adminState?.sys)
+      ? buildSlotEffectiveRenderSysValues(
+          merged,
+          d,
+          buildSlotRuntimePayload(slot).adminSys
+        )
       : {};
-    const noCorr =
-      adminState?.sys &&
-      ({
-        ...adminState.sys,
-        corrections: {
-          ...(adminState.sys.corrections ?? {}),
-          slide: 0,
-          draw: 0,
-          spin: 0,
-          curve_ratio: 0,
-        },
-      });
+    const noCorr = slotRenderSys && {
+      ...slotRenderSys,
+      corrections: {
+        ...(slotRenderSys.corrections ?? {}),
+        slide: 0,
+        draw: 0,
+        spin: 0,
+        curve_ratio: 0,
+      },
+    };
     const effBase = d
       ? buildSlotEffectiveRenderSysValues(merged, d, noCorr)
       : {};
@@ -3585,19 +3595,19 @@ export default function App({
   ]);
   // #endregion
 
-  const adminSysNoCorrections = useMemo(() => {
-    if (!adminState?.sys) return undefined;
+  const slotRenderSysNoCorrections = useMemo(() => {
+    if (!slotRenderSys) return undefined;
     return {
-      ...adminState.sys,
+      ...slotRenderSys,
       corrections: {
-        ...(adminState.sys.corrections ?? {}),
+        ...(slotRenderSys.corrections ?? {}),
         slide: 0,
         draw: 0,
         spin: 0,
         curve_ratio: 0,
       },
     };
-  }, [adminState?.sys]);
+  }, [slotRenderSys]);
 
   const resolvedSlotBaseSysValues = useMemo(() => {
     if (!resolvedSlotSys) {
@@ -3610,14 +3620,14 @@ export default function App({
     const built = buildSlotEffectiveRenderSysValues(
       merged,
       resolvedSlotSys,
-      adminSysNoCorrections
+      slotRenderSysNoCorrections
     );
     const out =
       built && typeof built === "object" && Object.keys(built).length > 0
         ? { ...merged, ...built }
         : merged;
     return out;
-  }, [resolvedSlotSys, shotEditor.activeSlot, adminSysNoCorrections]);
+  }, [resolvedSlotSys, shotEditor.activeSlot, slotRenderSysNoCorrections]);
 
   /** C3 오염 추적: 슬롯별 C3_r/CO_f/Sn/C4_f 비교 */
   useEffect(() => {
@@ -4641,9 +4651,23 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     const slotIds = ["S1", "S2", "S3"];
     if (!slotIds.includes(currentButtonId)) return;
+
+    const prevSlotButton = lastSlotNavButtonRef.current;
+    const isCrossSlotNavigation =
+      prevSlotButton != null &&
+      prevSlotButton !== currentButtonId &&
+      slotIds.includes(prevSlotButton);
+
     actions.switchSlot(currentButtonId);
     setOverlayContent(null);
     setOverlayState({ open: false, type: null });
+
+    // Position OFF only when admin moves S1↔S2↔S3 — not when SYS/HPT/STR/AI closes (currentButtonId → activeSlot).
+    if (isCrossSlotNavigation) {
+      setIsPositionLocked(false);
+    }
+
+    lastSlotNavButtonRef.current = currentButtonId;
   }, [currentButtonId]);
 
   // STEP 2-2 A: slot 전환 시에만 targetBall hydrate (Target 클릭 patch는 slots만 변경 → 여기 미실행)
@@ -5845,18 +5869,12 @@ function handlePointerCancel(e) {
   const C1_line = C1_rail;
 
   // CO Dual Trajectory: 보정선 (양수 unifiedSlide / curve_ratio 시 CO_corrected 표시)
-  const corrections = canEdit ? (resolvedSlotSys?.corrections || {}) : {};
+  const corrections = canEdit ? (slotRenderSys?.corrections ?? {}) : {};
   const corrBundleForCurve = {
-    slide:
-      resolvedSlotSys?.corrections?.slide ??
-      adminState?.sys?.corrections?.slide ??
-      formData?.corrections?.slide,
-    draw:
-      resolvedSlotSys?.corrections?.draw ??
-      adminState?.sys?.corrections?.draw ??
-      formData?.corrections?.draw,
+    slide: corrections.slide ?? 0,
+    draw: corrections.draw ?? 0,
   };
-  const shotTypeForCurve = adminState?.sys?.shotType ?? "뒤돌리기";
+  const shotTypeForCurve = slotRenderSys?.shotType || "뒤돌리기";
   const unifiedSlideForCurve = unifiedSlideFromCorrections(
     corrBundleForCurve,
     shotTypeForCurve
