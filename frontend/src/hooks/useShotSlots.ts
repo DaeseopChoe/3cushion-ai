@@ -5,7 +5,16 @@ import { SYSTEM_PROFILES } from '../data/systems';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
 import { buildTrajectorySamples } from '../utils/trajectorySampleBuilder';
 import type { PositionRecord, StrategyEntry } from '../domain/positionSearchEngine';
-import { hydrateSysFromStrategyEntry } from '../domain/strategyHydrate';
+import {
+  draftRuntimeFieldsFromStrategyEntry,
+  strategyEntryToSlotDraftSys,
+} from '../domain/slotDraftFromEntry';
+import type { StrategySysCorrections, TargetBall } from '../domain/positionSearchEngine';
+import { normalizeSlotTargetBall } from '../domain/slotRuntimeHydrate';
+export {
+  resolveSlotSysForRender,
+  hasRenderableOutputsResult,
+} from '../domain/slotSysResolve';
 
 // ==========================================
 // Types (중복 없이 정리)
@@ -19,6 +28,11 @@ export interface DraftState {
   str?: any;
   ai?: any;
   meta?: { recommendedFrom?: { positionId: string; score: number } };
+  /** Per-slot runtime (PHASE 2) — not shared across slots */
+  corrections?: StrategySysCorrections;
+  shotType?: string;
+  system_values?: Record<string, number>;
+  targetBall?: TargetBall | null;
 }
 
 export interface SlotState {
@@ -69,19 +83,18 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
     const entry = record.strategies[slotId];
     if (!entry) continue;
 
-    const hydrated = hydrateSysFromStrategyEntry(entry);
-
+    const runtime = draftRuntimeFieldsFromStrategyEntry(entry);
+    const recordTarget = normalizeSlotTargetBall(record.targetBall);
     map[slotId] = {
-      sys: {
-        systemId: hydrated.systemId,
-        track: hydrated.track,
-        inputs: hydrated.inputs,
-        outputs: hydrated.outputs,
-      },
+      sys: strategyEntryToSlotDraftSys(entry),
       hpt: entry.hpT,
       str: entry.str,
       ai: entry.ai,
       meta: { recommendedFrom: { positionId: record.positionId, score: 0 } },
+      corrections: runtime.corrections,
+      shotType: runtime.shotType,
+      system_values: runtime.system_values,
+      targetBall: recordTarget,
     };
   }
   return map;
@@ -608,11 +621,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
         nextSlots[slotId] = {
           ...slot,
           draft: {
-            sys: {
-              systemId: entry.signature.systemId,
-              track: entry.track ?? "B2T_L",
-              inputs: entry.sysInputs ?? {},
-            },
+            sys: strategyEntryToSlotDraftSys(entry),
             hpt: entry.hpT,
             str: entry.str,
             ai: entry.ai,
@@ -643,16 +652,68 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
           [slotId]: {
             ...slot,
             draft: {
-              sys: {
-                systemId: entry.signature.systemId,
-                track: entry.track ?? "B2T_L",
-                inputs: entry.sysInputs ?? {},
-              },
+              sys: strategyEntryToSlotDraftSys(entry),
               hpt: entry.hpT,
               str: entry.str,
               ai: entry.ai,
               meta: meta ? { recommendedFrom: meta } : undefined,
+              ...draftRuntimeFieldsFromStrategyEntry(entry),
             },
+          },
+        },
+      };
+    });
+  };
+
+  /**
+   * SYS Apply 등: per-slot corrections / shotType / system_values를 draft+applied에 저장
+   */
+  const patchSlotRuntimeMeta = (
+    slotId: SlotId,
+    meta: {
+      corrections?: StrategySysCorrections;
+      shotType?: string;
+      system_values?: Record<string, number>;
+      targetBall?: TargetBall | null;
+    }
+  ) => {
+    setShotEditor((s) => {
+      const slot = s.slots[slotId];
+      // #region agent log
+      fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e25b9" },
+        body: JSON.stringify({
+          sessionId: "5e25b9",
+          location: "useShotSlots.ts:patchSlotRuntimeMeta",
+          message: "patchSlotRuntimeMeta",
+          hypothesisId: "H2",
+          timestamp: Date.now(),
+          data: {
+            slotId,
+            targetBall: meta.targetBall ?? null,
+            hasDraft: !!slot?.draft,
+            hasApplied: !!slot?.applied,
+          },
+        }),
+      }).catch(() => {});
+      // #endregion
+      const patch = {
+        ...(meta.corrections != null ? { corrections: meta.corrections } : {}),
+        ...(meta.shotType != null ? { shotType: meta.shotType } : {}),
+        ...(meta.system_values != null
+          ? { system_values: { ...meta.system_values } }
+          : {}),
+        ...(meta.targetBall !== undefined ? { targetBall: meta.targetBall } : {}),
+      };
+      return {
+        ...s,
+        slots: {
+          ...s.slots,
+          [slotId]: {
+            ...slot,
+            draft: slot.draft ? { ...slot.draft, ...patch } : slot.draft,
+            applied: slot.applied ? { ...slot.applied, ...patch } : slot.applied,
           },
         },
       };
@@ -770,6 +831,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       applyStrToSlot,
       applyAiToSlot,
       loadDraftFromStrategyEntry,
+      patchSlotRuntimeMeta,
       loadDraftsFromPositionRecord,
       applyPositionRecall,
       saveShot,

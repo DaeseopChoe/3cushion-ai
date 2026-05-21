@@ -16,10 +16,12 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
-import { useShotSlots } from "./hooks/useShotSlots";
+import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
 import { angleSpinTargetRail } from "./domain/angleSpinCorrectionTarget";
 import { getShotTypeCorrectionSign } from "./domain/englishCorrectionSign";
+import { adminSysShallowEqual } from "./domain/adminSysFromSlot";
+import { buildSlotRuntimePayload } from "./domain/slotRuntimeHydrate";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
 import { convertThetaToClock } from "./utils/tipClockConverter";
@@ -100,7 +102,7 @@ import {
   directionFromAngleDeg,
 } from "./domain/reflectionEngine";
 import { createCaptureCandidate } from "./data/autoCaptureEngine";
-import { runAutoRecommend, normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
+import { normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
 import { runPositionRecall } from "./domain/positionRecallEngine";
 import { makeSignatureKey } from "./domain/search/signatureKey";
@@ -3324,10 +3326,117 @@ export default function App({
   const trajectory = useTrajectoryState();
   const debugSlotSysSnapshotPrevRef = useRef(null);
 
+  /**
+   * PHASE 2 STEP 2: slot click = full runtime replace from slot container (no runAutoRecommend merge).
+   */
+  function applySlotRuntimeTargetBall(targetBall) {
+    // #region agent log
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e25b9" },
+      body: JSON.stringify({
+        sessionId: "5e25b9",
+        location: "App.jsx:applySlotRuntimeTargetBall",
+        message: "applySlotRuntimeTargetBall",
+        hypothesisId: "H1",
+        timestamp: Date.now(),
+        data: { targetBall, stack: new Error().stack?.split("\n").slice(1, 4) },
+      }),
+    }).catch(() => {});
+    // #endregion
+    if (targetBall === "red" || targetBall === "yellow") {
+      setTargetColor(targetBall);
+      setIsTargetSelected(true);
+    } else {
+      setTargetColor(null);
+      setIsTargetSelected(false);
+    }
+  }
+
+  /** sys/hpt/str/ai + trajectory only — never touches targetColor / isTargetSelected */
+  function syncSlotRuntimeAdminAndTrajectory(slotId) {
+    const payload = buildSlotRuntimePayload(shotEditor.slots[slotId]);
+    // #region agent log
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e25b9" },
+      body: JSON.stringify({
+        sessionId: "5e25b9",
+        location: "App.jsx:syncSlotRuntimeAdminAndTrajectory",
+        message: "syncSlotRuntimeAdminAndTrajectory",
+        hypothesisId: "STEP2_2_B",
+        timestamp: Date.now(),
+        data: { slotId, activeSlot: shotEditor.activeSlot },
+      }),
+    }).catch(() => {});
+    // #endregion
+    setAdminState((prev) => {
+      const nextSys = payload.adminSys;
+      if (adminSysShallowEqual(prev.sys, nextSys)) {
+        return {
+          ...prev,
+          hpt: payload.hpt,
+          str: payload.str,
+          ai: payload.ai,
+        };
+      }
+      return {
+        ...prev,
+        hpt: payload.hpt,
+        str: payload.str,
+        ai: payload.ai,
+        sys: nextSys,
+      };
+    });
+    const result = payload.trajectoryResult;
+    const hasTraj =
+      result &&
+      (typeof result.oneC === "number" || typeof result.threeC === "number");
+    if (hasTraj) {
+      trajectory.setAdjusting({
+        sys: {
+          oneC: Number(result.oneC) || 0,
+          threeC: Number(result.threeC) || 0,
+        },
+      });
+      trajectory.applySysResult(result);
+    } else {
+      trajectory.resetTrajectory();
+    }
+  }
+
+  /** Slot switch only: targetBall hydrate + admin/trajectory */
+  function hydrateSlotRuntime(slotId) {
+    const slot = shotEditor.slots[slotId];
+    const payload = buildSlotRuntimePayload(slot);
+    // #region agent log
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e25b9" },
+      body: JSON.stringify({
+        sessionId: "5e25b9",
+        location: "App.jsx:hydrateSlotRuntime",
+        message: "hydrateSlotRuntime_target",
+        hypothesisId: "STEP2_2_A",
+        timestamp: Date.now(),
+        data: {
+          slotId,
+          activeSlot: shotEditor.activeSlot,
+          payloadTargetBall: payload.targetBall,
+          draftTargetBall: slot?.draft?.targetBall ?? null,
+          appliedTargetBall: slot?.applied?.targetBall ?? null,
+        },
+      }),
+    }).catch(() => {});
+    // #endregion
+    applySlotRuntimeTargetBall(payload.targetBall);
+    syncSlotRuntimeAdminAndTrajectory(slotId);
+  }
+
   /** 궤적/앵커 렌더 SSOT: 활성 슬롯의 sys만 사용 (adminState.sys / view.ui.system 혼합 금지) */
   const resolvedSlotSys = useMemo(() => {
     const slot = shotEditor.slots[shotEditor.activeSlot];
-    return slot?.draft?.sys ?? slot?.applied?.sys ?? null;
+    return resolveSlotSysForRender(slot) ?? null;
   }, [shotEditor.slots, shotEditor.activeSlot]);
 
   const resolvedSlotSysValues = useMemo(() => {
@@ -3736,10 +3845,30 @@ export default function App({
 
   function applyTarget() {
     const color = resolveBallColorFromId(dragState.ballId);
+    // #region agent log
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e25b9" },
+      body: JSON.stringify({
+        sessionId: "5e25b9",
+        location: "App.jsx:applyTarget",
+        message: "applyTarget_click",
+        hypothesisId: "H4",
+        timestamp: Date.now(),
+        data: {
+          ballId: dragState.ballId,
+          color,
+          activeSlot: shotEditor.activeSlot,
+          willAbort: !color,
+        },
+      }),
+    }).catch(() => {});
+    // #endregion
     if (!color) return;
     stopJoystick();
     setTargetColor(color);
     setIsTargetSelected(true);
+    actions.patchSlotRuntimeMeta(shotEditor.activeSlot, { targetBall: color });
     setDragState((s) => ({
       ...s,
       joystickVisible: false,
@@ -3757,15 +3886,9 @@ export default function App({
   const JOYSTICK_STEP = 0.1; // Rg
   const JOYSTICK_REPEAT_MS = 60;
 
-  // KD-Tree 인덱스 (dataset 변경 시 rebuild, runAutoRecommend용)
+  // KD-Tree 인덱스 (dataset 변경 시 rebuild; USER strategyCountMap 등)
   const kdIndexRef = useRef(null);
   const fileInputRef = useRef(null);
-  /**
-   * Stage `onFuncOverlayClose`가 currentButtonId를 SYS→S1 등으로 되돌릴 때,
-   * `[currentButtonId]` effect가 runAutoRecommend → loadDraftFromStrategyEntry로
-   * draft.sys(outputs 없음)를 덮어써 라벨/그리드가 한 틱 뒤 사라지는 것을 한 번만 건너뜀.
-   */
-  const skipSlotAutoRecommendOnceRef = useRef(false);
   useEffect(() => {
     kdIndexRef.current = new PositionKDIndex(dataset ?? []);
   }, [dataset]);
@@ -3841,9 +3964,8 @@ export default function App({
     setOverlayState({ open: true, type: "ANCHOR_EDIT", anchorKey });
   }
 
-  /** SYS/HPT/STR/AI 닫을 때 Stage가 슬롯 버튼으로 currentButtonId를 되돌림 → runAutoRecommend 1회 스킵 */
+  /** SYS/HPT/STR/AI 닫을 때 Stage가 슬롯 버튼으로 currentButtonId를 되돌림 */
   function notifyFuncOverlayClosedByAdminUi() {
-    skipSlotAutoRecommendOnceRef.current = true;
     onFuncOverlayClose?.();
   }
 
@@ -3863,6 +3985,20 @@ export default function App({
     if (!overlayState.open) return;
     const t = overlayState.type;
     if (!t || !["SYS", "HPT", "STR", "AI"].includes(t)) return;
+    // #region agent log
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e25b9" },
+      body: JSON.stringify({
+        sessionId: "5e25b9",
+        location: "App.jsx:overlayCloseOnTargetEffect",
+        message: "overlay_close_effect_fired",
+        hypothesisId: "H3",
+        timestamp: Date.now(),
+        data: { isPositionLocked, isTargetSelected, overlayType: t },
+      }),
+    }).catch(() => {});
+    // #endregion
     notifyFuncOverlayClosedByAdminUi();
     setOverlayState({ open: false, type: null, anchorKey: null });
   }, [
@@ -4019,6 +4155,11 @@ export default function App({
     });
 
     setDataset(updated);
+
+    actions.patchSlotRuntimeMeta(slotId, {
+      targetBall:
+        targetColor === "red" || targetColor === "yellow" ? targetColor : null,
+    });
 
     console.log("[SAVE] Saving dataset to localStorage");
     if (import.meta.env.DEV) {
@@ -4186,10 +4327,6 @@ export default function App({
         if (!nextSys) return prev;
         return { ...prev, sys: nextSys };
       });
-    }
-    if (result.record.targetBall === "red" || result.record.targetBall === "yellow") {
-      setTargetColor(result.record.targetBall);
-      setIsTargetSelected(true);
     }
     setIsRecalled(true);
 
@@ -4499,149 +4636,25 @@ function handleJoyPadPointerCancel(e) {
   }, [currentButtonId, appMode, isPositionLocked, isTargetSelected]);
 
   // ============================================
-  // S1/S2/S3: 슬롯(전략)만 전환 — currentId/view/ballsState는 건드리지 않음 (공 배치 SSOT)
+  // S1/S2/S3: navigation only (no runAutoRecommend)
   // ============================================
   useEffect(() => {
-    if (currentButtonId === 'S1') {
-      actions.switchSlot('S1');
-      setOverlayContent(null);
-      setOverlayState({ open: false, type: null });
-      if (skipSlotAutoRecommendOnceRef.current) {
-        skipSlotAutoRecommendOnceRef.current = false;
-        // #region agent log
-        fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Debug-Session-Id": "a98f58",
-          },
-          body: JSON.stringify({
-            sessionId: "a98f58",
-            location: "App.jsx:slotButtonEffect",
-            message: "skip_runAutoRecommend_after_func_overlay_close",
-            hypothesisId: "H_overlay_slot_reset",
-            timestamp: Date.now(),
-            data: { currentButtonId: "S1" },
-          }),
-        }).catch(() => {});
-        // #endregion
-        return;
-      }
-      const systemId = adminState.sys?.system_id;
-      if (!systemId) return;
-      if (!kdIndexRef.current) return;
-      const profile = SYSTEM_PROFILES[systemId];
-      const formulaHash = adminState.sys?.formulaHash ?? (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-      const currentSignature = makeSignature({ systemId, formulaHash, shotType: "default" });
-      runAutoRecommend({
-        slot: "S1",
-        currentBalls: normalizeBallsToBall3(adminState.balls ?? {}),
-        currentSignature,
-        dataset: dataset ?? [],
-        kdIndex: kdIndexRef.current,
-        targetBall: targetColor ?? null,
-        loadDraftFromStrategyEntry: actions.loadDraftFromStrategyEntry,
-      });
-    }
-    else if (currentButtonId === 'S2') {
-      actions.switchSlot('S2');
-      setOverlayContent(null);
-      setOverlayState({ open: false, type: null });
-      if (skipSlotAutoRecommendOnceRef.current) {
-        skipSlotAutoRecommendOnceRef.current = false;
-        // #region agent log
-        fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Debug-Session-Id": "a98f58",
-          },
-          body: JSON.stringify({
-            sessionId: "a98f58",
-            location: "App.jsx:slotButtonEffect",
-            message: "skip_runAutoRecommend_after_func_overlay_close",
-            hypothesisId: "H_overlay_slot_reset",
-            timestamp: Date.now(),
-            data: { currentButtonId: "S2" },
-          }),
-        }).catch(() => {});
-        // #endregion
-        return;
-      }
-      const systemId = adminState.sys?.system_id;
-      if (!systemId) return;
-      if (!kdIndexRef.current) return;
-      const profile = SYSTEM_PROFILES[systemId];
-      const formulaHash = adminState.sys?.formulaHash ?? (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-      const currentSignature = makeSignature({ systemId, formulaHash, shotType: "default" });
-      runAutoRecommend({
-        slot: "S2",
-        currentBalls: normalizeBallsToBall3(adminState.balls ?? {}),
-        currentSignature,
-        dataset: dataset ?? [],
-        kdIndex: kdIndexRef.current,
-        targetBall: targetColor ?? null,
-        loadDraftFromStrategyEntry: actions.loadDraftFromStrategyEntry,
-      });
-    }
-    else if (currentButtonId === 'S3') {
-      actions.switchSlot('S3');
-      setOverlayContent(null);
-      setOverlayState({ open: false, type: null });
-      if (skipSlotAutoRecommendOnceRef.current) {
-        skipSlotAutoRecommendOnceRef.current = false;
-        // #region agent log
-        fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Debug-Session-Id": "a98f58",
-          },
-          body: JSON.stringify({
-            sessionId: "a98f58",
-            location: "App.jsx:slotButtonEffect",
-            message: "skip_runAutoRecommend_after_func_overlay_close",
-            hypothesisId: "H_overlay_slot_reset",
-            timestamp: Date.now(),
-            data: { currentButtonId: "S3" },
-          }),
-        }).catch(() => {});
-        // #endregion
-        return;
-      }
-      const systemId = adminState.sys?.system_id;
-      if (!systemId) return;
-      if (!kdIndexRef.current) return;
-      const profile = SYSTEM_PROFILES[systemId];
-      const formulaHash = adminState.sys?.formulaHash ?? (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-      const currentSignature = makeSignature({ systemId, formulaHash, shotType: "default" });
-      runAutoRecommend({
-        slot: "S3",
-        currentBalls: normalizeBallsToBall3(adminState.balls ?? {}),
-        currentSignature,
-        dataset: dataset ?? [],
-        kdIndex: kdIndexRef.current,
-        targetBall: targetColor ?? null,
-        loadDraftFromStrategyEntry: actions.loadDraftFromStrategyEntry,
-      });
-    }
+    const slotIds = ["S1", "S2", "S3"];
+    if (!slotIds.includes(currentButtonId)) return;
+    actions.switchSlot(currentButtonId);
+    setOverlayContent(null);
+    setOverlayState({ open: false, type: null });
   }, [currentButtonId]);
 
-  // activeSlot/slots 변경 시: hpt/str/ai만 슬롯 → admin 동기화 (SYS는 슬롯 SSOT, 여기서 덮어쓰지 않음)
+  // STEP 2-2 A: slot 전환 시에만 targetBall hydrate (Target 클릭 patch는 slots만 변경 → 여기 미실행)
   useEffect(() => {
-    const slot = shotEditor.slots[shotEditor.activeSlot];
-    const draft = slot?.draft;
-    const applied = slot?.applied;
-    const defaultHpt = { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP", tipCount: 0 };
-    const defaultStr = { curve: "constant", type: null, acceleration: "smooth_const", speed: 2.5, depth: 2, impact: "medium" };
-    const defaultAi = { text: "", onePointLessons: [] };
-    setAdminState((prev) => ({
-      ...prev,
-      hpt: draft?.hpt ?? applied?.hpt ?? defaultHpt,
-      str: draft?.str ?? applied?.str ?? defaultStr,
-      ai: draft?.ai ?? applied?.ai ?? defaultAi,
-    }));
-  }, [shotEditor.activeSlot, shotEditor.slots]);
+    hydrateSlotRuntime(shotEditor.activeSlot);
+  }, [shotEditor.activeSlot]);
+
+  // STEP 2-2 B: slots/draft 변경 시 sys·trajectory만 sync (target UI 덮어쓰기 금지)
+  useEffect(() => {
+    syncSlotRuntimeAdminAndTrajectory(shotEditor.activeSlot);
+  }, [shotEditor.slots, shotEditor.activeSlot]);
 
   // Stage에 activeSlot 동기화 (슬롯 버튼 빨간 테두리용)
   useEffect(() => {
@@ -6559,6 +6572,7 @@ function handlePointerCancel(e) {
       >
             {overlayState.type === 'SYS' && (
               <SysOverlay
+                key={`sys-${shotEditor.activeSlot}`}
                 data={adminState.sys}
                 onSave={(newData) => {
                   console.log("[SYS_APPLY_START]", {
@@ -6637,6 +6651,26 @@ function handlePointerCancel(e) {
                   console.log("[SYS APPLY] commitDraftSys result:", applyResult);
                   if (applyResult.ok) {
                     console.log("[SYS APPLY] committed applied.sys outputs:", applyResult.appliedSys?.outputs);
+                    const corr = newData.corrections ?? {};
+                    actions.patchSlotRuntimeMeta(activeSlot, {
+                      corrections: {
+                        slide: Number(corr.slide) || 0,
+                        curve_ratio: Number(corr.curve_ratio) || 0,
+                        draw: Number(corr.draw) || 0,
+                        departure: Number(corr.departure) || 0,
+                        spin: Number(corr.spin) || 0,
+                      },
+                      shotType: newData.shotType,
+                      system_values:
+                        newData.system_values &&
+                        typeof newData.system_values === "object"
+                          ? { ...newData.system_values }
+                          : mergeSysOverlayPayloadToNumericInputs(newData),
+                      targetBall:
+                        targetColor === "red" || targetColor === "yellow"
+                          ? targetColor
+                          : null,
+                    });
                     const appliedResult = applyResult.appliedSys?.outputs?.result;
                     if (appliedResult && !trajectory.state.adjusted) {
                       trajectory.setAdjusting({

@@ -87,11 +87,22 @@ export const useTrajectoryState = () => {
     }));
   };
 
+  /** Slot switch / empty slot: clear global trajectory (no prev-slot carry-over). */
+  const resetTrajectory = () => {
+    setState({
+      phase: TrajectoryPhase.IDLE,
+      base: null,
+      adjusted: null,
+      derived: null,
+    });
+  };
+
   return {
     state,
     setAdjusting,
     updateAdjusted,
     applyTrajectory,
-    applySysResult
+    applySysResult,
+    resetTrajectory,
   };
 };
