@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   DndContext,
   closestCenter,
@@ -22,6 +22,11 @@ import { angleSpinTargetRail } from "./domain/angleSpinCorrectionTarget";
 import { getShotTypeCorrectionSign } from "./domain/englishCorrectionSign";
 import { adminSysShallowEqual } from "./domain/adminSysFromSlot";
 import { buildSlotRuntimePayload } from "./domain/slotRuntimeHydrate";
+import {
+  buildStrategyButtons,
+  strategyCountMapFromButtons,
+} from "./domain/strategyButtonModel";
+import { buildUserInfoPanel } from "./domain/userInfoPanelModel";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
 import { convertThetaToClock } from "./utils/tipClockConverter";
@@ -65,6 +70,7 @@ import {
 import SystemValueLabels from "./components/table/SystemValueLabels";
 import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
 import ModalShell from "./components/common/ModalShell";
+import UserAiPanel from "./components/user/UserAiPanel.jsx";
 import ImpactLines from "./components/table/ImpactLines";
 import SystemGrid from "./components/table/SystemGrid";
 import CoachingOverlay from "./components/table/CoachingOverlay";
@@ -3195,12 +3201,17 @@ function RailFrame() {
 
 export default function App({
   currentButtonId,
+  userGuideLayersVisible,
   onActiveSlotChange,
   onFuncOverlayClose,
   onDirtySlotsChange,
   onAppModeChange,
   onStrategyCountMapChange,
+  onStrategyButtonsChange,
+  onUserInfoPanelChange,
   onSystemControlsAvailabilityChange,
+  onUserSearchStrategiesRegister,
+  userRailActions,
 }) {
   const [currentId, setCurrentId] = useState(SHOTS[0].id);
   const [view, setView] = useState(null);
@@ -4345,6 +4356,49 @@ export default function App({
     }
   }
 
+  /** USER Search: recall read → draft apply → existing slot hydrate/sync chain (no save, no ball edit). */
+  const handleUserSearchStrategies = useCallback(() => {
+    if (appMode !== "USER") return;
+
+    const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
+    const result = runPositionRecall({
+      dataset: dataset ?? [],
+      balls: currentBalls,
+      targetBall: targetColor ?? null,
+    });
+
+    console.log("[USER_SEARCH_RECALL]", result);
+
+    if (!result || result.kind === "no-match") {
+      console.log("[USER_SEARCH_RECALL] no-match", result?.reason ?? "unknown");
+      return;
+    }
+
+    console.log("[USER_SEARCH_RECALL] applyPositionRecall", {
+      positionId: result.record?.positionId,
+      kind: result.kind,
+    });
+    actions.applyPositionRecall(result.record);
+  }, [
+    appMode,
+    dataset,
+    ballsState,
+    adminState?.balls,
+    targetColor,
+    actions,
+  ]);
+
+  const handleOpenUserHistory = useCallback(() => {
+    if (appMode !== "USER") return;
+    setShowHistoryModal(true);
+  }, [appMode, setShowHistoryModal]);
+
+  const handleCloseUserInfoOverlay = useCallback(() => {
+    if (appMode !== "USER") return;
+    setOverlayContent(null);
+    onFuncOverlayClose?.();
+  }, [appMode, onFuncOverlayClose]);
+
   // ⭐ 핵심: 버튼 클릭 → Overlay 여는 함수
   function handleSelectAdminButton(buttonId) {
     if (appMode !== "ADMIN") return;
@@ -4375,6 +4429,7 @@ export default function App({
       // ADMIN 모드 진입 시 항상 코칭 표시 상태로 설정
       if (nextMode === "ADMIN") {
         setShowCoaching(true);
+        setOverlayContent(null);
       }
       
       return nextMode;
@@ -4695,28 +4750,140 @@ function handleJoyPadPointerCancel(e) {
     onAppModeChange?.(appMode);
   }, [appMode, onAppModeChange]);
 
-  // USER 모드용: 현재 balls 기준 유사 포지션의 slot별 전략 개수
-  const strategyCountMap = useMemo(() => {
+  useEffect(() => {
+    if (appMode !== "USER") return;
+    if (typeof userGuideLayersVisible !== "boolean") return;
+    setShowBaseLine(userGuideLayersVisible);
+    setShowSystemGrid(userGuideLayersVisible);
+  }, [appMode, userGuideLayersVisible]);
+
+  useEffect(() => {
+    if (appMode !== "USER") {
+      onUserSearchStrategiesRegister?.(null);
+      return;
+    }
+    onUserSearchStrategiesRegister?.(handleUserSearchStrategies);
+    return () => onUserSearchStrategiesRegister?.(null);
+  }, [appMode, handleUserSearchStrategies, onUserSearchStrategiesRegister]);
+
+  useEffect(() => {
+    if (!userRailActions) return;
+    if (appMode === "USER") {
+      userRailActions.openHistory = handleOpenUserHistory;
+      userRailActions.closeOverlay = handleCloseUserInfoOverlay;
+    } else {
+      userRailActions.openHistory = null;
+      userRailActions.closeOverlay = null;
+    }
+    return () => {
+      if (!userRailActions) return;
+      userRailActions.openHistory = null;
+      userRailActions.closeOverlay = null;
+    };
+  }, [appMode, handleOpenUserHistory, handleCloseUserInfoOverlay, userRailActions]);
+
+  // USER: recall record for strategy rail labels (passive); Search applies drafts via handleUserSearchStrategies
+  const userRecallRecord = useMemo(() => {
     const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
-    if (!dataset?.length) return {};
+    if (!dataset?.length) return null;
     const result = runPositionRecall({
       dataset: dataset ?? [],
       balls: currentBalls,
       targetBall: targetColor ?? null,
     });
-    const map = {};
-    if (!result || result.kind === "no-match" || !result.record) return map;
+    if (!result || result.kind === "no-match" || !result.record) return null;
+    return result.record;
+  }, [dataset, ballsState, adminState?.balls, targetColor]);
+
+  const slotRenderShotTypes = useMemo(() => {
+    const out = { S1: "", S2: "", S3: "" };
     for (const slotId of ["S1", "S2", "S3"]) {
-      if (result.record.strategies[slotId]) {
-        map[slotId] = (map[slotId] || 0) + 1;
-      }
+      const payload = buildSlotRuntimePayload(shotEditor.slots[slotId]);
+      out[slotId] = payload.adminSys?.shotType ?? "";
     }
-    return map;
-  }, [dataset, ballsState, adminState?.balls, adminState?.sys, targetColor]);
+    return out;
+  }, [shotEditor.slots]);
+
+  const strategyButtons = useMemo(() => {
+    if (appMode !== "USER") return [];
+    return buildStrategyButtons({
+      recallRecord: userRecallRecord,
+      slots: shotEditor.slots,
+      activeSlot: shotEditor.activeSlot,
+      slotRenderShotTypes,
+    });
+  }, [
+    appMode,
+    userRecallRecord,
+    shotEditor.slots,
+    shotEditor.activeSlot,
+    slotRenderShotTypes,
+  ]);
+
+  const strategyCountMap = useMemo(
+    () => strategyCountMapFromButtons(strategyButtons),
+    [strategyButtons]
+  );
 
   useEffect(() => {
     onStrategyCountMapChange?.(strategyCountMap);
   }, [strategyCountMap, onStrategyCountMapChange]);
+
+  useEffect(() => {
+    onStrategyButtonsChange?.(strategyButtons);
+  }, [strategyButtons, onStrategyButtonsChange]);
+
+  const userInfoPanel = useMemo(() => {
+    if (appMode !== "USER") return null;
+    const activeSlot = shotEditor.activeSlot;
+    const slot = shotEditor.slots[activeSlot];
+    const hasRecallStrategy = strategyButtons.some((b) => b.slotId === activeSlot);
+    const hasSlotSys = !!(slot?.draft?.sys ?? slot?.applied?.sys);
+    if (!hasRecallStrategy && !hasSlotSys) return null;
+
+    const activeStrategyLabel =
+      strategyButtons.find((b) => b.slotId === activeSlot)?.label ??
+      strategyButtons.find((b) => b.isActive)?.label ??
+      "";
+    const appliedSys =
+      slot?.applied?.sys ?? slot?.draft?.sys ?? resolvedSlotSys ?? null;
+    const hpt =
+      slot?.draft?.hpt ?? slot?.applied?.hpt ?? adminState?.hpt ?? null;
+    const str =
+      slot?.draft?.str ?? slot?.applied?.str ?? adminState?.str ?? null;
+    const ai =
+      slot?.draft?.ai ?? slot?.applied?.ai ?? adminState?.ai ?? null;
+    return buildUserInfoPanel({
+      strategyButtonLabel: activeStrategyLabel,
+      slotRenderSys,
+      resolvedSlotSys: resolvedSlotSys ?? null,
+      resolvedSlotSysValues,
+      appliedSys,
+      hpt,
+      str,
+      ai,
+      sysHpNResult,
+      viewStrategyNarrative:
+        hasRecallStrategy || hasSlotSys ? (view?.ui?.strategy ?? null) : null,
+    });
+  }, [
+    appMode,
+    shotEditor.activeSlot,
+    shotEditor.slots,
+    strategyButtons,
+    slotRenderSys,
+    resolvedSlotSys,
+    resolvedSlotSysValues,
+    adminState?.hpt,
+    adminState?.str,
+    adminState?.ai,
+    sysHpNResult,
+    view?.ui?.strategy,
+  ]);
+
+  useEffect(() => {
+    onUserInfoPanelChange?.(userInfoPanel);
+  }, [userInfoPanel, onUserInfoPanelChange]);
 
   useEffect(() => {
     const shot = SHOTS.find((s) => s.id === currentId);
@@ -4824,6 +4991,7 @@ function handleJoyPadPointerCancel(e) {
           // ADMIN 모드 진입 시 항상 코칭 표시 상태로 설정
           if (nextMode === "ADMIN") {
             setShowCoaching(true);
+            setOverlayContent(null);
           }
           
           console.log("🔑 모드 전환:", nextMode);
@@ -4917,119 +5085,123 @@ function handleJoyPadPointerCancel(e) {
     view?.ui?.display_options?.thickness ??
     0;
 
-  /** 트랙은 입력값(슬롯 draft/applied 또는 뷰 JSON). 공/샷 경로로 추론하지 않음. */
-  const trackForAnchors = (() => {
-    if (canEdit) {
-      return resolvedSlotSys?.track || view?.track || "B2T_L";
-    }
-    return view?.track || "B2T_L";
-  })();
+  /** 트랙은 슬롯 draft/applied SSOT 우선, 없으면 view JSON fallback. */
+  const trackForAnchors =
+    resolvedSlotSys?.track || view?.track || "B2T_L";
 
   const canonical = trackForAnchors;
-  const systemIdForGrid = (() => {
-    if (canEdit) {
-      const raw = resolvedSlotSys?.systemId ?? "5_half_system";
-      return raw === "5_HALF" ? "5_half_system" : raw;
+  const rawSystemIdForGrid = resolvedSlotSys?.systemId ?? "5_half_system";
+  const systemIdForGrid =
+    rawSystemIdForGrid === "5_HALF" ? "5_half_system" : rawSystemIdForGrid;
+
+  // USER/ADMIN 공통: slot SSOT anchors (display.anchors fallback when slot empty)
+  const rawAnchors = (() => {
+    if (!resolvedSlotSys) {
+      return display?.anchors ?? {};
     }
-    return "5_half_system";
+    const sysValues = { ...resolvedSlotSysValues };
+    console.log("[VERIFY 2] sysValues 생성 직후 (slot SSOT)", {
+      activeSlot: shotEditor.activeSlot,
+      resolvedSlotSys,
+      "최종 sysValues": sysValues,
+    });
+    console.log("[SYS_COMPARE]", {
+      "view.ui.system.values (JSON 기준)": system?.values,
+      sysValues,
+    });
+    const rawSystemId = resolvedSlotSys?.systemId ?? "5_half_system";
+    const systemId = rawSystemId === "5_HALF" ? "5_half_system" : rawSystemId;
+
+    // [VERIFY 3] getAnchorsForRendering 호출 직전
+    console.log("[VERIFY 3] getAnchorsForRendering 호출 직전", {
+      activeSlot: shotEditor.activeSlot,
+      systemId,
+      "전달 sysValues": sysValues,
+    });
+    if (import.meta.env.DEV) {
+      console.log("[ANCHOR_INPUT]", resolvedSlotSysValues);
+    }
+    const anchors = getAnchorsForRendering({
+      systemId,
+      track: trackForAnchors,
+      sysValues,
+      anchorsData: getAnchorsForSystem(systemId),
+      fallback: sysValuesToAnchors(sysValues),
+    });
+    // [VERIFY 3] getAnchorsForRendering 호출 직후 + [VERIFY 4] fallback 분기
+    const anchorKeys = Object.keys(anchors);
+    const usedFallback = anchorKeys.length === 0;
+    console.log("[VERIFY 3] getAnchorsForRendering 호출 직후", {
+      "반환 anchors 키": anchorKeys,
+    });
+    console.log("[VERIFY 4] anchors fallback 분기", {
+      "Object.keys(anchors).length": anchorKeys.length,
+      "display.anchors 존재": !!display?.anchors,
+      "실제 반환": usedFallback ? "display.anchors (fallback)" : "anchors",
+    });
+    const finalAnchors = anchorKeys.length > 0 ? anchors : (display.anchors ?? {});
+    if (Object.keys(finalAnchors || {}).length === 0) {
+      // #region agent log
+      fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "a98f58",
+        },
+        body: JSON.stringify({
+          sessionId: "a98f58",
+          location: "App.jsx:rawAnchors.emptyFinal",
+          message: "rawAnchors_final_empty",
+          hypothesisId: "H_empty_anchors",
+          timestamp: Date.now(),
+          data: {
+            finalAnchorsEmpty: true,
+            sysValuesKeyCount: Object.keys(sysValues || {}).length,
+            sysValuesKeys: Object.keys(sysValues || {}).sort(),
+            engineReturnedKeys: anchorKeys,
+            trackForAnchors,
+            systemIdForAnchors: systemId,
+            usedFallbackToDisplayAnchors: usedFallback,
+            displayAnchorsKeyCount: display?.anchors
+              ? Object.keys(display.anchors).length
+              : 0,
+            displayAnchorsKeys: display?.anchors
+              ? Object.keys(display.anchors).sort()
+              : [],
+          },
+        }),
+      }).catch(() => {});
+      // #endregion
+    }
+    if (import.meta.env.DEV) {
+      console.log("[ANCHORS]", finalAnchors["C3"]);
+    }
+    console.log("[ANCHOR_SPACE_TRACE] rawAnchors 최종", {
+      keys: Object.keys(finalAnchors || {}),
+      hasSpaceInfo: Object.values(finalAnchors || {}).some(
+        (v) => v && typeof v === "object" && ("space" in v || "keyUsed" in v)
+      ),
+      sample: finalAnchors?.["C1"] ? { "C1": finalAnchors["C1"] } : null,
+    });
+    return finalAnchors;
   })();
 
-  // ADMIN: anchors.json 기반 좌표 생성 | USER: display.anchors
-  const rawAnchors = canEdit
-    ? (() => {
-        if (!resolvedSlotSys) {
-          return display?.anchors ?? {};
-        }
-        const sysValues = { ...resolvedSlotSysValues };
-        console.log("[VERIFY 2] sysValues 생성 직후 (slot SSOT)", {
-          activeSlot: shotEditor.activeSlot,
-          resolvedSlotSys,
-          "최종 sysValues": sysValues,
-        });
-        console.log("[SYS_COMPARE]", {
-          "view.ui.system.values (JSON 기준)": system?.values,
-          sysValues,
-        });
-        const rawSystemId = resolvedSlotSys?.systemId ?? "5_half_system";
-        const systemId = rawSystemId === "5_HALF" ? "5_half_system" : rawSystemId;
-
-        // [VERIFY 3] getAnchorsForRendering 호출 직전
-        console.log("[VERIFY 3] getAnchorsForRendering 호출 직전", {
-          activeSlot: shotEditor.activeSlot,
-          systemId,
-          "전달 sysValues": sysValues,
-        });
-        if (import.meta.env.DEV) {
-          console.log("[ANCHOR_INPUT]", resolvedSlotSysValues);
-        }
-        const anchors = getAnchorsForRendering({
-          systemId,
-          track: trackForAnchors,
-          sysValues,
-          anchorsData: getAnchorsForSystem(systemId),
-          fallback: sysValuesToAnchors(sysValues),
-        });
-        // [VERIFY 3] getAnchorsForRendering 호출 직후 + [VERIFY 4] fallback 분기
-        const anchorKeys = Object.keys(anchors);
-        const usedFallback = anchorKeys.length === 0;
-        console.log("[VERIFY 3] getAnchorsForRendering 호출 직후", {
-          "반환 anchors 키": anchorKeys,
-        });
-        console.log("[VERIFY 4] anchors fallback 분기", {
-          "Object.keys(anchors).length": anchorKeys.length,
-          "display.anchors 존재": !!display?.anchors,
-          "실제 반환": usedFallback ? "display.anchors (fallback)" : "anchors",
-        });
-        const finalAnchors = anchorKeys.length > 0 ? anchors : (display.anchors ?? {});
-        if (Object.keys(finalAnchors || {}).length === 0) {
-          // #region agent log
-          fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Debug-Session-Id": "a98f58",
-            },
-            body: JSON.stringify({
-              sessionId: "a98f58",
-              location: "App.jsx:rawAnchors.emptyFinal",
-              message: "rawAnchors_final_empty",
-              hypothesisId: "H_empty_anchors",
-              timestamp: Date.now(),
-              data: {
-                finalAnchorsEmpty: true,
-                sysValuesKeyCount: Object.keys(sysValues || {}).length,
-                sysValuesKeys: Object.keys(sysValues || {}).sort(),
-                engineReturnedKeys: anchorKeys,
-                trackForAnchors,
-                systemIdForAnchors: systemId,
-                usedFallbackToDisplayAnchors: usedFallback,
-                displayAnchorsKeyCount: display?.anchors
-                  ? Object.keys(display.anchors).length
-                  : 0,
-                displayAnchorsKeys: display?.anchors
-                  ? Object.keys(display.anchors).sort()
-                  : [],
-              },
-            }),
-          }).catch(() => {});
-          // #endregion
-        }
-        if (import.meta.env.DEV) {
-          console.log("[ANCHORS]", finalAnchors["C3"]);
-        }
-        console.log("[ANCHOR_SPACE_TRACE] rawAnchors 최종", {
-          keys: Object.keys(finalAnchors || {}),
-          hasSpaceInfo: Object.values(finalAnchors || {}).some(
-            (v) => v && typeof v === "object" && ("space" in v || "keyUsed" in v)
-          ),
-          sample: finalAnchors?.["C1"] ? { "C1": finalAnchors["C1"] } : null,
-        });
-        return finalAnchors;
-      })()
-    : (display.anchors ?? {});
+  if (import.meta.env.DEV) {
+    console.log("[RENDER_SSOT]", {
+      appMode,
+      canEdit,
+      activeSlot: shotEditor.activeSlot,
+      renderSource: resolvedSlotSys ? "slot" : "display.fallback",
+      hasSlotRenderSys: !!slotRenderSys,
+      hasResolvedSlotSys: !!resolvedSlotSys,
+      resolvedSlotSysValuesKeyCount: Object.keys(resolvedSlotSysValues || {}).length,
+      corrections: slotRenderSys?.corrections,
+      shotType: slotRenderSys?.shotType,
+    });
+  }
 
   const rawAnchorsBase =
-    canEdit && resolvedSlotSys && resolvedSlotBaseSysValues
+    resolvedSlotSys && resolvedSlotBaseSysValues
       ? (() => {
           const sysValues = { ...resolvedSlotBaseSysValues };
           const rawSystemId = resolvedSlotSys?.systemId ?? "5_half_system";
@@ -5869,7 +6041,7 @@ function handlePointerCancel(e) {
   const C1_line = C1_rail;
 
   // CO Dual Trajectory: 보정선 (양수 unifiedSlide / curve_ratio 시 CO_corrected 표시)
-  const corrections = canEdit ? (slotRenderSys?.corrections ?? {}) : {};
+  const corrections = slotRenderSys?.corrections ?? {};
   const corrBundleForCurve = {
     slide: corrections.slide ?? 0,
     draw: corrections.draw ?? 0,
@@ -6336,9 +6508,13 @@ function handlePointerCancel(e) {
     passedToLabels: Object.keys(allAnchorsForLabels)
   });
   console.log("LABEL_INPUT_CO", allAnchorsForLabels["CO"]);
+  const renderSystemValues =
+    resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
+      ? { values: resolvedSlotSysValues }
+      : system;
   const strategyResult = buildRailGroupedStrategy({
     strategy,
-    systemValues: canEdit ? { values: resolvedSlotSysValues } : system,
+    systemValues: renderSystemValues,
     anchors,
     lastCushion: view.last_cushion,
   });
@@ -6346,18 +6522,17 @@ function handlePointerCancel(e) {
 
   const canEditPosition = !isPositionLocked;
 
+  const slotSysValuesForRender =
+    resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
+      ? resolvedSlotSysValues
+      : (system?.values ?? {});
   const systemValuesForLabels =
     showBaseLine &&
-    canEdit &&
     resolvedSlotBaseSysValues &&
     typeof resolvedSlotBaseSysValues === "object" &&
     Object.keys(resolvedSlotBaseSysValues).length > 0
       ? resolvedSlotBaseSysValues
-      : canEdit
-        ? (resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
-            ? resolvedSlotSysValues
-            : (system?.values ?? {}))
-        : (system?.values ?? {});
+      : slotSysValuesForRender;
   const labelStrategy =
     systemIdForGrid === "5_half_system"
       ? "five_half_reference"
@@ -6524,7 +6699,7 @@ function handlePointerCancel(e) {
         />
       )}
       <SystemValueLabels
-        showSystemGrid={showSystemGrid}
+        showSystemGrid={appMode === "USER" ? !!userGuideLayersVisible : showSystemGrid}
         anchors={allAnchorsForLabels}
         labelAnchors={labelAnchorsForRaw}
         scale={SCALE}
@@ -6533,12 +6708,13 @@ function handlePointerCancel(e) {
         systemValues={systemValuesForLabels}
         labelStrategy={labelStrategy}
         outputs={
-          canEdit
-            ? resolvedSlotSys?.outputs
-            : system?.outputs ??
-              (Object.keys(system?.values ?? {}).length > 0
-                ? { result: system.values }
-                : undefined)
+          appMode === "USER" && !userGuideLayersVisible
+            ? null
+            : resolvedSlotSys?.outputs ??
+              (system?.outputs ??
+                (Object.keys(system?.values ?? {}).length > 0
+                  ? { result: system.values }
+                  : undefined))
         }
         onAnchorDoubleClick={canEdit ? openAnchorEdit : undefined}
       />
@@ -6818,70 +6994,43 @@ function handlePointerCancel(e) {
             )}
       </ModalShell>
       
-      {/* 기존 USER 모드 오버레이 (조건 2: 완전 보존) */}
+      {/* USER 모드 오버레이 — read-only info (AI panel = userInfoPanel SSOT) */}
       <ModalShell
-        open={!!overlayContent}
+        open={appMode === "USER" && !!overlayContent}
         onClose={() => setOverlayContent(null)}
         draggable
         panelClassName="modal-panel--compact"
         title={
-          overlayContent === "SYS"
-            ? "SYS"
-            : overlayContent === "HPT"
-              ? "HP/T"
-              : overlayContent === "STR"
-                ? "STR"
-                : overlayContent === "AI"
-                  ? "AI"
-                  : ""
+          overlayContent === "HPT"
+            ? "HP/T"
+            : overlayContent === "AI"
+              ? "AI 코칭"
+              : ""
         }
         panelStyle={{
           maxHeight: "70vh",
           overflowY: "auto",
         }}
       >
-            <div style={{ color: '#334155', fontSize: '14px' }}>
-              {overlayContent === 'SYS' && (
-                <div>
-                  {system.human_readable && Object.keys(system.human_readable).length > 0 ? (
-                    Object.entries(system.human_readable).map(([key, formula]) => (
-                      <div key={key} style={{ fontFamily: 'monospace', marginBottom: '8px' }}>
-                        {formula}
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ color: '#64748b' }}>시스템 정보 없음</p>
-                  )}
-                </div>
-              )}
-              
-              {overlayContent === 'HPT' && (
-                <div>
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>타점 (Hit Point)</div>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{opts.hitpoint_clock || '-'}</div>
-                  </div>
-                  <div style={{ marginBottom: '12px' }}>
-                    <span style={{ fontWeight: '600' }}>두께:</span> {thicknessForCalc || '-'}
-                  </div>
-                  <div>
-                    <span style={{ fontWeight: '600' }}>회전:</span> {opts.english_tips || '-'}
-                  </div>
-                </div>
-              )}
-              
-              {overlayContent === 'STR' && (
-                <STRContent trajectoryState={trajectory} />
-              )}
-              
-              {overlayContent === 'AI' && (
-                <div>
-                  <p style={{ lineHeight: 1.6 }}>
-                    AI 추천 기능은 추후 구현 예정입니다.
-                  </p>
-                </div>
-              )}
+        {overlayContent === "HPT" && (
+          <div style={{ color: "#334155", fontSize: "14px" }}>
+            <div style={{ marginBottom: "12px" }}>
+              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
+                타점 (Hit Point)
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+                {opts.hitpoint_clock || "-"}
+              </div>
             </div>
+            <div style={{ marginBottom: "12px" }}>
+              <span style={{ fontWeight: "600" }}>두께:</span> {thicknessForCalc || "-"}
+            </div>
+            <div>
+              <span style={{ fontWeight: "600" }}>회전:</span> {opts.english_tips || "-"}
+            </div>
+          </div>
+        )}
+        {overlayContent === "AI" && <UserAiPanel model={userInfoPanel} />}
       </ModalShell>
       </div>
 
