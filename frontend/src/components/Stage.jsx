@@ -13,7 +13,6 @@ const USER_STRATEGY_PLACEHOLDERS = {
 const ADMIN_FUNC_IDS = ["SYS", "HP/T", "STR", "AI"];
 const USER_FUNC_IDS = ["AI", "HP/T", "BASELINE", "HISTORY"];
 
-const COACH_BUTTON = { id: "COACH", label: "코칭", type: "coach" };
 const ADMIN_SHOT_BUTTONS = [
   { id: "S1", label: "S1", type: "shot" },
   { id: "S2", label: "S2", type: "shot" },
@@ -338,6 +337,12 @@ function computeUserRailHeight(
 export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOverlay }) {
   const STAGE_BUILD_ID = "user-rail-stage-v2026-05";
   const userSearchHandlerRef = useRef(null);
+  const userSearchResetHandlerRef = useRef(null);
+  const adminSearchHandlerRef = useRef(null);
+  const adminSearchResetHandlerRef = useRef(null);
+  const userStrategySlotPickRef = useRef(null);
+  const [userSearchButtonMode, setUserSearchButtonMode] = useState("search");
+  const [adminSearchButtonMode, setAdminSearchButtonMode] = useState("search");
   const userRailActions = useMemo(() => ({}), []);
   const [viewport, setViewport] = useState({ vw: 0, vh: 0 });
   const [currentButtonId, setCurrentButtonId] = useState("S1");
@@ -503,10 +508,13 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const userStrategyRailItems = enrichUserStrategyRailItems(
     USER_STRATEGY_SLOT_IDS.map((slotId) => {
       const recall = railVerifyMock?.[slotId] ?? strategyBySlot[slotId];
+      const hasRecall = railVerifyMock ? !!recall : !!recall?.hasRecall;
       return {
         id: slotId,
-        label: recall?.label ?? USER_STRATEGY_PLACEHOLDERS[slotId],
-        hasRecall: !!recall,
+        label: hasRecall
+          ? (recall?.label ?? USER_STRATEGY_PLACEHOLDERS[slotId])
+          : USER_STRATEGY_PLACEHOLDERS[slotId],
+        hasRecall,
       };
     })
   );
@@ -557,14 +565,15 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
     overflow: "hidden",
   };
 
-  const adminButtons = [COACH_BUTTON, ...ADMIN_SHOT_BUTTONS, ...ADMIN_FUNC_BUTTONS];
+  const adminButtons = [...ADMIN_SHOT_BUTTONS, ...ADMIN_FUNC_BUTTONS];
   const adminFuncIds = ADMIN_FUNC_IDS;
+  const adminRailButtonCount = 1 + adminButtons.length;
 
   let totalButtonHeight;
   if (appMode === "ADMIN") {
     const adminSizing = computeAdminRailHeight(
       stageH,
-      adminButtons.length,
+      adminRailButtonCount,
       BUTTON_HEIGHT,
       BUTTON_GAP,
       BUTTON_W
@@ -588,7 +597,6 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   }
 
   const getButtonColor = (id, isSlotSelected, isFuncSelected) => {
-    if (id === "COACH") return isFuncSelected ? "#2563eb" : "#3b82f6";
     if (id === "SEARCH") return "#4f46e5";
     if (id === "AI") return isFuncSelected ? "#c2410c" : "#ea580c";
     if (["SYS", "HP/T", "STR", "BASELINE", "SYSVAL", "HISTORY"].includes(id)) {
@@ -614,11 +622,42 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         gap: BUTTON_GAP,
       }}
     >
+      <button
+        type="button"
+        data-stage-build={STAGE_BUILD_ID}
+        data-user-info-btn="SEARCH"
+        title={adminSearchButtonMode === "reset" ? "입력 세션 종료" : "Recall 검색 · 입력 시작"}
+        onClick={() => {
+          if (adminSearchButtonMode === "reset") {
+            adminSearchResetHandlerRef.current?.();
+            return;
+          }
+          adminSearchHandlerRef.current?.();
+        }}
+        style={{
+          height: BUTTON_HEIGHT,
+          fontSize: BUTTON_FONT,
+          padding: 0,
+          background: getButtonColor("SEARCH", false, false),
+          color: "#ffffff",
+          border: "none",
+          borderRadius: "6px",
+          cursor: "pointer",
+          fontWeight: "700",
+          whiteSpace: "nowrap",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxSizing: "border-box",
+        }}
+      >
+        {adminSearchButtonMode === "reset" ? "Reset" : "Search"}
+      </button>
       {adminButtons.map(({ id, label, type }) => {
         const isShotButton = type === "shot";
         const isSlotSelected = isShotButton && activeSlot === id;
         const isFuncSelected =
-          (id === "COACH" || adminFuncIds.includes(id)) && currentButtonId === id;
+          adminFuncIds.includes(id) && currentButtonId === id;
         const borderStyle = isSlotSelected
           ? "3px solid #ef4444"
           : isFuncSelected
@@ -750,8 +789,12 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             type="button"
             data-stage-build={STAGE_BUILD_ID}
             data-user-info-btn="SEARCH"
-            title="공략 검색"
+            title={userSearchButtonMode === "reset" ? "검색 결과 초기화" : "공략 검색"}
             onClick={() => {
+              if (userSearchButtonMode === "reset") {
+                userSearchResetHandlerRef.current?.();
+                return;
+              }
               userSearchHandlerRef.current?.();
               onSearchStrategies?.();
             }}
@@ -766,42 +809,48 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
               lineHeight: 1.15,
             }}
           >
-            Search
+            {userSearchButtonMode === "reset" ? "Reset" : "Search"}
           </button>
         </div>
 
         <div aria-hidden="true" style={groupSpacerStyle} />
 
         <div style={userRailSectionStyle}>
-          {userStrategyRailItems.map(({ id, label, displayLabel, variantIndex, hasRecall }) => {
-            const isSlotSelected = hasRecall && activeSlot === id;
+          {userStrategyRailItems.map(
+            ({ id, label, displayLabel, variantIndex, hasRecall }) => {
+            const isEnabled = hasRecall;
+            const isSlotSelected = isEnabled && activeSlot === id;
             return (
               <button
                 key={id}
                 type="button"
-                disabled={!hasRecall}
+                disabled={!isEnabled}
                 title={
-                  hasRecall ? label : `${USER_STRATEGY_PLACEHOLDERS[id]} — 검색 후 활성화`
+                  isEnabled
+                    ? label
+                    : `${USER_STRATEGY_PLACEHOLDERS[id]} — Search 후 활성화`
                 }
                 onClick={() => {
-                  if (!hasRecall) return;
+                  if (!isEnabled) return;
+                  userStrategySlotPickRef.current?.(id);
                   setCurrentButtonId(id);
                 }}
                 style={{
                   ...userStrategyBtnStyle,
-                  background: hasRecall
+                  background: isEnabled
                     ? getUserStrategyButtonColor(variantIndex, isSlotSelected)
                     : "#334155",
-                  color: hasRecall ? "#ffffff" : "#94a3b8",
+                  color: isEnabled ? "#ffffff" : "#94a3b8",
                   border: isSlotSelected ? "3px solid #ef4444" : "none",
-                  cursor: hasRecall ? "pointer" : "not-allowed",
-                  opacity: hasRecall ? 1 : 0.72,
+                  cursor: isEnabled ? "pointer" : "not-allowed",
+                  opacity: isEnabled ? 1 : 0.72,
                 }}
               >
                 {displayLabel}
               </button>
             );
-          })}
+          }
+          )}
         </div>
 
         <div aria-hidden="true" style={groupSpacerStyle} />
@@ -864,6 +913,21 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             onSystemControlsAvailabilityChange={setSystemControlsAvailable}
             onUserSearchStrategiesRegister={(fn) => {
               userSearchHandlerRef.current = fn ?? null;
+            }}
+            onUserSearchResetRegister={(fn) => {
+              userSearchResetHandlerRef.current = fn ?? null;
+            }}
+            onUserSearchButtonModeChange={setUserSearchButtonMode}
+            onAdminSearchRegister={(fn) => {
+              adminSearchHandlerRef.current = fn ?? null;
+            }}
+            onAdminSearchResetRegister={(fn) => {
+              adminSearchResetHandlerRef.current = fn ?? null;
+            }}
+            onAdminSearchButtonModeChange={setAdminSearchButtonMode}
+            onAdminResetRailSelection={() => setCurrentButtonId("SEARCH")}
+            onUserStrategySlotPickRegister={(fn) => {
+              userStrategySlotPickRef.current = fn ?? null;
             }}
             userRailActions={userRailActions}
           />

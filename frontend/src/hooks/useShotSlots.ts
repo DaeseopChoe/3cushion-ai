@@ -100,7 +100,7 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
   return map;
 }
 
-/** 기존 slots에 nextDrafts 적용, applied 절대 변경 안 함. record에 없는 slot은 그대로 유지 */
+/** 기존 slots에 nextDrafts merge 적용 (ADMIN recall 등). applied 유지. */
 function applyDraftsToSlots(
   slots: ShotEditorState["slots"],
   nextDrafts: Record<string, DraftState>
@@ -123,6 +123,32 @@ function applyDraftsToSlots(
       }
     )
   ) as ShotEditorState["slots"];
+}
+
+/** USER Search: record 슬롯은 draft full replace, 미포함 슬롯은 Search draft 제거 */
+function applyDraftsFromSearchRecord(
+  slots: ShotEditorState["slots"],
+  nextDrafts: Record<string, DraftState>
+): ShotEditorState["slots"] {
+  return Object.fromEntries(
+    (Object.entries(slots) as Array<[keyof ShotEditorState["slots"], SlotState]>).map(
+      ([slotId, slot]) => {
+        const nextDraft = nextDrafts[slotId];
+        if (nextDraft) {
+          return [slotId, { ...slot, draft: nextDraft }];
+        }
+        if (slot.draft?.meta?.recommendedFrom) {
+          return [slotId, { ...slot, draft: null }];
+        }
+        return [slotId, slot];
+      }
+    )
+  ) as ShotEditorState["slots"];
+}
+
+function clearSearchDraftFromSlot(slot: SlotState): SlotState {
+  if (!slot.draft?.meta?.recommendedFrom) return slot;
+  return { ...slot, draft: null };
 }
 
 function validateDraftState(
@@ -682,18 +708,22 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       // #region agent log
       fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e25b9" },
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6b5ef2" },
         body: JSON.stringify({
-          sessionId: "5e25b9",
+          sessionId: "6b5ef2",
           location: "useShotSlots.ts:patchSlotRuntimeMeta",
-          message: "patchSlotRuntimeMeta",
-          hypothesisId: "H2",
+          message: "PATCH_SLOT_RUNTIME_META",
+          hypothesisId: "H1",
           timestamp: Date.now(),
           data: {
             slotId,
             targetBall: meta.targetBall ?? null,
             hasDraft: !!slot?.draft,
             hasApplied: !!slot?.applied,
+            draftTargetBallBefore: slot?.draft?.targetBall ?? null,
+            appliedTargetBallBefore: slot?.applied?.targetBall ?? null,
+            targetBallWrittenToDraft: !!(slot?.draft && meta.targetBall !== undefined),
+            targetBallWrittenToApplied: !!(slot?.applied && meta.targetBall !== undefined),
           },
         }),
       }).catch(() => {});
@@ -706,14 +736,22 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
           : {}),
         ...(meta.targetBall !== undefined ? { targetBall: meta.targetBall } : {}),
       };
+      const hasTargetBallPatch = meta.targetBall !== undefined;
+      const targetOnlyStub = hasTargetBallPatch
+        ? { targetBall: meta.targetBall }
+        : null;
       return {
         ...s,
         slots: {
           ...s.slots,
           [slotId]: {
             ...slot,
-            draft: slot.draft ? { ...slot.draft, ...patch } : slot.draft,
-            applied: slot.applied ? { ...slot.applied, ...patch } : slot.applied,
+            draft: slot.draft
+              ? { ...slot.draft, ...patch }
+              : targetOnlyStub,
+            applied: slot.applied
+              ? { ...slot.applied, ...patch }
+              : targetOnlyStub,
           },
         },
       };
@@ -779,6 +817,26 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     }));
   };
 
+  /** USER Search — draft full replace + 이전 Search 잔존 제거 */
+  const applyUserSearchRecall = (record: PositionRecord) => {
+    const nextDrafts = buildDraftsFromRecord(record);
+    setShotEditor((prev) => ({
+      ...prev,
+      slots: applyDraftsFromSearchRecord(prev.slots, nextDrafts),
+    }));
+  };
+
+  const clearSearchSlotDrafts = () => {
+    setShotEditor((prev) => ({
+      ...prev,
+      slots: {
+        S1: clearSearchDraftFromSlot(prev.slots.S1),
+        S2: clearSearchDraftFromSlot(prev.slots.S2),
+        S3: clearSearchDraftFromSlot(prev.slots.S3),
+      },
+    }));
+  };
+
   // ==========================================
   // Return
   // ==========================================
@@ -834,6 +892,8 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       patchSlotRuntimeMeta,
       loadDraftsFromPositionRecord,
       applyPositionRecall,
+      applyUserSearchRecall,
+      clearSearchSlotDrafts,
       saveShot,
       deleteSlot,
       getActiveSlot,
