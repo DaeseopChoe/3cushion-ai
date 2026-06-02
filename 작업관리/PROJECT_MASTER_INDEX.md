@@ -1,11 +1,25 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.0  
+Version: 1.1  
 Last Updated: 2026-05-27  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
-> 상세 이력은 `HISTORY/PROJECT_LOG_YYYY-MM.md`에 둔다.
+> 상세 이력은 `HISTORY/PROJECT_LOG_YYYY-MM.md`에 둔다.  
+> **폴더·파이프라인 구조 변경** 시 `5_PROJECT_MASTER_STATE_CURRENT.md` 전면 재작성.
+
+---
+
+## 문서 계층 (읽는 순서)
+
+| 문서 | 역할 |
+|------|------|
+| **본 문서 (`PROJECT_MASTER_INDEX.md`)** | 현재 기능·UI·완료/예정 SSOT |
+| `3_SYSTEM_ARCHITECTURE.md` | 계산·데이터 계층 상세 |
+| `4_CALCULATION_RULES.md` | 수식·보정 규칙 |
+| `5_PROJECT_MASTER_STATE_CURRENT.md` | 폴더/파이프라인 **구조 변경 시** 전면 재작성 통제 |
+| `HISTORY/PROJECT_LOG_YYYY-MM.md` | 월별 작업 이력 |
+| `ARCHIVE/1_PROJECT_MASTER_INDEX.md` | 2026-03 헌법 스냅샷 (**deprecated**) |
 
 ---
 
@@ -32,6 +46,58 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 3. **Canonical SAVE** — `sysInputs` + `corrections` persist, effective strip (2026-05 PR 2a–2d).
 4. **오버레이 이중 트랙** — ADMIN: `overlayState` + `ModalShell`(편집). USER: `overlayContent` + read-only 패널.
 5. **AI 텍스트** — 자동 생성(SYS+STR)과 `onePointLessons`(관리자 수동) **완전 분리**.
+
+---
+
+## 기술 스택
+
+- Frontend: React (Vite), TypeScript + JSX
+- 시스템 정의: `frontend/src/data/systems/*` (profile / anchors / logic / system_meta)
+- 시스템 등록: `import.meta.glob("./*/profile.json")` — profile만 있으면 자동 등록
+- Admin SYS 식: `admin/sys/useSysCalculation.ts` (anchors 비의존 expr)
+- App SYS·궤적: `utils/systemCalculator.ts`, `utils/trajectorySampleBuilder.ts`, `utils/trajectory/curveTrajectory.ts`
+
+---
+
+## 아키텍처 불변 규칙 (변경 시 로그·MASTER_STATE 갱신 필수)
+
+1. **값 vs 좌표** — `profile.formula.expr`는 SYS **숫자**; 테이블 **CO/C1/C3 좌표**는 `anchors.json` + `anchorLookupEngine` / `anchorCoordinateEngine` SSOT.
+2. **valueSpace (Fg / Rg)** — lookup은 `coord` + `valueSpace`. Fg는 프레임·방향점, Rg는 레일 맞춤. Fg에 무조건 `snapToRail` 적용 금지.
+3. **Draft / Applied** — Draft는 실시간·미저장; **Applied만** SAVE/궤적 기준. USER 표시는 slot hydrate SSOT.
+4. **전략 혼합 금지** — `signature = systemId + formulaHash + shotType`; 동일 signature 내에서만 search/merge.
+5. **Recall** — 저장 `sysInputs` 기준; draft에 `outputs.result` 없으면 `buildDraftsFromRecord` 등에서 expr 재실행해 result 채움.
+6. **표기** — UI/데이터는 C1, C3, CO_f … (`1C`, `3C` 역표기 금지).
+7. **저장** — runtime: localStorage `positions_dataset`; 운영 export(dataset.json)는 별도 경로.
+
+### 계산 3계층 (파일 기준)
+
+| 계층 | 파일 | 역할 |
+|------|------|------|
+| Strategy | `hooks/useShotSlots.ts` | Draft/Applied, SAVE, Recall draft 적용 |
+| Trajectory | `hooks/useTrajectoryState.ts` | IDLE → ADJUSTING → APPLIED, SYS 결과 UI 반영 |
+| Physics·궤적 | `utils/physics/*`, `utils/trajectory/curveTrajectory.ts` | Impact, Hermite segment, cushion path |
+
+### ADMIN SYS 입력 → 렌더 (요약)
+
+```
+SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
+  → useTrajectoryState.applySysResult → Physics → Stage/ImpactLines
+```
+
+---
+
+## 데이터 드리븐 시스템 (요약)
+
+`frontend/src/data/systems/<system_name>/`
+
+| 파일 | 역할 |
+|------|------|
+| `profile.json` | formula.expr, value_domains, safety |
+| `anchors.json` | 좌표 SSOT (보간 기준점) |
+| `logic.json` | 조건·특수 보정 |
+| `system_meta.json` | 메타 |
+
+상세: `3_SYSTEM_ARCHITECTURE.md`.
 
 ---
 
@@ -100,14 +166,32 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 ---
 
-## 코드 SSOT 맵 (AI·USER 패널)
+## 핵심 코드 SSOT 맵 (전역)
+
+| 영역 | 파일 |
+|------|------|
+| Orchestrator | `frontend/src/App.jsx`, `components/Stage.jsx`, `components/common/ModalShell.jsx` |
+| 슬롯·SAVE | `hooks/useShotSlots.ts`, `domain/canonicalStrategy.ts`, `domain/adminSaveEngine.ts`, `domain/positionMergeEngine.ts` |
+| Recall·Search | `domain/positionSearchEngine.ts`, `domain/positionRecallEngine.ts`, `domain/recall/recallEngine.ts` |
+| Slot hydrate | `domain/slotRuntimeHydrate.ts` |
+| Render SYS | `domain/slotSysResolve.ts` (App: `slotRenderSys`, effective values) |
+| 궤적 | `utils/trajectory/curveTrajectory.ts`, `hooks/useTrajectoryState.ts`, `components/table/ImpactLines.jsx` |
+| Anchors | `domain/anchorLookupEngine.ts`, `domain/anchorCoordinateEngine.ts`, `domain/reflectionEngine.ts` |
+| Admin SYS 식 | `admin/sys/useSysCalculation.ts` |
+| App SYS·궤적 | `utils/systemCalculator.ts`, `utils/trajectorySampleBuilder.ts` |
+| AI 자동 코멘트 | `domain/aiAutoCommentViewModel.ts` |
+| USER 패널 | `domain/userInfoPanelModel.ts`, `components/user/UserAiPanel.jsx`, `components/user/UserHptPanel.jsx` |
+
+---
+
+## 코드 SSOT 맵 (AI·USER 오버레이)
 
 | 역할 | 파일 |
 |------|------|
 | 자동 코멘트 모델 | `frontend/src/domain/aiAutoCommentViewModel.ts` |
 | USER 패널 모델 | `frontend/src/domain/userInfoPanelModel.ts` |
 | USER AI UI | `frontend/src/components/user/UserAiPanel.jsx` |
-| USER HP/T UI | `frontend/src/components/user/UserHptPanel.jsx` (기존 재사용) |
+| USER HP/T UI | `frontend/src/components/user/UserHptPanel.jsx` |
 | USER 오버레이·스택 | `frontend/src/App.jsx` (`overlayContent`, `userOverlayChild`, 이중 `ModalShell`) |
 | Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`onUserFuncButtonSelect`) |
 | ADMIN AI | `frontend/src/App.jsx` `AiOverlay` |
@@ -125,6 +209,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 - AI → HP/T 스택 연동 (기존 컴포넌트 재사용)
 - Slot runtime / Recall canonical (2026-05 PHASE 2)
 - Modal draggable + viewport clamp
+- Hermite 궤적 baseline, anchors SSOT·canonical persist (2026-05)
 
 ### 진행 중
 
@@ -162,9 +247,10 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | `HISTORY/PROJECT_LOG_2026-04.md` | 이전 월 |
 | `HISTORY/HANDOFF_ADMIN_MODAL_TO_USER_DISPLAY_2026-05.md` | ADMIN→USER 표시 핸드오프 |
 | `HISTORY/HANDOFF_USER_PHASE2_2026-05.md` | USER Phase 2 |
-| `1_PROJECT_MASTER_INDEX.md` | 구 헌법·폴더 SSOT (2026-03, 별도 유지) |
-| `5_PROJECT_MASTER_STATE_CURRENT.md` | 코드 스냅샷 통제 문서 |
+| `ARCHIVE/1_PROJECT_MASTER_INDEX.md` | 2026-03 헌법 스냅샷 (deprecated, 역사·계산 철학 참고) |
+| `5_PROJECT_MASTER_STATE_CURRENT.md` | 코드 스냅샷·구조 변경 통제 |
 | `3_SYSTEM_ARCHITECTURE.md` | 계산·데이터 계층 |
+| `4_CALCULATION_RULES.md` | 수식·보정 규칙 |
 | `SESSION_TRANSFER/APP_USER_SEARCH_FLOW.md` | USER Search 흐름 |
 
 `PROJECT_LOG_2026-06.md` — **아직 없음** (생성 시 이 표에 추가).
@@ -190,3 +276,4 @@ AI backdrop / handleCloseUserInfoOverlay → 전체 닫기
 
 - 월별 로그에만 적지 말고, **기능 완료 시 이 문서의 해당 절을 즉시 수정**.
 - “완료 / 진행 / 예정”과 **코드 SSOT 맵**을 항상 일치시킨다.
+- **폴더·계산 파이프라인 구조 변경** 시 `5_PROJECT_MASTER_STATE_CURRENT.md` 전면 재작성 후 본 문서 절 링크 점검.
