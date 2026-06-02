@@ -141,6 +141,10 @@ export function strengthToKo(v: string | null | undefined): ImpactStrengthKo | n
   }
 }
 
+/**
+ * @deprecated SYS/HP/T/STR 나열형 — `composeAiAutoComment(buildAiAutoCommentModel(...))` 사용.
+ * 레거시 호출만 유지.
+ */
 export function buildPlayStrategy(params: {
   systemName: string;
   shotType: string;

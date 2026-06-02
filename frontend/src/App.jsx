@@ -32,18 +32,21 @@ import {
   buildStrategyButtonsFromRuntime,
   strategyCountMapFromButtons,
 } from "./domain/strategyButtonModel";
-import { buildUserInfoPanel } from "./domain/userInfoPanelModel";
+import {
+  buildAiAutoCommentFromContext,
+  buildUserInfoPanel,
+} from "./domain/userInfoPanelModel";
+import { AiAutoCommentDisplay } from "./components/user/UserAiPanel";
+import { buildUserHptViewModel } from "./domain/userHptViewModel";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
 import { convertThetaToClock } from "./utils/tipClockConverter";
 import {
-  buildPlayStrategy,
   hitPointToTipDisplay,
   hitPointToRotationText,
   hitPointToVerticalText,
   formatThickness,
   getSystemNameKo,
-  strengthToKo,
 } from "./utils/aiPlayStrategyBuilder";
 import { useHptController, clampHpToRadius } from "./admin/hpt/useHptController";
 import { calcImpactBall } from "./data/system/calculator";
@@ -77,6 +80,7 @@ import SystemValueLabels from "./components/table/SystemValueLabels";
 import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
 import ModalShell from "./components/common/ModalShell";
 import UserAiPanel from "./components/user/UserAiPanel.jsx";
+import UserHptPanel from "./components/user/UserHptPanel.jsx";
 import ImpactLines from "./components/table/ImpactLines";
 import SystemGrid from "./components/table/SystemGrid";
 import CoachingOverlay from "./components/table/CoachingOverlay";
@@ -85,6 +89,10 @@ import { useSystemController } from "./hooks/useSystemController";
 import { useDisplayController } from "./hooks/useDisplayController";
 import { TABLE_CONFIG } from "./config/tableConfig";
 import { buildRailGroupedStrategy } from "./domain/railEngine";
+import {
+  getUserBaselineDisplayFlags,
+  isUserBaselineLayersActive,
+} from "./domain/userBaselineDisplayFlags";
 import { createStrategyEntry } from "./domain/adminSaveEngine";
 import {
   MERGE_EPSILON,
@@ -2950,9 +2958,7 @@ function LessonRow({ lesson, selected, onSelect }) {
       >
         ☰
       </div>
-      <div style={{ fontSize: 14, lineHeight: 1.6, flex: 1 }}>
-        - {lesson.text}
-      </div>
+      <div style={{ fontSize: 14, lineHeight: 1.42, flex: 1 }}>{lesson.text}</div>
     </div>
   );
 }
@@ -2960,14 +2966,13 @@ function LessonRow({ lesson, selected, onSelect }) {
 function AiOverlay({
   data,
   sysData,
-  hptData,
   strData,
-  appliedSys,
-  sysHpNResult,
+  slotRenderSys,
+  resolvedSlotSysValues,
+  resolvedSlotBaseSysValues,
   onSave,
   onSaveStrategy,
   onCancel,
-  // 원 포인트 레슨
   onePointLibrary,
   sortedOnePointLibrary,
   onePointSelectedId,
@@ -2980,91 +2985,20 @@ function AiOverlay({
   onDeleteLesson,
   onReorderLessons,
 }) {
-  const sys = sysData || data?.sys || {};
-  const hpt = hptData || data?.hpt || {};
   const str = strData || data?.str || {};
 
-  // 플레이 전략 자동 생성 (adminState 기반, overlay open 시 항상 최신값 반영)
-  const buildPlayStrategyText = () => {
-    const systemId = sys.system || sys.system_id || "5_half_system";
-    const systemName = getSystemNameKo(systemId);
-    const shotType = sys.shotType || "뒤돌리기";
-    const thicknessText = formatThickness(hpt.T);
-    const mode = hpt.mode ?? "TIP";
-    const hitPoint = hpt.hit_point ?? hpt.hp ?? { x: 0, y: 0 };
+  const autoComment = useMemo(
+    () =>
+      buildAiAutoCommentFromContext({
+        slotRenderSys: slotRenderSys ?? sysData,
+        resolvedSlotSysValues,
+        resolvedSlotBaseSysValues,
+        str,
+      }),
+    [slotRenderSys, sysData, resolvedSlotSysValues, resolvedSlotBaseSysValues, strData, str]
+  );
 
-    let tipText = "";
-    let tipClockText = "";
-    if (mode === "TIP") {
-      if (sysHpNResult != null && typeof sysHpNResult === "number") {
-        const dir = sysHpNResult >= 0 ? "right" : "left";
-        const n = Math.abs(sysHpNResult);
-        tipText = n === 0 ? "중앙(12시)" : dir === "right" ? `우측 ${n}팁` : `좌측 ${n}팁`;
-        const theta = (dir === "right" ? 1 : -1) * (Math.PI / 2) * (1 - n / 4);
-        tipClockText = convertThetaToClock(theta);
-      } else {
-        const tip = hitPointToTipDisplay(hitPoint);
-        tipText = tip.tipText;
-        tipClockText = tip.tipClockText;
-      }
-    }
-
-    const rotationText = hitPointToRotationText(hitPoint);
-    const verticalText = hitPointToVerticalText(hitPoint);
-
-    const res = appliedSys?.outputs?.result || {};
-    const toNum = (v) => (typeof v === "number" && !isNaN(v) ? v : null);
-
-    // SYS: applied.sys.outputs.result에서만 읽기 (AI는 계산하지 않음, 출력된 값만 사용)
-    const arrivalValue = toNum(res.threeC) ?? toNum(res.C4_f) ?? toNum(res.C4_r) ?? toNum(res.arrival) ?? null;
-    const firstCushionValue = toNum(res.oneC) ?? toNum(res.C1_f) ?? toNum(res.C1_r) ?? null;
-
-    const STROKE_TYPE_KO = {
-      long_follow: "롱 팔로우",
-      medium_follow: "미디엄 팔로우",
-      standard: "미디엄 팔로우",
-      through_shot: "관통 샷",
-      stop_shot: "스톱 샷",
-      short_shot: "숏 샷",
-    };
-    const ACCEL_PATTERN_KO = {
-      smooth_accel: "부드러운 가속",
-      sharp_accel: "날카로운 가속",
-      smooth_const: "부드러운 등속",
-      intentional_decel: "의도적 감속",
-    };
-
-    const strokeTypeText = (str.type && (STROKE_TYPE_KO[str.type] || str.type)) || null;
-    const accelPatternText = ACCEL_PATTERN_KO[str.acceleration] || str.acceleration || "부드러운 등속";
-    const passBalls = typeof str.depth === "number" ? str.depth : 2;
-    const speedRails = typeof str.speed === "number" ? str.speed : 3;
-    const impactStrengthKo = strengthToKo(str.impact) || "평범한";
-
-    return buildPlayStrategy({
-      systemName,
-      shotType,
-      arrivalValue,
-      firstCushionValue,
-      thicknessText,
-      tipText,
-      tipClockText,
-      rotationText,
-      verticalText,
-      mode,
-      passBalls,
-      speedRails,
-      accelPatternText,
-      strokeTypeText,
-      impactStrengthKo,
-    });
-  };
-
-  const [aiText, setAiText] = useState(() => buildPlayStrategyText());
   const [selectedLessonId, setSelectedLessonId] = useState(null);
-
-  useEffect(() => {
-    setAiText(buildPlayStrategyText());
-  }, [sysData, hptData, strData, appliedSys, sysHpNResult]);
 
   const lessons = useMemo(() => ensureLessonItems(onePointLessons), [onePointLessons]);
 
@@ -3095,54 +3029,49 @@ function AiOverlay({
   }, [selectedLessonId, onDeleteLesson]);
 
   return (
-    <div style={{ color: '#334155', fontSize: '18px', maxWidth: '1200px' }}>
+    <div className="admin-ai-overlay" style={{ color: "#334155", fontSize: "14px", maxWidth: "720px" }}>
       <div
         className="strategy-box"
         style={{
-          border: '1px solid #d0d7de',
+          border: "1px solid #d0d7de",
           borderRadius: 8,
-          padding: 20,
-          background: '#ffffff',
+          padding: "12px 14px",
+          background: "#ffffff",
         }}
       >
-        <div className="section-title" style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>
-          AI 코멘트
-        </div>
-        <div className="section-body" style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-          {aiText}
-        </div>
-        {lessons.length > 0 && (
+        <AiAutoCommentDisplay model={autoComment} />
+        {lessons.length > 0 ? (
           <>
-            <div style={{ height: 24 }} />
-            <div className="section-title" style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>
-              원 포인트 레슨
-            </div>
-            <div className="section-body" style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
+            <hr className="ai-comment-divider" />
+            <p className="ai-comment-para ai-comment-para--labeled">
+              <span className="ai-comment-section-title">[원 포인트 레슨]</span>
+            </p>
+            <div className="ai-one-point-lessons__list">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={lessons.map((l) => l.id)}
+                strategy={verticalListSortingStrategy}
               >
-                <SortableContext
-                  items={lessons.map((l) => l.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {lessons.map((lesson) => (
-                    <LessonRow
-                      key={lesson.id}
-                      lesson={lesson}
-                      selected={selectedLessonId === lesson.id}
-                      onSelect={() => setSelectedLessonId(lesson.id)}
-                    />
-                  ))}
-                </SortableContext>
-              </DndContext>
+                {lessons.map((lesson) => (
+                  <LessonRow
+                    key={lesson.id}
+                    lesson={lesson}
+                    selected={selectedLessonId === lesson.id}
+                    onSelect={() => setSelectedLessonId(lesson.id)}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
             </div>
           </>
-        )}
+        ) : null}
       </div>
 
-      <div style={{ marginTop: 24, marginBottom: '24px' }}>
+      <div style={{ marginTop: 14, marginBottom: 12 }}>
         <select
           value={onePointSelectedId}
           onChange={(e) => {
@@ -3220,7 +3149,11 @@ function AiOverlay({
       <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
         <button
           onClick={() => {
-            const newData = { ...data, text: aiText, onePointLessons: data?.onePointLessons ?? [] };
+            const newData = {
+              ...data,
+              text: "",
+              onePointLessons: data?.onePointLessons ?? [],
+            };
             onSave(newData);
             onSaveStrategy?.(newData);
           }}
@@ -3331,7 +3264,7 @@ function RailFrame() {
 
 export default function App({
   currentButtonId,
-  userGuideLayersVisible,
+  userBaselineViewLevel = 0,
   onActiveSlotChange,
   onFuncOverlayClose,
   onDirtySlotsChange,
@@ -3348,6 +3281,7 @@ export default function App({
   onAdminSearchResetRegister,
   onAdminSearchButtonModeChange,
   onAdminResetRailSelection,
+  onUserFuncButtonSelect,
   userRailActions,
 }) {
   const [currentId, setCurrentId] = useState(SHOTS[0].id);
@@ -3355,6 +3289,8 @@ export default function App({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [overlayContent, setOverlayContent] = useState(null);
+  /** USER: AI 위에 쌓는 자식 오버레이 (예: HP/T) — 좌측 메뉴와 동일 컴포넌트 재사용 */
+  const [userOverlayChild, setUserOverlayChild] = useState(null);
 
   useEffect(() => {
     // #region agent log
@@ -3494,14 +3430,16 @@ export default function App({
     // #region agent log
     fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
       method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6b5ef2" },
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "180f59" },
       body: JSON.stringify({
-        sessionId: "6b5ef2",
+        sessionId: "180f59",
         location: "App.jsx:applySlotRuntimeTargetBall",
         message: "HYDRATE_APPLY_SLOT_RUNTIME_TARGET_BALL",
         hypothesisId: "H2",
         timestamp: Date.now(),
         data: {
+          incomingTargetBall: targetBall ?? null,
+          previousTargetBall: targetColor ?? null,
           targetBallIncoming: targetBall ?? null,
           targetColorBefore: targetColor ?? null,
           isTargetSelectedBefore: isTargetSelected,
@@ -3528,14 +3466,20 @@ export default function App({
     // #region agent log
     fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
       method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6b5ef2" },
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "180f59" },
       body: JSON.stringify({
-        sessionId: "6b5ef2",
+        sessionId: "180f59",
         location: "App.jsx:syncSlotRuntimeAdminAndTrajectory",
         message: "syncSlotRuntimeAdminAndTrajectory",
-        hypothesisId: "H1",
+        hypothesisId: "Q7",
         timestamp: Date.now(),
-        data: { slotId, activeSlot: shotEditor.activeSlot },
+        data: {
+          slotId,
+          activeSlot: shotEditor.activeSlot,
+          trajectoryTargetBall: targetColor ?? null,
+          payloadTargetBall:
+            buildSlotRuntimePayload(shotEditor.slots[slotId]).targetBall ?? null,
+        },
       }),
     }).catch(() => {});
     // #endregion
@@ -3577,10 +3521,10 @@ export default function App({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6b5ef2",
+        "X-Debug-Session-Id": "180f59",
       },
       body: JSON.stringify({
-        sessionId: "6b5ef2",
+        sessionId: "180f59",
         location: "App.jsx:syncSlotRuntimeAdminAndTrajectory:exit",
         message: "SYNC_TRAJECTORY_STATE",
         hypothesisId: "H4",
@@ -3602,15 +3546,15 @@ export default function App({
     const payload = buildSlotRuntimePayload(slot);
     const adminTarget = getAdminSearchTargetBall();
     const effectiveTargetBall =
-      adminTargetSelectedRef.current && adminTarget
+      appMode === "ADMIN" && adminTargetSelectedRef.current && adminTarget
         ? adminTarget
         : payload.targetBall;
     // #region agent log
     fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
       method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6b5ef2" },
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "180f59" },
       body: JSON.stringify({
-        sessionId: "6b5ef2",
+        sessionId: "180f59",
         location: "App.jsx:hydrateSlotRuntime",
         message: "HYDRATE_SLOT_RUNTIME",
         hypothesisId: "H4",
@@ -3623,6 +3567,7 @@ export default function App({
           adminTargetFromRef: adminTarget,
           draftTargetBall: slot?.draft?.targetBall ?? null,
           appliedTargetBall: slot?.applied?.targetBall ?? null,
+          currentTargetColor: targetColor ?? null,
           hasOutputsResult: !!slot && !!resolveSlotSysForRender(slot)?.outputs?.result,
           trigger: lastHydrateTriggerRef.current,
         },
@@ -3910,6 +3855,51 @@ export default function App({
       return c;
     }
     return extractSlotTargetBall(shotEditor.slots[shotEditor.activeSlot]);
+  }
+
+  /** USER Reset: clear table target selection + admin ref mirror (no Search A carry-over). */
+  function resetUserSearchTargetSelection() {
+    adminTargetColorRef.current = null;
+    adminTargetSelectedRef.current = false;
+    setTargetColor(null);
+    setIsTargetSelected(false);
+  }
+
+  function buildStrategyPickTrace(slotId, phase) {
+    const slot = shotEditor.slots[slotId];
+    const payload = buildSlotRuntimePayload(slot);
+    return {
+      phase,
+      selectedStrategyId: slotId,
+      activeSlotId: shotEditor.activeSlot,
+      userTableDisplaySlotId,
+      runtimePayloadTargetBall: payload.targetBall ?? null,
+      trajectoryTargetBall: targetColor ?? null,
+      trajectoryType: payload.adminSys?.shotType ?? null,
+      trajectoryPhase: trajectory.state?.phase ?? null,
+      draftShotType: slot?.draft?.shotType ?? null,
+      appliedShotType: slot?.applied?.shotType ?? null,
+    };
+  }
+
+  function emitStrategyPickTrace(message, slotId, phase, hypothesisId = "Q3") {
+    // #region agent log
+    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "6b5ef2",
+      },
+      body: JSON.stringify({
+        sessionId: "6b5ef2",
+        location: "App.jsx:pickStrategySlot",
+        message,
+        hypothesisId,
+        timestamp: Date.now(),
+        data: buildStrategyPickTrace(slotId, phase),
+      }),
+    }).catch(() => {});
+    // #endregion
   }
 
   function logAdminSearchTargetState(phase, extra = {}) {
@@ -4900,6 +4890,7 @@ export default function App({
       ...prev,
       sys: createEmptyAdminSysSnapshot(),
     }));
+    setUserOverlayChild(null);
     setOverlayContent(null);
     setOverlayState({ open: false, type: null });
   }, [trajectory]);
@@ -4907,18 +4898,42 @@ export default function App({
   /** USER Reset: balls 유지, 표시/runtime Search draft 제거 */
   const handleUserSearchReset = useCallback(() => {
     if (appMode !== "USER") return;
+    emitAdminRecallTrace("USER_RESET", "R1", {
+      tracePhase: "before_clear",
+      slotPresence: traceSlotPresence(shotEditor.slots),
+      ...traceSearchRuntimeSnapshot(trajectory, adminState, userTableDisplaySlotId),
+      targetColor,
+      isTargetSelected,
+    });
     clearUserSearchDisplayRuntime();
-    actions.clearSearchSlotDrafts();
+    actions.clearSearchSlotRuntime();
+    resetUserSearchTargetSelection();
     setUserLastSearchRecord(null);
     setUserSearchButtonMode("search");
-  }, [appMode, clearUserSearchDisplayRuntime, actions]);
+    emitAdminRecallTrace("USER_RESET", "R1", {
+      tracePhase: "after_clear",
+      targetColor: null,
+      isTargetSelected: false,
+      userTableDisplaySlotId: null,
+    });
+  }, [
+    appMode,
+    clearUserSearchDisplayRuntime,
+    actions,
+    shotEditor.slots,
+    trajectory,
+    adminState,
+    userTableDisplaySlotId,
+    targetColor,
+    isTargetSelected,
+  ]);
 
   /** USER Search: userRelaxed recall → draft apply → pending hydrate (query SSOT = ballsState). */
   const handleUserSearchStrategies = useCallback(() => {
     if (appMode !== "USER") return;
 
     clearUserSearchDisplayRuntime();
-    actions.clearSearchSlotDrafts();
+    actions.clearSearchSlotRuntime();
 
     // #region agent log
     fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
@@ -4934,6 +4949,7 @@ export default function App({
         hypothesisId: "P1",
         timestamp: Date.now(),
         data: {
+          targetBall: targetColor ?? null,
           ...traceSearchRuntimeSnapshot(trajectory, adminState, userTableDisplaySlotId),
           slotPresence: traceSlotPresence(shotEditor.slots),
         },
@@ -5083,11 +5099,35 @@ export default function App({
     setShowHistoryModal(true);
   }, [appMode, setShowHistoryModal]);
 
+  /** 모달만 닫기 (기준값 레벨 유지 — BASELINE 순환 시 사용) */
+  const handleDismissUserInfoOverlayPanel = useCallback(() => {
+    if (appMode !== "USER") return;
+    setUserOverlayChild(null);
+    setOverlayContent(null);
+  }, [appMode]);
+
+  /** Overlay 닫기 + Stage rail 선택 복귀 + 기준값 L1 리셋 */
   const handleCloseUserInfoOverlay = useCallback(() => {
     if (appMode !== "USER") return;
+    setUserOverlayChild(null);
     setOverlayContent(null);
     onFuncOverlayClose?.();
   }, [appMode, onFuncOverlayClose]);
+
+  /** AI 패널 → 좌측 "두께/타점" 버튼과 동일 트리거 */
+  const handleOpenHptFromAiPanel = useCallback(() => {
+    if (appMode !== "USER") return;
+    onUserFuncButtonSelect?.("HP/T");
+  }, [appMode, onUserFuncButtonSelect]);
+
+  /** 스택된 HP/T만 닫고 AI 오버레이 유지 */
+  const handleCloseUserOverlayChild = useCallback(() => {
+    if (appMode !== "USER") return;
+    setUserOverlayChild(null);
+    if (overlayContent === "AI") {
+      onUserFuncButtonSelect?.("AI");
+    }
+  }, [appMode, overlayContent, onUserFuncButtonSelect]);
 
   // ⭐ 핵심: 버튼 클릭 → Overlay 여는 함수
   function handleSelectAdminButton(buttonId) {
@@ -5312,15 +5352,31 @@ function handleJoyPadPointerCancel(e) {
 
     // 코칭 버튼 처리
     if (currentButtonId === "COACH") {
+      setUserOverlayChild(null);
       setShowCoaching(true);
       console.log("🎯 코칭 버튼 클릭 감지");
     }
-    else if (currentButtonId === "SYS") setOverlayContent("SYS");
-    else if (currentButtonId === "HP/T") setOverlayContent("HPT");
-    else if (currentButtonId === "STR") setOverlayContent("STR");
-    else if (currentButtonId === "AI") setOverlayContent("AI");
-    else setOverlayContent(null);
-  }, [currentButtonId, appMode]);
+    else if (currentButtonId === "SYS") {
+      setUserOverlayChild(null);
+      setOverlayContent("SYS");
+    } else if (currentButtonId === "HP/T") {
+      if (overlayContent === "AI") {
+        setUserOverlayChild("HPT");
+      } else {
+        setUserOverlayChild(null);
+        setOverlayContent("HPT");
+      }
+    } else if (currentButtonId === "STR") {
+      setUserOverlayChild(null);
+      setOverlayContent("STR");
+    } else if (currentButtonId === "AI") {
+      setUserOverlayChild(null);
+      setOverlayContent("AI");
+    } else {
+      setUserOverlayChild(null);
+      setOverlayContent(null);
+    }
+  }, [currentButtonId, appMode, overlayContent]);
 
   // ============================================
   // currentButtonId 처리 (ADMIN 모드 오버레이)
@@ -5351,6 +5407,7 @@ function handleJoyPadPointerCancel(e) {
       slotIds.includes(prevSlotButton);
 
     actions.switchSlot(currentButtonId);
+    setUserOverlayChild(null);
     setOverlayContent(null);
     setOverlayState({ open: false, type: null });
 
@@ -5400,13 +5457,6 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     onAppModeChange?.(appMode);
   }, [appMode, onAppModeChange]);
-
-  useEffect(() => {
-    if (appMode !== "USER") return;
-    if (typeof userGuideLayersVisible !== "boolean") return;
-    setShowBaseLine(userGuideLayersVisible);
-    setShowSystemGrid(userGuideLayersVisible);
-  }, [appMode, userGuideLayersVisible]);
 
   useEffect(() => {
     if (appMode !== "USER") {
@@ -5471,44 +5521,25 @@ function handleJoyPadPointerCancel(e) {
     const pickStrategySlot = (slotId) => {
       const slotIds = ["S1", "S2", "S3"];
       if (!slotIds.includes(slotId)) return;
-      // #region agent log
-      fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "6b5ef2",
-        },
-        body: JSON.stringify({
-          sessionId: "6b5ef2",
-          location: "App.jsx:pickStrategySlot:entry",
-          message: "STRATEGY_BUTTON_CLICK",
-          hypothesisId: "H3",
-          timestamp: Date.now(),
-          data: {
-            slotId,
-            showCoaching,
-            userGuideLayersVisible,
-            userTableDisplaySlotIdBefore: userTableDisplaySlotId,
-          },
-        }),
-      }).catch(() => {});
-      // #endregion
+      emitStrategyPickTrace("STRATEGY_PICK_BEFORE", slotId, "before");
       actions.switchSlot(slotId);
+      setUserOverlayChild(null);
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
       setUserTableDisplaySlotId(slotId);
       lastHydrateTriggerRef.current = "strategy_pick";
       hydrateSlotRuntime(slotId);
+      emitStrategyPickTrace("STRATEGY_PICK_AFTER", slotId, "after");
       // #region agent log
       const slotAfter = shotEditor.slots[slotId];
       fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Debug-Session-Id": "6b5ef2",
+          "X-Debug-Session-Id": "180f59",
         },
         body: JSON.stringify({
-          sessionId: "6b5ef2",
+          sessionId: "180f59",
           location: "App.jsx:pickStrategySlot:exit",
           message: "STRATEGY_PICK_AFTER_HYDRATE",
           hypothesisId: "H4",
@@ -5516,8 +5547,12 @@ function handleJoyPadPointerCancel(e) {
           data: {
             slotId,
             showCoaching,
-            userGuideLayersVisible,
+            userBaselineViewLevel,
             hasResolvedOutputs: !!resolveSlotSysForRender(slotAfter)?.outputs?.result,
+            targetBallAfterPick: targetColor ?? null,
+            draftTargetBall: slotAfter?.draft?.targetBall ?? null,
+            payloadTargetBall:
+              buildSlotRuntimePayload(slotAfter).targetBall ?? null,
             trajectoryPhase: trajectory.state?.phase ?? null,
           },
         }),
@@ -5538,16 +5573,25 @@ function handleJoyPadPointerCancel(e) {
     if (appMode === "USER") {
       userRailActions.openHistory = handleOpenUserHistory;
       userRailActions.closeOverlay = handleCloseUserInfoOverlay;
+      userRailActions.dismissOverlayPanel = handleDismissUserInfoOverlayPanel;
     } else {
       userRailActions.openHistory = null;
       userRailActions.closeOverlay = null;
+      userRailActions.dismissOverlayPanel = null;
     }
     return () => {
       if (!userRailActions) return;
       userRailActions.openHistory = null;
       userRailActions.closeOverlay = null;
+      userRailActions.dismissOverlayPanel = null;
     };
-  }, [appMode, handleOpenUserHistory, handleCloseUserInfoOverlay, userRailActions]);
+  }, [
+    appMode,
+    handleOpenUserHistory,
+    handleCloseUserInfoOverlay,
+    handleDismissUserInfoOverlayPanel,
+    userRailActions,
+  ]);
 
   const slotRenderShotTypes = useMemo(() => {
     const out = { S1: "", S2: "", S3: "" };
@@ -5791,34 +5835,49 @@ function handleJoyPadPointerCancel(e) {
       slot?.draft?.hpt ?? slot?.applied?.hpt ?? adminState?.hpt ?? null;
     const str =
       slot?.draft?.str ?? slot?.applied?.str ?? adminState?.str ?? null;
-    const ai =
-      slot?.draft?.ai ?? slot?.applied?.ai ?? adminState?.ai ?? null;
+    const draftAi = slot?.draft?.ai ?? null;
+    const appliedAi = slot?.applied?.ai ?? null;
+    const adminAi = adminState?.ai ?? null;
     return buildUserInfoPanel({
       strategyButtonLabel: activeStrategyLabel,
       slotRenderSys,
       resolvedSlotSys: resolvedSlotSys ?? null,
       resolvedSlotSysValues,
+      resolvedSlotBaseSysValues,
       appliedSys,
       hpt,
       str,
-      ai,
+      ai: draftAi ?? appliedAi ?? adminAi,
+      aiLessonSources: [draftAi, appliedAi, adminAi],
       sysHpNResult,
       viewStrategyNarrative: hasSlotSys ? (view?.ui?.strategy ?? null) : null,
     });
   }, [
     appMode,
+    userTableDisplaySlotId,
     shotEditor.activeSlot,
     shotEditor.slots,
     strategyButtons,
     slotRenderSys,
     resolvedSlotSys,
     resolvedSlotSysValues,
+    resolvedSlotBaseSysValues,
     adminState?.hpt,
     adminState?.str,
     adminState?.ai,
     sysHpNResult,
     view?.ui?.strategy,
   ]);
+
+  const userHptModel = useMemo(() => {
+    if (appMode !== "USER") return null;
+    if (!userTableDisplaySlotId) {
+      return buildUserHptViewModel({ hpt: null, noStrategySelected: true });
+    }
+    const slot = shotEditor.slots[userTableDisplaySlotId];
+    const hpt = slot?.draft?.hpt ?? slot?.applied?.hpt ?? null;
+    return buildUserHptViewModel({ hpt, sysHpNResult: null });
+  }, [appMode, userTableDisplaySlotId, shotEditor.slots]);
 
   useEffect(() => {
     onUserInfoPanelChange?.(userInfoPanel);
@@ -6027,9 +6086,16 @@ function handleJoyPadPointerCancel(e) {
   const adminTableLayersActive =
     appMode !== "ADMIN" || adminTableLayersVisible;
   const system = systemCtrl.system;
+  const userBaselineDisplayFlags =
+    appMode === "USER"
+      ? getUserBaselineDisplayFlags(userBaselineViewLevel)
+      : null;
+  const userBaselineLayersActive =
+    appMode === "USER" && isUserBaselineLayersActive(userBaselineViewLevel);
+
   const systemLabelsOutputsForRender =
     appMode === "USER" &&
-    !userGuideLayersVisible &&
+    !userBaselineLayersActive &&
     !userStrategyLayersVisible
       ? null
       : appMode === "ADMIN" && !adminTableLayersVisible
@@ -7386,8 +7452,12 @@ function handlePointerCancel(e) {
   const orderedKeys = ["CO", "C1", "C2", "C3", "C4", "C5", "C6"];
   // NOTE: 라벨 미표시 원인 구분용 — 현재는 좌표계 이슈와 별개로
   // visibleKeysForLabels(cushionPath 길이 기반) 정책이 먼저 라벨 대상을 제한한다.
+  const useBaselineLabelAnchors =
+    appMode === "USER"
+      ? userBaselineDisplayFlags?.labelAnchorSource === "baseline"
+      : showBaseLine;
   const labelPathLengthForKeys =
-    showBaseLine && cushionPathBaselineRg?.length
+    useBaselineLabelAnchors && cushionPathBaselineRg?.length
       ? cushionPathBaselineRg.length
       : cushionPath.length;
   const visibleKeysForLabels = orderedKeys.slice(
@@ -7420,7 +7490,7 @@ function handlePointerCancel(e) {
   // 노란점(라벨): resolveAnchorPoint·anchor 원본 좌표 유지 (FG/RG 변환 없음). 궤적은 cushionPath·computeRailImpactPoint 쪽에서 레일 교점 유지.
   const blKeysForLabels = ["CO", "C1", "C2", "C3"];
   const fromBaselinePath =
-    showBaseLine &&
+    useBaselineLabelAnchors &&
     cushionPathBaselineRg &&
     cushionPathBaselineRg.length > 0 &&
     anchorsBase
@@ -7446,9 +7516,9 @@ function handlePointerCancel(e) {
     "C3":
       (fromBaselinePath && fromBaselinePath["C3"]) ??
       labelPayload(C3_label ?? anchors["C3"]),
-    "C4": labelPayload(showBaseLine && anchorsBase ? anchorsBase["C4"] : C4),
-    "C5": labelPayload(showBaseLine && anchorsBase ? anchorsBase["C5"] : C5),
-    "C6": labelPayload(showBaseLine && anchorsBase ? anchorsBase["C6"] : C6),
+    "C4": labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C4"] : C4),
+    "C5": labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C5"] : C5),
+    "C6": labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C6"] : C6),
   };
   const trackAnchorItems =
     getAnchorsForSystem(systemIdForGrid)?.trajectories?.[trackForAnchors]?.anchors ?? [];
@@ -7517,25 +7587,47 @@ function handlePointerCancel(e) {
     resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
       ? resolvedSlotSysValues
       : (system?.values ?? {});
+  const useBaselineLabelValues =
+    appMode === "USER"
+      ? userBaselineDisplayFlags?.labelValueSource === "baseline"
+      : showBaseLine;
   const systemValuesForLabels =
-    showBaseLine &&
+    useBaselineLabelValues &&
     resolvedSlotBaseSysValues &&
     typeof resolvedSlotBaseSysValues === "object" &&
     Object.keys(resolvedSlotBaseSysValues).length > 0
       ? resolvedSlotBaseSysValues
       : slotSysValuesForRender;
+  const userShowCorrectedPath =
+    appMode === "USER"
+      ? userBaselineDisplayFlags?.showCorrectedPath ?? true
+      : !showBaseLine;
+  const userShowBaselinePath =
+    appMode === "USER" ? !!userBaselineDisplayFlags?.showBaselinePath : showBaseLine;
+  const userShowBaselineReferenceOverlay =
+    appMode === "USER" &&
+    userShowBaselinePath &&
+    userShowCorrectedPath &&
+    Array.isArray(cushionPathBaselineRg) &&
+    cushionPathBaselineRg.length >= 2;
+  const impactShowBaseLineOnly =
+    appMode === "USER"
+      ? userShowBaselinePath && !userShowCorrectedPath
+      : showBaseLine;
   const labelStrategy =
     systemIdForGrid === "5_half_system"
       ? "five_half_reference"
       : "anchor_ssot";
 
   const cushionPathForTableImpact =
-    showBaseLine &&
-    Array.isArray(cushionPathBaselineRg) &&
-    cushionPathBaselineRg.length >= 2
-      ? cushionPathBaselineRg
-      : cushionPathForImpactLines;
-  const curveDeformActiveForImpact = showBaseLine ? false : useCurveDeform;
+    userShowCorrectedPath
+      ? cushionPathForImpactLines
+      : userShowBaselinePath &&
+          Array.isArray(cushionPathBaselineRg) &&
+          cushionPathBaselineRg.length >= 2
+        ? cushionPathBaselineRg
+        : cushionPathForImpactLines;
+  const curveDeformActiveForImpact = userShowCorrectedPath ? useCurveDeform : false;
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
@@ -7557,7 +7649,7 @@ function handlePointerCancel(e) {
           userTableDisplaySlotId,
           showCoaching,
           effectiveShowCoaching,
-          userGuideLayersVisible,
+          userBaselineViewLevel,
           userStrategyLayersVisible,
           hasResolvedSlotSys: !!resolvedSlotSys,
           hasOutputsResult: !!resolvedSlotSys?.outputs?.result,
@@ -7596,18 +7688,22 @@ function handlePointerCancel(e) {
         CO_corrected_line={null}
         cushionPath={cushionPathForTableImpact}
         impactSplitRg={
-          showBaseLine
-            ? null
-            : impact &&
+          userShowCorrectedPath
+            ? impact &&
                 Number.isFinite(impact.x) &&
                 Number.isFinite(impact.y)
               ? impact
               : impactContactRg
+            : null
         }
         cushionPathAttrBase={cushionPathAttrBase}
         anchorsBase={anchorsBase}
         curveDeformActive={curveDeformActiveForImpact}
-        showBaseLine={showBaseLine}
+        showBaseLine={impactShowBaseLineOnly}
+        showBaselineReferencePath={userShowBaselineReferenceOverlay}
+        baselineReferencePath={
+          userShowBaselineReferenceOverlay ? cushionPathBaselineRg : null
+        }
         scale={SCALE}
         tableH={TABLE_H}
         padding={PADDING}
@@ -7738,12 +7834,20 @@ function handlePointerCancel(e) {
         <SystemGrid
           track={trackForAnchors}
           anchorsData={getAnchorsForSystem(systemIdForGrid)}
-          visible={showSystemGrid}
+          visible={
+            appMode === "USER"
+              ? !!userBaselineDisplayFlags?.showSystemGrid
+              : showSystemGrid
+          }
         />
       )}
       {adminTableLayersActive && (
       <SystemValueLabels
-        showSystemGrid={appMode === "USER" ? !!userGuideLayersVisible : showSystemGrid}
+        showSystemGrid={
+          appMode === "USER"
+            ? !!userBaselineDisplayFlags?.showSystemGrid
+            : showSystemGrid
+        }
         anchors={allAnchorsForLabels}
         labelAnchors={labelAnchorsForRaw}
         scale={SCALE}
@@ -7997,13 +8101,13 @@ function handlePointerCancel(e) {
 
             {overlayState.type === 'AI' && (
               <AiOverlay
-                key={`ai-${adminState.hpt?.hit_point?.x ?? 0}-${adminState.hpt?.hit_point?.y ?? 0}-${adminState.str?.speed ?? 0}`}
+                key={`ai-${shotEditor.activeSlot}-${resolvedSlotSysValues?.CO_f ?? 0}-${adminState.str?.speed ?? 0}`}
                 data={adminState.ai}
                 sysData={adminState.sys}
-                hptData={adminState.hpt}
                 strData={adminState.str}
-                appliedSys={actions?.getActiveSlot?.()?.draft?.sys ?? actions?.getActiveSlot?.()?.applied?.sys}
-                sysHpNResult={sysHpNResult}
+                slotRenderSys={slotRenderSys}
+                resolvedSlotSysValues={resolvedSlotSysValues}
+                resolvedSlotBaseSysValues={resolvedSlotBaseSysValues}
                 onSave={(newData) => {
                   console.log("[AI_APPLY_START]", {
                     hypothesisId: "AI_APPLY_START",
@@ -8034,40 +8138,49 @@ function handlePointerCancel(e) {
       {/* USER 모드 오버레이 — read-only info (AI panel = userInfoPanel SSOT) */}
       <ModalShell
         open={appMode === "USER" && !!overlayContent}
-        onClose={() => setOverlayContent(null)}
-        draggable
-        panelClassName="modal-panel--compact"
-        title={
+        onClose={handleCloseUserInfoOverlay}
+        draggable={overlayContent !== "HPT"}
+        panelClassName={
           overlayContent === "HPT"
-            ? "HP/T"
+            ? "modal-panel--user-hpt"
             : overlayContent === "AI"
-              ? "AI 코칭"
-              : ""
+              ? "modal-panel--user-ai"
+              : "modal-panel--compact"
         }
+        title={overlayContent === "AI" || overlayContent === "HPT" ? undefined : undefined}
         panelStyle={{
-          maxHeight: "70vh",
+          maxHeight: overlayContent === "HPT" ? "92vh" : overlayContent === "AI" ? undefined : "78vh",
           overflowY: "auto",
+          ...(overlayContent === "AI" ? { minWidth: 0, minHeight: 0 } : {}),
         }}
       >
-        {overlayContent === "HPT" && (
-          <div style={{ color: "#334155", fontSize: "14px" }}>
-            <div style={{ marginBottom: "12px" }}>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
-                타점 (Hit Point)
-              </div>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-                {opts.hitpoint_clock || "-"}
-              </div>
-            </div>
-            <div style={{ marginBottom: "12px" }}>
-              <span style={{ fontWeight: "600" }}>두께:</span> {thicknessForCalc || "-"}
-            </div>
-            <div>
-              <span style={{ fontWeight: "600" }}>회전:</span> {opts.english_tips || "-"}
-            </div>
-          </div>
+        {overlayContent === "HPT" && !userOverlayChild && (
+          <UserHptPanel model={userHptModel} />
         )}
-        {overlayContent === "AI" && <UserAiPanel model={userInfoPanel} />}
+        {overlayContent === "AI" && (
+          <UserAiPanel
+            model={userInfoPanel}
+            onOpenHpt={handleOpenHptFromAiPanel}
+          />
+        )}
+      </ModalShell>
+
+      {/* USER: AI 위 스택 HP/T (좌측 두께/타점과 동일 UserHptPanel) */}
+      <ModalShell
+        open={
+          appMode === "USER" &&
+          overlayContent === "AI" &&
+          userOverlayChild === "HPT"
+        }
+        onClose={handleCloseUserOverlayChild}
+        className="modal-backdrop--stacked-user"
+        fixed
+        zIndex={55}
+        draggable={false}
+        panelClassName="modal-panel--user-hpt"
+        panelStyle={{ maxHeight: "92vh", overflowY: "auto" }}
+      >
+        <UserHptPanel model={userHptModel} />
       </ModalShell>
       </div>
 

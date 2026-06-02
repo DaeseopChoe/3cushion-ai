@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import App from "../App";
+import {
+  LEVEL_CORRECTED,
+  cycleUserBaselineViewLevel,
+} from "../domain/userBaselineDisplayFlags";
 
 const STAGE_RATIO = 2.33;
 
@@ -351,7 +355,14 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const [appMode, setAppMode] = useState("USER");
   const [strategyButtons, setStrategyButtons] = useState([]);
   const [systemControlsAvailable, setSystemControlsAvailable] = useState(false);
-  const [userGuideLayersActive, setUserGuideLayersActive] = useState(false);
+  const [userBaselineViewLevel, setUserBaselineViewLevel] = useState(
+    /** @type {import("../domain/userBaselineDisplayFlags").UserBaselineViewLevel} */ (
+      LEVEL_CORRECTED
+    )
+  );
+  const resetUserBaselineViewLevel = useCallback(() => {
+    setUserBaselineViewLevel(LEVEL_CORRECTED);
+  }, []);
 
   useEffect(() => {
     const calc = () => {
@@ -716,14 +727,16 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const renderUserFuncButton = ({ id, label }) => {
     const isGuideToggle = id === "BASELINE";
     const isHistoryButton = id === "HISTORY";
-    const isOverlayFunc = id === "AI" || id === "HP/T";
-    const isFuncSelected = isGuideToggle
-      ? userGuideLayersActive
-      : isHistoryButton
-        ? false
-        : isOverlayFunc
-          ? currentButtonId === id
-          : USER_FUNC_IDS.includes(id) && currentButtonId === id;
+    const isFuncSelected =
+      USER_FUNC_IDS.includes(id) && currentButtonId === id;
+
+    const baselineBtnBackground = isGuideToggle
+      ? userBaselineViewLevel === 2
+        ? "#ea580c"
+        : userBaselineViewLevel === 1
+          ? "#eab308"
+          : getButtonColor(id, false, false)
+      : getButtonColor(id, false, isFuncSelected);
 
     return (
       <button
@@ -731,30 +744,60 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         type="button"
         data-stage-build={STAGE_BUILD_ID}
         data-user-info-btn={id}
-        title={isGuideToggle ? "기준값 · 시스템값 표시" : label}
+        data-user-baseline-level={isGuideToggle ? userBaselineViewLevel : undefined}
+        className={isGuideToggle ? "user-baseline-toggle-btn" : undefined}
+        title={
+          isGuideToggle
+            ? "기준값 표시 (1단계: 보정 / 2단계: 기준 / 3단계: 비교)"
+            : label
+        }
         aria-label={label}
-        aria-pressed={isGuideToggle ? userGuideLayersActive : undefined}
+        aria-pressed={isFuncSelected ? true : undefined}
         onClick={() => {
           if (isGuideToggle) {
-            setUserGuideLayersActive((prev) => !prev);
-            (onCloseUserOverlay ?? userRailActions.closeOverlay)?.();
+            setUserBaselineViewLevel((prev) => cycleUserBaselineViewLevel(prev));
+            setCurrentButtonId("BASELINE");
+            (
+              onCloseUserOverlay ??
+              userRailActions.dismissOverlayPanel ??
+              userRailActions.closeOverlay
+            )?.();
             return;
           }
+          resetUserBaselineViewLevel();
+          setCurrentButtonId(id);
           if (isHistoryButton) {
             (onOpenHistory ?? userRailActions.openHistory)?.();
             return;
           }
-          setCurrentButtonId(id);
         }}
         style={{
           ...userInfoBtnStyle,
-          background: getButtonColor(id, false, isFuncSelected),
-          color: "#ffffff",
+          background: baselineBtnBackground,
+          color: isGuideToggle && userBaselineViewLevel === 1 ? "#1f2937" : "#ffffff",
           border: isFuncSelected ? "3px solid #fff" : "none",
           cursor: "pointer",
         }}
       >
-        {label}
+        {isGuideToggle ? (
+          <span className="user-baseline-toggle-btn__inner">
+            <span className="user-baseline-level-dots" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className={
+                    i === userBaselineViewLevel
+                      ? "user-baseline-level-dot user-baseline-level-dot--active"
+                      : "user-baseline-level-dot"
+                  }
+                />
+              ))}
+            </span>
+            <span className="user-baseline-toggle-btn__label">{label}</span>
+          </span>
+        ) : (
+          label
+        )}
       </button>
     );
   };
@@ -791,10 +834,28 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             data-user-info-btn="SEARCH"
             title={userSearchButtonMode === "reset" ? "검색 결과 초기화" : "공략 검색"}
             onClick={() => {
+              resetUserBaselineViewLevel();
               if (userSearchButtonMode === "reset") {
                 userSearchResetHandlerRef.current?.();
                 return;
               }
+              // #region agent log
+              fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Debug-Session-Id": "180f59",
+                },
+                body: JSON.stringify({
+                  sessionId: "180f59",
+                  location: "Stage.jsx:USER_SEARCH_CLICK",
+                  message: "STAGE_USER_SEARCH_CLICK",
+                  hypothesisId: "TRACE",
+                  timestamp: Date.now(),
+                  data: { activeSlot, currentButtonId },
+                }),
+              }).catch(() => {});
+              // #endregion
               userSearchHandlerRef.current?.();
               onSearchStrategies?.();
             }}
@@ -832,6 +893,24 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
                 }
                 onClick={() => {
                   if (!isEnabled) return;
+                  resetUserBaselineViewLevel();
+                  // #region agent log
+                  fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "X-Debug-Session-Id": "180f59",
+                    },
+                    body: JSON.stringify({
+                      sessionId: "180f59",
+                      location: "Stage.jsx:USER_STRATEGY_CLICK",
+                      message: "STAGE_USER_STRATEGY_CLICK",
+                      hypothesisId: "TRACE",
+                      timestamp: Date.now(),
+                      data: { slotId: id, activeSlot, currentButtonId },
+                    }),
+                  }).catch(() => {});
+                  // #endregion
                   userStrategySlotPickRef.current?.(id);
                   setCurrentButtonId(id);
                 }}
@@ -904,9 +983,12 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         >
           <App
             currentButtonId={currentButtonId}
-            userGuideLayersVisible={userGuideLayersActive}
+            userBaselineViewLevel={userBaselineViewLevel}
             onActiveSlotChange={setActiveSlot}
-            onFuncOverlayClose={() => setCurrentButtonId(activeSlot)}
+            onFuncOverlayClose={() => {
+              resetUserBaselineViewLevel();
+              setCurrentButtonId(activeSlot);
+            }}
             onDirtySlotsChange={setDirtySlotIds}
             onAppModeChange={setAppMode}
             onStrategyButtonsChange={setStrategyButtons}
@@ -926,6 +1008,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             }}
             onAdminSearchButtonModeChange={setAdminSearchButtonMode}
             onAdminResetRailSelection={() => setCurrentButtonId("SEARCH")}
+            onUserFuncButtonSelect={setCurrentButtonId}
             onUserStrategySlotPickRegister={(fn) => {
               userStrategySlotPickRef.current = fn ?? null;
             }}

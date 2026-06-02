@@ -262,6 +262,334 @@
   padding: 28px 24px;
 }
 
+.modal-panel--user-ai {
+  min-width: 0 !important;
+  width: min(80vw, 1400px) !important;
+  max-width: min(80vw, 1400px) !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: 72vh !important;
+  padding: 12px 12px !important;
+  overflow-y: auto;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* AI 코멘트 공통 레이아웃 */
+.ai-comment-para {
+  margin: 0;
+  padding: 0;
+  text-indent: 0;
+  text-align: left;
+}
+
+.ai-comment-section-body {
+  font-weight: 400;
+}
+
+.ai-comment-divider {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 1.42em 0 0;
+}
+
+.ai-one-point-lessons__list {
+  margin-top: 1.42em;
+}
+
+/* ADMIN AI — 기존 크기 유지 (14px) */
+.admin-ai-overlay .ai-auto-comment,
+.admin-ai-overlay .ai-one-point-lessons {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.42;
+}
+
+.admin-ai-overlay .ai-comment-para + .ai-comment-para {
+  margin-top: 1.42em;
+}
+
+.admin-ai-overlay .ai-comment-section-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.admin-ai-overlay .ai-one-point-lessons .ai-comment-divider + .ai-comment-para {
+  margin-top: 1.42em;
+}
+
+.admin-ai-overlay .ai-comment-para--labeled + .ai-one-point-lessons__list {
+  margin-top: 1.42em;
+}
+
+/* USER AI 패널 — 모바일 레슨 카드 (본문 32px, 섹션 제목 40px) */
+.modal-panel--user-ai .user-ai-panel {
+  font-size: 32px;
+  color: #334155;
+  line-height: 1.3;
+}
+
+.modal-panel--user-ai .user-ai-panel .ai-auto-comment,
+.modal-panel--user-ai .user-ai-panel .ai-one-point-lessons,
+.modal-panel--user-ai .user-ai-panel .ai-comment-para,
+.modal-panel--user-ai .user-ai-panel .ai-comment-lesson-heading {
+  padding: 0;
+  margin-left: 0;
+  margin-right: 0;
+  text-indent: 0;
+  text-align: left;
+}
+
+.modal-panel--user-ai .user-ai-panel .ai-comment-para + .ai-comment-para {
+  margin-top: 0.85em;
+}
+
+.modal-panel--user-ai .user-ai-panel .ai-comment-para--formula .ai-comment-section-title,
+.modal-panel--user-ai .user-ai-panel .ai-comment-para--formula .ai-comment-section-body {
+  display: inline;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.modal-panel--user-ai .user-ai-panel .ai-comment-para--formula .ai-comment-section-title {
+  font-size: 40px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.modal-panel--user-ai .user-ai-panel .ai-comment-lesson-heading {
+  display: block;
+  font-size: 40px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.modal-panel--user-ai .user-ai-panel .ai-comment-divider {
+  margin: 0.75em 0 0.45em;
+}
+
+.modal-panel--user-ai .user-ai-panel .ai-one-point-lessons .ai-comment-divider + .ai-comment-lesson-heading {
+  margin-top: 0.45em;
+}
+
+.modal-panel--user-ai .user-ai-panel .ai-comment-lesson-heading + .ai-comment-para {
+  margin-top: 0.65em;
+}
+
+.modal-panel--user-ai .ai-comment-empty {
+  color: #64748b;
+  line-height: 1.3;
+  margin: 0;
+  font-size: 32px;
+}
+
+.modal-panel--user-ai .user-ai-panel__body {
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.modal-panel--user-ai .user-ai-panel__footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75em;
+  padding: 12px 0 16px;
+}
+
+/* 시각 버튼 + ::before 확장 hit slop (모바일 터치) */
+.modal-panel--user-ai .user-ai-panel__hpt-btn {
+  position: relative;
+  isolation: isolate;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 560px;
+  min-width: 0;
+  min-height: 64px;
+  margin: 0;
+  padding: 16px 32px;
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+  color: #ffffff;
+  background: #374151;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+}
+
+.modal-panel--user-ai .user-ai-panel__hpt-btn::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -20px;
+  bottom: -20px;
+  border-radius: 12px;
+}
+
+.modal-panel--user-ai .user-ai-panel__hpt-btn:active {
+  background: #1f2937;
+}
+
+.modal-backdrop--stacked-user {
+  z-index: 55;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .modal-panel--user-ai {
+    padding: 12px 10px !important;
+  }
+}
+
+/* USER 기준값 3-Level 버튼 — 상단 점 인디케이터 (모바일 가독성) */
+.user-baseline-toggle-btn {
+  flex-direction: column !important;
+  gap: 4px !important;
+  padding-top: 6px !important;
+  padding-bottom: 5px !important;
+}
+
+.user-baseline-toggle-btn__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  line-height: 1;
+}
+
+.user-baseline-level-dots {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 1.6vw, 10px);
+  min-height: clamp(18px, 4vw, 24px);
+}
+
+.user-baseline-level-dot {
+  width: clamp(18px, 4vw, 24px);
+  height: clamp(18px, 4vw, 24px);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.38);
+  flex-shrink: 0;
+}
+
+.user-baseline-level-dot--active {
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.45);
+}
+
+.user-baseline-toggle-btn__label {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* USER HP/T read-only card — mobile portrait, ~2.5× prior compact width */
+.modal-panel--user-hpt {
+  min-width: 0 !important;
+  width: min(calc(100vw - 20px), 1050px) !important;
+  max-width: calc(100vw - 20px) !important;
+  min-height: 0 !important;
+  padding: 20px 16px !important;
+  line-height: 1.4;
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+  .modal-panel--user-hpt {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    padding: 16px 10px !important;
+  }
+}
+
+/* USER HP/T card — text-first mobile readability */
+.user-hpt-panel {
+  width: 100%;
+  max-width: 100%;
+  color: #334155;
+}
+
+.user-hpt-viz-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 10px 8px;
+  background-color: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.user-hpt-viz-wrap svg {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+  min-height: min(36vw, 340px);
+  max-height: min(44vh, 340px);
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.user-hpt-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 12px;
+  margin-top: 10px;
+  padding: 22px 14px;
+  background-color: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-sizing: border-box;
+}
+
+.user-hpt-metric-cell {
+  text-align: center;
+  min-width: 0;
+  padding: 6px 4px;
+}
+
+.user-hpt-label {
+  font-size: clamp(32px, 7vw, 36px);
+  font-weight: 600;
+  color: #475569;
+  line-height: 1.2;
+  margin-bottom: 12px;
+}
+
+.user-hpt-value {
+  font-size: clamp(34px, 9.5vw, 40px);
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.12;
+  word-break: keep-all;
+}
+
+.user-hpt-empty {
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+  font-size: clamp(20px, 5vw, 24px);
+  text-align: center;
+  padding: 18px 0;
+}
+
 /* SysOverlay — 하단 result/info 박스 (layout compression 완화) */
 .sys-info-box {
   box-sizing: border-box;
