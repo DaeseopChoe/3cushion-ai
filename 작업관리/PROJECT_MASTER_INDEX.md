@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
 Version: 1.1  
-Last Updated: 2026-05-27  
+Last Updated: 2026-06-02  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -243,6 +243,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 | 문서 | 용도 |
 |------|------|
+| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI 코멘트 · USER AI 패널 · HP/T 스택 · 문서 SSOT |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
 | `HISTORY/PROJECT_LOG_2026-04.md` | 이전 월 |
 | `HISTORY/HANDOFF_ADMIN_MODAL_TO_USER_DISPLAY_2026-05.md` | ADMIN→USER 표시 핸드오프 |
@@ -252,8 +253,6 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | `3_SYSTEM_ARCHITECTURE.md` | 계산·데이터 계층 |
 | `4_CALCULATION_RULES.md` | 수식·보정 규칙 |
 | `SESSION_TRANSFER/APP_USER_SEARCH_FLOW.md` | USER Search 흐름 |
-
-`PROJECT_LOG_2026-06.md` — **아직 없음** (생성 시 이 표에 추가).
 
 ---
 
