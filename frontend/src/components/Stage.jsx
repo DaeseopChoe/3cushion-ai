@@ -15,7 +15,7 @@ const USER_STRATEGY_PLACEHOLDERS = {
   S3: "공략3",
 };
 const ADMIN_FUNC_IDS = ["SYS", "HP/T", "STR", "AI"];
-const USER_FUNC_IDS = ["AI", "HP/T", "BASELINE", "HISTORY"];
+const USER_FUNC_IDS = ["AI", "BASELINE", "SYSTEM_LESSON", "HISTORY"];
 
 const ADMIN_SHOT_BUTTONS = [
   { id: "S1", label: "S1", type: "shot" },
@@ -31,8 +31,8 @@ const ADMIN_FUNC_BUTTONS = [
 /** USER info layer labels (ids unchanged for trigger compatibility where mapped). */
 const USER_FUNC_BUTTONS = [
   { id: "AI", label: "AI", type: "info" },
-  { id: "HP/T", label: "두께/타점", type: "info" },
   { id: "BASELINE", label: "기준값", type: "info" },
+  { id: "SYSTEM_LESSON", label: "시스템레슨", type: "info" },
   { id: "HISTORY", label: "History", type: "info" },
 ];
 
@@ -610,7 +610,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const getButtonColor = (id, isSlotSelected, isFuncSelected) => {
     if (id === "SEARCH") return "#4f46e5";
     if (id === "AI") return isFuncSelected ? "#c2410c" : "#ea580c";
-    if (["SYS", "HP/T", "STR", "BASELINE", "SYSVAL", "HISTORY"].includes(id)) {
+    if (["SYS", "HP/T", "STR", "BASELINE", "SYSVAL", "HISTORY", "SYSTEM_LESSON"].includes(id)) {
       return isFuncSelected ? "#d97706" : "#f59e0b";
     }
     return isSlotSelected ? "#047857" : "#10b981";
@@ -745,7 +745,14 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         data-stage-build={STAGE_BUILD_ID}
         data-user-info-btn={id}
         data-user-baseline-level={isGuideToggle ? userBaselineViewLevel : undefined}
-        className={isGuideToggle ? "user-baseline-toggle-btn" : undefined}
+        className={
+          [
+            isGuideToggle ? "user-baseline-toggle-btn" : "",
+            id === "SYSTEM_LESSON" ? "user-rail-btn--system-lesson" : "",
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
         title={
           isGuideToggle
             ? "기준값 표시 (1단계: 보정 / 2단계: 기준 / 3단계: 비교)"
@@ -773,6 +780,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         }}
         style={{
           ...userInfoBtnStyle,
+          ...(id === "SYSTEM_LESSON" ? { fontSize: BUTTON_FONT * 0.88 } : {}),
           background: baselineBtnBackground,
           color: isGuideToggle && userBaselineViewLevel === 1 ? "#1f2937" : "#ffffff",
           border: isFuncSelected ? "3px solid #fff" : "none",

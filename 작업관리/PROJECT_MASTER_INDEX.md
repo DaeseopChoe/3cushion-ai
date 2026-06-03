@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.1  
-Last Updated: 2026-06-02  
+Version: 1.2  
+Last Updated: 2026-06-03  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -34,10 +34,10 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | 영역 | 상태 |
 |------|------|
 | ADMIN | Position Lock → SYS / HP·T / STR / AI 입력 → Dataset SAVE |
-| USER | Search(Recall) → 공략 슬롯 표시 → **읽기 전용** AI·HP/T 오버레이 |
+| USER | Search(Recall) → 공략 슬롯 표시 → **읽기 전용** AI·**시스템 레슨** 오버레이 |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
 | AI 코멘트 | SYS+STR 자동 문장 SSOT + 원 포인트 레슨 분리 **완료** |
-| 시스템 학습 | **미구현** (설계·UI·데이터 예정) |
+| 시스템 레슨 | **P0 완료** (5½ · 독립 메뉴 · `SYSTEM_LESSON` 오버레이) |
 
 ### 핵심 설계 원칙
 
@@ -113,9 +113,17 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ### HP/T
 
-- **두께/타점 Overlay**: ADMIN 편집 + USER `UserHptPanel` read-only.
-- **관리자 입력**: `adminState.hpt`, slot `draft`/`applied` 동기화, `applyAiToSlot` 등 slot 액션.
-- **USER 스택**: AI 오버레이 위에 **동일 `UserHptPanel`** 스택 (`userOverlayChild === "HPT"`).
+- **두께/타점 Overlay**: **ADMIN 전용** 편집 (`HptOverlay`, `overlayState` HPT).
+- **관리자 입력**: `adminState.hpt`, slot `draft`/`applied` 동기화.
+- **USER**: 좌측 HP/T 메뉴 **제거** (2026-06). `UserHptPanel` / `userHptViewModel`은 ADMIN·향후 재사용 가능.
+
+### 시스템 레슨 (System Lesson)
+
+- **독립 USER 메뉴** `SYSTEM_LESSON` — AI 하위·스택·CTA **없음**.
+- **오버레이**: `overlayContent === "SYSTEM_LESSON"` 단일 `ModalShell` + `UserSystemLessonPanel`.
+- **데이터**: `buildSlotEffectiveRenderSysValues` → `resolvedSlotBaseSysValues` / `resolvedSlotSysValues` (엔진 추가 없음).
+- **ViewModel**: `domain/userSystemLessonViewModel.ts` — 포지션 기준·보정 반영 2단, 4쿠션 중간식 표시.
+- **P0 범위**: 파이브 앤드 하프 (`useSn`) 우선; 그 외 시스템은 안내 메시지.
 
 ### STR
 
@@ -133,8 +141,6 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - **USER AI 패널**: `components/user/UserAiPanel.jsx` + `domain/userInfoPanelModel.ts` (`buildUserInfoPanel`).
   - 본문 32px / 제목 40px, 패널 `min(80vw, 1400px)`, `max-height: 72vh`.
   - 상단 공략 제목 중복 제거, 공간 최적화.
-- **두께/타점 보기 버튼**: `handleOpenHptFromAiPanel` → `onUserFuncButtonSelect("HP/T")` — 좌측 메뉴와 **동일 state/action**.
-- **Overlay Stack**: `overlayContent` + `userOverlayChild`; HP/T backdrop만 닫으면 AI 유지 (`handleCloseUserOverlayChild`).
 - **Deprecated**: `utils/aiPlayStrategyBuilder.ts` `buildPlayStrategy()` — SYS/HP/T/STR 나열형.
 
 ---
@@ -159,9 +165,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | Search | — | `userRelaxed` recall |
 | 공략 버튼 | — | `userTableDisplaySlotId` |
 | AI | `overlayContent === "AI"` | `UserAiPanel` |
-| └ 두께/타점 보기 | `userOverlayChild === "HPT"` | `UserHptPanel` 스택 |
-| HP/T (좌측) | 단독 HPT 또는 AI 위 스택 | `currentButtonId` effect |
-| 기준값 | 패널 dismiss | 오버레이만 닫기 |
+| 기준값 | 패널 dismiss | 오버레이만 닫기, 3-Level 토글 |
+| 시스템 레슨 | `overlayContent === "SYSTEM_LESSON"` | `UserSystemLessonPanel` (독립) |
 | History | 모달 | |
 
 ---
@@ -180,7 +185,9 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | Admin SYS 식 | `admin/sys/useSysCalculation.ts` |
 | App SYS·궤적 | `utils/systemCalculator.ts`, `utils/trajectorySampleBuilder.ts` |
 | AI 자동 코멘트 | `domain/aiAutoCommentViewModel.ts` |
-| USER 패널 | `domain/userInfoPanelModel.ts`, `components/user/UserAiPanel.jsx`, `components/user/UserHptPanel.jsx` |
+| USER 패널 | `domain/userInfoPanelModel.ts`, `components/user/UserAiPanel.jsx` |
+| USER 시스템 레슨 | `domain/userSystemLessonViewModel.ts`, `components/user/UserSystemLessonPanel.jsx` |
+| USER HP/T (ADMIN·레거시) | `components/user/UserHptPanel.jsx`, `domain/userHptViewModel.ts` |
 
 ---
 
@@ -191,11 +198,12 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | 자동 코멘트 모델 | `frontend/src/domain/aiAutoCommentViewModel.ts` |
 | USER 패널 모델 | `frontend/src/domain/userInfoPanelModel.ts` |
 | USER AI UI | `frontend/src/components/user/UserAiPanel.jsx` |
-| USER HP/T UI | `frontend/src/components/user/UserHptPanel.jsx` |
-| USER 오버레이·스택 | `frontend/src/App.jsx` (`overlayContent`, `userOverlayChild`, 이중 `ModalShell`) |
-| Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`onUserFuncButtonSelect`) |
+| USER 시스템 레슨 UI | `frontend/src/components/user/UserSystemLessonPanel.jsx` |
+| USER 시스템 레슨 VM | `frontend/src/domain/userSystemLessonViewModel.ts` |
+| USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · SYSTEM_LESSON) |
+| Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`USER_FUNC_IDS`, `onUserFuncButtonSelect`) |
 | ADMIN AI | `frontend/src/App.jsx` `AiOverlay` |
-| 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.user-ai-panel__hpt-btn`) |
+| 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.modal-panel--user-system-lesson`) |
 
 ---
 
@@ -206,34 +214,31 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - AI 오버레이 리팩토링 (SYS+STR SSOT, 레슨 분리)
 - 원 포인트 레슨 ADMIN/USER 표시 분리
 - USER AI 패널 가독성·크기·공간 최적화
-- AI → HP/T 스택 연동 (기존 컴포넌트 재사용)
+- USER **시스템 레슨** 독립 메뉴·오버레이 (5½ P0)
+- USER HP/T 메뉴·AI CTA·`userOverlayChild` 스택 **제거**
 - Slot runtime / Recall canonical (2026-05 PHASE 2)
 - Modal draggable + viewport clamp
 - Hermite 궤적 baseline, anchors SSOT·canonical persist (2026-05)
 
 ### 진행 중
 
-- **시스템 학습 (System Lesson)** — 코드베이스 미착수
+- (없음)
 
 ### 예정
 
-- **[두께/타점 보기]** → 시스템 학습 진입점 전환 (기능 교체, HP/T 직접 호출 대신)
+- 시스템 레슨: sunrise/sunset 등 **비 5½** 시스템 확장
+- 학습 흐름 확장: AI → 원 포인트 레슨 → 시스템 레슨 → 실전 공략 (내비만, 스택 없음)
 
 ---
 
 ## 다음 작업 우선순위
 
-### P0 — 시스템 학습 구조 설계
+### P1 — 시스템 레슨 확장
 
-- 진입점: AI 패널 하단 CTA (현재 HP/T 연동과의 관계 정의)
-- ADMIN 입력 vs USER read-only 경계
-- 기존 SYS 교육형 Overlay 문구와의 역할 분담
+- `full_input` 및 기타 `systemId` 교육 블록
+- SYS Overlay 교육 라인 로직 domain 공통 추출 (ADMIN·USER 중복 제거)
 
-### P1 — 시스템 학습 UI
-
-- USER 모달/오버레이 패턴 (`ModalShell`, 스택 규칙 재사용 여부)
-
-### P2 — 시스템 학습 데이터 구조
+### P2 — 학습 데이터·내비
 
 - Dataset / slot / lesson JSON 스키마, SAVE·Recall 연동
 
@@ -243,7 +248,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 | 문서 | 용도 |
 |------|------|
-| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI 코멘트 · USER AI 패널 · HP/T 스택 · 문서 SSOT |
+| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · 문서 SSOT |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
 | `HISTORY/PROJECT_LOG_2026-04.md` | 이전 월 |
 | `HISTORY/HANDOFF_ADMIN_MODAL_TO_USER_DISPLAY_2026-05.md` | ADMIN→USER 표시 핸드오프 |
@@ -256,17 +261,16 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ---
 
-## USER Overlay Stack (요약)
+## USER Overlay (요약)
 
 ```
-[두께/타점 보기] 또는 좌측 HP/T (AI 열린 상태)
-  → overlayContent = "AI", userOverlayChild = "HPT"
+좌측 AI → overlayContent = "AI" → UserAiPanel
 
-HP/T backdrop 클릭 → handleCloseUserOverlayChild → AI 유지
+좌측 시스템 레슨 → overlayContent = "SYSTEM_LESSON" → UserSystemLessonPanel (독립, 스택 없음)
 
-AI backdrop / handleCloseUserInfoOverlay → 전체 닫기
+backdrop / handleCloseUserInfoOverlay → overlayContent = null
 
-좌측 다른 메뉴 → child 초기화 + overlayContent 교체
+기준값(BASELINE) → 오버레이만 dismiss (레벨 유지)
 ```
 
 ---

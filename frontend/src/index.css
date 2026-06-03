@@ -445,6 +445,255 @@
   z-index: 55;
 }
 
+/* USER 시스템 레슨 — 당구대 내부 · 표 기반 · 터치 스크롤 */
+.modal-panel--user-system-lesson {
+  min-width: 0 !important;
+  width: 90% !important;
+  max-width: 90% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: 86vh !important;
+  padding: 16px 18px !important;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+}
+
+.modal-panel--user-system-lesson .modal-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson {
+  font-size: 38px;
+  color: #0f172a;
+  line-height: 1.42;
+  touch-action: pan-y;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__title {
+  margin: 0 0 0.7em;
+  padding: 0.55em 0.25em 0.65em;
+  font-size: 44px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.22;
+  text-align: center;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__block {
+  margin: 0;
+}
+
+/* 포지션 블록 footnote 다음 ↔ 보정치 블록 사이 */
+.modal-panel--user-system-lesson .user-sys-lesson__block + .user-sys-lesson__block {
+  margin-top: 40px;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__block-title {
+  margin: 0 0 0.55em;
+  font-size: 40px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.28;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 0.25em;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: inherit;
+  background: #ffffff;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__th,
+.modal-panel--user-system-lesson .user-sys-lesson__td {
+  border: 2px solid #cbd5e1;
+  padding: 14px 14px;
+  vertical-align: middle;
+  text-align: center;
+  font-weight: 600;
+  word-break: keep-all;
+  line-height: 1.38;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__th {
+  width: 18%;
+  min-width: 7.5em;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 1em;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__td {
+  background: #ffffff;
+  font-weight: 600;
+  font-size: 1em;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__td--corr {
+  font-size: 1em;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__td--calc {
+  font-weight: 700;
+  font-size: 1em;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__td--result {
+  background: #ffedd5 !important;
+  color: #9a3412;
+  font-weight: 800;
+  font-size: 1em;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__td--expr {
+  white-space: nowrap;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__table--position .user-sys-lesson__tr-values .user-sys-lesson__td--value {
+  width: calc((100% - 18%) / 3);
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__td--c4-host {
+  padding: 0 !important;
+  vertical-align: middle;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__c4-inner {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+/* 보정 표 4쿠션과 유사: 식은 내용만큼, 나머지 폭은 계산·결과에 분배 */
+.modal-panel--user-system-lesson .user-sys-lesson__c4-inner .user-sys-lesson__td--expr {
+  width: max-content;
+  max-width: 52%;
+  white-space: nowrap;
+  padding: 14px 10px 14px 14px;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__c4-inner .user-sys-lesson__td--calc {
+  width: 26%;
+  white-space: nowrap;
+  padding: 14px 20px;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__c4-inner .user-sys-lesson__td--result {
+  width: 26%;
+  padding: 14px 20px;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__footnotes {
+  margin: 0.65em 0 0.35em;
+  padding-left: 1.35em;
+  list-style: disc;
+  list-style-position: outside;
+  font-size: 1em;
+  font-weight: 600;
+  color: #2563eb;
+  line-height: 1.45;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__footnotes li {
+  margin: 0.14em 0;
+  padding-left: 0.15em;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__footnotes li + li {
+  margin-top: 0.1em;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson__footnotes li::marker {
+  color: #0f172a;
+  font-size: 0.65em;
+}
+
+.modal-panel--user-system-lesson .user-sys-lesson-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 38px;
+  text-align: center;
+}
+
+/* USER 좌측 메뉴 — 시스템레슨 버튼 (폰트는 Stage에서 0.88×, 여기서 자간만) */
+button.user-rail-btn--system-lesson[data-user-info-btn="SYSTEM_LESSON"] {
+  letter-spacing: -0.02em;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .modal-panel--user-system-lesson {
+    width: 90% !important;
+    max-width: 90% !important;
+    max-height: 88vh !important;
+    padding: 12px 14px !important;
+  }
+
+  .modal-panel--user-system-lesson .user-sys-lesson {
+    font-size: 34px;
+  }
+
+  .modal-panel--user-system-lesson .user-sys-lesson {
+    line-height: 1.4;
+  }
+
+  .modal-panel--user-system-lesson .user-sys-lesson__title {
+    font-size: 40px;
+    margin-bottom: 0.65em;
+    padding: 0.5em 0.2em 0.6em;
+  }
+
+  .modal-panel--user-system-lesson .user-sys-lesson__block + .user-sys-lesson__block {
+    margin-top: 36px;
+  }
+
+  .modal-panel--user-system-lesson .user-sys-lesson__footnotes {
+    margin-bottom: 0.3em;
+    line-height: 1.42;
+  }
+
+  .modal-panel--user-system-lesson .user-sys-lesson__footnotes li {
+    margin: 0.1em 0;
+  }
+
+  .modal-panel--user-system-lesson .user-sys-lesson__block-title {
+    font-size: 36px;
+    margin-bottom: 0.5em;
+    line-height: 1.26;
+  }
+
+  .modal-panel--user-system-lesson .user-sys-lesson__th,
+  .modal-panel--user-system-lesson .user-sys-lesson__td {
+    padding: 12px 12px;
+    line-height: 1.36;
+  }
+
+  .modal-panel--user-system-lesson .user-sys-lesson__footnotes {
+    line-height: 1.48;
+  }
+}
+
 @media (orientation: landscape) and (max-height: 520px) {
   .modal-panel--user-ai {
     padding: 12px 10px !important;

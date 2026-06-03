@@ -37,7 +37,7 @@ import {
   buildUserInfoPanel,
 } from "./domain/userInfoPanelModel";
 import { AiAutoCommentDisplay } from "./components/user/UserAiPanel";
-import { buildUserHptViewModel } from "./domain/userHptViewModel";
+import { buildUserSystemLessonViewModel } from "./domain/userSystemLessonViewModel";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
 import { convertThetaToClock } from "./utils/tipClockConverter";
@@ -80,7 +80,7 @@ import SystemValueLabels from "./components/table/SystemValueLabels";
 import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
 import ModalShell from "./components/common/ModalShell";
 import UserAiPanel from "./components/user/UserAiPanel.jsx";
-import UserHptPanel from "./components/user/UserHptPanel.jsx";
+import UserSystemLessonPanel from "./components/user/UserSystemLessonPanel.jsx";
 import ImpactLines from "./components/table/ImpactLines";
 import SystemGrid from "./components/table/SystemGrid";
 import CoachingOverlay from "./components/table/CoachingOverlay";
@@ -3289,8 +3289,6 @@ export default function App({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [overlayContent, setOverlayContent] = useState(null);
-  /** USER: AI 위에 쌓는 자식 오버레이 (예: HP/T) — 좌측 메뉴와 동일 컴포넌트 재사용 */
-  const [userOverlayChild, setUserOverlayChild] = useState(null);
 
   useEffect(() => {
     // #region agent log
@@ -4890,7 +4888,6 @@ export default function App({
       ...prev,
       sys: createEmptyAdminSysSnapshot(),
     }));
-    setUserOverlayChild(null);
     setOverlayContent(null);
     setOverlayState({ open: false, type: null });
   }, [trajectory]);
@@ -5102,32 +5099,15 @@ export default function App({
   /** 모달만 닫기 (기준값 레벨 유지 — BASELINE 순환 시 사용) */
   const handleDismissUserInfoOverlayPanel = useCallback(() => {
     if (appMode !== "USER") return;
-    setUserOverlayChild(null);
     setOverlayContent(null);
   }, [appMode]);
 
   /** Overlay 닫기 + Stage rail 선택 복귀 + 기준값 L1 리셋 */
   const handleCloseUserInfoOverlay = useCallback(() => {
     if (appMode !== "USER") return;
-    setUserOverlayChild(null);
     setOverlayContent(null);
     onFuncOverlayClose?.();
   }, [appMode, onFuncOverlayClose]);
-
-  /** AI 패널 → 좌측 "두께/타점" 버튼과 동일 트리거 */
-  const handleOpenHptFromAiPanel = useCallback(() => {
-    if (appMode !== "USER") return;
-    onUserFuncButtonSelect?.("HP/T");
-  }, [appMode, onUserFuncButtonSelect]);
-
-  /** 스택된 HP/T만 닫고 AI 오버레이 유지 */
-  const handleCloseUserOverlayChild = useCallback(() => {
-    if (appMode !== "USER") return;
-    setUserOverlayChild(null);
-    if (overlayContent === "AI") {
-      onUserFuncButtonSelect?.("AI");
-    }
-  }, [appMode, overlayContent, onUserFuncButtonSelect]);
 
   // ⭐ 핵심: 버튼 클릭 → Overlay 여는 함수
   function handleSelectAdminButton(buttonId) {
@@ -5352,31 +5332,18 @@ function handleJoyPadPointerCancel(e) {
 
     // 코칭 버튼 처리
     if (currentButtonId === "COACH") {
-      setUserOverlayChild(null);
       setShowCoaching(true);
       console.log("🎯 코칭 버튼 클릭 감지");
-    }
-    else if (currentButtonId === "SYS") {
-      setUserOverlayChild(null);
-      setOverlayContent("SYS");
-    } else if (currentButtonId === "HP/T") {
-      if (overlayContent === "AI") {
-        setUserOverlayChild("HPT");
-      } else {
-        setUserOverlayChild(null);
-        setOverlayContent("HPT");
-      }
+    } else if (currentButtonId === "SYSTEM_LESSON") {
+      setOverlayContent("SYSTEM_LESSON");
     } else if (currentButtonId === "STR") {
-      setUserOverlayChild(null);
       setOverlayContent("STR");
     } else if (currentButtonId === "AI") {
-      setUserOverlayChild(null);
       setOverlayContent("AI");
     } else {
-      setUserOverlayChild(null);
       setOverlayContent(null);
     }
-  }, [currentButtonId, appMode, overlayContent]);
+  }, [currentButtonId, appMode]);
 
   // ============================================
   // currentButtonId 처리 (ADMIN 모드 오버레이)
@@ -5407,7 +5374,6 @@ function handleJoyPadPointerCancel(e) {
       slotIds.includes(prevSlotButton);
 
     actions.switchSlot(currentButtonId);
-    setUserOverlayChild(null);
     setOverlayContent(null);
     setOverlayState({ open: false, type: null });
 
@@ -5523,7 +5489,6 @@ function handleJoyPadPointerCancel(e) {
       if (!slotIds.includes(slotId)) return;
       emitStrategyPickTrace("STRATEGY_PICK_BEFORE", slotId, "before");
       actions.switchSlot(slotId);
-      setUserOverlayChild(null);
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
       setUserTableDisplaySlotId(slotId);
@@ -5869,15 +5834,30 @@ function handleJoyPadPointerCancel(e) {
     view?.ui?.strategy,
   ]);
 
-  const userHptModel = useMemo(() => {
+  const userSystemLessonModel = useMemo(() => {
     if (appMode !== "USER") return null;
     if (!userTableDisplaySlotId) {
-      return buildUserHptViewModel({ hpt: null, noStrategySelected: true });
+      return buildUserSystemLessonViewModel({ noStrategySelected: true });
     }
-    const slot = shotEditor.slots[userTableDisplaySlotId];
-    const hpt = slot?.draft?.hpt ?? slot?.applied?.hpt ?? null;
-    return buildUserHptViewModel({ hpt, sysHpNResult: null });
-  }, [appMode, userTableDisplaySlotId, shotEditor.slots]);
+    const slotLabel =
+      strategyButtons.find((b) => b.slotId === userTableDisplaySlotId && b.hasRecall)
+        ?.label ?? "";
+    return buildUserSystemLessonViewModel({
+      strategyButtonLabel: slotLabel,
+      slotRenderSys,
+      resolvedSlotSys,
+      resolvedSlotBaseSysValues,
+      resolvedSlotSysValues,
+    });
+  }, [
+    appMode,
+    userTableDisplaySlotId,
+    strategyButtons,
+    slotRenderSys,
+    resolvedSlotSys,
+    resolvedSlotBaseSysValues,
+    resolvedSlotSysValues,
+  ]);
 
   useEffect(() => {
     onUserInfoPanelChange?.(userInfoPanel);
@@ -8139,48 +8119,29 @@ function handlePointerCancel(e) {
       <ModalShell
         open={appMode === "USER" && !!overlayContent}
         onClose={handleCloseUserInfoOverlay}
-        draggable={overlayContent !== "HPT"}
+        draggable={false}
         panelClassName={
-          overlayContent === "HPT"
-            ? "modal-panel--user-hpt"
+          overlayContent === "SYSTEM_LESSON"
+            ? "modal-panel--user-system-lesson"
             : overlayContent === "AI"
               ? "modal-panel--user-ai"
               : "modal-panel--compact"
         }
-        title={overlayContent === "AI" || overlayContent === "HPT" ? undefined : undefined}
+        title={undefined}
         panelStyle={{
-          maxHeight: overlayContent === "HPT" ? "92vh" : overlayContent === "AI" ? undefined : "78vh",
-          overflowY: "auto",
-          ...(overlayContent === "AI" ? { minWidth: 0, minHeight: 0 } : {}),
+          maxHeight:
+            overlayContent === "SYSTEM_LESSON" ? "86vh" : overlayContent === "AI" ? undefined : "78vh",
+          ...(overlayContent === "SYSTEM_LESSON"
+            ? { minWidth: 0, minHeight: 0, overflow: "hidden" }
+            : overlayContent === "AI"
+              ? { minWidth: 0, minHeight: 0, overflowY: "auto" }
+              : { overflowY: "auto" }),
         }}
       >
-        {overlayContent === "HPT" && !userOverlayChild && (
-          <UserHptPanel model={userHptModel} />
+        {overlayContent === "SYSTEM_LESSON" && (
+          <UserSystemLessonPanel model={userSystemLessonModel} />
         )}
-        {overlayContent === "AI" && (
-          <UserAiPanel
-            model={userInfoPanel}
-            onOpenHpt={handleOpenHptFromAiPanel}
-          />
-        )}
-      </ModalShell>
-
-      {/* USER: AI 위 스택 HP/T (좌측 두께/타점과 동일 UserHptPanel) */}
-      <ModalShell
-        open={
-          appMode === "USER" &&
-          overlayContent === "AI" &&
-          userOverlayChild === "HPT"
-        }
-        onClose={handleCloseUserOverlayChild}
-        className="modal-backdrop--stacked-user"
-        fixed
-        zIndex={55}
-        draggable={false}
-        panelClassName="modal-panel--user-hpt"
-        panelStyle={{ maxHeight: "92vh", overflowY: "auto" }}
-      >
-        <UserHptPanel model={userHptModel} />
+        {overlayContent === "AI" && <UserAiPanel model={userInfoPanel} />}
       </ModalShell>
       </div>
 

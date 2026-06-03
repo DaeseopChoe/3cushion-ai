@@ -176,7 +176,7 @@ Scope: AI 코멘트 SSOT · USER AI 패널 · HP/T 오버레이 스택 · 문서
 3. 보정 설명 (있을 때)
 4. STR 설명 (있을 때)
 5. 구분선 + `[원 포인트 레슨]` + 관리자 레슨 문장(들)
-6. `[두께/타점 보기]` → HP/T 스택
+6. ~~`[두께/타점 보기]` → HP/T 스택~~ → **제거** (시스템 레슨 독립 메뉴로 대체, §12)
 
 ---
 
@@ -191,37 +191,28 @@ Scope: AI 코멘트 SSOT · USER AI 패널 · HP/T 오버레이 스택 · 문서
 
 ## 9. 다음 예정 작업
 
-### P0 — 시스템 학습 (System Lesson) 구조 설계
+### P0 — 시스템 레슨 (완료, §12)
 
-- **시스템 학습** 데이터·UI·SAVE/Recall 경계 정의
-- **기존 좌측 HP/T 메뉴** → **「시스템 레슨」** 메뉴 전환 예정
-- **USER AI 패널 CTA** `[두께/타점 보기]` → **`[시스템 레슨 보기]`** 전환 예정
-- **학습 구조 확장 예정:**
+- 독립 메뉴 `SYSTEM_LESSON`, HP/T USER 메뉴·AI CTA·스택 제거
 
-  ```
-  AI 패널
-    → 원 포인트 레슨
-    → 시스템 레슨
-    → 실전 공략
-  ```
+### P1 — 시스템 레슨 확장
 
-### P1 — 시스템 학습 UI
+- 비 5½ 시스템 교육 블록
+- ADMIN `SysOverlay` 교육 라인과 domain 공통화
 
-- USER 모달/오버레이 패턴 (`ModalShell`, 스택 규칙 재사용 검토)
+### P2 — 학습 흐름·데이터
 
-### P2 — 시스템 학습 데이터 구조
-
-- Dataset / slot / lesson JSON 스키마, SAVE·Recall 연동
+- AI → 원 포인트 레슨 → 시스템 레슨 → 실전 공략 (내비·콘텐츠, **오버레이 스택 없음**)
+- Dataset / slot / lesson JSON, SAVE·Recall
 
 ---
 
 ## 10. 세션 인계 체크리스트
 
-- [ ] USER 모드: AI 오버레이 → 레슨·공식·`[두께/타점 보기]` 확인
-- [ ] HP/T 스택 열기/닫기 후 AI 유지
-- [ ] ADMIN: AI 전체 적용 후 USER recall 시 레슨 표시
-- [ ] `PROJECT_MASTER_INDEX.md` §AI·§USER Overlay Stack 참고
-- [ ] 미커밋 `frontend` 변경 있으면 별도 커밋 후 부록 §A 갱신
+- [ ] USER: 좌측 **시스템 레슨** → 포지션/보정 2단·4쿠션 중간식 (5½)
+- [ ] USER: AI 패널에 HP/T CTA **없음** 확인
+- [ ] ADMIN: HP/T 메뉴·편집 유지
+- [ ] `PROJECT_MASTER_INDEX.md` §시스템 레슨·§USER Overlay 참고
 
 ---
 
@@ -230,14 +221,44 @@ Scope: AI 코멘트 SSOT · USER AI 패널 · HP/T 오버레이 스택 · 문서
 ```
 frontend/src/domain/aiAutoCommentViewModel.ts
 frontend/src/domain/userInfoPanelModel.ts
+frontend/src/domain/userSystemLessonViewModel.ts
 frontend/src/components/user/UserAiPanel.jsx
-frontend/src/components/user/UserHptPanel.jsx
+frontend/src/components/user/UserSystemLessonPanel.jsx
 frontend/src/App.jsx
 frontend/src/components/Stage.jsx
 frontend/src/index.css
 작업관리/PROJECT_MASTER_INDEX.md
-작업관리/ARCHIVE/1_PROJECT_MASTER_INDEX.md
 ```
+
+---
+
+## 12. USER 시스템 레슨 (P0 구현)
+
+### 12.1 메뉴
+
+| Before | After |
+|--------|-------|
+| AI · 두께/타점 · 기준값 · History | AI · 기준값 · **시스템 레슨** · History |
+
+- `Stage.jsx`: `USER_FUNC_IDS`, `USER_FUNC_BUTTONS` — `SYSTEM_LESSON` / 라벨 `시스템 레슨`
+- USER `HP/T` 제거; ADMIN `HP/T` 유지
+
+### 12.2 오버레이
+
+- `overlayContent === "SYSTEM_LESSON"` — **독립** `ModalShell`
+- `userOverlayChild` · AI CTA · 이중 HP/T Modal **삭제**
+- 패널: `UserSystemLessonPanel` + `buildUserSystemLessonViewModel`
+
+### 12.3 데이터 (엔진 무변경)
+
+- `resolvedSlotBaseSysValues` — 포지션 기준·4쿠션(예: 16)
+- `resolvedSlotSysValues` — 보정 반영·4쿠션(예: 25.5)
+- `slotRenderSys.corrections` — 밀림/끌림/기울기/스핀 표시
+
+### 12.4 UI
+
+- 가로 2열 (`포지션 기준` | `보정치 반영`), `min(80vw, 1400px)`, landscape 축소 폰트
+- 5½ 외 시스템: empty 안내
 
 ---
 
@@ -251,6 +272,7 @@ frontend/src/index.css
 **참고:** `frontend/src` AI·USER 패널 변경은 본 세션에서 작업되었으나, 워킹 트리에 **미커밋일 수 있음**. 반영 시 권장 메시지 예시:
 
 - `feat(user-ai): refactor AI comment display, HP/T overlay stack, and panel UX`
+- `feat(user): add SYSTEM_LESSON overlay, remove USER HP/T menu`
 - `docs: add PROJECT_LOG_2026-06 for AI panel and overlay stack work`
 
 ---
