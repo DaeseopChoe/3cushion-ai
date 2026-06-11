@@ -2,7 +2,7 @@
 
 Version: v1.0  
 Created: 2026-06-02  
-Scope: AI 코멘트 SSOT · USER AI 패널 · HP/T 오버레이 스택 · 문서 SSOT  
+Scope: AI 코멘트 SSOT · USER AI 패널 · SYSTEM_LESSON P0 · 문서 SSOT  
 
 이전 월 로그: `PROJECT_LOG_2026-05.md`  
 현재 상태 SSOT: `../PROJECT_MASTER_INDEX.md`
@@ -191,9 +191,11 @@ Scope: AI 코멘트 SSOT · USER AI 패널 · HP/T 오버레이 스택 · 문서
 
 ## 9. 다음 예정 작업
 
-### P0 — 시스템 레슨 (완료, §12)
+### P0 — 시스템 레슨 (**완료**, §12·§13, 커밋 `ffe0a26`)
 
-- 독립 메뉴 `SYSTEM_LESSON`, HP/T USER 메뉴·AI CTA·스택 제거
+- 독립 메뉴 `SYSTEM_LESSON`, USER HP/T·AI CTA·`userOverlayChild` 스택 제거
+- `userSystemLessonViewModel` + `UserSystemLessonPanel` (5½, SYS SSOT 재사용)
+- 표 기반 UI·모바일 가로·대형 폰트·내부 스크롤·90% 폭 (§13)
 
 ### P1 — 시스템 레슨 확장
 
@@ -209,8 +211,9 @@ Scope: AI 코멘트 SSOT · USER AI 패널 · HP/T 오버레이 스택 · 문서
 
 ## 10. 세션 인계 체크리스트
 
-- [ ] USER: 좌측 **시스템 레슨** → 포지션/보정 2단·4쿠션 중간식 (5½)
-- [ ] USER: AI 패널에 HP/T CTA **없음** 확인
+- [x] USER: 좌측 **시스템레슨** → 표 기반 2섹션·4쿠션 중간식 (5½)
+- [x] USER: AI 패널에 HP/T CTA **없음**
+- [x] 가로모드·대형 폰트·내부 스크롤·90% 폭 (§13)
 - [ ] ADMIN: HP/T 메뉴·편집 유지
 - [ ] `PROJECT_MASTER_INDEX.md` §시스템 레슨·§USER Overlay 참고
 
@@ -255,25 +258,125 @@ frontend/src/index.css
 - `resolvedSlotSysValues` — 보정 반영·4쿠션(예: 25.5)
 - `slotRenderSys.corrections` — 밀림/끌림/기울기/스핀 표시
 
-### 12.4 UI
+### 12.4 UI (초기 P0 — §13에서 최종 확정)
 
-- 가로 2열 (`포지션 기준` | `보정치 반영`), `min(80vw, 1400px)`, landscape 축소 폰트
-- 5½ 외 시스템: empty 안내
+- 초기: 2열 카드형 → **폐기**
+- 이후: 표 기반·세로 2섹션·모바일 튜닝 (§13)
 
 ---
 
-## 부록 A. Git 커밋 요약 (본 세션·문서)
+## 13. SYSTEM_LESSON UI 최종 확정
+
+**커밋:** `ffe0a26` — `feat(user): add SYSTEM_LESSON overlay and remove USER HP/T`
+
+### 13.1 초기 버전 문제
+
+- 텍스트 블록 중심 레이아웃 (AI 패널 스타일 재사용)
+- 모바일 **시인성 부족** — 글자·줄 간격이 작음
+- 스마트폰 가로모드에서 **읽기 어려움**
+- 정보 **밀도 과다** — 한눈에 계산 흐름 파악 어려움
+
+### 13.2 최종 결정
+
+- **표(Table) 기반 구조** 채택 — 행 라벨(회색 `th`) + 데이터 셀
+- **글자 크기 확대** — 본문 ~38px, 제목 ~44px, 표·footnote 동일 가독성 기준
+- **당구대 내부 크기에 맞춘 오버레이** — 폭 **90%** (점진 튜닝: 76% → 81% → 90%)
+- **내부 스크롤 허용** — `modal-panel-body` 세로 스크롤, 터치 `pan-y`
+- **모바일 가로모드 기준 최적화** — landscape 미디어쿼리·표 padding·섹션 간격
+
+### 13.3 최종 UX (아키텍처)
+
+| 항목 | 상태 |
+|------|------|
+| 독립 메뉴 | `SYSTEM_LESSON` / 라벨 **시스템레슨** |
+| AI와 분리 | AI `overlayContent`와 무관 |
+| HP/T 제거 | USER 좌측 메뉴·스택·`UserHptPanel` 경로 제거 |
+| CTA 제거 | `UserAiPanel` `[두께/타점 보기]` 없음 |
+| 오버레이 스택 제거 | `userOverlayChild`·이중 HP/T `ModalShell` 삭제 |
+
+### 13.4 최종 패널 구조
+
+**[포지션 기준 계산]**
+
+| 행 | 내용 |
+|----|------|
+| 시스템 공식 | `출발값 - 3쿠션값 = 1쿠션값` (1행) |
+| 포지션 기준값 | `출발(30)` · `3쿠션(26)` · `1쿠션(4)` — **3칸 균등** |
+| 4쿠션 계산 | 식 · `26-10=16` · `4쿠션값 : 16` (3칸, inner table·비균등 폭) |
+
+설명 (파란 bullet): 출발값 보정 50 기준·frame/rail 안내
+
+**[보정치 반영 계산]** (보정 있을 때)
+
+| 행 | 내용 |
+|----|------|
+| 보정치 | 밀림 · 끌림 · 기울기 · 스핀 (4칸) |
+| 출발값 보정 | `출발+밀림=출발값` 등 한 줄 |
+| 3쿠션 보정 | `출발값+기울기-1쿠션=3쿠션값` 한 줄 |
+| 4쿠션 계산 | 식 · 계산 · 결과 3칸 (`colSpan` 2 + calc + result) |
+
+설명: 밀림·끌림→출발값, 기울기·스핀→3쿠션 / 4=5=6쿠션 동일
+
+### 13.5 비고
+
+- **SYSTEM_LESSON P0 범위 = 완료** (구현·UI 확정·`ffe0a26` push)
+- P1: 비 5½ 시스템·ADMIN/USER 교육 라인 domain 공통화
+
+---
+
+## 14. Dataset Architecture — Phase 1 완료
+
+**일자:** 2026-06-05  
+**이관 문서:** `../SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`
+
+### 14.1 배경
+
+- Recall·Search가 모두 `positions_dataset`(working)을 사용해 역할 혼재  
+- Export가 WorkspaceSnapshot 형태로 작업 데이터와 published 데이터가 분리되지 않음  
+
+### 14.2 데이터 계층 (목표)
+
+| 계층 | SSOT | 용도 |
+|------|------|------|
+| Working | `positions_dataset` | ADMIN 작업 · ADMIN Search |
+| History | `workspace_history` | 작업 이력 |
+| Published | `dataset/{공략}/{시스템}/positions.json` | ADMIN Recall · USER Search (목표) |
+
+### 14.3 Phase 1 완료 항목
+
+- Dataset Export envelope (`schemaVersion: 2`, `records: PositionRecord[]`)  
+- 경로 SSOT: `dataset/{공략명}/{시스템명}/positions.json` (`datasetPath.ts`)  
+- 변환·필터: `buildDatasetExport`, `filterRecordsForDatasetExport` (`datasetExport.ts`)  
+- History Export → `handleExportSnapshots` / `saveDatasetExportToFile` (`useSettings.js`)  
+- 폴더 자동 생성 · Export picker user activation 수정  
+
+### 14.4 Export 동작 (분석 확정)
+
+- 선택 스냅샷 1건 → `snapshot.state.dataset`(SAVE 시점 전체 working dataset embed) → `systemId` + `shotType` 필터 → `records[]` 저장  
+- **Position 1건 Export 아님** — Dataset Export  
+- 테스트·레거시 데이터가 필터 조건에 맞으면 함께 export될 수 있음  
+
+### 14.5 미완료 (후속 Phase)
+
+| Phase | 내용 |
+|-------|------|
+| 2 | Published Dataset Loader · ADMIN Recall 전환 |
+| 3 | USER Search → Published Dataset |
+| 4 | Spatial Index (8×4 grid, `spatialCells`) |
+
+Search / Recall / Reset 최종 UX 정의(Reset = 세션 종료, 공·SYS·궤적 유지)는 문서화만 완료, 코드 전환은 Phase 2 이후.
+
+---
+
+## 부록 A. Git 커밋 요약 (본 세션)
 
 | 날짜 | 커밋 | 요약 |
 |------|------|------|
 | 2026-05-27 | `9a024b5` | `docs: add PROJECT_MASTER_INDEX as current-state SSOT` |
 | 2026-05-27 | `6b055a8` | `docs: merge architecture into PROJECT_MASTER_INDEX, archive legacy constitution` |
-
-**참고:** `frontend/src` AI·USER 패널 변경은 본 세션에서 작업되었으나, 워킹 트리에 **미커밋일 수 있음**. 반영 시 권장 메시지 예시:
-
-- `feat(user-ai): refactor AI comment display, HP/T overlay stack, and panel UX`
-- `feat(user): add SYSTEM_LESSON overlay, remove USER HP/T menu`
-- `docs: add PROJECT_LOG_2026-06 for AI panel and overlay stack work`
+| 2026-06 | `438a856` | `feat(user-ai): AI panel lesson flow and HP/T overlay stack` (이후 HP/T USER 경로 제거됨) |
+| 2026-06 | `582a451` | `docs: add PROJECT_LOG_2026-06 and link in PROJECT_MASTER_INDEX` |
+| 2026-06 | **`ffe0a26`** | **`feat(user): add SYSTEM_LESSON overlay and remove USER HP/T`** — P0 완료 |
 
 ---
 

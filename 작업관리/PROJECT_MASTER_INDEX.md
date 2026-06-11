@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.2  
-Last Updated: 2026-06-03  
+Version: 1.4  
+Last Updated: 2026-06-05  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -12,13 +12,22 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 ## 문서 계층 (읽는 순서)
 
+### 신규 세션 온보딩 (Dataset Architecture 포함 시)
+
+1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
+2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Dataset Architecture Phase 1)  
+3. **`SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`** — Dataset Architecture 전용 이관 문서  
+
+### 전체 문서 계층
+
 | 문서 | 역할 |
 |------|------|
 | **본 문서 (`PROJECT_MASTER_INDEX.md`)** | 현재 기능·UI·완료/예정 SSOT |
+| `HISTORY/PROJECT_LOG_YYYY-MM.md` | 월별 작업 이력 |
+| `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | Dataset Architecture 설계·Phase 1 Export·후속 Phase |
 | `3_SYSTEM_ARCHITECTURE.md` | 계산·데이터 계층 상세 |
 | `4_CALCULATION_RULES.md` | 수식·보정 규칙 |
 | `5_PROJECT_MASTER_STATE_CURRENT.md` | 폴더/파이프라인 **구조 변경 시** 전면 재작성 통제 |
-| `HISTORY/PROJECT_LOG_YYYY-MM.md` | 월별 작업 이력 |
 | `ARCHIVE/1_PROJECT_MASTER_INDEX.md` | 2026-03 헌법 스냅샷 (**deprecated**) |
 
 ---
@@ -37,7 +46,8 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | USER | Search(Recall) → 공략 슬롯 표시 → **읽기 전용** AI·**시스템 레슨** 오버레이 |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
 | AI 코멘트 | SYS+STR 자동 문장 SSOT + 원 포인트 레슨 분리 **완료** |
-| 시스템 레슨 | **P0 완료** (5½ · 독립 메뉴 · `SYSTEM_LESSON` 오버레이) |
+| 시스템 레슨 | **P0 완료** (5½ · 독립 메뉴 · 표 기반 UI · 모바일 가로 UX 확정 · `ffe0a26`) |
+| **Dataset Architecture** | **Phase 1 완료** — Dataset Export · `dataset/{공략}/{시스템}/positions.json` |
 
 ### 핵심 설계 원칙
 
@@ -67,7 +77,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 4. **전략 혼합 금지** — `signature = systemId + formulaHash + shotType`; 동일 signature 내에서만 search/merge.
 5. **Recall** — 저장 `sysInputs` 기준; draft에 `outputs.result` 없으면 `buildDraftsFromRecord` 등에서 expr 재실행해 result 채움.
 6. **표기** — UI/데이터는 C1, C3, CO_f … (`1C`, `3C` 역표기 금지).
-7. **저장** — runtime: localStorage `positions_dataset`; 운영 export(dataset.json)는 별도 경로.
+7. **저장** — Working: localStorage `positions_dataset`; Published: `dataset/{공략}/{시스템}/positions.json` (Export). Recall/Search는 아직 working 사용 — Phase 2 전환 예정.
 
 ### 계산 3계층 (파일 기준)
 
@@ -101,6 +111,49 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ---
 
+## Dataset Architecture
+
+**상태:** Phase 1 완료  
+**이관 문서:** `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`  
+**월별 로그:** `HISTORY/PROJECT_LOG_2026-06.md` §14
+
+### 데이터 3계층
+
+| 계층 | SSOT | 용도 | 현재 소비자 |
+|------|------|------|-------------|
+| **Working Dataset** | `positions_dataset` (localStorage) | ADMIN 작업·누적 | ADMIN Search, Recall, USER Search |
+| **Workspace History** | `workspace_history` (localStorage) | SAVE 스냅샷·작업 이력 | History UI (Load / Delete / Export) |
+| **Published Dataset** | `dataset/{공략}/{시스템}/positions.json` | 사용자·배포용 | Export만 생성 — **Loader 미구현** |
+
+### Dataset Export (Phase 1 — 완료)
+
+- History Export 버튼 → `handleExportSnapshots` → `saveDatasetExportToFile`
+- 경로: `dataset/{공략명}/{시스템명}/positions.json` (폴더 자동 생성)
+- Envelope: `schemaVersion: 2`, `records: PositionRecord[]`
+- 코드 SSOT: `domain/datasetExport.ts`, `domain/datasetPath.ts`, `hooks/useSettings.js`
+- Export 단위: 선택 스냅샷의 `state.dataset` → `systemId` + `shotType` 필터 (Position 1건이 아닌 **Dataset Export**)
+
+### Search / Recall / Reset (목표 정책)
+
+| 기능 | 목표 데이터 | 현재 |
+|------|-------------|------|
+| ADMIN Search | `positions_dataset` | ✅ |
+| ADMIN Recall | Published Dataset | ❌ (Phase 2) |
+| USER Search | Published Dataset | ❌ (Phase 3) |
+| Reset | 세션 종료 (공·SYS·궤적 유지) | 정의만 — 코드 미반영 |
+
+### 예정
+
+| Phase | 내용 |
+|-------|------|
+| **2** | **Published Dataset Loader** — ADMIN Recall → `dataset/` 전환 |
+| **3** | USER Search → Published Dataset |
+| **4** | **Spatial Index** — 8×4 grid, `spatialCells` (cue / target / second), Recall 1차 필터 |
+
+상세·분석·운영 권장: `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`
+
+---
+
 ## 완료된 주요 기능
 
 ### SYS
@@ -119,11 +172,32 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ### 시스템 레슨 (System Lesson)
 
-- **독립 USER 메뉴** `SYSTEM_LESSON` — AI 하위·스택·CTA **없음**.
-- **오버레이**: `overlayContent === "SYSTEM_LESSON"` 단일 `ModalShell` + `UserSystemLessonPanel`.
-- **데이터**: `buildSlotEffectiveRenderSysValues` → `resolvedSlotBaseSysValues` / `resolvedSlotSysValues` (엔진 추가 없음).
-- **ViewModel**: `domain/userSystemLessonViewModel.ts` — 포지션 기준·보정 반영 2단, 4쿠션 중간식 표시.
-- **P0 범위**: 파이브 앤드 하프 (`useSn`) 우선; 그 외 시스템은 안내 메시지.
+**최종 확정 (아키텍처)**
+
+- **USER 전용 독립 메뉴** — `SYSTEM_LESSON` (`Stage.jsx` 라벨: **시스템레슨**)
+- **AI 패널과 완전 분리** — AI 오버레이·코칭 흐름과 무관
+- **USER HP/T 메뉴 제거** — ADMIN HP/T 편집은 유지
+- **AI 패널 CTA 없음** — `[두께/타점 보기]` / 시스템 레슨 진입 버튼 없음
+- **`userOverlayChild` 스택 없음** — 이중 `ModalShell` HP/T 스택 삭제
+- **`overlayContent === "SYSTEM_LESSON"`** — 단일 read-only 오버레이만 사용
+
+**최종 확정 (UI · UX)**
+
+- **표(Table) 기반 교육 UI** — 텍스트 나열형 카드 폐기, 학습용 계산표 구조
+- **모바일 가로모드 우선** — landscape 기준 레이아웃·폰트·간격 튜닝
+- **대형 폰트** — 스마트폰 확대 없이 읽을 수 있는 본문·표 셀 크기 (AI 패널과 별도 스케일)
+- **오버레이 내부 스크롤** — `.modal-panel-body` `overflow-y: auto`, 터치 스크롤
+- **당구대 영역 내부 표시** — 패널 폭 **90%** (부모 영역 기준), 프레임 밖 이탈 방지
+- **2개 섹션 (세로 스택)** — `[포지션 기준 계산]` · `[보정치 반영 계산]`
+- **4쿠션 중간 계산식** — 식 · 계산 · 결과 3칸 (포지션 4쿠션 행은 내용량 비균등 inner table)
+- **파란 설명문** — 본문과 **동일 font-size** (`1em`), disc bullet(검정), 50 기준 설명 1줄 병합(UI)
+
+**데이터·코드 (P0)**
+
+- **데이터**: `buildSlotEffectiveRenderSysValues` → `resolvedSlotBaseSysValues` / `resolvedSlotSysValues` (계산 엔진 추가 없음)
+- **ViewModel**: `domain/userSystemLessonViewModel.ts`
+- **UI**: `components/user/UserSystemLessonPanel.jsx`, `.modal-panel--user-system-lesson` (`index.css`)
+- **P0 시스템**: 파이브 앤드 하프 (`useSn`) 우선; 그 외 `systemId`는 empty 안내
 
 ### STR
 
@@ -166,7 +240,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | 공략 버튼 | — | `userTableDisplaySlotId` |
 | AI | `overlayContent === "AI"` | `UserAiPanel` |
 | 기준값 | 패널 dismiss | 오버레이만 닫기, 3-Level 토글 |
-| 시스템 레슨 | `overlayContent === "SYSTEM_LESSON"` | `UserSystemLessonPanel` (독립) |
+| 시스템레슨 | `overlayContent === "SYSTEM_LESSON"` | `UserSystemLessonPanel` (독립·표·스크롤) |
 | History | 모달 | |
 
 ---
@@ -178,6 +252,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | Orchestrator | `frontend/src/App.jsx`, `components/Stage.jsx`, `components/common/ModalShell.jsx` |
 | 슬롯·SAVE | `hooks/useShotSlots.ts`, `domain/canonicalStrategy.ts`, `domain/adminSaveEngine.ts`, `domain/positionMergeEngine.ts` |
 | Recall·Search | `domain/positionSearchEngine.ts`, `domain/positionRecallEngine.ts`, `domain/recall/recallEngine.ts` |
+| Dataset Export | `domain/datasetExport.ts`, `domain/datasetPath.ts`, `hooks/useSettings.js` (`handleExportSnapshots`) |
+| Workspace History | `domain/workspaceHistory.ts`, `hooks/useSettings.js` (`commitWorkspaceHistoryWithStrategyDataset`) |
 | Slot hydrate | `domain/slotRuntimeHydrate.ts` |
 | Render SYS | `domain/slotSysResolve.ts` (App: `slotRenderSys`, effective values) |
 | 궤적 | `utils/trajectory/curveTrajectory.ts`, `hooks/useTrajectoryState.ts`, `components/table/ImpactLines.jsx` |
@@ -214,11 +290,15 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - AI 오버레이 리팩토링 (SYS+STR SSOT, 레슨 분리)
 - 원 포인트 레슨 ADMIN/USER 표시 분리
 - USER AI 패널 가독성·크기·공간 최적화
-- USER **시스템 레슨** 독립 메뉴·오버레이 (5½ P0)
+- USER **시스템 레슨** P0 구현·커밋 (`ffe0a26`: 독립 메뉴, HP/T 제거, ViewModel·Panel)
+- **SYSTEM_LESSON 모바일 UI 최적화 완료** (가로모드·대형 폰트·간격·90% 폭)
+- **SYSTEM_LESSON Table Layout 확정** (표 기반·2섹션·4쿠션 3칸)
+- **SYSTEM_LESSON Overlay UX 확정** (단일 오버레이·내부 스크롤·AI/CTA/스택 없음)
 - USER HP/T 메뉴·AI CTA·`userOverlayChild` 스택 **제거**
 - Slot runtime / Recall canonical (2026-05 PHASE 2)
 - Modal draggable + viewport clamp
 - Hermite 궤적 baseline, anchors SSOT·canonical persist (2026-05)
+- **Dataset Architecture Phase 1** — Dataset Export, `dataset/{공략}/{시스템}/positions.json`, envelope `schemaVersion: 2`
 
 ### 진행 중
 
@@ -226,6 +306,9 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ### 예정
 
+- **Dataset Architecture Phase 2** — Published Dataset Loader, ADMIN Recall 전환
+- **Dataset Architecture Phase 3** — USER Search → Published Dataset
+- **Dataset Architecture Phase 4** — Spatial Index (`spatialCells`, 8×4 grid)
 - 시스템 레슨: sunrise/sunset 등 **비 5½** 시스템 확장
 - 학습 흐름 확장: AI → 원 포인트 레슨 → 시스템 레슨 → 실전 공략 (내비만, 스택 없음)
 
@@ -233,14 +316,21 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ## 다음 작업 우선순위
 
+### P0 — Dataset Architecture Phase 2
+
+- Published Dataset Loader (`dataset/` → in-memory corpus)
+- ADMIN Recall: `positions_dataset` → Published Dataset 전환
+
 ### P1 — 시스템 레슨 확장
 
 - `full_input` 및 기타 `systemId` 교육 블록
 - SYS Overlay 교육 라인 로직 domain 공통 추출 (ADMIN·USER 중복 제거)
 
-### P2 — 학습 데이터·내비
+### P2 — Dataset Architecture Phase 3–4 · 학습 내비
 
-- Dataset / slot / lesson JSON 스키마, SAVE·Recall 연동
+- USER Search → Published Dataset
+- Spatial Index (`spatialCells`, Recall 1차 필터)
+- 학습 흐름: AI → 원 포인트 레슨 → 시스템 레슨 → 실전 공략 (내비만)
 
 ---
 
@@ -248,7 +338,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 | 문서 | 용도 |
 |------|------|
-| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · 문서 SSOT |
+| `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
+| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · **Dataset Architecture Phase 1** (§14) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
 | `HISTORY/PROJECT_LOG_2026-04.md` | 이전 월 |
 | `HISTORY/HANDOFF_ADMIN_MODAL_TO_USER_DISPLAY_2026-05.md` | ADMIN→USER 표시 핸드오프 |
@@ -266,7 +357,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 ```
 좌측 AI → overlayContent = "AI" → UserAiPanel
 
-좌측 시스템 레슨 → overlayContent = "SYSTEM_LESSON" → UserSystemLessonPanel (독립, 스택 없음)
+좌측 시스템레슨 → overlayContent = "SYSTEM_LESSON" → UserSystemLessonPanel (표·스크롤·독립)
 
 backdrop / handleCloseUserInfoOverlay → overlayContent = null
 

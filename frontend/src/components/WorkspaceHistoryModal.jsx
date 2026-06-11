@@ -62,13 +62,18 @@ export default function WorkspaceHistoryModal({
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (selectedIds.length === 0) {
       alert("Export할 스냅샷을 선택하세요.");
       return;
     }
-    onExport?.(selectedIds);
+    const ids = [...selectedIds];
     setSelectedIds([]);
+    try {
+      await onExport?.(ids);
+    } catch (e) {
+      console.warn("Export failed", e);
+    }
   };
 
   const formatName = (name) => name.replace(/_(\d{4}-\d{2}-\d{2})$/, "");
