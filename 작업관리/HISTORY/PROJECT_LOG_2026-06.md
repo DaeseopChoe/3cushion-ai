@@ -356,15 +356,104 @@ frontend/src/index.css
 - **Position 1건 Export 아님** — Dataset Export  
 - 테스트·레거시 데이터가 필터 조건에 맞으면 함께 export될 수 있음  
 
-### 14.5 미완료 (후속 Phase)
+### 14.5 후속 Phase (Phase 2~3-1는 §15 완료)
 
-| Phase | 내용 |
+| Phase | 내용 | 상태 |
+|-------|------|------|
+| 2 | Published Dataset Loader · ADMIN Recall 전환 | ✅ §15 |
+| 3 | USER Search → Published · carry-over 제거 · UI 정리 | ✅ §15 |
+| 3-1 | Recall profile 분리 (`userStrict` / `adminSearch`) | ✅ §15 |
+| 4 | Spatial Index (8×4 grid, `spatialCells`) | 예정 |
+
+Search / Recall / Reset 최종 UX 정의(Reset = 세션 종료, 공·SYS·궤적 유지)는 문서화만 완료, Reset 코드는 미반영.
+
+---
+
+## 15. Dataset Architecture — Phase 2~3-1 완료
+
+**일자:** 2026-06-11  
+**이관 문서:** `../SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`  
+**현재 상태 SSOT:** `../PROJECT_MASTER_INDEX.md` §Dataset Architecture
+
+### 15.1 Phase 2 — Published Dataset Loader · ADMIN Recall
+
+| 항목 | 내용 |
+|------|------|
+| Loader | `domain/publishedDatasetStore.ts` — `getOrLoadPublishedLeaf`, in-memory cache |
+| Fetch | `domain/datasetLoader.ts` — `fetchPublishedLeaf`, `buildPublishedLeafUrl` |
+| Path SSOT | `domain/datasetPath.ts` — `dataset/{공략}/{시스템}/positions.json` |
+| ADMIN Recall | `handlePositionRecall` → published corpus (local `positions_dataset` **미사용**) |
+| URL fallback | `domain/publishedLeafResolve.ts` — 빈 `shotType("")` → `"뒤돌리기"` |
+| 검증 | ADMIN Recall 수동 검증 통과 (published leaf load · match) |
+
+### 15.2 Phase 3 — USER Search · UI · carry-over
+
+| 항목 | 내용 |
+|------|------|
+| USER Search corpus | `handleUserSearchStrategies` → `getOrLoadPublishedLeaf` → published only |
+| USER UI | Search 버튼만 유지 — **Search/Recall 토글 제거** (`userSearchButtonMode` 삭제) |
+| 공략 gate | S1/S2/S3 — **USER Search 성공 시에만** `recommendedFrom` → 활성 |
+| carry-over 제거 | ADMIN→USER 전환 시 `resetUserSearchSessionOnAdminExit` — draft/`userLastSearchRecord` 초기화 |
+| 원칙 | USER는 local data·ADMIN draft에 접근하지 않음; F5 직후 USER와 동일 session state |
+
+**소비자 최종 정리**
+
+| 기능 | Corpus | Profile |
+|------|--------|---------|
+| ADMIN Search | `positions_dataset` | `adminSearch` (Phase 3-1) |
+| ADMIN Recall | published | `adminStrict` |
+| USER Search | published | `userStrict` (Phase 3-1) |
+
+### 15.3 Phase 3-1 — Recall profile 분리
+
+**SSOT:** `domain/recall/recallProfiles.ts`, `domain/recall/recallEngine.ts` (`requireCoarsePass`)
+
+| Profile | coarsePerBall | totalL1Cap | permutation | coarse 필수 | fallback | 용도 |
+|---------|---------------|------------|-------------|-------------|----------|------|
+| **userStrict** | 2 | 6 | O | O | 없음 | USER Search |
+| **adminSearch** | 5 | 15 | X | O | 없음 | ADMIN Search |
+| **adminStrict** | 6 | null | X | O | 없음 | ADMIN Recall · legacy |
+| userRelaxed | 10 | 18 | O | — | 있음 | **deprecated** |
+
+**USER Search 목적:** “근사 추천”이 아닌 **현재 배치와 매우 유사한 포지션 검색** — published 1건에서도 과도한 match 방지.
+
+### 15.4 자동 테스트
+
+| Suite | 결과 |
 |-------|------|
-| 2 | Published Dataset Loader · ADMIN Recall 전환 |
-| 3 | USER Search → Published Dataset |
-| 4 | Spatial Index (8×4 grid, `spatialCells`) |
+| `publishedLeafResolve.test.ts` | 6/6 pass |
+| `datasetLoader.test.ts` | 6/6 pass |
+| `strategyButtonModel.test.ts` | 8/8 pass |
+| `recallEngine.parity.test.ts` | 19/19 pass |
 
-Search / Recall / Reset 최종 UX 정의(Reset = 세션 종료, 공·SYS·궤적 유지)는 문서화만 완료, 코드 전환은 Phase 2 이후.
+### 15.5 수동 검증
+
+| Case | 절차 | 결과 |
+|------|------|------|
+| 1 | 새로고침 → USER → Search (exact position) | **match**, 공략 활성 |
+| 2 | 한 공 3grid 이상 이동 → USER Search | **no-match** (`userStrict` coarse) |
+| 3 | ADMIN Search 근처 위치 | **match** (`adminSearch`) |
+
+### 15.6 후속 (별도 세션 이관 예정)
+
+- **trajectory 기반 파생 데이터 생성**
+- interpolation 재설계
+- KD-Tree USER Search 적용
+- targetBall 가중치 재설계
+- Dataset Architecture Phase 4 — Spatial Index (`spatialCells`, 8×4 grid)
+
+### 15.7 관련 코드 (추가)
+
+```
+frontend/src/domain/publishedDatasetStore.ts
+frontend/src/domain/datasetLoader.ts
+frontend/src/domain/publishedLeafResolve.ts
+frontend/src/domain/recall/recallProfiles.ts
+frontend/src/domain/recall/recallEngine.ts
+frontend/src/domain/recall/recallCompare.ts
+frontend/src/App.jsx  (handleUserSearchStrategies, runAdminPositionRecall, handlePositionRecall)
+frontend/src/components/Stage.jsx
+```
 
 ---
 
@@ -377,6 +466,7 @@ Search / Recall / Reset 최종 UX 정의(Reset = 세션 종료, 공·SYS·궤적
 | 2026-06 | `438a856` | `feat(user-ai): AI panel lesson flow and HP/T overlay stack` (이후 HP/T USER 경로 제거됨) |
 | 2026-06 | `582a451` | `docs: add PROJECT_LOG_2026-06 and link in PROJECT_MASTER_INDEX` |
 | 2026-06 | **`ffe0a26`** | **`feat(user): add SYSTEM_LESSON overlay and remove USER HP/T`** — P0 완료 |
+| 2026-06-11 | — | `docs: update dataset recall and user search SSOT` — Phase 2~3-1 문서 반영 |
 
 ---
 

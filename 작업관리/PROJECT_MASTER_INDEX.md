@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.4  
-Last Updated: 2026-06-05  
+Version: 1.5  
+Last Updated: 2026-06-11  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -15,7 +15,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 ### 신규 세션 온보딩 (Dataset Architecture 포함 시)
 
 1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Dataset Architecture Phase 1)  
+2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Phase 1 · §15 Phase 2~3-1)  
 3. **`SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`** — Dataset Architecture 전용 이관 문서  
 
 ### 전체 문서 계층
@@ -43,11 +43,11 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | 영역 | 상태 |
 |------|------|
 | ADMIN | Position Lock → SYS / HP·T / STR / AI 입력 → Dataset SAVE |
-| USER | Search(Recall) → 공략 슬롯 표시 → **읽기 전용** AI·**시스템 레슨** 오버레이 |
+| USER | Search(published) → 공략 슬롯 표시 → **읽기 전용** AI·**시스템 레슨** 오버레이 |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
 | AI 코멘트 | SYS+STR 자동 문장 SSOT + 원 포인트 레슨 분리 **완료** |
 | 시스템 레슨 | **P0 완료** (5½ · 독립 메뉴 · 표 기반 UI · 모바일 가로 UX 확정 · `ffe0a26`) |
-| **Dataset Architecture** | **Phase 1 완료** — Dataset Export · `dataset/{공략}/{시스템}/positions.json` |
+| **Dataset Architecture** | **Phase 1~3-1 완료** — Export · Published Loader · USER/ADMIN Recall·Search SSOT |
 
 ### 핵심 설계 원칙
 
@@ -77,7 +77,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 4. **전략 혼합 금지** — `signature = systemId + formulaHash + shotType`; 동일 signature 내에서만 search/merge.
 5. **Recall** — 저장 `sysInputs` 기준; draft에 `outputs.result` 없으면 `buildDraftsFromRecord` 등에서 expr 재실행해 result 채움.
 6. **표기** — UI/데이터는 C1, C3, CO_f … (`1C`, `3C` 역표기 금지).
-7. **저장** — Working: localStorage `positions_dataset`; Published: `dataset/{공략}/{시스템}/positions.json` (Export). Recall/Search는 아직 working 사용 — Phase 2 전환 예정.
+7. **저장** — Working: localStorage `positions_dataset`; Published: `dataset/{공략}/{시스템}/positions.json`. **ADMIN Search** → working; **ADMIN Recall · USER Search** → published.
 
 ### 계산 3계층 (파일 기준)
 
@@ -113,17 +113,17 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ## Dataset Architecture
 
-**상태:** Phase 1 완료  
+**상태:** Phase 1~3-1 완료  
 **이관 문서:** `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`  
-**월별 로그:** `HISTORY/PROJECT_LOG_2026-06.md` §14
+**월별 로그:** `HISTORY/PROJECT_LOG_2026-06.md` §14 (Phase 1) · §15 (Phase 2~3-1)
 
 ### 데이터 3계층
 
 | 계층 | SSOT | 용도 | 현재 소비자 |
 |------|------|------|-------------|
-| **Working Dataset** | `positions_dataset` (localStorage) | ADMIN 작업·누적 | ADMIN Search, Recall, USER Search |
+| **Working Dataset** | `positions_dataset` (localStorage) | ADMIN 작업·누적 | **ADMIN Search** |
 | **Workspace History** | `workspace_history` (localStorage) | SAVE 스냅샷·작업 이력 | History UI (Load / Delete / Export) |
-| **Published Dataset** | `dataset/{공략}/{시스템}/positions.json` | 사용자·배포용 | Export만 생성 — **Loader 미구현** |
+| **Published Dataset** | `dataset/{공략}/{시스템}/positions.json` | 배포·사용자 검색 | **ADMIN Recall**, **USER Search** |
 
 ### Dataset Export (Phase 1 — 완료)
 
@@ -133,24 +133,43 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - 코드 SSOT: `domain/datasetExport.ts`, `domain/datasetPath.ts`, `hooks/useSettings.js`
 - Export 단위: 선택 스냅샷의 `state.dataset` → `systemId` + `shotType` 필터 (Position 1건이 아닌 **Dataset Export**)
 
-### Search / Recall / Reset (목표 정책)
+### Published Dataset Loader (Phase 2 — 완료)
 
-| 기능 | 목표 데이터 | 현재 |
-|------|-------------|------|
-| ADMIN Search | `positions_dataset` | ✅ |
-| ADMIN Recall | Published Dataset | ❌ (Phase 2) |
-| USER Search | Published Dataset | ❌ (Phase 3) |
-| Reset | 세션 종료 (공·SYS·궤적 유지) | 정의만 — 코드 미반영 |
+- `getOrLoadPublishedLeaf(shotType, systemId)` — lazy load + in-memory cache
+- URL SSOT: `domain/datasetPath.ts` → `/dataset/{공략}/{시스템}/positions.json`
+- **ADMIN Recall** → published corpus (`handlePositionRecall`, profile `adminStrict`)
+- Recall URL fallback: 빈 `shotType("")` → `"뒤돌리기"` (`domain/publishedLeafResolve.ts`)
+
+### USER Search (Phase 3 — 완료)
+
+- **USER Search** → published corpus only (`handleUserSearchStrategies`, profile **`userStrict`**)
+- USER UI: **Search 버튼만** (Search/Recall 토글 제거)
+- 공략 S1/S2/S3: **USER Search 성공 시에만** 활성 (`recommendedFrom` gate)
+- **ADMIN→USER carry-over 제거**: 전환 시 draft/`recommendedFrom` 초기화 — F5 직후 USER와 동일 상태
+
+### Recall profile 분리 (Phase 3-1 — 완료)
+
+| Profile | coarsePerBall | totalL1Cap | 용도 |
+|---------|---------------|------------|------|
+| **userStrict** | 2 | 6 | USER Search (permutation, coarse 필수, fallback 없음) |
+| **adminSearch** | 5 | 15 | ADMIN Search — local `positions_dataset` |
+| **adminStrict** | 6 | null | ADMIN Recall · legacy `runPositionRecall` |
+
+### Search / Recall / Reset (현재)
+
+| 기능 | 데이터 | Profile | 상태 |
+|------|--------|---------|------|
+| ADMIN Search | `positions_dataset` | `adminSearch` | ✅ |
+| ADMIN Recall | Published Dataset | `adminStrict` | ✅ |
+| USER Search | Published Dataset | `userStrict` | ✅ |
+| Reset | 세션 종료 (공·SYS·궤적 유지) | — | 정의만 — 코드 미반영 |
 
 ### 예정
 
 | Phase | 내용 |
 |-------|------|
-| **2** | **Published Dataset Loader** — ADMIN Recall → `dataset/` 전환 |
-| **3** | USER Search → Published Dataset |
 | **4** | **Spatial Index** — 8×4 grid, `spatialCells` (cue / target / second), Recall 1차 필터 |
-
-상세·분석·운영 권장: `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`
+| **5** | **trajectory 기반 파생 데이터 생성** — 별도 세션 이관 예정 |
 
 ---
 
@@ -236,8 +255,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 | 버튼 | 오버레이 | 비고 |
 |------|----------|------|
-| Search | — | `userRelaxed` recall |
-| 공략 버튼 | — | `userTableDisplaySlotId` |
+| Search | — | published · profile `userStrict` · 버튼 라벨 **Search** (Recall 토글 없음) |
+| 공략 버튼 | — | `userTableDisplaySlotId` · **USER Search 성공 시에만** 활성 (`recommendedFrom`) |
 | AI | `overlayContent === "AI"` | `UserAiPanel` |
 | 기준값 | 패널 dismiss | 오버레이만 닫기, 3-Level 토글 |
 | 시스템레슨 | `overlayContent === "SYSTEM_LESSON"` | `UserSystemLessonPanel` (독립·표·스크롤) |
@@ -251,7 +270,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 |------|------|
 | Orchestrator | `frontend/src/App.jsx`, `components/Stage.jsx`, `components/common/ModalShell.jsx` |
 | 슬롯·SAVE | `hooks/useShotSlots.ts`, `domain/canonicalStrategy.ts`, `domain/adminSaveEngine.ts`, `domain/positionMergeEngine.ts` |
-| Recall·Search | `domain/positionSearchEngine.ts`, `domain/positionRecallEngine.ts`, `domain/recall/recallEngine.ts` |
+| Recall·Search | `domain/positionSearchEngine.ts`, `domain/positionRecallEngine.ts`, `domain/recall/recallEngine.ts`, `domain/recall/recallProfiles.ts`, `domain/recall/recallCompare.ts` |
+| Published Dataset | `domain/publishedDatasetStore.ts`, `domain/datasetLoader.ts`, `domain/publishedLeafResolve.ts`, `domain/datasetPath.ts` |
 | Dataset Export | `domain/datasetExport.ts`, `domain/datasetPath.ts`, `hooks/useSettings.js` (`handleExportSnapshots`) |
 | Workspace History | `domain/workspaceHistory.ts`, `hooks/useSettings.js` (`commitWorkspaceHistoryWithStrategyDataset`) |
 | Slot hydrate | `domain/slotRuntimeHydrate.ts` |
@@ -299,6 +319,9 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - Modal draggable + viewport clamp
 - Hermite 궤적 baseline, anchors SSOT·canonical persist (2026-05)
 - **Dataset Architecture Phase 1** — Dataset Export, `dataset/{공략}/{시스템}/positions.json`, envelope `schemaVersion: 2`
+- **Dataset Architecture Phase 2** — Published Dataset Loader, ADMIN Recall → published, Recall URL fallback (`publishedLeafResolve`)
+- **Dataset Architecture Phase 3** — USER Search → published, Search/Recall 토글 제거, carry-over 제거
+- **Dataset Architecture Phase 3-1** — Recall profile 분리 (`userStrict` / `adminSearch` / `adminStrict`)
 
 ### 진행 중
 
@@ -306,9 +329,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ### 예정
 
-- **Dataset Architecture Phase 2** — Published Dataset Loader, ADMIN Recall 전환
-- **Dataset Architecture Phase 3** — USER Search → Published Dataset
 - **Dataset Architecture Phase 4** — Spatial Index (`spatialCells`, 8×4 grid)
+- **trajectory 기반 파생 데이터 생성** — 별도 세션 이관 예정
 - 시스템 레슨: sunrise/sunset 등 **비 5½** 시스템 확장
 - 학습 흐름 확장: AI → 원 포인트 레슨 → 시스템 레슨 → 실전 공략 (내비만, 스택 없음)
 
@@ -316,20 +338,21 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ## 다음 작업 우선순위
 
-### P0 — Dataset Architecture Phase 2
+### P0 — trajectory 기반 파생 데이터 생성
 
-- Published Dataset Loader (`dataset/` → in-memory corpus)
-- ADMIN Recall: `positions_dataset` → Published Dataset 전환
+- 별도 세션 이관 예정 (interpolation·KD-Tree USER 적용·targetBall 가중은 범위 외)
 
-### P1 — 시스템 레슨 확장
+### P1 — Dataset Architecture Phase 4
+
+- Spatial Index (`spatialCells`, Recall 1차 필터)
+
+### P2 — 시스템 레슨 확장
 
 - `full_input` 및 기타 `systemId` 교육 블록
 - SYS Overlay 교육 라인 로직 domain 공통 추출 (ADMIN·USER 중복 제거)
 
-### P2 — Dataset Architecture Phase 3–4 · 학습 내비
+### P3 — 학습 내비
 
-- USER Search → Published Dataset
-- Spatial Index (`spatialCells`, Recall 1차 필터)
 - 학습 흐름: AI → 원 포인트 레슨 → 시스템 레슨 → 실전 공략 (내비만)
 
 ---
@@ -339,7 +362,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | 문서 | 용도 |
 |------|------|
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
-| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · **Dataset Architecture Phase 1** (§14) |
+| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · **Dataset Architecture Phase 1~3-1** (§14·§15) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
 | `HISTORY/PROJECT_LOG_2026-04.md` | 이전 월 |
 | `HISTORY/HANDOFF_ADMIN_MODAL_TO_USER_DISPLAY_2026-05.md` | ADMIN→USER 표시 핸드오프 |
