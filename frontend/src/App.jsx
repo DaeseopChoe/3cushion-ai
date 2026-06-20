@@ -26,6 +26,7 @@ import {
 } from "./domain/adminSysFromSlot";
 import {
   buildSlotRuntimePayload,
+  extractSlotRuntimeMeta,
   extractSlotTargetBall,
 } from "./domain/slotRuntimeHydrate";
 import {
@@ -37,6 +38,7 @@ import {
   buildUserInfoPanel,
 } from "./domain/userInfoPanelModel";
 import { AiAutoCommentDisplay } from "./components/user/UserAiPanel";
+import { buildUserHptViewModel } from "./domain/userHptViewModel";
 import { buildUserSystemLessonViewModel } from "./domain/userSystemLessonViewModel";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
@@ -61,7 +63,10 @@ import {
 import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel";
 import {
   computeRailPoints,
+  c1ArrivalRailForTrack,
+  coDepartureRailForTrack,
   lineToRailIntersections,
+  projectPointToRail,
   snapToRail,
 } from "./utils/geometry/rail";
 import { createCurveSegment } from "./utils/trajectory/curveTrajectory";
@@ -80,6 +85,7 @@ import SystemValueLabels from "./components/table/SystemValueLabels";
 import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
 import ModalShell from "./components/common/ModalShell";
 import UserAiPanel from "./components/user/UserAiPanel.jsx";
+import UserHptPanel from "./components/user/UserHptPanel.jsx";
 import UserSystemLessonPanel from "./components/user/UserSystemLessonPanel.jsx";
 import ImpactLines from "./components/table/ImpactLines";
 import SystemGrid from "./components/table/SystemGrid";
@@ -90,13 +96,16 @@ import { useDisplayController } from "./hooks/useDisplayController";
 import { TABLE_CONFIG } from "./config/tableConfig";
 import { buildRailGroupedStrategy } from "./domain/railEngine";
 import {
-  getUserBaselineDisplayFlags,
-  isUserBaselineLayersActive,
-} from "./domain/userBaselineDisplayFlags";
+  getUserDisplayFlags,
+  isUserDisplayModeActive,
+} from "./domain/userDisplayFlags";
+import { buildUserTrajectoryCardModel } from "./domain/userTrajectoryCardViewModel";
+import UserTrajectoryInfoCard from "./components/user/UserTrajectoryInfoCard";
 import { createStrategyEntry } from "./domain/adminSaveEngine";
 import {
   MERGE_EPSILON,
   normalizeDatasetFromStorage,
+  normalizeTargetBallForKey,
   upsertPositionRecord,
 } from "./domain/positionMergeEngine";
 import {
@@ -111,7 +120,16 @@ import { logCanonicalPersistAudit } from "./domain/canonicalPersistAudit";
 import { evaluateStrategy } from "./domain/evaluateStrategy";
 import { makeSignature } from "./domain/strategySignature";
 import { computeSystemFromPositions, sysValuesToAnchors } from "./domain/systemEngine";
-import { getAnchorsForRendering } from "./domain/anchorCoordinateEngine";
+import {
+  getAnchorsForRendering,
+  getLabelNumericSuffix,
+} from "./domain/anchorCoordinateEngine";
+import { getAnchorCoordFromSys } from "./domain/anchorLookupEngine";
+import { buildBaselineDraftApplyDelta } from "./domain/buildBaselineDraftApplyDelta";
+
+function ingestBaselineP043Debug(location, message, data, hypothesisId) {
+  console.log(message, data);
+}
 import {
   computeReflectionC2,
   detectRail,
@@ -122,9 +140,14 @@ import {
   directionFromAngleDeg,
 } from "./domain/reflectionEngine";
 import { createCaptureCandidate } from "./data/autoCaptureEngine";
-import { normalizeBallsToBall3 } from "./admin/slotAutoRecommend";
+import {
+  hydrateBallsStateForUi,
+  normalizeBallsToBall3,
+} from "./admin/slotAutoRecommend";
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
 import { runSpatialRecall } from "./domain/recall/recallEngine";
+import { getOrLoadPublishedLeaf } from "./domain/publishedDatasetStore";
+import { resolvePublishedLeafKey } from "./domain/publishedLeafResolve";
 import {
   buildRecallTracePayload,
   summarizeDatasetRecords,
@@ -151,26 +174,7 @@ const { SCALE, TABLE_W_UNITS, TABLE_H_UNITS, TABLE_W, TABLE_H, PADDING } = TABLE
 
 const ADMIN_BUTTONS = ["SYS", "HPT", "STR", "AI"];
 
-/** STEP 2-2C recall/search trace (DEBUG session 6b5ef2) */
-function postRecallTraceLog(location, message, hypothesisId, data) {
-  // #region agent log
-  fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "6b5ef2",
-    },
-    body: JSON.stringify({
-      sessionId: "6b5ef2",
-      location,
-      message,
-      hypothesisId,
-      timestamp: Date.now(),
-      data,
-    }),
-  }).catch(() => {});
-  // #endregion
-}
+function postRecallTraceLog(_location, _message, _hypothesisId, _data) {}
 
 function traceSlotPresence(slots) {
   return ["S1", "S2", "S3"].map((slotId) => {
@@ -201,26 +205,7 @@ function traceSearchRuntimeSnapshot(trajectory, adminState, userTableDisplaySlot
   };
 }
 
-/** ADMIN Search/Reset debug trace (session 6b5ef2) */
-function emitAdminRecallTrace(message, hypothesisId, snapshot) {
-  // #region agent log
-  fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "6b5ef2",
-    },
-    body: JSON.stringify({
-      sessionId: "6b5ef2",
-      location: "App.jsx:emitAdminRecallTrace",
-      message,
-      hypothesisId,
-      timestamp: Date.now(),
-      data: snapshot,
-    }),
-  }).catch(() => {});
-  // #endregion
-}
+function emitAdminRecallTrace(_message, _hypothesisId, _snapshot) {}
 
 function buildAdminRecallTraceSnapshot(args) {
   const t = args.trajectory?.state;
@@ -251,12 +236,11 @@ function buildAdminRecallTraceSnapshot(args) {
         }
       : null,
     strategyButtonsLength: args.strategyButtonsLength ?? 0,
-    adminSearchButtonMode: args.adminSearchButtonMode ?? null,
     adminTableLayersVisible: args.adminTableLayersVisible ?? null,
     showCoaching: args.showCoaching ?? null,
     appMode: args.appMode ?? null,
     activeSlot: args.activeSlot ?? null,
-    isPositionLocked: args.isPositionLocked ?? null,
+    isAdminInputSessionActive: args.isAdminInputSessionActive ?? null,
     isTargetSelected: args.isTargetSelected ?? null,
     targetColor: args.targetColor ?? null,
     datasetLength: args.datasetLength ?? 0,
@@ -469,11 +453,20 @@ function resolveBallColorFromId(ballId) {
   return null;
 }
 
-function Ball({ x, y, color, opacity = 1, emphasis, ...eventProps }) {
+/** ADMIN 타겟 확정 표시 — isTargetSelected + targetColor SSOT (dragState와 분리) */
+function isConfirmedTargetBall(ballId, targetColorSel, isSelected) {
+  if (
+    !isSelected ||
+    (targetColorSel !== "red" && targetColorSel !== "yellow")
+  ) {
+    return false;
+  }
+  return resolveBallColorFromId(ballId) === targetColorSel;
+}
+
+function Ball({ x, y, color, opacity = 1, emphasis: _emphasis, ...eventProps }) {
   const p = toPx({ x, y }, SCALE, TABLE_H);
   const r = BALL_RADIUS_RG * SCALE;
-  const stroke = emphasis === "selected" ? "#ffffff" : "none";
-  const strokeW = emphasis === "selected" ? 3 : 0;
   return (
     <circle
       cx={p.x + PADDING}
@@ -481,8 +474,8 @@ function Ball({ x, y, color, opacity = 1, emphasis, ...eventProps }) {
       r={r}
       fill={color}
       opacity={opacity}
-      stroke={stroke}
-      strokeWidth={strokeW}
+      stroke="none"
+      strokeWidth={0}
       shapeRendering="geometricPrecision"
       pointerEvents="all"
       {...eventProps}
@@ -573,6 +566,41 @@ function shotTypeForSysOverlayFromSignature(sigShotType, prevShotType) {
   return prevShotType || "뒤돌리기";
 }
 
+/** Published leaf shotType hint — empty/default/_ → omit (no silent 뒤돌리기). */
+function normalizePublishedShotTypeHint(raw) {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed || trimmed === "default" || trimmed === "_") return null;
+  return trimmed;
+}
+
+function resolvePublishedLeafHintsFromRuntime(adminSys, slots, activeSlot) {
+  const slot = slots?.[activeSlot];
+  const slotMeta = extractSlotRuntimeMeta(slot);
+  const slotPayload = buildSlotRuntimePayload(slot);
+  const shotType =
+    normalizePublishedShotTypeHint(adminSys?.shotType) ??
+    normalizePublishedShotTypeHint(slotMeta.shotType) ??
+    normalizePublishedShotTypeHint(slotPayload.adminSys?.shotType);
+  const systemId =
+    adminSys?.systemId ??
+    adminSys?.system_id ??
+    slotPayload.adminSys?.systemId ??
+    slotPayload.adminSys?.system_id ??
+    null;
+  return { shotType, systemId };
+}
+
+function userSearchNoMatchAlertMessage(reason, leafKey) {
+  const leafLabel = `${leafKey.shotType}/${leafKey.systemId}`;
+  if (reason === "empty-dataset") {
+    return `검색 데이터가 없습니다.\n공략: ${leafLabel}\nExport·dataset 경로를 확인하세요.`;
+  }
+  if (reason === "over-max-distance") {
+    return `유사한 포지션을 찾지 못했습니다 (거리 초과).\n공략: ${leafLabel}`;
+  }
+  return `일치하는 포지션이 없습니다.\n공략: ${leafLabel}\n공 위치를 확인하거나 관리자에서 저장·Export 후 다시 Search하세요.`;
+}
+
 /**
  * Recall 성공 직후 adminState.sys 1회 채움 (SYS 모달 표시/편집용). trajectory SSOT는 슬롯 draft 유지.
  */
@@ -587,7 +615,7 @@ function adminSysFromRecallStrategyEntry(entry, prevSys) {
     ...(snap.outputs?.result ?? {}),
   };
   const corr = mergeCorrectionsForRecallHydrate(entry, prevSys);
-  return {
+  const result = {
     system_id: sid,
     system: sid,
     systemId: sid,
@@ -605,6 +633,8 @@ function adminSysFromRecallStrategyEntry(entry, prevSys) {
     },
     ...(prevSys?.spaceSel ? { spaceSel: prevSys.spaceSel } : {}),
   };
+  console.log("[ADMIN_SYS_FROM_RECALL]", result);
+  return result;
 }
 
 /** 디버그 전용: 정렬된 키 배열 간 added/removed */
@@ -708,6 +738,14 @@ function fmtFiveHalfDisplayNum(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return "?";
   return x % 1 === 0 ? String(Math.round(x)) : String(Math.round(x * 10) / 10);
+}
+
+/** SysOverlay input 표시 전용 — 빈값 유지, 숫자는 fmtFiveHalfDisplayNum */
+function fmtSysOverlayInputDisplay(value) {
+  if (value === "" || value === null || value === undefined) return "";
+  const x = Number(value);
+  if (!Number.isFinite(x)) return "";
+  return fmtFiveHalfDisplayNum(x);
 }
 
 /**
@@ -1033,10 +1071,10 @@ function formatFormulaDisplay(expr, output) {
   if (idx < 0) return expr;
   const lhs = expr.slice(0, idx).trim();
   const rhs = expr.slice(idx + 1).trim();
-  const lhsVal = lhs in output ? formatResultNum(output[lhs]) : "?";
+  const lhsVal = lhs in output ? fmtFiveHalfDisplayNum(output[lhs]) : "?";
   const rhsSubstituted = rhs.replace(/[A-Za-z_][A-Za-z0-9_]*/g, (token) => {
     if (token in output) {
-      return `${token}_${formatResultNum(output[token])}`;
+      return `${token}_${fmtFiveHalfDisplayNum(output[token])}`;
     }
     return token;
   });
@@ -1659,8 +1697,14 @@ function SysOverlay({ data, onSave, onCancel }) {
     effectiveFormulaLine,
   ]);
 
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (hasAllInputs) handleSave();
+  };
+
   return (
-    <div
+    <form
+      onSubmit={handleFormSubmit}
       style={{
         color: '#334155',
         fontSize: '14px',
@@ -1810,7 +1854,11 @@ function SysOverlay({ data, onSave, onCancel }) {
                 type="number"
                 step="0.5"
                 readOnly={readOnly}
-                value={readOnly ? numDisplay : formData.inputs[inputKey] ?? ""}
+                value={
+                  readOnly
+                    ? fmtSysOverlayInputDisplay(numDisplay)
+                    : fmtSysOverlayInputDisplay(formData.inputs[inputKey])
+                }
                 onChange={(e) => !readOnly && handleInputChange(inputKey, e.target.value)}
                 style={{
                   width: '70px',
@@ -1899,7 +1947,7 @@ function SysOverlay({ data, onSave, onCancel }) {
           <input
             type="number"
             step="0.1"
-            value={formData.inputs.An}
+            value={fmtSysOverlayInputDisplay(formData.inputs.An)}
             onChange={(e) => {
               const v = Number(e.target.value);
               handleInputChange('An', isNaN(v) ? 0 : Math.round(v * 10) / 10);
@@ -1977,7 +2025,7 @@ function SysOverlay({ data, onSave, onCancel }) {
             <input
               type="number"
               step="0.5"
-              value={displayValue}
+              value={fmtSysOverlayInputDisplay(displayValue)}
               readOnly={isDeparture && !!snFor5HalfEffective}
               onChange={(e) => {
                 if (isDeparture && snFor5HalfEffective) return;
@@ -2060,28 +2108,23 @@ function SysOverlay({ data, onSave, onCancel }) {
 
       {useSnForSystem && isFiveHalfSystemId(formData.system) && hasAllInputs && snFor5HalfEffective && (() => {
         const { Sn: Sn_eff, C4_f: C4_eff, CO_f: CO_used, C3_r: C3_used } = snFor5HalfEffective;
-        const fmt = (n) => {
-          const x = Number(n);
-          if (Number.isNaN(x)) return "0";
-          return x % 1 === 0 ? String(Math.round(x)) : String(Math.round(x * 10) / 10);
-        };
         const c3Label = c3Key || "C3_r";
         const coLabel = coKey || "CO_f";
         const signMid = Sn_eff >= 0 ? "+" : "−";
-        const midAbs = fmt(Math.abs(Sn_eff));
+        const midAbs = fmtFiveHalfDisplayNum(Math.abs(Sn_eff));
         return (
           <div className="sys-info-box sys-info-box--arrival">
             <div className="sys-info-box__title">
-              4쿠션 도착값 : <span className="sys-info-box__num">{fmt(C4_eff)}</span>
+              4쿠션 도착값 : <span className="sys-info-box__num">{fmtFiveHalfDisplayNum(C4_eff)}</span>
             </div>
             <div className="sys-info-box--detail-line">
               {renderMixedFormulaLine(
-                `4쿠션 도착값 : ${c3Label}_${fmt(C3_used)} ${signMid} ${midAbs} = ${fmt(C4_eff)}`
+                `4쿠션 도착값 : ${c3Label}_${fmtFiveHalfDisplayNum(C3_used)} ${signMid} ${midAbs} = ${fmtFiveHalfDisplayNum(C4_eff)}`
               )}
             </div>
             <div className="sys-info-box--detail-line">
               {renderMixedFormulaLine(
-                `출발값 보정 계산 : (${coLabel}_${fmt(CO_used)} - 50) × 0.5 = ${fmt(Sn_eff)}`
+                `출발값 보정 계산 : (${coLabel}_${fmtFiveHalfDisplayNum(CO_used)} - 50) × 0.5 = ${fmtFiveHalfDisplayNum(Sn_eff)}`
               )}
             </div>
           </div>
@@ -2091,9 +2134,8 @@ function SysOverlay({ data, onSave, onCancel }) {
       {/* 버튼 */}
       <div style={{ display: 'flex', gap: '10px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
         <button
-          type="button"
+          type="submit"
           disabled={!hasAllInputs}
-          onClick={handleSave}
           title={!hasAllInputs ? "공식에 필요한 입력을 모두 채운 뒤 적용할 수 있습니다." : undefined}
           style={{
             flex: 1,
@@ -2112,6 +2154,7 @@ function SysOverlay({ data, onSave, onCancel }) {
           적용
         </button>
         <button
+          type="button"
           onClick={onCancel}
           style={{
             flex: 1,
@@ -2129,7 +2172,7 @@ function SysOverlay({ data, onSave, onCancel }) {
           취소
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -2408,8 +2451,13 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
     hpt.setHp({ x: finalX, y: finalY });
   };
 
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    onSave(tempData);
+  };
+
   return (
-    <div style={{ color: '#334155', fontSize: '14px' }}>
+    <form onSubmit={handleFormSubmit} style={{ color: '#334155', fontSize: '14px' }}>
       {/* ========================================
           볼 시각화 영역
       ======================================== */}
@@ -2636,7 +2684,7 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
       {/* 버튼 */}
       <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
         <button
-          onClick={() => onSave(tempData)}
+          type="submit"
           style={{
             flex: 1,
             padding: '10px',
@@ -2651,6 +2699,7 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
           적용
         </button>
         <button
+          type="button"
           onClick={onCancel}
           style={{
             flex: 1,
@@ -2666,7 +2715,7 @@ function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
           취소
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -2704,8 +2753,13 @@ function StrOverlay({ data, onSave, onCancel }) {
     { value: 'sharp', label: '날카로운' }
   ];
 
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    onSave(tempData);
+  };
+
   return (
-    <div style={{ color: '#334155', fontSize: '16px' }}>
+    <form onSubmit={handleFormSubmit} style={{ color: '#334155', fontSize: '16px' }}>
       {/* 1. 스트로크 타입 */}
       <div style={{ marginBottom: '20px' }}>
         <label style={{ 
@@ -2873,7 +2927,7 @@ function StrOverlay({ data, onSave, onCancel }) {
       {/* 버튼 */}
       <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
         <button
-          onClick={() => onSave(tempData)}
+          type="submit"
           style={{
             flex: 1,
             padding: '10px',
@@ -2888,6 +2942,7 @@ function StrOverlay({ data, onSave, onCancel }) {
           적용
         </button>
         <button
+          type="button"
           onClick={onCancel}
           style={{
             flex: 1,
@@ -2903,7 +2958,7 @@ function StrOverlay({ data, onSave, onCancel }) {
           취소
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -2981,6 +3036,7 @@ function AiOverlay({
   onSelectOnePoint,
   applyOnePointToShot,
   saveDraftAsNewLesson,
+  deleteSelectedOnePointLibraryItem,
   onePointLessons,
   onDeleteLesson,
   onReorderLessons,
@@ -3028,8 +3084,41 @@ function AiOverlay({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedLessonId, onDeleteLesson]);
 
+  const handleGlobalApplySubmit = (e) => {
+    e.preventDefault();
+    const newData = {
+      ...data,
+      text: "",
+      onePointLessons: data?.onePointLessons ?? [],
+    };
+    onSave(newData);
+    onSaveStrategy?.(newData);
+  };
+
+  /** 적용/저장 버튼: Enter 시 클릭 대신 전체 적용(submit) */
+  const redirectEnterToGlobalApply = (e) => {
+    if (e.key !== "Enter" || e.isComposing) return;
+    e.preventDefault();
+    e.currentTarget.form?.requestSubmit();
+  };
+
+  /** textarea 밖 읽기 전용 영역 등: Enter → 전체 적용 */
+  const handleAiFormKeyDown = (e) => {
+    if (e.key !== "Enter" || e.isComposing) return;
+    if (e.target.tagName === "TEXTAREA") return;
+    if (e.target.tagName === "BUTTON") return;
+    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+    e.preventDefault();
+    e.currentTarget.requestSubmit();
+  };
+
   return (
-    <div className="admin-ai-overlay" style={{ color: "#334155", fontSize: "14px", maxWidth: "720px" }}>
+    <form
+      className="admin-ai-overlay"
+      onSubmit={handleGlobalApplySubmit}
+      onKeyDown={handleAiFormKeyDown}
+      style={{ color: "#334155", fontSize: "14px", maxWidth: "720px" }}
+    >
       <div
         className="strategy-box"
         style={{
@@ -3076,7 +3165,7 @@ function AiOverlay({
           value={onePointSelectedId}
           onChange={(e) => {
             const id = e.target.value;
-            if (id) onSelectOnePoint(id);
+            onSelectOnePoint(id);
           }}
           style={{
             width: '100%',
@@ -3113,7 +3202,9 @@ function AiOverlay({
         />
         <div style={{ display: 'flex', gap: 8 }}>
           <button
+            type="button"
             onClick={() => applyOnePointToShot?.()}
+            onKeyDown={redirectEnterToGlobalApply}
             style={{
               padding: '10px 16px',
               fontSize: '14px',
@@ -3128,7 +3219,9 @@ function AiOverlay({
             적용
           </button>
           <button
+            type="button"
             onClick={() => saveDraftAsNewLesson?.()}
+            onKeyDown={redirectEnterToGlobalApply}
             style={{
               padding: '10px 16px',
               fontSize: '14px',
@@ -3142,21 +3235,31 @@ function AiOverlay({
           >
             저장
           </button>
+          <button
+            type="button"
+            onClick={() => deleteSelectedOnePointLibraryItem?.()}
+            disabled={!onePointSelectedId}
+            onKeyDown={redirectEnterToGlobalApply}
+            style={{
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#fff",
+              backgroundColor: onePointSelectedId ? "#ef4444" : "#94a3b8",
+              border: "none",
+              borderRadius: "6px",
+              cursor: onePointSelectedId ? "pointer" : "not-allowed",
+            }}
+          >
+            삭제
+          </button>
         </div>
       </div>
 
       {/* 전체 적용 / 취소 */}
       <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
         <button
-          onClick={() => {
-            const newData = {
-              ...data,
-              text: "",
-              onePointLessons: data?.onePointLessons ?? [],
-            };
-            onSave(newData);
-            onSaveStrategy?.(newData);
-          }}
+          type="submit"
           style={{
             flex: 1,
             padding: '10px 16px',
@@ -3172,6 +3275,7 @@ function AiOverlay({
           전체 적용
         </button>
         <button
+          type="button"
           onClick={onCancel}
           style={{
             flex: 1,
@@ -3188,7 +3292,7 @@ function AiOverlay({
           취소
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -3264,7 +3368,9 @@ function RailFrame() {
 
 export default function App({
   currentButtonId,
-  userBaselineViewLevel = 0,
+  userTableDisplayMode = "default",
+  trajectoryCardSource = "baseline",
+  onTrajectoryCardSourceChange,
   onActiveSlotChange,
   onFuncOverlayClose,
   onDirtySlotsChange,
@@ -3276,11 +3382,7 @@ export default function App({
   onUserSearchStrategiesRegister,
   onUserSearchResetRegister,
   onUserStrategySlotPickRegister,
-  onUserSearchButtonModeChange,
   onAdminSearchRegister,
-  onAdminSearchResetRegister,
-  onAdminSearchButtonModeChange,
-  onAdminResetRailSelection,
   onUserFuncButtonSelect,
   userRailActions,
 }) {
@@ -3290,26 +3392,6 @@ export default function App({
   const [error, setError] = useState(null);
   const [overlayContent, setOverlayContent] = useState(null);
 
-  useEffect(() => {
-    // #region agent log
-    fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "75c16c",
-      },
-      body: JSON.stringify({
-        sessionId: "75c16c",
-        runId: "snap-debug-pre",
-        hypothesisId: "H5",
-        location: "App.jsx:mount-effect",
-        message: "App mounted in browser runtime",
-        data: { currentId: SHOTS[0]?.id ?? null },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-  }, []);
   
   // ============================================
   // ShotSlots & TrajectoryState 훅 연결 (ballsState 이후에 연결)
@@ -3413,42 +3495,20 @@ export default function App({
   const [userTableDisplaySlotId, setUserTableDisplaySlotId] = useState(null);
   /** USER: 마지막 Search 성공 record — rail label SSOT */
   const [userLastSearchRecord, setUserLastSearchRecord] = useState(null);
-  /** USER: Search ↔ Reset 토글 (Stage 버튼 라벨) */
-  const [userSearchButtonMode, setUserSearchButtonMode] = useState("search");
-  /** ADMIN: Search ↔ Reset 토글 + 표시 레이어 gate */
-  const [adminSearchButtonMode, setAdminSearchButtonMode] = useState("search");
+  /** USER Search / ADMIN→USER: published leaf key hint (survives clearUserSearchDisplayRuntime). */
+  const [userPublishedSearchContext, setUserPublishedSearchContext] = useState(
+    () => ({ shotType: null, systemId: null })
+  );
   const [adminTableLayersVisible, setAdminTableLayersVisible] = useState(false);
   const adminRecallTraceCtxRef = useRef(() => ({}));
   const lastHydrateTriggerRef = useRef("slot");
+  const userSearchInFlightRef = useRef(false);
+  const prevAppModeForUserSessionRef = useRef(appMode);
 
   /**
    * PHASE 2 STEP 2: slot click = full runtime replace from slot container (no runAutoRecommend merge).
    */
   function applySlotRuntimeTargetBall(targetBall) {
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "180f59" },
-      body: JSON.stringify({
-        sessionId: "180f59",
-        location: "App.jsx:applySlotRuntimeTargetBall",
-        message: "HYDRATE_APPLY_SLOT_RUNTIME_TARGET_BALL",
-        hypothesisId: "H2",
-        timestamp: Date.now(),
-        data: {
-          incomingTargetBall: targetBall ?? null,
-          previousTargetBall: targetColor ?? null,
-          targetBallIncoming: targetBall ?? null,
-          targetColorBefore: targetColor ?? null,
-          isTargetSelectedBefore: isTargetSelected,
-          activeSlot: shotEditor.activeSlot,
-          draftTargetBall: shotEditor.slots[shotEditor.activeSlot]?.draft?.targetBall ?? null,
-          trigger: lastHydrateTriggerRef.current,
-          stack: new Error().stack?.split("\n").slice(1, 5),
-        },
-      }),
-    }).catch(() => {});
-    // #endregion
     if (targetBall === "red" || targetBall === "yellow") {
       setTargetColor(targetBall);
       setIsTargetSelected(true);
@@ -3461,28 +3521,13 @@ export default function App({
   /** sys/hpt/str/ai + trajectory only — never touches targetColor / isTargetSelected */
   function syncSlotRuntimeAdminAndTrajectory(slotId) {
     const payload = buildSlotRuntimePayload(shotEditor.slots[slotId]);
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "180f59" },
-      body: JSON.stringify({
-        sessionId: "180f59",
-        location: "App.jsx:syncSlotRuntimeAdminAndTrajectory",
-        message: "syncSlotRuntimeAdminAndTrajectory",
-        hypothesisId: "Q7",
-        timestamp: Date.now(),
-        data: {
-          slotId,
-          activeSlot: shotEditor.activeSlot,
-          trajectoryTargetBall: targetColor ?? null,
-          payloadTargetBall:
-            buildSlotRuntimePayload(shotEditor.slots[slotId]).targetBall ?? null,
-        },
-      }),
-    }).catch(() => {});
-    // #endregion
     setAdminState((prev) => {
       const nextSys = payload.adminSys;
+      console.log("[SYNC_ADMIN_SYS]", {
+        prevShotType: prev.sys?.shotType,
+        nextShotType: nextSys?.shotType,
+        nextSys,
+      });
       if (adminSysShallowEqual(prev.sys, nextSys)) {
         return {
           ...prev,
@@ -3514,64 +3559,18 @@ export default function App({
     } else {
       trajectory.resetTrajectory();
     }
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "180f59",
-      },
-      body: JSON.stringify({
-        sessionId: "180f59",
-        location: "App.jsx:syncSlotRuntimeAdminAndTrajectory:exit",
-        message: "SYNC_TRAJECTORY_STATE",
-        hypothesisId: "H4",
-        timestamp: Date.now(),
-        data: {
-          slotId,
-          hasTraj,
-          trigger: lastHydrateTriggerRef.current,
-          trajectoryPhase: trajectory.state?.phase ?? null,
-        },
-      }),
-    }).catch(() => {});
-    // #endregion
   }
 
   /** Slot switch only: targetBall hydrate + admin/trajectory */
   function hydrateSlotRuntime(slotId) {
     const slot = shotEditor.slots[slotId];
     const payload = buildSlotRuntimePayload(slot);
-    const adminTarget = getAdminSearchTargetBall();
+    const slotExtracted = extractSlotTargetBall(slot);
+    const adminTarget = getAdminSearchTargetBall(slotId);
     const effectiveTargetBall =
-      appMode === "ADMIN" && adminTargetSelectedRef.current && adminTarget
-        ? adminTarget
-        : payload.targetBall;
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "180f59" },
-      body: JSON.stringify({
-        sessionId: "180f59",
-        location: "App.jsx:hydrateSlotRuntime",
-        message: "HYDRATE_SLOT_RUNTIME",
-        hypothesisId: "H4",
-        timestamp: Date.now(),
-        data: {
-          slotId,
-          activeSlot: shotEditor.activeSlot,
-          payloadTargetBall: payload.targetBall,
-          effectiveTargetBall,
-          adminTargetFromRef: adminTarget,
-          draftTargetBall: slot?.draft?.targetBall ?? null,
-          appliedTargetBall: slot?.applied?.targetBall ?? null,
-          currentTargetColor: targetColor ?? null,
-          hasOutputsResult: !!slot && !!resolveSlotSysForRender(slot)?.outputs?.result,
-          trigger: lastHydrateTriggerRef.current,
-        },
-      }),
-    }).catch(() => {});
-    // #endregion
+      appMode === "ADMIN"
+        ? adminTarget ?? payload.targetBall ?? slotExtracted
+        : payload.targetBall ?? slotExtracted;
     applySlotRuntimeTargetBall(effectiveTargetBall);
     syncSlotRuntimeAdminAndTrajectory(slotId);
   }
@@ -3631,126 +3630,6 @@ export default function App({
     return out;
   }, [resolvedSlotSys, shotEditor.activeSlot, slotRenderSys]);
 
-  // #region agent log
-  useEffect(() => {
-    const slot = shotEditor.slots[shotEditor.activeSlot];
-    const d = slot?.draft?.sys ?? slot?.applied?.sys;
-    const draftSys = slot?.draft?.sys;
-    const appliedSys = slot?.applied?.sys;
-    const merged = d
-      ? { ...(d.inputs ?? {}), ...(d.outputs?.result ?? {}) }
-      : {};
-    const mergedKeysSorted = Object.keys(merged).sort();
-    const prevSnap = debugSlotSysSnapshotPrevRef.current;
-    let slotMergedKeyDeltaSinceLast;
-    if (!prevSnap) {
-      slotMergedKeyDeltaSinceLast = { added: [], removed: [], note: "first_tick" };
-    } else if (prevSnap.activeSlot !== shotEditor.activeSlot) {
-      slotMergedKeyDeltaSinceLast = {
-        added: [],
-        removed: [],
-        note: "active_slot_changed",
-        prevActiveSlot: prevSnap.activeSlot,
-      };
-    } else {
-      slotMergedKeyDeltaSinceLast = diffSortedKeyArrays(
-        prevSnap.mergedKeysSorted,
-        mergedKeysSorted
-      );
-    }
-    debugSlotSysSnapshotPrevRef.current = {
-      activeSlot: shotEditor.activeSlot,
-      mergedKeysSorted,
-    };
-    const eff = d
-      ? buildSlotEffectiveRenderSysValues(
-          merged,
-          d,
-          buildSlotRuntimePayload(slot).adminSys
-        )
-      : {};
-    const noCorr = slotRenderSys && {
-      ...slotRenderSys,
-      corrections: {
-        ...(slotRenderSys.corrections ?? {}),
-        slide: 0,
-        draw: 0,
-        spin: 0,
-        curve_ratio: 0,
-      },
-    };
-    const effBase = d
-      ? buildSlotEffectiveRenderSysValues(merged, d, noCorr)
-      : {};
-    const effKeysSorted = Object.keys(eff || {}).sort();
-    const effBaseKeysSorted = Object.keys(effBase || {}).sort();
-    const resolvedKeysSorted = Object.keys(resolvedSlotSysValues || {}).sort();
-    const draftMergedKeys = draftSys
-      ? Object.keys({
-          ...(draftSys.inputs ?? {}),
-          ...(draftSys.outputs?.result ?? {}),
-        }).sort()
-      : [];
-    const appliedMergedKeys = appliedSys
-      ? Object.keys({
-          ...(appliedSys.inputs ?? {}),
-          ...(appliedSys.outputs?.result ?? {}),
-        }).sort()
-      : [];
-    const draftAppliedMergedKeyDelta =
-      draftSys && appliedSys
-        ? diffSortedKeyArrays(draftMergedKeys, appliedMergedKeys)
-        : null;
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "a98f58",
-      },
-      body: JSON.stringify({
-        sessionId: "a98f58",
-        location: "App.jsx:debugSlotAdminSysSnapshot",
-        message: "slot_admin_sys_snapshot",
-        hypothesisId: "H_compare",
-        timestamp: Date.now(),
-        data: {
-          activeSlot: shotEditor.activeSlot,
-          hasSlotSys: !!d,
-          slotMergedKeyDeltaSinceLast,
-          draftAppliedMergedKeyDelta,
-          mergedKeysSorted,
-          mergedKeyCount: mergedKeysSorted.length,
-          resolvedSlotSysValuesKeys: resolvedKeysSorted,
-          resolvedSlotSysValuesCount: resolvedKeysSorted.length,
-          buildSlotEffectiveWithCorrKeys: effKeysSorted,
-          buildSlotEffectiveWithCorrCount: effKeysSorted.length,
-          buildSlotEffectiveBaseNoCorrKeys: effBaseKeysSorted,
-          buildSlotEffectiveBaseNoCorrCount: effBaseKeysSorted.length,
-          adminSysTopKeys: Object.keys(adminState?.sys || {}),
-          adminInputKeys: Object.keys(adminState?.sys?.inputs || {}).sort(),
-          adminOutputsResultKeys: Object.keys(
-            adminState?.sys?.outputs?.result || {}
-          ).sort(),
-          adminSystemValuesKeys: Object.keys(
-            adminState?.sys?.system_values || {}
-          ).sort(),
-          adminSpaceSel: adminState?.sys?.spaceSel ?? null,
-          adminHasOutputs: !!adminState?.sys?.outputs,
-          adminHasSystemValues: !!adminState?.sys?.system_values,
-          adminHasSpaceSel: !!adminState?.sys?.spaceSel,
-          track: d?.track,
-          slide: adminState?.sys?.corrections?.slide,
-          draw: adminState?.sys?.corrections?.draw,
-        },
-      }),
-    }).catch(() => {});
-  }, [
-    shotEditor.slots,
-    shotEditor.activeSlot,
-    adminState?.sys,
-    resolvedSlotSysValues,
-  ]);
-  // #endregion
 
   const slotRenderSysNoCorrections = useMemo(() => {
     if (!slotRenderSys) return undefined;
@@ -3827,38 +3706,140 @@ export default function App({
 
   const [showSystemGrid, setShowSystemGrid] = useState(false);
   const [showBaseLine, setShowBaseLine] = useState(false);
-  const autoSave = true;
-
-  /** 우측 패널: 상태 가시성 (버튼 = 시스템 상태 표현) */
-  const [isPositionLocked, setIsPositionLocked] = useState(false);
-  const [isTargetSelected, setIsTargetSelected] = useState(false);
-  const [isRecalled, setIsRecalled] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
-  const [targetColor, setTargetColor] = useState(null);
-  /** Search/Recall 직전 SSOT — setState 배치 전에도 최신 타겟 반영 */
-  const adminTargetColorRef = useRef(null);
-  const adminTargetSelectedRef = useRef(false);
+  /** P0-3a: CO·C1 기준선 끝점 draft (SYS/draft 미반영, CO·C1 동시 유지) */
+  const EMPTY_BASELINE_DRAFT = {
+    coSysValue: null,
+    coRg: null,
+    c1SysValue: null,
+    c1Rg: null,
+    activeMark: null,
+    draggingMark: null,
+  };
+  const [baselineDraftState, setBaselineDraftState] = useState(EMPTY_BASELINE_DRAFT);
+  const baselineCoHandleRgRef = useRef(null);
+  const baselineC1HandleRgRef = useRef(null);
+  /** P0-4f: 드래그 시작 시점 슬롯 SYS — Apply 후 stale draft vs committed slot 구분 */
+  const baselineLabelSlotSnapshotRef = useRef({ CO_f: null, C1_f: null });
+  const baselineLabelSsotRef = useRef(null);
 
   useEffect(() => {
-    adminTargetColorRef.current = targetColor;
-    adminTargetSelectedRef.current = isTargetSelected;
-  }, [targetColor, isTargetSelected]);
-
-  function getAdminSearchTargetBall() {
-    const c = adminTargetColorRef.current;
-    if (
-      adminTargetSelectedRef.current &&
-      (c === "red" || c === "yellow")
-    ) {
-      return c;
+    if (appMode !== "ADMIN" || !showBaseLine) {
+      setBaselineDraftState(EMPTY_BASELINE_DRAFT);
     }
-    return extractSlotTargetBall(shotEditor.slots[shotEditor.activeSlot]);
+  }, [appMode, showBaseLine]);
+
+  /** P0-4d: Apply 성공 mark의 draft·activeMark만 정리 (남은 draft는 유지) */
+  const clearAppliedBaselineDraftMark = useCallback((mark) => {
+    setBaselineDraftState((prev) => {
+      const next = { ...prev };
+
+      if (mark === "CO") {
+        next.coSysValue = null;
+        next.coRg = null;
+      } else if (mark === "C1") {
+        next.c1SysValue = null;
+        next.c1Rg = null;
+      }
+
+      if (next.draggingMark === mark) {
+        next.draggingMark = null;
+      }
+
+      const hasCoDraft =
+        Number.isFinite(next.coSysValue) &&
+        next.coRg != null &&
+        Number.isFinite(next.coRg.x) &&
+        Number.isFinite(next.coRg.y);
+      const hasC1Draft =
+        Number.isFinite(next.c1SysValue) &&
+        next.c1Rg != null &&
+        Number.isFinite(next.c1Rg.x) &&
+        Number.isFinite(next.c1Rg.y);
+
+      if (next.activeMark === mark) {
+        if (mark === "CO" && hasC1Draft) {
+          next.activeMark = "C1";
+        } else if (mark === "C1" && hasCoDraft) {
+          next.activeMark = "CO";
+        } else {
+          next.activeMark = null;
+        }
+      }
+
+      if (import.meta.env.DEV) {
+        console.log("[BASELINE DRAFT CLEAR]", {
+          mark,
+          activeMark: next.activeMark,
+          hasCoDraft,
+          hasC1Draft,
+        });
+      }
+
+      return next;
+    });
+  }, []);
+
+  const autoSave = true;
+
+  /** ADMIN Search/Recall 후 Editing Session (Reset 전까지 유지) */
+  const [isAdminInputSessionActive, setIsAdminInputSessionActive] = useState(false);
+  const [isTargetSelected, setIsTargetSelected] = useState(false);
+  const [isAdminPublishedSearchMatched, setIsAdminPublishedSearchMatched] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [targetColor, setTargetColor] = useState(null);
+
+  /** ADMIN Search/Recall 타겟 SSOT: UI state 우선, slot draft/applied fallback */
+  function getAdminSearchTargetBall(slotId = shotEditor.activeSlot) {
+    if (
+      isTargetSelected &&
+      (targetColor === "red" || targetColor === "yellow")
+    ) {
+      return targetColor;
+    }
+    return extractSlotTargetBall(shotEditor.slots[slotId]);
   }
 
-  /** USER Reset: clear table target selection + admin ref mirror (no Search A carry-over). */
+  /** ADMIN Search/로컬DB recall query — explicit UI target only (no slot fallback). */
+  function getAdminRecallQueryTargetBall() {
+    if (
+      isTargetSelected &&
+      (targetColor === "red" || targetColor === "yellow")
+    ) {
+      return targetColor;
+    }
+    return null;
+  }
+
+  function isAdminRecallTargetBallMismatch(record, queryTargetBall) {
+    if (queryTargetBall !== "red" && queryTargetBall !== "yellow") {
+      return false;
+    }
+    return (
+      normalizeTargetBallForKey(record?.targetBall) !==
+      normalizeTargetBallForKey(queryTargetBall)
+    );
+  }
+
+  /** mismatch 시 hydrate 차단 + 표시 runtime 초기화 (applyPositionRecall 호출 전). */
+  function rejectAdminRecallHydrateForMismatch(record, queryTargetBall) {
+    if (!isAdminRecallTargetBallMismatch(record, queryTargetBall)) {
+      return false;
+    }
+    trajectory.resetTrajectory();
+    setAdminTableLayersVisible(false);
+    setShowCoaching(false);
+    setIsAdminPublishedSearchMatched(false);
+    alert("해당 데이터 없음");
+    return true;
+  }
+
+  function isAdminTargetReady(slotId = shotEditor.activeSlot) {
+    const t = getAdminSearchTargetBall(slotId);
+    return t === "red" || t === "yellow";
+  }
+
+  /** USER Reset: clear table target selection (no Search carry-over). */
   function resetUserSearchTargetSelection() {
-    adminTargetColorRef.current = null;
-    adminTargetSelectedRef.current = false;
     setTargetColor(null);
     setIsTargetSelected(false);
   }
@@ -3880,25 +3861,7 @@ export default function App({
     };
   }
 
-  function emitStrategyPickTrace(message, slotId, phase, hypothesisId = "Q3") {
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6b5ef2",
-      },
-      body: JSON.stringify({
-        sessionId: "6b5ef2",
-        location: "App.jsx:pickStrategySlot",
-        message,
-        hypothesisId,
-        timestamp: Date.now(),
-        data: buildStrategyPickTrace(slotId, phase),
-      }),
-    }).catch(() => {});
-    // #endregion
-  }
+  function emitStrategyPickTrace(_message, _slotId, _phase, _hypothesisId = "Q3") {}
 
   function logAdminSearchTargetState(phase, extra = {}) {
     const slot = shotEditor.slots[shotEditor.activeSlot];
@@ -3931,28 +3894,10 @@ export default function App({
     };
   }
 
-  function emitAdminTargetStateTrace(message, hypothesisId, extra = {}) {
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6b5ef2",
-      },
-      body: JSON.stringify({
-        sessionId: "6b5ef2",
-        location: "App.jsx:emitAdminTargetStateTrace",
-        message,
-        hypothesisId,
-        timestamp: Date.now(),
-        data: { ...buildAdminTargetStateSnapshot(), ...extra },
-      }),
-    }).catch(() => {});
-    // #endregion
-  }
+  function emitAdminTargetStateTrace(_message, _hypothesisId, _extra = {}) {}
 
   const canUseSystemControls =
-    appMode === "ADMIN" && isPositionLocked && isTargetSelected;
+    appMode === "ADMIN" && isAdminInputSessionActive && isAdminTargetReady();
 
   useEffect(() => {
     onSystemControlsAvailabilityChange?.(canUseSystemControls);
@@ -3988,8 +3933,8 @@ export default function App({
     setBallsState,
     setDataset,
     setIsSaved,
-    setIsRecalled,
-    setIsPositionLocked,
+    setIsAdminPublishedSearchMatched,
+    setIsAdminInputSessionActive,
     setTargetColor,
     setIsTargetSelected,
   });
@@ -4030,6 +3975,11 @@ export default function App({
   }, [onePointLibrary]);
   const normalizeLesson = (s) => (s || "").trim();
   const onSelectOnePoint = (id) => {
+    if (!id) {
+      setOnePointSelectedId("");
+      setOnePointDraft("");
+      return;
+    }
     const item = onePointLibrary.find(x => x.id === id);
     if (!item) return;
     setOnePointSelectedId(id);
@@ -4074,13 +4024,24 @@ export default function App({
     const text = normalizeLesson(onePointDraft);
     if (!text) return;
     const now = Date.now();
+    if (onePointSelectedId) {
+      const selectedItem = onePointLibrary.find((x) => x.id === onePointSelectedId);
+      if (selectedItem) {
+        const nextLib = onePointLibrary.map((x) =>
+          x.id === onePointSelectedId ? { ...x, text, updatedAt: now } : x
+        );
+        saveOnePointLibrary(nextLib);
+        return;
+      }
+    }
     const existing = onePointLibrary.find(x => normalizeLesson(x.text) === text);
     if (existing) {
       const nextLib = onePointLibrary.map(x =>
-        x.id === existing.id ? { ...x, text } : x
+        x.id === existing.id ? { ...x, text, updatedAt: now } : x
       );
       saveOnePointLibrary(nextLib);
       setOnePointSelectedId(existing.id);
+      setOnePointDraft(text);
       return;
     }
     const newItem = {
@@ -4093,6 +4054,14 @@ export default function App({
     const nextLib = [newItem, ...onePointLibrary];
     saveOnePointLibrary(nextLib);
     setOnePointSelectedId(newItem.id);
+    setOnePointDraft(text);
+  };
+  const deleteSelectedOnePointLibraryItem = () => {
+    if (!onePointSelectedId) return;
+    const nextLib = onePointLibrary.filter((x) => x.id !== onePointSelectedId);
+    saveOnePointLibrary(nextLib);
+    setOnePointSelectedId("");
+    setOnePointDraft("");
   };
   // ============================================
   // ImpactBall 모드 상태
@@ -4125,28 +4094,7 @@ export default function App({
   frozenCushionPathRg: null,
 });
 
-  function emitTargetSelectionTrace(traceMessage, ballId, targetBall, ballColor) {
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6b5ef2",
-      },
-      body: JSON.stringify({
-        sessionId: "6b5ef2",
-        location: "App.jsx:emitTargetSelectionTrace",
-        message: traceMessage,
-        timestamp: Date.now(),
-        data: {
-          targetBall: targetBall ?? null,
-          ballId: ballId ?? null,
-          ballColor: ballColor ?? null,
-        },
-      }),
-    }).catch(() => {});
-    // #endregion
-  }
+  function emitTargetSelectionTrace(_traceMessage, _ballId, _targetBall, _ballColor) {}
 
   /** 볼 더블클릭 — setTargetColor / patchSlotRuntimeMeta SSOT */
   function applyTargetFromBallId(ballId, traceMessage) {
@@ -4169,8 +4117,6 @@ export default function App({
       patchWillApplyToDraft: before.hasDraft,
     });
     if (!ballColor) return;
-    adminTargetColorRef.current = ballColor;
-    adminTargetSelectedRef.current = true;
     stopJoystick();
     setTargetColor(ballColor);
     setIsTargetSelected(true);
@@ -4181,6 +4127,7 @@ export default function App({
       joystickVisible: false,
       dragging: false,
     }));
+    beginAdminInputSession();
     const afterSync = buildAdminTargetStateSnapshot(slotId);
     emitAdminTargetStateTrace(`${traceMessage}_SYNC`, "H1", {
       ballId,
@@ -4233,7 +4180,7 @@ export default function App({
   function handleWorkspaceLocalStorageCleanup() {
     if (workspaceCleanupMode === WORKSPACE_CLEANUP_CLEAR_ALL) {
       const ok = window.confirm(
-        "Export하지 않은 Recall 데이터는 복구할 수 없습니다.\n정말 localStorage 전체를 삭제하시겠습니까?"
+        "Export하지 않은 작업 데이터는 복구할 수 없습니다.\n정말 localStorage 전체를 삭제하시겠습니까?"
       );
       if (!ok) return;
     }
@@ -4294,6 +4241,359 @@ export default function App({
     setOverlayState({ open: true, type: "ANCHOR_EDIT", anchorKey });
   }
 
+  /**
+   * P0-4c: buildBaselineDraftApplyDelta 결과를 슬롯 SSOT와 병합해 commitDraftSys용 delta 완성.
+   * (5½: C3_r = CO_f - C1_f — buildSlotDraftWithUpdatedSys·식 C1_f = CO_f - C3_r 와 동일 관계)
+   */
+  function mergeBaselineDraftInputDeltaForCommit(
+    applyDelta,
+    draftState,
+    slotMerged,
+    systemId
+  ) {
+    const mergeInputPayload = {
+      targetMark: applyDelta?.targetMark,
+      slotValues: {
+        CO_f: slotMerged?.CO_f,
+        C1_f: slotMerged?.C1_f,
+        C3_r: slotMerged?.C3_r,
+      },
+      draftValues: {
+        coSysValue: draftState?.coSysValue,
+        c1SysValue: draftState?.c1SysValue,
+      },
+      inputDelta: applyDelta?.inputDelta,
+      systemId,
+    };
+    console.log("[BASELINE DEBUG MERGE INPUT]", mergeInputPayload);
+    ingestBaselineP043Debug(
+      "App.jsx:mergeBaselineDraftInputDeltaForCommit:in",
+      "[BASELINE DEBUG MERGE INPUT]",
+      mergeInputPayload,
+      "H-C"
+    );
+
+    const base = { ...applyDelta.inputDelta };
+    const sid = systemId === "5_HALF" ? "5_half_system" : systemId;
+    if (sid !== "5_half_system") {
+      ingestBaselineP043Debug(
+        "App.jsx:mergeBaselineDraftInputDeltaForCommit:non5half",
+        "[BASELINE DEBUG MERGED]",
+        { branch: "non_5_half", merged: base },
+        "H-B"
+      );
+      console.log("[BASELINE DEBUG MERGED]", { branch: "non_5_half", ...base });
+      return base;
+    }
+
+    const coSlot = Number(slotMerged.CO_f);
+    const c1Slot = Number(slotMerged.C1_f);
+    if (applyDelta.targetMark === "CO") {
+      const co = base.CO_f;
+      const c1FromDraft = draftState.c1SysValue;
+      const c1UsesDraft =
+        typeof c1FromDraft === "number" && Number.isFinite(c1FromDraft);
+      const c1 = c1UsesDraft ? c1FromDraft : c1Slot;
+      const c1Source = c1UsesDraft ? "draft.c1SysValue" : "slotMerged.C1_f";
+      if (!Number.isFinite(co) || !Number.isFinite(c1)) {
+        const early = { branch: "CO_early_return_incomplete", merged: base, co, c1, c1Source };
+        console.log("[BASELINE DEBUG MERGED]", early);
+        ingestBaselineP043Debug(
+          "App.jsx:mergeBaselineDraftInputDeltaForCommit:CO_early",
+          "[BASELINE DEBUG MERGED]",
+          early,
+          "H-B"
+        );
+        return base;
+      }
+      const merged = { ...base, CO_f: co, C1_f: c1, C3_r: co - c1, baseOneC: co };
+      const out = {
+        branch: "CO_full",
+        co_f: merged.CO_f,
+        c1_f: merged.C1_f,
+        c3_r: merged.C3_r,
+        baseOneC: merged.baseOneC,
+        c1Source,
+        c1FromDraft,
+        c1Slot,
+        c3Formula: `${co} - ${c1} = ${co - c1}`,
+      };
+      console.log("[BASELINE DEBUG MERGED]", out);
+      ingestBaselineP043Debug(
+        "App.jsx:mergeBaselineDraftInputDeltaForCommit:CO_out",
+        "[BASELINE DEBUG MERGED]",
+        out,
+        c1UsesDraft && c1FromDraft === 0 ? "H-A" : "H-A"
+      );
+      return merged;
+    }
+    const c1 = base.C1_f;
+    const coFromDraft = draftState.coSysValue;
+    const coUsesDraft =
+      typeof coFromDraft === "number" && Number.isFinite(coFromDraft);
+    const co = coUsesDraft ? coFromDraft : coSlot;
+    const coSource = coUsesDraft ? "draft.coSysValue" : "slotMerged.CO_f";
+    if (!Number.isFinite(co) || !Number.isFinite(c1)) {
+      const early = { branch: "C1_early_return_incomplete", merged: base, co, c1, coSource };
+      console.log("[BASELINE DEBUG MERGED]", early);
+      ingestBaselineP043Debug(
+        "App.jsx:mergeBaselineDraftInputDeltaForCommit:C1_early",
+        "[BASELINE DEBUG MERGED]",
+        early,
+        "H-B"
+      );
+      return base;
+    }
+    const merged = { ...base, CO_f: co, C1_f: c1, C3_r: co - c1, baseOneC: co };
+    const out = {
+      branch: "C1_full",
+      co_f: merged.CO_f,
+      c1_f: merged.C1_f,
+      c3_r: merged.C3_r,
+      baseOneC: merged.baseOneC,
+      coSource,
+      coFromDraft,
+      coSlot,
+      c3Formula: `${co} - ${c1} = ${co - c1}`,
+    };
+    console.log("[BASELINE DEBUG MERGED]", out);
+    ingestBaselineP043Debug(
+      "App.jsx:mergeBaselineDraftInputDeltaForCommit:C1_out",
+      "[BASELINE DEBUG MERGED]",
+      out,
+      coUsesDraft && coFromDraft === 0 ? "H-A" : "H-D"
+    );
+    return merged;
+  }
+
+  /** P0-4c-2: ✓ 버튼 → baseline draft Apply 체인 */
+  function onBaselineDraftApplyClick(mark) {
+    console.log("[BASELINE APPLY BUTTON]", mark);
+    handleBaselineDraftDoubleClick(mark);
+  }
+
+  /** P0-4a/4c: baseline draft Apply SSOT (✓ 버튼에서 호출) */
+  function handleBaselineDraftDoubleClick(mark) {
+    console.log("[BASELINE DBLCLICK]", { mark, baselineDraftState });
+    if (appMode !== "ADMIN" || !showBaseLine) {
+      console.log("[BASELINE DBLCLICK] abort", {
+        reason: "not ADMIN or showBaseLine off",
+        appMode,
+        showBaseLine,
+      });
+      return;
+    }
+    if (overlayState.open) {
+      console.log("[BASELINE DBLCLICK] abort", {
+        reason: "overlay open",
+        overlayType: overlayState.type,
+      });
+      return;
+    }
+
+    console.log("[BASELINE ACTIVE]", {
+      activeMark: baselineDraftState.activeMark,
+      mark,
+      coSysValue: baselineDraftState.coSysValue,
+      c1SysValue: baselineDraftState.c1SysValue,
+    });
+
+    const active = baselineDraftState.activeMark;
+    if (!active || mark !== active) {
+      console.log("[BASELINE ABORT]", "activeMark mismatch");
+      return;
+    }
+    if (mark !== "CO" && mark !== "C1") {
+      return;
+    }
+
+    const handleRg =
+      mark === "CO" ? baselineDraftState.coRg : baselineDraftState.c1Rg;
+    if (
+      !handleRg ||
+      !Number.isFinite(handleRg.x) ||
+      !Number.isFinite(handleRg.y) ||
+      !trackForAnchors ||
+      !systemIdForGrid
+    ) {
+      console.log("[BASELINE ABORT]", "missing handleRg or track for inverse");
+      return;
+    }
+
+    const computedSys = baselineSysValueFromHandleRg(
+      mark,
+      handleRg,
+      trackForAnchors,
+      systemIdForGrid
+    );
+    if (!Number.isFinite(computedSys)) {
+      console.log("[BASELINE ABORT]", "inverse failed", { mark, handleRg });
+      return;
+    }
+
+    const draftForApply = {
+      ...baselineDraftState,
+      ...(mark === "CO"
+        ? { coSysValue: computedSys }
+        : { c1SysValue: computedSys }),
+    };
+
+    const applyDelta = buildBaselineDraftApplyDelta({
+      baselineDraftState: draftForApply,
+      systemId: systemIdForGrid,
+    });
+    const applyDeltaLog = applyDelta
+      ? { targetMark: applyDelta.targetMark, inputDelta: applyDelta.inputDelta }
+      : null;
+    console.log("[BASELINE DEBUG APPLY DELTA]", applyDeltaLog);
+    ingestBaselineP043Debug(
+      "App.jsx:handleBaselineDraftDoubleClick:applyDelta",
+      "[BASELINE DEBUG APPLY DELTA]",
+      applyDeltaLog,
+      "H-C"
+    );
+    console.log("[BASELINE DELTA]", applyDelta);
+
+    if (!applyDelta) {
+      console.log("[BASELINE ABORT]", "applyDelta null");
+      return;
+    }
+
+    const activeSlot = shotEditor.activeSlot;
+    const slot = shotEditor.slots[activeSlot];
+    const slotSys = slot?.draft?.sys ?? slot?.applied?.sys ?? resolvedSlotSys;
+    const slotMerged = slotSys
+      ? { ...(slotSys.inputs ?? {}), ...(slotSys.outputs?.result ?? {}) }
+      : {};
+    const slotBefore = {
+      co_f: slotMerged.CO_f,
+      c1_f: slotMerged.C1_f,
+      c3_r: slotMerged.C3_r,
+      slotSysSource: slot?.draft?.sys
+        ? "draft.sys"
+        : slot?.applied?.sys
+          ? "applied.sys"
+          : "resolvedSlotSys",
+      draftCoSysValue: baselineDraftState.coSysValue,
+      draftC1SysValue: baselineDraftState.c1SysValue,
+    };
+    console.log("[BASELINE DEBUG SLOT BEFORE]", slotBefore);
+    ingestBaselineP043Debug(
+      "App.jsx:handleBaselineDraftDoubleClick:slotBefore",
+      "[BASELINE DEBUG SLOT BEFORE]",
+      slotBefore,
+      "H-D"
+    );
+
+    const systemId =
+      systemIdForGrid === "5_HALF" ? "5_half_system" : systemIdForGrid ?? "5_half_system";
+    const trackVal = trackForAnchors ?? slotSys?.track ?? "B2T_L";
+    const inputDelta = mergeBaselineDraftInputDeltaForCommit(
+      applyDelta,
+      draftForApply,
+      slotMerged,
+      systemId
+    );
+    console.log("[BASELINE MERGED]", inputDelta);
+
+    const commitInputLog = { inputDelta, activeSlot, systemId, trackVal };
+    console.log("[BASELINE DEBUG COMMIT INPUT]", commitInputLog);
+    ingestBaselineP043Debug(
+      "App.jsx:handleBaselineDraftDoubleClick:commitInput",
+      "[BASELINE DEBUG COMMIT INPUT]",
+      commitInputLog,
+      "H-B"
+    );
+
+    console.log("[BASELINE COMMIT INPUT]", {
+      activeSlot,
+      systemId,
+      trackVal,
+      inputDelta,
+      slotMergedC3_r: slotMerged.C3_r,
+      slotMergedCO_f: slotMerged.CO_f,
+      slotMergedC1_f: slotMerged.C1_f,
+    });
+
+    const commitResult = actions.commitDraftSys(activeSlot, systemId, inputDelta, {
+      track: trackVal,
+    });
+    console.log("[BASELINE COMMIT RESULT]", commitResult);
+
+    if (!commitResult.ok) {
+      ingestBaselineP043Debug(
+        "App.jsx:handleBaselineDraftDoubleClick:commitFail",
+        "[BASELINE DEBUG COMMIT OUTPUT]",
+        { ok: false, reason: commitResult.reason },
+        "H-B"
+      );
+      return;
+    }
+
+    const appliedSys = commitResult.appliedSys;
+    const appliedResult = appliedSys?.outputs?.result;
+    const commitOutputLog = {
+      co_f: appliedResult?.CO_f,
+      c1_f: appliedResult?.C1_f,
+      c3_r: appliedResult?.C3_r,
+      c4_f: appliedResult?.C4_f,
+      sn: appliedResult?.Sn,
+      inputs_CO_f: appliedSys?.inputs?.CO_f,
+      inputs_C1_f: appliedSys?.inputs?.C1_f,
+      inputs_C3_r: appliedSys?.inputs?.C3_r,
+    };
+    console.log("[BASELINE DEBUG COMMIT OUTPUT]", commitOutputLog);
+    ingestBaselineP043Debug(
+      "App.jsx:handleBaselineDraftDoubleClick:commitOutput",
+      "[BASELINE DEBUG COMMIT OUTPUT]",
+      commitOutputLog,
+      "H-E"
+    );
+    console.log("[BASELINE COMMIT OUTPUTS]", {
+      co_f: appliedResult?.CO_f,
+      c1_f: appliedResult?.C1_f,
+      c3_r: appliedResult?.C3_r,
+      c4_f: appliedResult?.C4_f,
+      sn: appliedResult?.Sn,
+    });
+    console.log("[SYS APPLY OUTPUT]", {
+      CO_f: appliedResult?.CO_f,
+      C1_f: appliedResult?.C1_f,
+      C3_r: appliedResult?.C3_r,
+      C4_f: appliedResult?.C4_f,
+      Sn: appliedResult?.Sn,
+    });
+
+    const system_values = appliedSys
+      ? {
+          ...(appliedSys.inputs ?? {}),
+          ...(appliedResult ?? {}),
+        }
+      : inputDelta;
+
+    console.log("[BASELINE PATCH META]", { activeSlot, system_values });
+    actions.patchSlotRuntimeMeta(activeSlot, {
+      system_values,
+      targetBall:
+        targetColor === "red" || targetColor === "yellow" ? targetColor : null,
+    });
+
+    if (appliedResult && !trajectory.state.adjusted) {
+      trajectory.setAdjusting({
+        sys: {
+          oneC: appliedResult.oneC || 0,
+          threeC: appliedResult.threeC || 0,
+        },
+      });
+    }
+    if (appliedResult) {
+      trajectory.applySysResult(appliedResult);
+      console.log("[BASELINE APPLY RESULT]", { applied: true });
+    }
+
+    clearAppliedBaselineDraftMark(mark);
+  }
+
   /** SYS/HPT/STR/AI 닫을 때 Stage가 슬롯 버튼으로 currentButtonId를 되돌림 */
   function notifyFuncOverlayClosedByAdminUi() {
     onFuncOverlayClose?.();
@@ -4311,30 +4611,17 @@ export default function App({
 
   useEffect(() => {
     if (appMode !== "ADMIN") return;
-    if (isPositionLocked && isTargetSelected) return;
+    if (isAdminInputSessionActive && isAdminTargetReady()) return;
     if (!overlayState.open) return;
     const t = overlayState.type;
     if (!t || !["SYS", "HPT", "STR", "AI"].includes(t)) return;
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "5e25b9" },
-      body: JSON.stringify({
-        sessionId: "5e25b9",
-        location: "App.jsx:overlayCloseOnTargetEffect",
-        message: "overlay_close_effect_fired",
-        hypothesisId: "H3",
-        timestamp: Date.now(),
-        data: { isPositionLocked, isTargetSelected, overlayType: t },
-      }),
-    }).catch(() => {});
-    // #endregion
     notifyFuncOverlayClosedByAdminUi();
     setOverlayState({ open: false, type: null, anchorKey: null });
   }, [
     appMode,
-    isPositionLocked,
+    isAdminInputSessionActive,
     isTargetSelected,
+    targetColor,
     overlayState.open,
     overlayState.type,
     onFuncOverlayClose,
@@ -4382,8 +4669,10 @@ export default function App({
     console.log("[SAVE] persistBaseSysInputs:", persistBaseSysInputs);
     console.log("[SAVE] dataset length:", dataset?.length);
 
-    const balls = adminState.balls ?? { cue: { x: 10, y: 10 }, target: { x: 50, y: 25 }, second: { x: 40, y: 20 } };
-    console.log("[SAVE] balls:", balls);
+    if (!ballsState?.cue) {
+      console.log("[SAVE] EARLY RETURN: missing-balls-state-cue");
+      return { ok: false, reason: "missing-balls-state-cue" };
+    }
 
     if (Object.keys(persistBaseSysInputs).length === 0) {
       console.log("[SAVE] EARLY RETURN: missing-persistable-base-sys-inputs");
@@ -4399,7 +4688,12 @@ export default function App({
       "5_half_system";
     const profile = SYSTEM_PROFILES[systemId];
     const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-    const shotType = adminState?.sys?.shotType ?? "default";
+    const shotType =
+      normalizePublishedShotTypeHint(adminState?.sys?.shotType) ??
+      normalizePublishedShotTypeHint(
+        extractSlotRuntimeMeta(shotEditor.slots[slotId]).shotType
+      ) ??
+      "default";
     const signature = makeSignature({ systemId, formulaHash, shotType });
     console.log("[SAVE] signature:", signature);
 
@@ -4413,8 +4707,9 @@ export default function App({
       }
     };
 
-    const ball3ForDataset = normalizeBallsToBall3(ballsState ?? adminState.balls ?? {});
+    const ball3ForDataset = normalizeBallsToBall3(ballsState);
     const cleanBall3 = safe(ball3ForDataset) ?? ball3ForDataset;
+    console.log("[SAVE] ball3ForDataset (ballsState SSOT):", ball3ForDataset);
     const datasetTargetBall =
       targetColor === "red" || targetColor === "yellow" ? targetColor : undefined;
 
@@ -4502,6 +4797,28 @@ export default function App({
       console.warn("[SAVE] Failed to save positions_dataset", e);
     }
 
+    const persistedShotType = normalizePublishedShotTypeHint(shotType);
+    if (persistedShotType) {
+      setUserPublishedSearchContext({
+        shotType: persistedShotType,
+        systemId,
+      });
+      setAdminState((prev) => ({
+        ...prev,
+        sys: {
+          ...prev.sys,
+          shotType: persistedShotType,
+          systemId,
+          system_id: systemId,
+          system,
+        },
+      }));
+      console.log("[SAVE] published leaf context persisted", {
+        shotType: persistedShotType,
+        systemId,
+      });
+    }
+
     if (autoSave) {
       saveToFile({
         version: "1.0",
@@ -4516,7 +4833,7 @@ export default function App({
   /** 우측 SAVE: strategy persistence → workspace_history append (snapshot.dataset = result.updated) */
   function handleCanonicalRightPanelSave() {
     if (!canUseSystemControls) {
-      alert("Position LOCK 및 Target 확정 후 저장할 수 있습니다.");
+      alert("Search/로컬DB 편집 세션 및 Target 확정 후 저장할 수 있습니다.");
       return;
     }
     const systemId =
@@ -4529,6 +4846,9 @@ export default function App({
     if (!r?.ok) {
       if (import.meta.env.DEV) {
         console.warn("[SAVE] failed", r?.reason);
+      }
+      if (r?.reason === "missing-balls-state-cue") {
+        alert("공 배치(ballsState)를 확인할 수 없습니다. 테이블 공 위치를 확인 후 다시 저장하세요.");
       }
       return;
     }
@@ -4558,7 +4878,7 @@ export default function App({
         datasetSigKeys.add(makeSignatureKey(e.signature));
       }
     }
-    const recallProfile = "adminStrict";
+    const recallProfile = "adminSearch";
     const recallDebugPayload = {
       hypothesisId: "H_RECALL_QUERY",
       recallProfile,
@@ -4570,30 +4890,13 @@ export default function App({
       uniqueSignatureKeysInDataset: [...datasetSigKeys].slice(0, 40),
       uniqueKeyCount: datasetSigKeys.size,
     };
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "a98f58",
-      },
-      body: JSON.stringify({
-        sessionId: "a98f58",
-        location: "App.jsx:handlePositionRecall",
-        message: "RECALL_QUERY",
-        data: recallDebugPayload,
-        timestamp: Date.now(),
-        hypothesisId: "H_RECALL_QUERY",
-      }),
-    }).catch(() => {});
-    // #endregion
     console.log("[RECALL_QUERY]", recallDebugPayload);
     console.log("[RECALL_DATASET_SIGNATURES]", {
       datasetLength: ds.length,
       signatures: [...datasetSigKeys],
     });
 
-    const searchQueryTargetBall = getAdminSearchTargetBall();
+    const searchQueryTargetBall = getAdminRecallQueryTargetBall();
     const spatialResult = runSpatialRecall({
       dataset: ds,
       query: { balls: currentBalls, targetBall: searchQueryTargetBall },
@@ -4612,68 +4915,14 @@ export default function App({
             reason:
               spatialResult.reason === "empty-dataset"
                 ? "empty-dataset"
-                : "coarse-empty",
+                : spatialResult.reason === "over-max-distance"
+                  ? "over-max-distance"
+                  : "coarse-empty",
           };
 
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "a98f58",
-      },
-      body: JSON.stringify({
-        sessionId: "a98f58",
-        location: "App.jsx:handlePositionRecall:afterRun",
-        message: "RECALL_RESULT",
-        data: {
-          hypothesisId: "H_RECALL_RESULT",
-          recallProfile,
-          kind: result?.kind,
-          reason: result?.kind === "no-match" ? result.reason : undefined,
-          spatialKind: spatialResult.kind,
-        },
-        timestamp: Date.now(),
-        hypothesisId: "H_RECALL_RESULT",
-      }),
-    }).catch(() => {});
-    // #endregion
     console.log("[RECALL_RESULT]", { profile: recallProfile, result, spatialResult });
 
     if (!result || result.kind === "no-match") {
-      const draftPosId =
-        shotEditor.slots[shotEditor.activeSlot]?.draft?.meta?.recommendedFrom
-          ?.positionId;
-      const draftRecord = draftPosId
-        ? ds.find((r) => r.positionId === draftPosId)
-        : null;
-      if (draftRecord) {
-        const fallbackSnap = adminRecallTraceCtxRef.current?.() ?? {};
-        emitAdminRecallTrace("ADMIN_SEARCH_SUCCESS", "H7", {
-          ...fallbackSnap,
-          queryBalls: currentBalls,
-          recallProfile,
-          recallSource: "slot_draft_fallback",
-          positionId: draftRecord.positionId,
-          spatialKind: spatialResult.kind,
-          recallReason: result?.reason ?? spatialResult.reason ?? null,
-        });
-        actions.applyPositionRecall(draftRecord);
-        const recallEntry =
-          draftRecord?.strategies?.[shotEditor.activeSlot];
-        if (recallEntry) {
-          setAdminState((prev) => {
-            const nextSys = adminSysFromRecallStrategyEntry(
-              recallEntry,
-              prev.sys
-            );
-            if (!nextSys) return prev;
-            return { ...prev, sys: nextSys };
-          });
-        }
-        setIsRecalled(true);
-        return true;
-      }
       const noMatchSnap = adminRecallTraceCtxRef.current?.() ?? {};
       emitAdminRecallTrace("ADMIN_SEARCH_NO_MATCH", "H5_H6_H7", {
         ...noMatchSnap,
@@ -4683,42 +4932,32 @@ export default function App({
         recallReason: result?.reason ?? spatialResult.reason ?? null,
         signatureKey,
         datasetLength: ds.length,
-        draftPosId: draftPosId ?? null,
+        searchQueryTargetBall,
       });
-      alert(result?.reason === "empty-dataset" ? "추천 데이터 없음 (데이터셋 비어 있음)" :
-        result?.reason === "coarse-empty" ? "추천 데이터 없음 (±3 그리드 내 유사 포지션 없음)" :
-        "추천 데이터 없음");
+      alert("해당 데이터 없음");
       return false;
     }
 
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "a98f58",
-      },
-      body: JSON.stringify({
-        sessionId: "a98f58",
-        location: "App.jsx:handlePositionRecall:beforeApply",
-        message: "RECALL_APPLY_POSITION_RECALL",
-        data: {
-          hypothesisId: "H_APPLY",
-          positionId: result.record?.positionId,
-          kind: result.kind,
-        },
-        timestamp: Date.now(),
-        hypothesisId: "H_APPLY",
-      }),
-    }).catch(() => {});
-    // #endregion
+    if (rejectAdminRecallHydrateForMismatch(result.record, searchQueryTargetBall)) {
+      const mismatchSnap = adminRecallTraceCtxRef.current?.() ?? {};
+      emitAdminRecallTrace("ADMIN_SEARCH_NO_MATCH", "H5", {
+        ...mismatchSnap,
+        queryBalls: currentBalls,
+        recallProfile,
+        recallReason: "target-ball-mismatch",
+        searchQueryTargetBall,
+        recordTargetBall: result.record?.targetBall ?? null,
+        positionId: result.record?.positionId ?? null,
+      });
+      return false;
+    }
+
     console.log("[RECALL_APPLY]", { positionId: result.record?.positionId, kind: result.kind });
 
     actions.applyPositionRecall(result.record);
-    const userTargetBall = getAdminSearchTargetBall();
-    if (userTargetBall) {
+    if (searchQueryTargetBall) {
       actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
-        targetBall: userTargetBall,
+        targetBall: searchQueryTargetBall,
       });
     }
     const recallEntry = result.record?.strategies?.[shotEditor.activeSlot];
@@ -4729,7 +4968,7 @@ export default function App({
         return { ...prev, sys: nextSys };
       });
     }
-    setIsRecalled(true);
+    setIsAdminPublishedSearchMatched(true);
 
     if (result.distance > HARD_THRESHOLD_L1) {
       alert("유사도 낮음");
@@ -4747,32 +4986,123 @@ export default function App({
     return true;
   }
 
-  function handlePositionRecall() {
-    const matched = runAdminPositionRecall();
-    if (!matched || appMode !== "ADMIN") return;
-    setAdminSearchButtonMode("reset");
-    setAdminTableLayersVisible(true);
-    setShowCoaching(true);
-    lastHydrateTriggerRef.current = "admin_recall_panel";
-    hydrateSlotRuntime(shotEditor.activeSlot);
+  function applyAdminRecallMatch(record, queryTargetBall) {
+    if (rejectAdminRecallHydrateForMismatch(record, queryTargetBall)) {
+      return false;
+    }
+    actions.applyPositionRecall(record);
+    if (queryTargetBall) {
+      actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
+        targetBall: queryTargetBall,
+      });
+    }
+    const recallEntry = record?.strategies?.[shotEditor.activeSlot];
+    if (recallEntry) {
+      setAdminState((prev) => {
+        const nextSys = adminSysFromRecallStrategyEntry(recallEntry, prev.sys);
+        if (!nextSys) return prev;
+        return { ...prev, sys: nextSys };
+      });
+    }
+    setIsAdminPublishedSearchMatched(true);
+    return true;
   }
 
-  const clearAdminDisplayRuntime = useCallback(() => {
-    setUserTableDisplaySlotId(null);
-    trajectory.resetTrajectory();
-    setShowCoaching(false);
-    setAdminTableLayersVisible(false);
-    onAdminResetRailSelection?.();
-  }, [trajectory, onAdminResetRailSelection]);
+  /** 우측 ADMIN Search (published) — Published Dataset lazy load (`handlePositionRecall`; 로컬DB `runAdminPositionRecall` 미사용). */
+  async function handlePositionRecall() {
+    if (appMode !== "ADMIN") return;
 
-  /** Search 성공/실패 후 입력 세션 시작 (구 Position LOCK 동작, recall 제외) */
+    clearAdminSearchDisplayRuntime();
+
+    console.log("[RECALL_READ]", adminState?.sys?.shotType, adminState?.sys);
+    const { shotType, systemId } = resolvePublishedLeafKey({
+      mode: "ADMIN",
+      shotType: normalizePublishedShotTypeHint(
+        userPublishedSearchContext?.shotType
+      ),
+      systemId: userPublishedSearchContext?.systemId,
+    });
+    const loadResult = await getOrLoadPublishedLeaf(shotType, systemId);
+
+    if (loadResult.kind === "error") {
+      alert(`Search 데이터 로드 오류: ${loadResult.message}`);
+      return;
+    }
+
+    const publishedRecords =
+      loadResult.kind === "ok" ? loadResult.records : [];
+    const currentBalls = normalizeBallsToBall3(
+      ballsState ?? adminState?.balls ?? {}
+    );
+    const searchQueryTargetBall = getAdminRecallQueryTargetBall();
+    const recallProfile = "adminStrict";
+
+    console.log("[ADMIN_PUBLISHED_RECALL]", {
+      shotType,
+      systemId,
+      dataSource: "published",
+      url: loadResult.url,
+      fromCache: loadResult.fromCache,
+      recordCount: publishedRecords.length,
+      leafSource: "userPublishedSearchContext_or_default",
+      persistedContext: userPublishedSearchContext,
+    });
+
+    console.log("[RECALL_QUERY_DEBUG]", {
+      publishedRecordsLength: publishedRecords?.length,
+      currentBalls,
+      searchQueryTargetBall,
+      adminShotType: adminState?.sys?.shotType,
+      systemId: adminState?.sys?.system_id,
+      activeSlot: shotEditor.activeSlot,
+    });
+
+    const spatialResult = runSpatialRecall({
+      dataset: publishedRecords,
+      query: { balls: currentBalls, targetBall: searchQueryTargetBall },
+      profile: recallProfile,
+    });
+
+    console.log("[RECALL_SPATIAL_RESULT]", {
+      kind: spatialResult.kind,
+      reason: spatialResult.reason ?? null,
+      recordId: spatialResult.record?.positionId ?? null,
+    });
+
+    if (spatialResult.kind !== "match") {
+      alert("해당 데이터 없음");
+      beginAdminInputSession();
+      return;
+    }
+
+    if (rejectAdminRecallHydrateForMismatch(spatialResult.record, searchQueryTargetBall)) {
+      beginAdminInputSession();
+      return;
+    }
+
+    if (!beginAdminInputSession()) return;
+
+    if (!applyAdminRecallMatch(spatialResult.record, searchQueryTargetBall)) {
+      return;
+    }
+
+    if (spatialResult.distance > HARD_THRESHOLD_L1) {
+      alert("유사도 낮음");
+    }
+
+    setAdminTableLayersVisible(true);
+    setShowCoaching(true);
+  }
+
+  /** Search/Recall 후 Editing Session 시작 (볼 이동 허용, SYS는 Apply 전까지 참고용) */
   const beginAdminInputSession = useCallback(() => {
+    console.log("[BEGIN_ADMIN_SESSION]", adminState?.sys);
     const snap = ballsState;
     if (!snap || !snap.cue) {
       alert("공 배치를 확인할 수 없습니다.");
       return false;
     }
-    setIsPositionLocked(true);
+    setIsAdminInputSessionActive(true);
     actions.syncBallsToAllSlots(snap);
     const ball3 = normalizeBallsToBall3(snap);
     setAdminState((prev) => ({
@@ -4782,67 +5112,39 @@ export default function App({
     return true;
   }, [ballsState, actions]);
 
-  const endAdminInputSession = useCallback(() => {
-    setIsPositionLocked(false);
-    setOverlayState({ open: false, type: null, anchorKey: null });
-    setOverlayContent(null);
-    setIsRecalled(false);
-  }, []);
-
-  const handleAdminSearchReset = useCallback(() => {
-    if (appMode !== "ADMIN") return;
-    const resetSnapBefore = adminRecallTraceCtxRef.current?.() ?? {};
-    emitAdminRecallTrace("ADMIN_RESET", "H1_H2_H3_H4", {
-      ...resetSnapBefore,
-      tracePhase: "before_clear",
-    });
-    endAdminInputSession();
-    clearAdminDisplayRuntime();
-    actions.clearSearchSlotDrafts();
+  /** ADMIN Search/로컬DB 직전 — 이전 recall draft/표시 제거 (ballsState·targetColor 유지). */
+  const clearAdminSearchDisplayRuntime = useCallback(() => {
+    actions.clearAdminSearchDisplaySlotDrafts();
+    trajectory.resetTrajectory();
     setAdminState((prev) => ({
       ...prev,
       sys: createEmptyAdminSysSnapshot(),
     }));
-    setAdminSearchButtonMode("search");
-    const resetSnapAfterClear = adminRecallTraceCtxRef.current?.() ?? {};
-    emitAdminRecallTrace("ADMIN_RESET", "H1_H2_H3_H4", {
-      ...resetSnapAfterClear,
-      tracePhase: "after_clear_sync",
-    });
-    requestAnimationFrame(() => {
-      const resetSnapPostFrame = adminRecallTraceCtxRef.current?.() ?? {};
-      emitAdminRecallTrace("ADMIN_RESET", "H1_H2_H3_H4", {
-        ...resetSnapPostFrame,
-        tracePhase: "post_frame",
-      });
-    });
-  }, [appMode, clearAdminDisplayRuntime, endAdminInputSession, actions]);
+    setAdminTableLayersVisible(false);
+    setIsAdminPublishedSearchMatched(false);
+    setShowCoaching(false);
+  }, [actions, trajectory]);
 
   const handleAdminSearch = useCallback(() => {
     if (appMode !== "ADMIN") return;
-    if (!adminTargetSelectedRef.current || !getAdminSearchTargetBall()) {
-      alert("먼저 타겟볼을 더블클릭으로 선택하세요.");
-      return;
-    }
+    clearAdminSearchDisplayRuntime();
     logAdminSearchTargetState("ADMIN_SEARCH_TARGET_STATE");
     const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
     const startSnap = adminRecallTraceCtxRef.current?.() ?? {};
     emitAdminRecallTrace("ADMIN_SEARCH_START", "H5_H6_H7", {
       ...startSnap,
       queryBalls: currentBalls,
-      recallProfile: "adminStrict",
+      recallProfile: "adminSearch",
       datasetLength: dataset?.length ?? 0,
       searchQueryTargetBall: getAdminSearchTargetBall(),
     });
     const matched = runAdminPositionRecall();
     if (!beginAdminInputSession()) return;
-    setAdminSearchButtonMode("reset");
     console.log("[ADMIN_INPUT_SESSION]", {
       phase: "after_beginAdminInputSession",
-      isPositionLocked: true,
-      isTargetSelected: adminTargetSelectedRef.current,
-      canUseSystemControlsExpected:
-        adminTargetSelectedRef.current && true,
+      isAdminInputSessionActive: true,
+      isTargetSelected,
+      canUseSystemControlsExpected: isAdminTargetReady(),
       adminInputSession: true,
       searchMatched: matched,
     });
@@ -4850,11 +5152,9 @@ export default function App({
       setAdminTableLayersVisible(true);
       setShowCoaching(true);
       setUserTableDisplaySlotId(null);
-      lastHydrateTriggerRef.current = "admin_search";
-      hydrateSlotRuntime(shotEditor.activeSlot);
       const slot = shotEditor.slots[shotEditor.activeSlot];
       emitAdminTargetStateTrace("ADMIN_SEARCH_AFTER_HYDRATE", "H2", {
-        targetColor: adminTargetColorRef.current,
+        targetColor,
         slotRuntimeMetaTargetBall: slot?.draft?.targetBall ?? null,
         draftTargetBall: slot?.draft?.targetBall ?? null,
         appliedTargetBall: slot?.applied?.targetBall ?? null,
@@ -4867,18 +5167,16 @@ export default function App({
           ...buildAdminTargetStateSnapshot(),
         });
       });
-    } else {
-      clearAdminDisplayRuntime();
-      setAdminTableLayersVisible(false);
-      setShowCoaching(false);
-      setUserTableDisplaySlotId(null);
     }
+    // no-match: 포지션 유지, beginAdminInputSession으로 새 입력 상태 진입 (Reset 버튼 없음)
   }, [
     appMode,
     shotEditor.activeSlot,
     shotEditor.slots,
+    isTargetSelected,
+    targetColor,
     beginAdminInputSession,
-    clearAdminDisplayRuntime,
+    clearAdminSearchDisplayRuntime,
   ]);
 
   const clearUserSearchDisplayRuntime = useCallback(() => {
@@ -4903,10 +5201,9 @@ export default function App({
       isTargetSelected,
     });
     clearUserSearchDisplayRuntime();
-    actions.clearSearchSlotRuntime();
+    actions.clearSearchSlotDrafts();
     resetUserSearchTargetSelection();
     setUserLastSearchRecord(null);
-    setUserSearchButtonMode("search");
     emitAdminRecallTrace("USER_RESET", "R1", {
       tracePhase: "after_clear",
       targetColor: null,
@@ -4925,41 +5222,64 @@ export default function App({
     isTargetSelected,
   ]);
 
-  /** USER Search: userRelaxed recall → draft apply → pending hydrate (query SSOT = ballsState). */
-  const handleUserSearchStrategies = useCallback(() => {
+  /** ADMIN→USER: USER session을 새로고침 직후와 동일하게 (recommendedFrom carry-over 금지). */
+  const resetUserSearchSessionOnAdminExit = useCallback(() => {
+    actions.clearSearchSlotDrafts();
+    setUserLastSearchRecord(null);
+    setUserTableDisplaySlotId(null);
+  }, [actions]);
+
+  /** USER Search: published corpus → userStrict recall → draft apply (query SSOT = ballsState). */
+  const handleUserSearchStrategies = useCallback(async () => {
     if (appMode !== "USER") return;
+    if (userSearchInFlightRef.current) return;
+    userSearchInFlightRef.current = true;
+
+    try {
+    const runtimeHints = resolvePublishedLeafHintsFromRuntime(
+      adminState?.sys,
+      shotEditor.slots,
+      shotEditor.activeSlot
+    );
+    const { shotType, systemId } = resolvePublishedLeafKey({
+      mode: "USER",
+      shotType:
+        runtimeHints.shotType ??
+        normalizePublishedShotTypeHint(userPublishedSearchContext?.shotType),
+      systemId:
+        runtimeHints.systemId ?? userPublishedSearchContext?.systemId,
+    });
 
     clearUserSearchDisplayRuntime();
-    actions.clearSearchSlotRuntime();
+    actions.clearSearchSlotDrafts();
 
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6b5ef2",
-      },
-      body: JSON.stringify({
-        sessionId: "6b5ef2",
-        location: "App.jsx:handleUserSearchStrategies:entry",
-        message: "RECALL_BEFORE_SEARCH",
-        hypothesisId: "P1",
-        timestamp: Date.now(),
-        data: {
-          targetBall: targetColor ?? null,
-          ...traceSearchRuntimeSnapshot(trajectory, adminState, userTableDisplaySlotId),
-          slotPresence: traceSlotPresence(shotEditor.slots),
-        },
-      }),
-    }).catch(() => {});
-    // #endregion
+    const loadResult = await getOrLoadPublishedLeaf(shotType, systemId);
 
-    const recallProfile = "userRelaxed";
+    if (loadResult.kind === "error") {
+      alert(`Search 데이터 로드 오류: ${loadResult.message}`);
+      return;
+    }
+
+    const publishedRecords =
+      loadResult.kind === "ok" ? loadResult.records : [];
+
+    console.log("[USER_PUBLISHED_SEARCH]", {
+      shotType,
+      systemId,
+      url: loadResult.url,
+      fromCache: loadResult.fromCache,
+      recordCount: publishedRecords.length,
+      leafHints: runtimeHints,
+      persistedContext: userPublishedSearchContext,
+    });
+
+
+    const recallProfile = "userStrict";
     const rawBalls = ballsState ?? {};
     const currentBalls = normalizeBallsToBall3(rawBalls);
     const compareTrace = buildRecallTracePayload(
       {
-        dataset: dataset ?? [],
+        dataset: publishedRecords,
         balls: currentBalls,
         targetBall: targetColor ?? null,
       },
@@ -4973,7 +5293,11 @@ export default function App({
       {
         recallProfile,
         querySsot: "ballsState",
-        datasetLength: dataset?.length ?? 0,
+        dataSource: "published",
+        publishedShotType: shotType,
+        publishedSystemId: systemId,
+        publishedUrl: loadResult.url,
+        datasetLength: publishedRecords.length,
         rawBalls,
         normalizedBalls: currentBalls,
         targetColor,
@@ -4984,7 +5308,7 @@ export default function App({
     );
 
     const spatialResult = runSpatialRecall({
-      dataset: dataset ?? [],
+      dataset: publishedRecords,
       query: { balls: currentBalls, targetBall: targetColor ?? null },
       profile: recallProfile,
     });
@@ -5034,7 +5358,9 @@ export default function App({
     );
 
     if (!result || result.kind === "no-match") {
-      console.log("[USER_SEARCH_RECALL] no-match", result?.reason ?? "unknown");
+      const reason = result?.reason ?? "unknown";
+      console.log("[USER_SEARCH_RECALL] no-match", reason);
+      alert(userSearchNoMatchAlertMessage(reason, { shotType, systemId }));
       return;
     }
 
@@ -5045,41 +5371,12 @@ export default function App({
     });
     actions.applyUserSearchRecall(result.record);
     setUserLastSearchRecord(result.record);
-    setUserSearchButtonMode("reset");
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6b5ef2",
-      },
-      body: JSON.stringify({
-        sessionId: "6b5ef2",
-        location: "App.jsx:handleUserSearchStrategies:match",
-        message: "RECALL_AFTER_SEARCH",
-        hypothesisId: "P1",
-        timestamp: Date.now(),
-        data: {
-          positionId: result.record?.positionId,
-          strategyKeys: Object.keys(result.record?.strategies ?? {}),
-          ...traceSearchRuntimeSnapshot(trajectory, adminState, null),
-          slotPresence: traceSlotPresence(shotEditor.slots),
-          slotsReadNote:
-            "shotEditor.slots is pre-commit snapshot; see recordShotTypes for incoming recall",
-          recordShotTypes: Object.fromEntries(
-            ["S1", "S2", "S3"].map((sid) => {
-              const ent = result.record?.strategies?.[sid];
-              return [sid, ent?.signature?.shotType ?? null];
-            })
-          ),
-          staleSlotPresence: traceSlotPresence(shotEditor.slots),
-        },
-      }),
-    }).catch(() => {});
-    // #endregion
+    setUserPublishedSearchContext({ shotType, systemId });
+    } finally {
+      userSearchInFlightRef.current = false;
+    }
   }, [
     appMode,
-    dataset,
     ballsState,
     targetColor,
     actions,
@@ -5089,6 +5386,7 @@ export default function App({
     shotEditor.activeSlot,
     userTableDisplaySlotId,
     clearUserSearchDisplayRuntime,
+    userPublishedSearchContext,
   ]);
 
   const handleOpenUserHistory = useCallback(() => {
@@ -5114,7 +5412,7 @@ export default function App({
     if (appMode !== "ADMIN") return;
 
     if (!ADMIN_BUTTONS.includes(buttonId)) return;
-    if (!isPositionLocked || !isTargetSelected) return;
+    if (!isAdminInputSessionActive || !isAdminTargetReady()) return;
 
     // 드래그 중이면 강제 종료
     if (dragState.dragging) {
@@ -5139,7 +5437,6 @@ export default function App({
       if (nextMode === "ADMIN") {
         setShowCoaching(false);
         setAdminTableLayersVisible(false);
-        setAdminSearchButtonMode("search");
         setOverlayContent(null);
       }
       
@@ -5176,13 +5473,12 @@ export default function App({
     if (!ballId) return;
     if (["cue", "target", "target_center", "second", "impact"].includes(ballId)) {
       setIsSaved(false);
-      setIsRecalled(false);
+      setIsAdminPublishedSearchMatched(false);
     }
   }
 
   function nudgeBall(ballId, dx, dy) {
     if (!ballId) return;
-    if (isPositionLocked) return;
     setBallsState((prev) => {
       const cur = prev?.[ballId];
       if (!cur) return prev;
@@ -5283,13 +5579,6 @@ function handleJoyPadPointerMove(e) {
   // small deadzone to avoid micro jitter
   if (Math.abs(dxRg) + Math.abs(dyRg) < 0.005) return;
 
-  if (
-    isPositionLocked &&
-    ["cue", "target", "target_center", "second"].includes(ballId)
-  ) {
-    return;
-  }
-
   setBallsState((prev) => {
     const cur = prev?.[ballId];
     if (!cur) return prev;
@@ -5334,6 +5623,8 @@ function handleJoyPadPointerCancel(e) {
     if (currentButtonId === "COACH") {
       setShowCoaching(true);
       console.log("🎯 코칭 버튼 클릭 감지");
+    } else if (currentButtonId === "HP/T") {
+      setOverlayContent("HPT");
     } else if (currentButtonId === "SYSTEM_LESSON") {
       setOverlayContent("SYSTEM_LESSON");
     } else if (currentButtonId === "STR") {
@@ -5352,13 +5643,13 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     if (appMode !== "ADMIN") return;
     if (!currentButtonId) return;
-    if (!isPositionLocked || !isTargetSelected) return;
+    if (!isAdminInputSessionActive || !isAdminTargetReady()) return;
 
     if (currentButtonId === "SYS") openOverlay("SYS");
     else if (currentButtonId === "HP/T") openOverlay("HPT");
     else if (currentButtonId === "STR") openOverlay("STR");
     else if (currentButtonId === "AI") openOverlay("AI");
-  }, [currentButtonId, appMode, isPositionLocked, isTargetSelected]);
+  }, [currentButtonId, appMode, isAdminInputSessionActive, isTargetSelected, targetColor]);
 
   // ============================================
   // S1/S2/S3: navigation only (no runAutoRecommend)
@@ -5376,11 +5667,6 @@ function handleJoyPadPointerCancel(e) {
     actions.switchSlot(currentButtonId);
     setOverlayContent(null);
     setOverlayState({ open: false, type: null });
-
-    // Position OFF only when admin moves S1↔S2↔S3 — not when SYS/HPT/STR/AI closes (currentButtonId → activeSlot).
-    if (isCrossSlotNavigation) {
-      setIsPositionLocked(false);
-    }
 
     lastSlotNavButtonRef.current = currentButtonId;
   }, [currentButtonId, appMode]);
@@ -5443,19 +5729,64 @@ function handleJoyPadPointerCancel(e) {
   }, [appMode, handleUserSearchReset, onUserSearchResetRegister]);
 
   useEffect(() => {
-    onUserSearchButtonModeChange?.(userSearchButtonMode);
-  }, [userSearchButtonMode, onUserSearchButtonModeChange]);
+    const prev = prevAppModeForUserSessionRef.current;
+    if (prev === "ADMIN" && appMode === "USER") {
+      resetUserSearchSessionOnAdminExit();
+      const hints = resolvePublishedLeafHintsFromRuntime(
+        adminState?.sys,
+        shotEditor.slots,
+        shotEditor.activeSlot
+      );
+      if (hints.shotType || hints.systemId) {
+        setUserPublishedSearchContext((ctx) => ({
+          shotType: hints.shotType ?? ctx?.shotType ?? null,
+          systemId: hints.systemId ?? ctx?.systemId ?? null,
+        }));
+      }
+    }
+    prevAppModeForUserSessionRef.current = appMode;
+  }, [
+    appMode,
+    resetUserSearchSessionOnAdminExit,
+    adminState?.sys,
+    shotEditor.slots,
+    shotEditor.activeSlot,
+  ]);
 
   useEffect(() => {
     if (appMode === "USER") {
-      setAdminSearchButtonMode("search");
       setAdminTableLayersVisible(false);
       return;
     }
     setUserLastSearchRecord(null);
-    setUserSearchButtonMode("search");
     setUserTableDisplaySlotId(null);
   }, [appMode]);
+
+  /** ADMIN 진입 직후 adminState.sys 스냅샷 (shotType "" 추적) */
+  useEffect(() => {
+    if (appMode !== "ADMIN") return;
+    console.log("[ADMIN_ENTRY_SYS]", adminState?.sys);
+  }, [appMode]);
+
+  const prevAppModeForAfterEnterRef = useRef(appMode);
+  const afterEnterSyncPendingRef = useRef(false);
+  useEffect(() => {
+    if (appMode !== "ADMIN") {
+      afterEnterSyncPendingRef.current = false;
+      prevAppModeForAfterEnterRef.current = appMode;
+      return;
+    }
+    const entering =
+      prevAppModeForAfterEnterRef.current !== "ADMIN" && appMode === "ADMIN";
+    if (entering) {
+      afterEnterSyncPendingRef.current = true;
+      console.log("[ADMIN_STATE_AFTER_ENTER]", adminState?.sys);
+    } else if (afterEnterSyncPendingRef.current) {
+      afterEnterSyncPendingRef.current = false;
+      console.log("[ADMIN_STATE_AFTER_ENTER]", adminState?.sys);
+    }
+    prevAppModeForAfterEnterRef.current = appMode;
+  }, [appMode, adminState?.sys]);
 
   useEffect(() => {
     if (appMode !== "ADMIN") {
@@ -5465,19 +5796,6 @@ function handleJoyPadPointerCancel(e) {
     onAdminSearchRegister?.(handleAdminSearch);
     return () => onAdminSearchRegister?.(null);
   }, [appMode, handleAdminSearch, onAdminSearchRegister]);
-
-  useEffect(() => {
-    if (appMode !== "ADMIN") {
-      onAdminSearchResetRegister?.(null);
-      return;
-    }
-    onAdminSearchResetRegister?.(handleAdminSearchReset);
-    return () => onAdminSearchResetRegister?.(null);
-  }, [appMode, handleAdminSearchReset, onAdminSearchResetRegister]);
-
-  useEffect(() => {
-    onAdminSearchButtonModeChange?.(adminSearchButtonMode);
-  }, [adminSearchButtonMode, onAdminSearchButtonModeChange]);
 
   useEffect(() => {
     if (appMode !== "USER") {
@@ -5495,34 +5813,6 @@ function handleJoyPadPointerCancel(e) {
       lastHydrateTriggerRef.current = "strategy_pick";
       hydrateSlotRuntime(slotId);
       emitStrategyPickTrace("STRATEGY_PICK_AFTER", slotId, "after");
-      // #region agent log
-      const slotAfter = shotEditor.slots[slotId];
-      fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "180f59",
-        },
-        body: JSON.stringify({
-          sessionId: "180f59",
-          location: "App.jsx:pickStrategySlot:exit",
-          message: "STRATEGY_PICK_AFTER_HYDRATE",
-          hypothesisId: "H4",
-          timestamp: Date.now(),
-          data: {
-            slotId,
-            showCoaching,
-            userBaselineViewLevel,
-            hasResolvedOutputs: !!resolveSlotSysForRender(slotAfter)?.outputs?.result,
-            targetBallAfterPick: targetColor ?? null,
-            draftTargetBall: slotAfter?.draft?.targetBall ?? null,
-            payloadTargetBall:
-              buildSlotRuntimePayload(slotAfter).targetBall ?? null,
-            trajectoryPhase: trajectory.state?.phase ?? null,
-          },
-        }),
-      }).catch(() => {});
-      // #endregion
     };
     onUserStrategySlotPickRegister?.(pickStrategySlot);
     return () => onUserStrategySlotPickRegister?.(null);
@@ -5598,12 +5888,11 @@ function handleJoyPadPointerCancel(e) {
         resolvedSlotSys: resolveSlotSysForRender(slot) ?? null,
         userLastSearchRecord,
         strategyButtonsLength: strategyButtons.length,
-        adminSearchButtonMode,
         adminTableLayersVisible,
         showCoaching,
         appMode,
         activeSlot,
-        isPositionLocked,
+        isAdminInputSessionActive,
         isTargetSelected,
         targetColor,
         datasetLength: dataset?.length ?? 0,
@@ -5616,11 +5905,10 @@ function handleJoyPadPointerCancel(e) {
     shotEditor.activeSlot,
     userLastSearchRecord,
     strategyButtons.length,
-    adminSearchButtonMode,
     adminTableLayersVisible,
     showCoaching,
     appMode,
-    isPositionLocked,
+    isAdminInputSessionActive,
     isTargetSelected,
     targetColor,
     dataset,
@@ -5859,6 +6147,22 @@ function handleJoyPadPointerCancel(e) {
     resolvedSlotSysValues,
   ]);
 
+  const userHptModel = useMemo(() => {
+    if (appMode !== "USER") return null;
+    if (!userTableDisplaySlotId) {
+      return buildUserHptViewModel({ noStrategySelected: true });
+    }
+    const slot = shotEditor.slots[userTableDisplaySlotId];
+    const hpt = slot?.draft?.hpt ?? slot?.applied?.hpt ?? adminState?.hpt ?? null;
+    return buildUserHptViewModel({ hpt, sysHpNResult });
+  }, [
+    appMode,
+    userTableDisplaySlotId,
+    shotEditor.slots,
+    adminState?.hpt,
+    sysHpNResult,
+  ]);
+
   useEffect(() => {
     onUserInfoPanelChange?.(userInfoPanel);
   }, [userInfoPanel, onUserInfoPanelChange]);
@@ -5919,15 +6223,23 @@ function handleJoyPadPointerCancel(e) {
       });
   }, [currentId]);
 
-  // ballsState 초기화
+  // ballsState 초기화 — 타겟은 slot SSOT에서 복원 (view 도착이 더블클릭보다 늦어도 유지)
   useEffect(() => {
     if (view && view.ui && view.ui.balls) {
-      setBallsState(view.ui.balls);
+      setBallsState(hydrateBallsStateForUi(view.ui.balls));
       setIsSaved(false);
-      setIsRecalled(false);
-      setIsPositionLocked(false);
-      setIsTargetSelected(false);
-      setTargetColor(null);
+      setIsAdminPublishedSearchMatched(false);
+      setIsAdminInputSessionActive(false);
+      const slotTarget = extractSlotTargetBall(
+        shotEditor.slots[shotEditor.activeSlot]
+      );
+      if (slotTarget === "red" || slotTarget === "yellow") {
+        setTargetColor(slotTarget);
+        setIsTargetSelected(true);
+      } else {
+        setIsTargetSelected(false);
+        setTargetColor(null);
+      }
     }
   }, [view]);
 
@@ -5969,7 +6281,6 @@ function handleJoyPadPointerCancel(e) {
           if (nextMode === "ADMIN") {
             setShowCoaching(false);
             setAdminTableLayersVisible(false);
-            setAdminSearchButtonMode("search");
             setOverlayContent(null);
           }
           
@@ -6066,25 +6377,38 @@ function handleJoyPadPointerCancel(e) {
   const adminTableLayersActive =
     appMode !== "ADMIN" || adminTableLayersVisible;
   const system = systemCtrl.system;
-  const userBaselineDisplayFlags =
+  const userDisplayFlags =
     appMode === "USER"
-      ? getUserBaselineDisplayFlags(userBaselineViewLevel)
+      ? getUserDisplayFlags(userTableDisplayMode, trajectoryCardSource)
       : null;
-  const userBaselineLayersActive =
-    appMode === "USER" && isUserBaselineLayersActive(userBaselineViewLevel);
+  const userDisplayModeActive =
+    appMode === "USER" && isUserDisplayModeActive(userTableDisplayMode);
+  const userSystemValuesModeActive =
+    appMode === "USER" &&
+    userTableDisplayMode === "systemValues" &&
+    !!userTableDisplaySlotId;
 
   const systemLabelsOutputsForRender =
     appMode === "USER" &&
-    !userBaselineLayersActive &&
+    !userDisplayModeActive &&
     !userStrategyLayersVisible
       ? null
-      : appMode === "ADMIN" && !adminTableLayersVisible
-        ? null
-        : resolvedSlotSys?.outputs ??
-        (system?.outputs ??
-          (Object.keys(system?.values ?? {}).length > 0
-            ? { result: system.values }
-            : undefined));
+      : appMode === "USER" && userTableDisplayMode === "systemValues"
+        ? !userTableDisplaySlotId
+          ? null
+          : resolvedSlotSys?.outputs ??
+            (Object.keys(resolvedSlotSysValues ?? {}).length > 0
+              ? { result: resolvedSlotSysValues }
+              : null)
+        : appMode === "ADMIN" && !adminTableLayersVisible
+          ? null
+          : resolvedSlotSys?.outputs ??
+            (system?.outputs ??
+              (Object.keys(system?.values ?? {}).length > 0
+                ? { result: system.values }
+                : appMode === "USER" && userDisplayModeActive
+                  ? { result: {} }
+                  : undefined));
   const opts = display.displayOptions;
 
   const thicknessForCalc =
@@ -6151,37 +6475,6 @@ function handleJoyPadPointerCancel(e) {
     });
     const finalAnchors = anchorKeys.length > 0 ? anchors : (display.anchors ?? {});
     if (Object.keys(finalAnchors || {}).length === 0) {
-      // #region agent log
-      fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "a98f58",
-        },
-        body: JSON.stringify({
-          sessionId: "a98f58",
-          location: "App.jsx:rawAnchors.emptyFinal",
-          message: "rawAnchors_final_empty",
-          hypothesisId: "H_empty_anchors",
-          timestamp: Date.now(),
-          data: {
-            finalAnchorsEmpty: true,
-            sysValuesKeyCount: Object.keys(sysValues || {}).length,
-            sysValuesKeys: Object.keys(sysValues || {}).sort(),
-            engineReturnedKeys: anchorKeys,
-            trackForAnchors,
-            systemIdForAnchors: systemId,
-            usedFallbackToDisplayAnchors: usedFallback,
-            displayAnchorsKeyCount: display?.anchors
-              ? Object.keys(display.anchors).length
-              : 0,
-            displayAnchorsKeys: display?.anchors
-              ? Object.keys(display.anchors).sort()
-              : [],
-          },
-        }),
-      }).catch(() => {});
-      // #endregion
     }
     if (import.meta.env.DEV) {
       console.log("[ANCHORS]", finalAnchors["C3"]);
@@ -6280,9 +6573,377 @@ function handleJoyPadPointerCancel(e) {
   
   // 드래그 핸들러
 // 드래그/선택 핸들러
+const BASELINE_ENDPOINT_HIT_RADIUS_RG = 2.5;
+
+/** SYS → 앵커 prep (baseline handle forward 체인용) */
+function baselineAnchorPrepFromSys(mark, sysValue, track, systemId) {
+  if (!Number.isFinite(sysValue) || !track || !systemId) return null;
+  const sysFieldKey = mark === "CO" ? "CO_f" : "C1_f";
+  const hit = getAnchorCoordFromSys({
+    systemId,
+    track,
+    mark,
+    sysValue,
+    sysFieldKey,
+  });
+  if (!hit) return null;
+  return resolveAnchorPoint(
+    normalizeAnchor(hit),
+    { track, systemId, mark }
+  );
+}
+
+/**
+ * Handle Position SSOT forward: slot CO_f/C1_f → baseline 노란 핸들 Rg.
+ * cushionPathBaselineRg[0/1]과 동일 체인 (computeRailImpactPoint + coStartForCushionPath).
+ */
+function baselineForwardHandleRg(activeMark, coF, c1F, track, systemId) {
+  if (
+    !Number.isFinite(coF) ||
+    !Number.isFinite(c1F) ||
+    !track ||
+    !systemId
+  ) {
+    return null;
+  }
+  const ctx = { track, systemId };
+  const coPrep = baselineAnchorPrepFromSys("CO", coF, track, systemId);
+  const c1Prep = baselineAnchorPrepFromSys("C1", c1F, track, systemId);
+  if (!coPrep || !c1Prep) return null;
+
+  if (activeMark === "CO") {
+    const coRail = computeRailImpactPoint(coPrep, c1Prep, { ...ctx, mark: "CO" });
+    return coStartForCushionPath(coRail, coPrep, c1Prep);
+  }
+  if (activeMark === "C1") {
+    return computeRailImpactPoint(coPrep, c1Prep, { ...ctx, mark: "C1" });
+  }
+  return null;
+}
+
+function baselineHandleRgDistance(a, b) {
+  if (
+    !a ||
+    !b ||
+    !Number.isFinite(a.x) ||
+    !Number.isFinite(a.y) ||
+    !Number.isFinite(b.x) ||
+    !Number.isFinite(b.y)
+  ) {
+    return Infinity;
+  }
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/**
+ * Handle Position SSOT inverse: 핸들 Rg → CO_f 또는 C1_f.
+ * Forward와 동일한 computeRailImpactPoint(+coStart) 체인으로 역탐색.
+ */
+function baselineSysFromHandleRg(
+  activeMark,
+  handleRg,
+  partnerSys,
+  track,
+  systemId,
+  slotSysForMark
+) {
+  if (
+    !handleRg ||
+    !Number.isFinite(handleRg.x) ||
+    !Number.isFinite(handleRg.y) ||
+    !Number.isFinite(partnerSys) ||
+    !track ||
+    !systemId
+  ) {
+    return null;
+  }
+
+  if (Number.isFinite(slotSysForMark)) {
+    const slotCo = activeMark === "CO" ? slotSysForMark : partnerSys;
+    const slotC1 = activeMark === "C1" ? slotSysForMark : partnerSys;
+    const slotHandle = baselineForwardHandleRg(
+      activeMark,
+      slotCo,
+      slotC1,
+      track,
+      systemId
+    );
+    if (baselineHandleRgDistance(slotHandle, handleRg) < 0.02) {
+      return slotSysForMark;
+    }
+  }
+
+  let bestSys = null;
+  let bestDist = Infinity;
+
+  for (let s = 0; s <= 90; s += 0.05) {
+    const trialCo = activeMark === "CO" ? s : partnerSys;
+    const trialC1 = activeMark === "C1" ? s : partnerSys;
+    const candidate = baselineForwardHandleRg(
+      activeMark,
+      trialCo,
+      trialC1,
+      track,
+      systemId
+    );
+    const d = baselineHandleRgDistance(candidate, handleRg);
+    if (d < bestDist) {
+      bestDist = d;
+      bestSys = s;
+    }
+  }
+
+  if (bestSys == null) return null;
+
+  const refineLo = Math.max(0, bestSys - 0.5);
+  const refineHi = Math.min(90, bestSys + 0.5);
+  for (let s = refineLo; s <= refineHi; s += 0.002) {
+    const trialCo = activeMark === "CO" ? s : partnerSys;
+    const trialC1 = activeMark === "C1" ? s : partnerSys;
+    const candidate = baselineForwardHandleRg(
+      activeMark,
+      trialCo,
+      trialC1,
+      track,
+      systemId
+    );
+    const d = baselineHandleRgDistance(candidate, handleRg);
+    if (d < bestDist) {
+      bestDist = d;
+      bestSys = s;
+    }
+  }
+
+  return bestSys;
+}
+
+function baselinePartnerAndSlotSys(activeMark, snapshot) {
+  const ssot = baselineLabelSsotRef.current;
+  const coSlot =
+    snapshot?.CO_f ?? getLabelNumericSuffix("CO", ssot);
+  const c1Slot =
+    snapshot?.C1_f ?? getLabelNumericSuffix("C1", ssot);
+  if (activeMark === "CO") {
+    return {
+      partnerSys: c1Slot,
+      slotSysForMark: coSlot,
+    };
+  }
+  return {
+    partnerSys: coSlot,
+    slotSysForMark: c1Slot,
+  };
+}
+
+function baselineSysValueFromHandleRg(activeMark, handleRg, track, systemId) {
+  const { partnerSys, slotSysForMark } = baselinePartnerAndSlotSys(
+    activeMark,
+    baselineLabelSlotSnapshotRef.current
+  );
+  if (!Number.isFinite(partnerSys)) return null;
+  return baselineSysFromHandleRg(
+    activeMark,
+    handleRg,
+    partnerSys,
+    track,
+    systemId,
+    slotSysForMark
+  );
+}
+
+/**
+ * P0-4f: baseline 라벨 숫자 — 슬롯 SSOT 우선, 드래그 중·Apply 대기 preview만 draft.
+ */
+function resolveBaselineLabelOverrideValue(
+  mark,
+  draftVal,
+  slotVal,
+  { draggingMark, activeMark, snapshotVal }
+) {
+  if (
+    draggingMark === mark &&
+    draftVal != null &&
+    Number.isFinite(Number(draftVal))
+  ) {
+    return Number(draftVal);
+  }
+  const slotN =
+    slotVal != null && Number.isFinite(Number(slotVal)) ? Number(slotVal) : null;
+  const draftN =
+    draftVal != null && Number.isFinite(Number(draftVal)) ? Number(draftVal) : null;
+  const snapN =
+    snapshotVal != null && Number.isFinite(Number(snapshotVal))
+      ? Number(snapshotVal)
+      : null;
+  if (slotN != null) {
+    const pendingPreview =
+      activeMark === mark &&
+      draftN != null &&
+      snapN != null &&
+      Math.abs(slotN - snapN) <= 1e-6 &&
+      Math.abs(draftN - slotN) > 1e-6;
+    if (pendingPreview) return draftN;
+    return slotN;
+  }
+  return draftN;
+}
+
+function captureBaselineLabelSlotSnapshot(ssotValues) {
+  return {
+    CO_f: getLabelNumericSuffix("CO", ssotValues),
+    C1_f: getLabelNumericSuffix("C1", ssotValues),
+  };
+}
+
+function canBaselineEndpointDraftDrag() {
+  return (
+    appMode === "ADMIN" &&
+    showBaseLine &&
+    systemIdForGrid === "5_half_system" &&
+    !!trackForAnchors?.startsWith("B2T")
+  );
+}
+
+function tryStartCoBaselineDraftDrag(e, pointerRg, coHandleRg) {
+  if (
+    !coHandleRg ||
+    !Number.isFinite(coHandleRg.x) ||
+    !Number.isFinite(coHandleRg.y)
+  ) {
+    return false;
+  }
+  const dist = Math.hypot(pointerRg.x - coHandleRg.x, pointerRg.y - coHandleRg.y);
+  if (dist > BASELINE_ENDPOINT_HIT_RADIUS_RG) return false;
+
+  baselineLabelSlotSnapshotRef.current = captureBaselineLabelSlotSnapshot(
+    baselineLabelSsotRef.current
+  );
+  setBaselineDraftState((prev) => ({
+    ...prev,
+    activeMark: "CO",
+    draggingMark: "CO",
+    coRg: { x: coHandleRg.x, y: coHandleRg.y },
+    coSysValue: null,
+  }));
+  try {
+    svgRef.current?.setPointerCapture(e.pointerId);
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+function tryStartC1BaselineDraftDrag(e, pointerRg, c1HandleRg) {
+  if (
+    !c1HandleRg ||
+    !Number.isFinite(c1HandleRg.x) ||
+    !Number.isFinite(c1HandleRg.y)
+  ) {
+    return false;
+  }
+  const dist = Math.hypot(pointerRg.x - c1HandleRg.x, pointerRg.y - c1HandleRg.y);
+  if (dist > BASELINE_ENDPOINT_HIT_RADIUS_RG) return false;
+
+  baselineLabelSlotSnapshotRef.current = captureBaselineLabelSlotSnapshot(
+    baselineLabelSsotRef.current
+  );
+  setBaselineDraftState((prev) => ({
+    ...prev,
+    activeMark: "C1",
+    draggingMark: "C1",
+    c1Rg: { x: c1HandleRg.x, y: c1HandleRg.y },
+    c1SysValue: null,
+  }));
+  try {
+    svgRef.current?.setPointerCapture(e.pointerId);
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+function tryStartBaselineEndpointDraftDrag(e, pointerRg) {
+  if (!canBaselineEndpointDraftDrag()) return false;
+
+  const coHandleRg =
+    baselineDraftState.coRg ?? baselineCoHandleRgRef.current;
+  const c1HandleRg =
+    baselineDraftState.c1Rg ?? baselineC1HandleRgRef.current;
+
+  const dCo =
+    coHandleRg &&
+    Number.isFinite(coHandleRg.x) &&
+    Number.isFinite(coHandleRg.y)
+      ? Math.hypot(pointerRg.x - coHandleRg.x, pointerRg.y - coHandleRg.y)
+      : Infinity;
+  const dC1 =
+    c1HandleRg &&
+    Number.isFinite(c1HandleRg.x) &&
+    Number.isFinite(c1HandleRg.y)
+      ? Math.hypot(pointerRg.x - c1HandleRg.x, pointerRg.y - c1HandleRg.y)
+      : Infinity;
+
+  const R = BASELINE_ENDPOINT_HIT_RADIUS_RG;
+  if (dC1 <= R && (dCo > R || dC1 < dCo)) {
+    return tryStartC1BaselineDraftDrag(e, pointerRg, c1HandleRg);
+  }
+  if (dCo <= R) {
+    return tryStartCoBaselineDraftDrag(e, pointerRg, coHandleRg);
+  }
+  return false;
+}
+
+function endCoBaselineDraftDrag(e) {
+  if (baselineDraftState.draggingMark !== "CO") return false;
+  const coRg = baselineDraftState.coRg;
+  setBaselineDraftState((prev) => ({
+    ...prev,
+    coRg: coRg ? { x: coRg.x, y: coRg.y } : prev.coRg,
+    activeMark: "CO",
+    draggingMark: null,
+  }));
+  try {
+    if (svgRef.current && e?.pointerId != null) {
+      svgRef.current.releasePointerCapture(e.pointerId);
+    }
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+function endC1BaselineDraftDrag(e) {
+  if (baselineDraftState.draggingMark !== "C1") return false;
+  const c1Rg = baselineDraftState.c1Rg;
+  setBaselineDraftState((prev) => ({
+    ...prev,
+    c1Rg: c1Rg ? { x: c1Rg.x, y: c1Rg.y } : prev.c1Rg,
+    activeMark: "C1",
+    draggingMark: null,
+  }));
+  try {
+    if (svgRef.current && e?.pointerId != null) {
+      svgRef.current.releasePointerCapture(e.pointerId);
+    }
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
 function handlePointerDown(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
+
+  if (!svgRef.current) return;
+  const pointerRgEarly = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
+  if (pointerRgEarly && tryStartBaselineEndpointDraftDrag(e, pointerRgEarly)) {
+    console.log("[BASELINE SVG POINTERDOWN]", "baseline drag captured", {
+      pointerId: e.pointerId,
+      target: e.target?.nodeName,
+    });
+    return;
+  }
 
   // ✅ Rule: joystick closes ONLY when user taps OUTSIDE the joystick.
   // - tap inside joystick: ignore (do not change selection)
@@ -6349,34 +7010,6 @@ function handlePointerDown(e) {
     return;
   }
 
-  if (appMode === "ADMIN" && ["target_center", "target", "second", "cue"].includes(closestBall.id)) {
-    // #region agent log
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6b5ef2",
-      },
-      body: JSON.stringify({
-        sessionId: "6b5ef2",
-        location: "App.jsx:handlePointerDown",
-        message: "POINTER_DOWN_ON_BALL",
-        hypothesisId: "H3",
-        timestamp: Date.now(),
-        data: {
-          ballId: closestBall.id,
-          targetColor,
-          isTargetSelected,
-          draftTargetBall:
-            shotEditor.slots[shotEditor.activeSlot]?.draft?.targetBall ?? null,
-          joystickVisible: dragState.joystickVisible,
-        },
-      }),
-    }).catch(() => {});
-    // #endregion
-  }
-
-  if (isPositionLocked) return;
 
   // ✅ 공을 다시 터치한 경우 → 조이스틱 재설정
   const grabOffset = {
@@ -6406,7 +7039,34 @@ function handlePointerDown(e) {
 function handlePointerMove(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
-  if (isPositionLocked) return;
+
+  if (baselineDraftState.draggingMark === "CO" && svgRef.current) {
+    const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
+    if (pointerRg) {
+      const rail = coDepartureRailForTrack(trackForAnchors);
+      const snapped = projectPointToRail(pointerRg, rail);
+      if (snapped) {
+        setBaselineDraftState((prev) =>
+          prev.draggingMark === "CO" ? { ...prev, coRg: snapped } : prev
+        );
+      }
+    }
+    return;
+  }
+
+  if (baselineDraftState.draggingMark === "C1" && svgRef.current) {
+    const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
+    if (pointerRg) {
+      const rail = c1ArrivalRailForTrack(trackForAnchors);
+      const snapped = projectPointToRail(pointerRg, rail);
+      if (snapped) {
+        setBaselineDraftState((prev) =>
+          prev.draggingMark === "C1" ? { ...prev, c1Rg: snapped } : prev
+        );
+      }
+    }
+    return;
+  }
 
   if (!dragState.dragging || !dragState.ballId || !svgRef.current) return;
 
@@ -6538,7 +7198,10 @@ function handlePointerMove(e) {
 function handlePointerUp(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
-  
+
+  if (endCoBaselineDraftDrag(e)) return;
+  if (endC1BaselineDraftDrag(e)) return;
+
   if (!dragState.dragging || !dragState.ballId) return;
   stopJoystick();
 
@@ -6568,11 +7231,18 @@ function handlePointerUp(e) {
     )
   ) {
     setIsSaved(false);
-    setIsRecalled(false);
+    setIsAdminPublishedSearchMatched(false);
     // targetColor / isTargetSelected: pointerUp에서 건드리지 않음 (조이스틱=후보, Target으로만 확정/무효화는 뷰/복원 등에서)
   }
 
-  if (canEdit && nextBallPos && (dragState.ballId === "cue" || dragState.ballId === "target" || dragState.ballId === "target_center")) {
+  if (
+    canEdit &&
+    !isAdminInputSessionActive &&
+    nextBallPos &&
+    (dragState.ballId === "cue" ||
+      dragState.ballId === "target" ||
+      dragState.ballId === "target_center")
+  ) {
     const nextBalls = { ...balls, [dragState.ballId]: nextBallPos };
     const cuePos = nextBalls.cue;
     const targetPos = nextBalls.target_center ?? nextBalls.target;
@@ -6617,6 +7287,8 @@ function handlePointerUp(e) {
 }
 
 function handlePointerCancel(e) {
+  if (endCoBaselineDraftDrag(e)) return;
+  if (endC1BaselineDraftDrag(e)) return;
   stopJoystick();
   // cancel은 드래그 종료로 처리
   handlePointerUp(e);
@@ -7242,27 +7914,6 @@ function handlePointerCancel(e) {
       nextTailFirst: cushionPath?.[1],
       tailPreview: cushionPath?.slice(1, 4),
     });
-    // #region agent log
-    fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6a4663",
-      },
-      body: JSON.stringify({
-        sessionId: "6a4663",
-        location: "App.jsx:cushionPathForRender:path_after_curve",
-        message: "tail_assembly",
-        hypothesisId: "H-C",
-        data: {
-          curveLast: curveSegment[curveSegment.length - 1],
-          nextTailFirst: cushionPath?.[1],
-          tailPreviewLen: cushionPath ? cushionPath.length - 1 : null,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     curvePointsLen = curveSegment.length;
     curvePointsSampleRg = curveSegment
       .slice(0, 5)
@@ -7320,24 +7971,6 @@ function handlePointerCancel(e) {
       ? dragState.frozenCushionPathRg
       : cushionPathForRender;
 
-  // #region agent log
-  const payload = {
-    location: "App.jsx:curvePathTriple",
-    message: "curve_path_lengths",
-    timestamp: Date.now(),
-    curvePointsLength: curvePointsLen,
-    cushionPathForRenderLength: cushionPathForRender.length,
-    cushionPathForImpactLinesLength: cushionPathForImpactLines.length,
-    curvePointsSample: curvePointsSampleRg,
-    cushionPathForRenderSample: rgSample(cushionPathForRender, 5),
-    cushionPathForImpactLinesSample: rgSample(cushionPathForImpactLines, 5),
-  };
-  fetch("/__debug/ingest", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  }).catch(() => {});
-  // #endregion
 
   let cushionPathAttrBase = null;
   /** Base Line ON 시 궤적 소스 — slide/draw/curve/spin 0·Sn 유지 슬롯과 동일 레일 교점 열 */
@@ -7410,8 +8043,8 @@ function handlePointerCancel(e) {
       C6_path_b,
     ];
 
-    /** 기준선 표시 정책: 세컨드볼·C5/C6 확장 없이 CO→C4(인덱스 0~4)까지만 */
-    const pathEndIndexBase = 4;
+    /** 기준선 종료: 보정선 pathEndIndex 공유 (기준선 자체 세컨드볼 판정 금지) */
+    const pathEndIndexBase = pathEndIndex;
 
     const cushionPathBase = [];
     for (let i = 0; i <= pathEndIndexBase && i < pathNodesBase.length; i++) {
@@ -7429,12 +8062,46 @@ function handlePointerCancel(e) {
       .join(" ");
   }
 
+  baselineCoHandleRgRef.current =
+    cushionPathBaselineRg?.[0] &&
+    Number.isFinite(cushionPathBaselineRg[0].x) &&
+    Number.isFinite(cushionPathBaselineRg[0].y)
+      ? { x: cushionPathBaselineRg[0].x, y: cushionPathBaselineRg[0].y }
+      : null;
+
+  baselineC1HandleRgRef.current =
+    cushionPathBaselineRg?.[1] &&
+    Number.isFinite(cushionPathBaselineRg[1].x) &&
+    Number.isFinite(cushionPathBaselineRg[1].y)
+      ? { x: cushionPathBaselineRg[1].x, y: cushionPathBaselineRg[1].y }
+      : null;
+
+  let effectiveCushionPathBaselineRg = cushionPathBaselineRg;
+  if (
+    Array.isArray(effectiveCushionPathBaselineRg) &&
+    effectiveCushionPathBaselineRg.length >= 2
+  ) {
+    if (baselineDraftState.coRg) {
+      effectiveCushionPathBaselineRg = [
+        baselineDraftState.coRg,
+        ...effectiveCushionPathBaselineRg.slice(1),
+      ];
+    }
+    if (baselineDraftState.c1Rg) {
+      effectiveCushionPathBaselineRg = [
+        effectiveCushionPathBaselineRg[0],
+        baselineDraftState.c1Rg,
+        ...effectiveCushionPathBaselineRg.slice(2),
+      ];
+    }
+  }
+
   const orderedKeys = ["CO", "C1", "C2", "C3", "C4", "C5", "C6"];
   // NOTE: 라벨 미표시 원인 구분용 — 현재는 좌표계 이슈와 별개로
   // visibleKeysForLabels(cushionPath 길이 기반) 정책이 먼저 라벨 대상을 제한한다.
   const useBaselineLabelAnchors =
     appMode === "USER"
-      ? userBaselineDisplayFlags?.labelAnchorSource === "baseline"
+      ? userDisplayFlags?.labelAnchorSource === "baseline"
       : showBaseLine;
   const labelPathLengthForKeys =
     useBaselineLabelAnchors && cushionPathBaselineRg?.length
@@ -7469,15 +8136,17 @@ function handlePointerCancel(e) {
 
   // 노란점(라벨): resolveAnchorPoint·anchor 원본 좌표 유지 (FG/RG 변환 없음). 궤적은 cushionPath·computeRailImpactPoint 쪽에서 레일 교점 유지.
   const blKeysForLabels = ["CO", "C1", "C2", "C3"];
+  const labelPathRgForAnchors =
+    effectiveCushionPathBaselineRg ?? cushionPathBaselineRg;
   const fromBaselinePath =
     useBaselineLabelAnchors &&
-    cushionPathBaselineRg &&
-    cushionPathBaselineRg.length > 0 &&
+    labelPathRgForAnchors &&
+    labelPathRgForAnchors.length > 0 &&
     anchorsBase
       ? Object.fromEntries(
           blKeysForLabels
             .map((k, i) => {
-              const pt = cushionPathBaselineRg[i];
+              const pt = labelPathRgForAnchors[i];
               if (pt == null || !Number.isFinite(pt.x) || !Number.isFinite(pt.y))
                 return [k, null];
               return [k, { coord: { x: pt.x, y: pt.y } }];
@@ -7487,11 +8156,28 @@ function handlePointerCancel(e) {
       : null;
   const allAnchors = {
     CO:
+      (baselineDraftState.coRg
+        ? {
+            coord: {
+              x: baselineDraftState.coRg.x,
+              y: baselineDraftState.coRg.y,
+            },
+          }
+        : null) ??
       (fromBaselinePath && fromBaselinePath.CO) ??
       labelPayload(override.CO) ??
       labelPayload(CO_prep),
     "C1":
-      (fromBaselinePath && fromBaselinePath["C1"]) ?? labelPayload(C1_prep),
+      (baselineDraftState.c1Rg
+        ? {
+            coord: {
+              x: baselineDraftState.c1Rg.x,
+              y: baselineDraftState.c1Rg.y,
+            },
+          }
+        : null) ??
+      (fromBaselinePath && fromBaselinePath["C1"]) ??
+      labelPayload(C1_prep),
     "C2": (fromBaselinePath && fromBaselinePath["C2"]) ?? labelPayload(C2),
     "C3":
       (fromBaselinePath && fromBaselinePath["C3"]) ??
@@ -7521,6 +8207,14 @@ function handlePointerCancel(e) {
       value,
     });
   });
+  const labelAnchorsForRender =
+    appMode === "USER" && userTableDisplayMode === "systemValues"
+      ? Object.fromEntries(
+          visibleKeysForLabels
+            .filter((k) => k !== "C2" && labelAnchorsForRaw[k])
+            .map((k) => [k, labelAnchorsForRaw[k]])
+        )
+      : labelAnchorsForRaw;
   console.log("[ANCHOR_BEFORE_RENDER]", {
     stage: "App:allAnchors",
     rawAnchors,
@@ -7561,7 +8255,7 @@ function handlePointerCancel(e) {
   });
   const railGroups = strategyResult.railGroups;
 
-  const canEditPosition = !isPositionLocked;
+  const canEditPosition = true;
 
   const slotSysValuesForRender =
     resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
@@ -7569,7 +8263,7 @@ function handlePointerCancel(e) {
       : (system?.values ?? {});
   const useBaselineLabelValues =
     appMode === "USER"
-      ? userBaselineDisplayFlags?.labelValueSource === "baseline"
+      ? userDisplayFlags?.labelValueSource === "baseline"
       : showBaseLine;
   const systemValuesForLabels =
     useBaselineLabelValues &&
@@ -7578,18 +8272,43 @@ function handlePointerCancel(e) {
     Object.keys(resolvedSlotBaseSysValues).length > 0
       ? resolvedSlotBaseSysValues
       : slotSysValuesForRender;
+  baselineLabelSsotRef.current = systemValuesForLabels;
+  const baselineLabelValueOverrides = (() => {
+    if (appMode !== "ADMIN" || !showBaseLine) return null;
+    const overrides = {};
+    const { activeMark } = baselineDraftState;
+
+    const hasCoPending =
+      activeMark === "CO" &&
+      baselineDraftState.coRg != null &&
+      Number.isFinite(baselineDraftState.coRg.x);
+    const hasC1Pending =
+      activeMark === "C1" &&
+      baselineDraftState.c1Rg != null &&
+      Number.isFinite(baselineDraftState.c1Rg.x);
+
+    if (hasCoPending) {
+      overrides.CO = { preview: true, checkOnly: true };
+    }
+    if (hasC1Pending) {
+      overrides.C1 = { preview: true, checkOnly: true };
+    }
+
+    return Object.keys(overrides).length > 0 ? overrides : null;
+  })();
   const userShowCorrectedPath =
     appMode === "USER"
-      ? userBaselineDisplayFlags?.showCorrectedPath ?? true
+      ? userDisplayFlags?.showCorrectedPath ?? true
       : !showBaseLine;
   const userShowBaselinePath =
-    appMode === "USER" ? !!userBaselineDisplayFlags?.showBaselinePath : showBaseLine;
+    appMode === "USER" ? !!userDisplayFlags?.showBaselinePath : showBaseLine;
   const userShowBaselineReferenceOverlay =
-    appMode === "USER" &&
-    userShowBaselinePath &&
-    userShowCorrectedPath &&
-    Array.isArray(cushionPathBaselineRg) &&
-    cushionPathBaselineRg.length >= 2;
+    appMode === "USER" && !!userDisplayFlags?.showBaselineReferenceOverlay;
+  const userShowTrajectoryOnTable =
+    appMode !== "USER" || !!userDisplayFlags?.showTrajectoryOnTable;
+  const userShowTrajectoryLabels =
+    appMode !== "USER" || !!userDisplayFlags?.showTrajectoryLabels;
+  const userShowSystemValuesOnly = userSystemValuesModeActive;
   const impactShowBaseLineOnly =
     appMode === "USER"
       ? userShowBaselinePath && !userShowCorrectedPath
@@ -7600,51 +8319,89 @@ function handlePointerCancel(e) {
       : "anchor_ssot";
 
   const cushionPathForTableImpact =
-    userShowCorrectedPath
-      ? cushionPathForImpactLines
-      : userShowBaselinePath &&
-          Array.isArray(cushionPathBaselineRg) &&
-          cushionPathBaselineRg.length >= 2
-        ? cushionPathBaselineRg
-        : cushionPathForImpactLines;
-  const curveDeformActiveForImpact = userShowCorrectedPath ? useCurveDeform : false;
+    !userShowTrajectoryOnTable
+      ? []
+      : userShowCorrectedPath
+        ? cushionPathForImpactLines
+        : userShowBaselinePath &&
+            Array.isArray(effectiveCushionPathBaselineRg) &&
+            effectiveCushionPathBaselineRg.length >= 2
+          ? effectiveCushionPathBaselineRg
+          : cushionPathForImpactLines;
+  const curveDeformActiveForImpact =
+    userShowTrajectoryOnTable && userShowCorrectedPath ? useCurveDeform : false;
+
+  const userTrajectoryCardModel =
+    appMode === "USER" && userDisplayFlags?.showTrajectoryInfoCard
+      ? buildUserTrajectoryCardModel({
+          source: trajectoryCardSource,
+          slotRenderSys,
+          resolvedSlotSys,
+          resolvedSlotBaseSysValues,
+          resolvedSlotSysValues,
+          noStrategySelected: !userTableDisplaySlotId,
+        })
+      : null;
+
+  const coBaselineHandleRg =
+    baselineDraftState.coRg ?? baselineCoHandleRgRef.current;
+  const c1BaselineHandleRg =
+    baselineDraftState.c1Rg ?? baselineC1HandleRgRef.current;
+
+  let coBaselineHandleNode = null;
+  if (
+    appMode === "ADMIN" &&
+    showBaseLine &&
+    systemIdForGrid === "5_half_system" &&
+    trackForAnchors?.startsWith("B2T") &&
+    coBaselineHandleRg &&
+    Number.isFinite(coBaselineHandleRg.x) &&
+    Number.isFinite(coBaselineHandleRg.y)
+  ) {
+    const hp = toPx(coBaselineHandleRg, SCALE, TABLE_H);
+    coBaselineHandleNode = (
+      <g className="co-baseline-drag-handle" data-co-baseline-handle="1" pointerEvents="none">
+        <circle
+          cx={hp.x + PADDING}
+          cy={hp.y + PADDING}
+          r={7}
+          fill="#facc15"
+          stroke="#a16207"
+          strokeWidth={1.5}
+          opacity={baselineDraftState.draggingMark === "CO" ? 1 : 0.85}
+        />
+      </g>
+    );
+  }
+
+  let c1BaselineHandleNode = null;
+  if (
+    appMode === "ADMIN" &&
+    showBaseLine &&
+    systemIdForGrid === "5_half_system" &&
+    trackForAnchors?.startsWith("B2T") &&
+    c1BaselineHandleRg &&
+    Number.isFinite(c1BaselineHandleRg.x) &&
+    Number.isFinite(c1BaselineHandleRg.y)
+  ) {
+    const hp = toPx(c1BaselineHandleRg, SCALE, TABLE_H);
+    c1BaselineHandleNode = (
+      <g className="c1-baseline-drag-handle" data-c1-baseline-handle="1" pointerEvents="none">
+        <circle
+          cx={hp.x + PADDING}
+          cy={hp.y + PADDING}
+          r={7}
+          fill="#facc15"
+          stroke="#a16207"
+          strokeWidth={1.5}
+          opacity={baselineDraftState.draggingMark === "C1" ? 1 : 0.85}
+        />
+      </g>
+    );
+  }
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
-  // #region agent log
-  if (appMode === "USER" && userTableDisplaySlotId) {
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6b5ef2",
-      },
-      body: JSON.stringify({
-        sessionId: "6b5ef2",
-        location: "App.jsx:render:USER_display_gates",
-        message: "TRAJECTORY_RENDER_GATES",
-        hypothesisId: "H1_H2",
-        timestamp: Date.now(),
-        data: {
-          userTableDisplaySlotId,
-          showCoaching,
-          effectiveShowCoaching,
-          userBaselineViewLevel,
-          userStrategyLayersVisible,
-          hasResolvedSlotSys: !!resolvedSlotSys,
-          hasOutputsResult: !!resolvedSlotSys?.outputs?.result,
-          systemLabelsOutputsPassed: systemLabelsOutputsForRender
-            ? "outputs"
-            : "null",
-          coachingWillRenderImpact:
-            appMode === "USER" && effectiveShowCoaching,
-          coachingGuideLineNode: coaching.guideLineNode,
-          coachingImpactBallPx: coaching.impactBallPx,
-        },
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
 
   const tableSVG = (
     <svg
@@ -7661,7 +8418,9 @@ function handlePointerCancel(e) {
     >
       <RailFrame />
       <TableGrid />
-      {adminTableLayersActive && (
+      {coBaselineHandleNode}
+      {c1BaselineHandleNode}
+      {adminTableLayersActive && userShowTrajectoryOnTable && (
       <ImpactLines
         CO_line={CO_line}
         C1_line={C1_line}
@@ -7733,7 +8492,7 @@ function handlePointerCancel(e) {
           color="#fde047"
           emphasis={
             canEditPosition &&
-            (dragState.ballId === "target_center" || dragState.ballId === "target")
+            isConfirmedTargetBall("target_center", targetColor, isTargetSelected)
               ? "selected"
               : undefined
           }
@@ -7749,7 +8508,8 @@ function handlePointerCancel(e) {
           {...balls.second}
           color="#f87171"
           emphasis={
-            canEditPosition && dragState.ballId === "second"
+            canEditPosition &&
+            isConfirmedTargetBall("second", targetColor, isTargetSelected)
               ? "selected"
               : undefined
           }
@@ -7816,27 +8576,43 @@ function handlePointerCancel(e) {
           anchorsData={getAnchorsForSystem(systemIdForGrid)}
           visible={
             appMode === "USER"
-              ? !!userBaselineDisplayFlags?.showSystemGrid
+              ? userTableDisplayMode === "systemValues"
+                ? userSystemValuesModeActive &&
+                  !!userDisplayFlags?.showSystemGrid
+                : !!userDisplayFlags?.showSystemGrid
               : showSystemGrid
           }
         />
       )}
-      {adminTableLayersActive && (
+      {adminTableLayersActive &&
+      (userShowTrajectoryLabels || userShowSystemValuesOnly) && (
       <SystemValueLabels
+        showSystemValuesOnly={userShowSystemValuesOnly}
+        showAxisCaptions={!!userDisplayFlags?.showAxisCaptions}
         showSystemGrid={
           appMode === "USER"
-            ? !!userBaselineDisplayFlags?.showSystemGrid
+            ? userTableDisplayMode === "systemValues"
+              ? userSystemValuesModeActive && !!userDisplayFlags?.showSystemGrid
+              : !!userDisplayFlags?.showSystemGrid
             : showSystemGrid
         }
-        anchors={allAnchorsForLabels}
-        labelAnchors={labelAnchorsForRaw}
+        anchors={userShowSystemValuesOnly ? {} : allAnchorsForLabels}
+        labelAnchors={labelAnchorsForRender}
         scale={SCALE}
         tableH={TABLE_H}
         padding={PADDING}
         systemValues={systemValuesForLabels}
+        labelValueOverrides={baselineLabelValueOverrides}
         labelStrategy={labelStrategy}
         outputs={systemLabelsOutputsForRender}
         onAnchorDoubleClick={canEdit ? openAnchorEdit : undefined}
+        onBaselineDraftApplyClick={
+          appMode === "ADMIN" &&
+          showBaseLine &&
+          baselineDraftState.activeMark
+            ? onBaselineDraftApplyClick
+            : undefined
+        }
       />
       )}
      </svg>
@@ -7848,6 +8624,16 @@ function handlePointerCancel(e) {
         <div className="table-area-inner">
           {tableSVG}
         </div>
+        {appMode === "USER" &&
+          userDisplayFlags?.showTrajectoryInfoCard &&
+          userTrajectoryCardModel &&
+          onTrajectoryCardSourceChange && (
+            <UserTrajectoryInfoCard
+              model={userTrajectoryCardModel}
+              cardSource={trajectoryCardSource}
+              onCardSourceChange={onTrajectoryCardSourceChange}
+            />
+          )}
       {showHistoryModal && (
         <WorkspaceHistoryModal
           history={workspaceHistory}
@@ -7915,50 +8701,6 @@ function handlePointerCancel(e) {
                   // 2. slot.applied.sys 동기화 - 항상 수행 (SAVE 시 handleSaveStrategy에서 사용)
                   const systemId = newData.system || system_id || "5_half_system";
                   const numericInputs = mergeSysOverlayPayloadToNumericInputs(newData);
-                  // #region agent log
-                  fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "X-Debug-Session-Id": "a98f58",
-                    },
-                    body: JSON.stringify({
-                      sessionId: "a98f58",
-                      location: "App.jsx:sysOverlay.onSave",
-                      message: "SYS_apply_payload",
-                      hypothesisId: "H_apply_merge",
-                      timestamp: Date.now(),
-                      data: {
-                        payload: {
-                          newDataKeys: Object.keys(newData || {}),
-                          numericInputKeys: Object.keys(numericInputs || {}),
-                          restKeys: Object.keys(rest || {}),
-                          restInputKeys: rest.inputs
-                            ? Object.keys(rest.inputs).sort()
-                            : [],
-                          hasSystemValues: !!(
-                            newData.system_values &&
-                            typeof newData.system_values === "object" &&
-                            Object.keys(newData.system_values).length > 0
-                          ),
-                          systemValuesKeys:
-                            newData.system_values &&
-                            typeof newData.system_values === "object"
-                              ? Object.keys(newData.system_values).sort()
-                              : [],
-                          hasAdjustedInputs: !!newData.adjustedInputs,
-                          adjustedInputKeys:
-                            newData.adjustedInputs &&
-                            typeof newData.adjustedInputs === "object"
-                              ? Object.keys(newData.adjustedInputs).sort()
-                              : [],
-                          track: newData.track,
-                          systemId,
-                        },
-                      },
-                    }),
-                  }).catch(() => {});
-                  // #endregion
                   const trackVal = newData.track ?? "B2T_L";
                   const applyResult = actions.commitDraftSys(activeSlot, systemId, numericInputs, {
                     track: trackVal,
@@ -7966,6 +8708,14 @@ function handlePointerCancel(e) {
                   console.log("[SYS APPLY] commitDraftSys result:", applyResult);
                   if (applyResult.ok) {
                     console.log("[SYS APPLY] committed applied.sys outputs:", applyResult.appliedSys?.outputs);
+                    const sysOut = applyResult.appliedSys?.outputs?.result;
+                    console.log("[SYS APPLY OUTPUT]", {
+                      CO_f: sysOut?.CO_f,
+                      C1_f: sysOut?.C1_f,
+                      C3_r: sysOut?.C3_r,
+                      C4_f: sysOut?.C4_f,
+                      Sn: sysOut?.Sn,
+                    });
                     const corr = newData.corrections ?? {};
                     actions.patchSlotRuntimeMeta(activeSlot, {
                       corrections: {
@@ -8108,6 +8858,7 @@ function handlePointerCancel(e) {
                 onSelectOnePoint={onSelectOnePoint}
                 applyOnePointToShot={applyOnePointToShot}
                 saveDraftAsNewLesson={saveDraftAsNewLesson}
+                deleteSelectedOnePointLibraryItem={deleteSelectedOnePointLibraryItem}
                 onePointLessons={adminState.ai?.onePointLessons ?? []}
                 onDeleteLesson={deleteLesson}
                 onReorderLessons={reorderLessons}
@@ -8123,6 +8874,8 @@ function handlePointerCancel(e) {
         panelClassName={
           overlayContent === "SYSTEM_LESSON"
             ? "modal-panel--user-system-lesson"
+            : overlayContent === "HPT"
+              ? "modal-panel--user-hpt"
             : overlayContent === "AI"
               ? "modal-panel--user-ai"
               : "modal-panel--compact"
@@ -8130,14 +8883,23 @@ function handlePointerCancel(e) {
         title={undefined}
         panelStyle={{
           maxHeight:
-            overlayContent === "SYSTEM_LESSON" ? "86vh" : overlayContent === "AI" ? undefined : "78vh",
+            overlayContent === "SYSTEM_LESSON"
+              ? "86vh"
+              : overlayContent === "AI"
+                ? undefined
+                : overlayContent === "HPT"
+                  ? undefined
+                  : "78vh",
           ...(overlayContent === "SYSTEM_LESSON"
             ? { minWidth: 0, minHeight: 0, overflow: "hidden" }
+            : overlayContent === "HPT"
+              ? { minWidth: 0, minHeight: 0, overflowY: "auto" }
             : overlayContent === "AI"
               ? { minWidth: 0, minHeight: 0, overflowY: "auto" }
               : { overflowY: "auto" }),
         }}
       >
+        {overlayContent === "HPT" && <UserHptPanel model={userHptModel} />}
         {overlayContent === "SYSTEM_LESSON" && (
           <UserSystemLessonPanel model={userSystemLessonModel} />
         )}
@@ -8179,10 +8941,10 @@ function handlePointerCancel(e) {
             </button>
             <button
               type="button"
-              className={`control-button recall-btn${isRecalled ? " active" : ""}`}
+              className={`control-button published-search-btn${isAdminPublishedSearchMatched ? " active" : ""}`}
               onClick={handlePositionRecall}
             >
-              Recall
+              Search
             </button>
             <button
               type="button"

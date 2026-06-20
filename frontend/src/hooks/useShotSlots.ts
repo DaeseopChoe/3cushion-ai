@@ -11,10 +11,12 @@ import {
 } from '../domain/slotDraftFromEntry';
 import type { StrategySysCorrections, TargetBall } from '../domain/positionSearchEngine';
 import { normalizeSlotTargetBall } from '../domain/slotRuntimeHydrate';
-export {
-  resolveSlotSysForRender,
+import {
   hasRenderableOutputsResult,
+  resolveSlotSysForRender,
 } from '../domain/slotSysResolve';
+
+export { resolveSlotSysForRender, hasRenderableOutputsResult };
 
 // ==========================================
 // Types (중복 없이 정리)
@@ -149,6 +151,34 @@ function applyDraftsFromSearchRecord(
 function clearSearchDraftFromSlot(slot: SlotState): SlotState {
   if (!slot.draft?.meta?.recommendedFrom) return slot;
   return { ...slot, draft: null };
+}
+
+/**
+ * ADMIN 로컬DB/Search 직전 — recall display draft 제거 (USER clearSearchSlotDrafts와 분리).
+ * - recommendedFrom 태그 draft
+ * - renderable draft.sys (조회 hydrate) — SAVE applied.sys 없을 때만
+ * targetBall stub만 유지 (명시 targetColor patch 보존).
+ */
+function clearAdminSearchDisplayFromSlot(slot: SlotState): SlotState {
+  try {
+    const d = slot?.draft;
+    if (!d) return slot;
+    const recallTagged = !!d.meta?.recommendedFrom;
+    const hasDisplaySys = hasRenderableOutputsResult(d.sys);
+    const appliedReady = hasRenderableOutputsResult(slot.applied?.sys);
+    if (!recallTagged && !(hasDisplaySys && !appliedReady)) {
+      return slot;
+    }
+    const keepTarget =
+      d.targetBall === "red" || d.targetBall === "yellow" ? d.targetBall : null;
+    return {
+      ...slot,
+      draft: keepTarget ? { targetBall: keepTarget } : null,
+    };
+  } catch (err) {
+    console.warn("[clearAdminSearchDisplayFromSlot] skipped", err);
+    return slot;
+  }
 }
 
 function validateDraftState(
@@ -705,29 +735,6 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
   ) => {
     setShotEditor((s) => {
       const slot = s.slots[slotId];
-      // #region agent log
-      fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6b5ef2" },
-        body: JSON.stringify({
-          sessionId: "6b5ef2",
-          location: "useShotSlots.ts:patchSlotRuntimeMeta",
-          message: "PATCH_SLOT_RUNTIME_META",
-          hypothesisId: "H1",
-          timestamp: Date.now(),
-          data: {
-            slotId,
-            targetBall: meta.targetBall ?? null,
-            hasDraft: !!slot?.draft,
-            hasApplied: !!slot?.applied,
-            draftTargetBallBefore: slot?.draft?.targetBall ?? null,
-            appliedTargetBallBefore: slot?.applied?.targetBall ?? null,
-            targetBallWrittenToDraft: !!(slot?.draft && meta.targetBall !== undefined),
-            targetBallWrittenToApplied: !!(slot?.applied && meta.targetBall !== undefined),
-          },
-        }),
-      }).catch(() => {});
-      // #endregion
       const patch = {
         ...(meta.corrections != null ? { corrections: meta.corrections } : {}),
         ...(meta.shotType != null ? { shotType: meta.shotType } : {}),
@@ -837,6 +844,20 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     }));
   };
 
+  /** ADMIN Search/로컬DB pre-clear — recall display draft.sys.outputs 등 제거 (동기 flush) */
+  const clearAdminSearchDisplaySlotDrafts = () => {
+    flushSync(() => {
+      setShotEditor((prev) => ({
+        ...prev,
+        slots: {
+          S1: clearAdminSearchDisplayFromSlot(prev.slots.S1),
+          S2: clearAdminSearchDisplayFromSlot(prev.slots.S2),
+          S3: clearAdminSearchDisplayFromSlot(prev.slots.S3),
+        },
+      }));
+    });
+  };
+
   // ==========================================
   // Return
   // ==========================================
@@ -894,6 +915,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       applyPositionRecall,
       applyUserSearchRecall,
       clearSearchSlotDrafts,
+      clearAdminSearchDisplaySlotDrafts,
       saveShot,
       deleteSlot,
       getActiveSlot,
