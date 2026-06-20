@@ -117,12 +117,12 @@
   border-color: transparent;
 }
 
-.control-button.recall-btn:not(.active) {
+.control-button.published-search-btn:not(.active) {
   background-color: #475569;
   color: #e2e8f0;
 }
 
-.control-button.recall-btn.active {
+.control-button.published-search-btn.active {
   background-color: #0ea5e9;
   color: white;
 }
@@ -745,6 +745,153 @@ button.user-rail-btn--system-lesson[data-user-info-btn="SYSTEM_LESSON"] {
   font-weight: inherit;
   line-height: 1.1;
   white-space: nowrap;
+}
+
+/* USER 동선분석 / 시스템값 모드 버튼 */
+.user-display-mode-btn {
+  line-height: 1.15;
+}
+
+/* USER 동선분석 정보 카드 — 테이블 상단 overlay */
+/* USER 동선분석 카드 — HP/T 수준 모바일 가독성, 전체 영역 드래그 지원 */
+.user-trajectory-info-card {
+  position: absolute;
+  top: clamp(6px, 1.5vh, 18px);
+  left: 50%;
+  /* transform overridden by inline style when dragging */
+  transform: translateX(-50%);
+  z-index: 12;
+  width: min(calc(100vw - 20px), 1050px);
+  max-width: calc(100vw - 20px);
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 0 20px 24px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: #f8fafc;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.38);
+  pointer-events: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.user-trajectory-info-card:active {
+  cursor: grabbing;
+}
+
+/* 드래그 인식 표시 — 상단 시각 그립 (이벤트 없음) */
+.user-trajectory-info-card__drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 0 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.user-trajectory-info-card__drag-knob {
+  display: block;
+  width: 48px;
+  height: 5px;
+  background: rgba(148, 163, 184, 0.55);
+  border-radius: 3px;
+}
+
+.user-trajectory-info-card__toggle {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.user-trajectory-info-card__tab {
+  flex: 1;
+  padding: 14px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  font-size: clamp(26px, 5.5vw, 32px);
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  line-height: 1.2;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.user-trajectory-info-card__tab--active {
+  background: #0ea5e9;
+  border-color: #38bdf8;
+  color: #0f172a;
+}
+
+.user-trajectory-info-card__title {
+  margin: 0 0 14px;
+  font-size: clamp(28px, 6vw, 36px);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.user-trajectory-info-card__label {
+  display: inline-block;
+  margin-right: 10px;
+  font-size: clamp(24px, 5vw, 30px);
+  font-weight: 700;
+  color: #94a3b8;
+  line-height: 1.3;
+}
+
+.user-trajectory-info-card__formula {
+  margin: 0 0 18px;
+  font-size: clamp(28px, 6vw, 36px);
+  line-height: 1.5;
+}
+
+.user-trajectory-info-card__values {
+  margin-bottom: 14px;
+  font-size: clamp(28px, 6vw, 36px);
+}
+
+.user-trajectory-info-card__value-list {
+  margin: 10px 0 0;
+  padding-left: 24px;
+  line-height: 1.75;
+}
+
+.user-trajectory-info-card__correction-list {
+  margin: 0 0 16px;
+  padding-left: 24px;
+  font-size: clamp(26px, 5.5vw, 34px);
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.user-trajectory-info-card__guide {
+  margin: 0;
+  font-size: clamp(26px, 5.5vw, 34px);
+  color: #7dd3fc;
+  line-height: 1.5;
+}
+
+.user-trajectory-info-card__empty {
+  margin: 8px 0 0;
+  font-size: clamp(28px, 6vw, 36px);
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .user-trajectory-info-card {
+    max-height: 85vh;
+    top: clamp(4px, 1vh, 10px);
+  }
 }
 
 /* USER HP/T read-only card — mobile portrait, ~2.5× prior compact width */

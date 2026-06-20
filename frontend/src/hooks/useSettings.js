@@ -15,6 +15,7 @@ import {
   buildDatasetExport,
   normalizeDatasetExport,
 } from "../domain/datasetExport";
+import { mergePublishedExport } from "../domain/datasetExportMerge";
 import {
   DATASET_EXPORT_FILENAME,
   DATASET_ROOT_DIR,
@@ -29,23 +30,28 @@ async function getOrCreateDir(parent, name) {
 
 /** Recall SSOT dataset key — preserved by default cleanup mode */
 export const POSITIONS_DATASET_STORAGE_KEY = "positions_dataset";
+export const ONE_POINT_LESSON_LIBRARY_STORAGE_KEY =
+  "ONE_POINT_LESSON_LIBRARY_V1";
 
 export const WORKSPACE_CLEANUP_PRESERVE_DATASET = "preserve_dataset";
 export const WORKSPACE_CLEANUP_CLEAR_ALL = "clear_all";
 
-/** All localStorage keys except `exceptKey` (for preserve-dataset cleanup). */
-export function listLocalStorageKeysExcept(exceptKey) {
+/** All localStorage keys except `exceptKeys` (for preserve-dataset cleanup). */
+export function listLocalStorageKeysExcept(exceptKeys) {
+  const preserved = new Set(
+    Array.isArray(exceptKeys) ? exceptKeys.filter(Boolean) : [exceptKeys]
+  );
   const keys = [];
   for (let i = 0; i < localStorage.length; i += 1) {
     const key = localStorage.key(i);
-    if (key && key !== exceptKey) keys.push(key);
+    if (key && !preserved.has(key)) keys.push(key);
   }
   return keys;
 }
 
 /**
  * Workspace LocalStorage cleanup.
- * - preserve_dataset: remove every key except positions_dataset
+ * - preserve_dataset: remove every key except protected working keys
  * - clear_all: localStorage.clear()
  * @returns {string[]} keys removed (or all keys before clear)
  */
@@ -60,7 +66,10 @@ export function runWorkspaceLocalStorageCleanup(mode) {
     return removedKeys;
   }
 
-  const removedKeys = listLocalStorageKeysExcept(POSITIONS_DATASET_STORAGE_KEY);
+  const removedKeys = listLocalStorageKeysExcept([
+    POSITIONS_DATASET_STORAGE_KEY,
+    ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
+  ]);
   for (const key of removedKeys) {
     localStorage.removeItem(key);
   }
@@ -82,7 +91,7 @@ export function useSettings({
   setBallsState,
   setDataset,
   setIsSaved,
-  setIsRecalled,
+  setIsAdminPublishedSearchMatched,
   setIsAdminInputSessionActive,
   setTargetColor,
   setIsTargetSelected,
@@ -136,19 +145,42 @@ export function useSettings({
           segments.systemDir
         );
 
-        const fileHandle = await systemDir.getFileHandle(
-          segments.fileName || DATASET_EXPORT_FILENAME,
-          { create: true }
-        );
+        const fileName = segments.fileName || DATASET_EXPORT_FILENAME;
+        let mergedPayload = payload;
+
+        try {
+          const existingHandle = await systemDir.getFileHandle(fileName);
+          const existingFile = await existingHandle.getFile();
+          if (existingFile.size > 0) {
+            const existingText = await existingFile.text();
+            const existingPayload = normalizeDatasetExport(
+              JSON.parse(existingText)
+            );
+            mergedPayload = mergePublishedExport(existingPayload, payload);
+          }
+        } catch (readErr) {
+          if (readErr?.name !== "NotFoundError") {
+            console.warn(
+              "Existing published dataset read skipped; writing incoming only",
+              readErr
+            );
+          }
+        }
+
+        const fileHandle = await systemDir.getFileHandle(fileName, {
+          create: true,
+        });
         const writable = await fileHandle.createWritable();
-        await writable.write(JSON.stringify(payload, null, 2));
+        await writable.write(JSON.stringify(mergedPayload, null, 2));
         await writable.close();
 
         console.log("📤 Dataset Export:", {
-          path: `${segments.datasetRoot}/${segments.shotTypeDir}/${segments.systemDir}/${segments.fileName}`,
-          recordCount: payload.records.length,
-          systemId: payload.systemId,
-          shotType: payload.shotType,
+          path: `${segments.datasetRoot}/${segments.shotTypeDir}/${segments.systemDir}/${fileName}`,
+          incomingRecordCount: payload.records.length,
+          mergedRecordCount: mergedPayload.records.length,
+          systemId: mergedPayload.systemId,
+          shotType: mergedPayload.shotType,
+          mergeApplied: mergedPayload !== payload,
         });
         return true;
       } catch (e) {
@@ -223,7 +255,7 @@ export function useSettings({
       actions.restoreShotEditor(s.shotEditor);
       setWorkspaceHistoryVersion((v) => v + 1);
       setIsSaved(false);
-      setIsRecalled(false);
+      setIsAdminPublishedSearchMatched(false);
       setIsAdminInputSessionActive(false);
       const restoredTarget = s.targetBall ?? null;
       setTargetColor(restoredTarget);
@@ -237,7 +269,7 @@ export function useSettings({
       setBallsState,
       setDataset,
       setIsSaved,
-      setIsRecalled,
+      setIsAdminPublishedSearchMatched,
       setIsAdminInputSessionActive,
       setTargetColor,
       setIsTargetSelected,

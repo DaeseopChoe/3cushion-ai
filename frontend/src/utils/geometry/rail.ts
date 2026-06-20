@@ -20,6 +20,56 @@ const FG_RIGHT_X = 82.25;
 
 export type Rail = "BOTTOM" | "TOP" | "LEFT" | "RIGHT";
 
+/** B2T/T2B 트랙에서 CO 출발 레일 (computeRailImpactPoint·기준선 CO 드래그와 동일) */
+export function coDepartureRailForTrack(
+  track: string | null | undefined
+): Rail {
+  if (track?.startsWith("T2B")) return "TOP";
+  return "BOTTOM";
+}
+
+/** B2T/T2B 트랙에서 C1 도착 레일 (기준선 C1 드래그 스냅과 동일) */
+export function c1ArrivalRailForTrack(
+  track: string | null | undefined
+): Rail {
+  if (track?.startsWith("T2B")) return "BOTTOM";
+  return "TOP";
+}
+
+/**
+ * 포인터 Rg 좌표를 지정 레일 축에 투영 (한 축만 이동).
+ */
+export function projectPointToRail(
+  p: Point | null | undefined,
+  rail: Rail
+): Point | null {
+  if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+  switch (rail) {
+    case "BOTTOM":
+      return {
+        x: Math.max(0, Math.min(RG_W, p.x)),
+        y: 0,
+      };
+    case "TOP":
+      return {
+        x: Math.max(0, Math.min(RG_W, p.x)),
+        y: RG_H,
+      };
+    case "LEFT":
+      return {
+        x: 0,
+        y: Math.max(0, Math.min(RG_H, p.y)),
+      };
+    case "RIGHT":
+      return {
+        x: RG_W,
+        y: Math.max(0, Math.min(RG_H, p.y)),
+      };
+    default:
+      return null;
+  }
+}
+
 /**
  * rail 안쪽 좌표를 rail 위로 스냅
  * C3 등이 rail 위가 아닌 rail 내부에 있을 때 detectRail/교점 계산용
