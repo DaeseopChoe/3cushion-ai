@@ -1,8 +1,9 @@
 # PROJECT LOG – 2026-06
 
-Version: v1.0  
+Version: v1.3  
 Created: 2026-06-02  
-Scope: AI 코멘트 SSOT · USER AI 패널 · SYSTEM_LESSON P0 · 문서 SSOT  
+Last Updated: 2026-06-20  
+Scope: AI 코멘트 SSOT · USER AI 패널 · SYSTEM_LESSON P0 · Dataset Architecture Phase 2~3-1 · 운영 검증 회귀 조사 · OPEN-05 조사 및 안정화 · OPEN-04 Caption Placement Engine 완료  
 
 이전 월 로그: `PROJECT_LOG_2026-05.md`  
 현재 상태 SSOT: `../PROJECT_MASTER_INDEX.md`
@@ -457,6 +458,206 @@ frontend/src/components/Stage.jsx
 
 ---
 
+## 16. USER Search / Published Dataset 회귀 조사 (2026-06)
+
+**기록일:** 2026-06-13  
+**범위:** Dataset Architecture Phase 2~3-1 완료 이후 운영 검증 · **코드 수정 없음** · 조사·문서화만
+
+### 16.1 배경
+
+Dataset Architecture Phase 2~3-1 완료 이후 실제 운영 테스트 중 다음 현상 발견.
+
+1. USER Search 결과의 임팩트 방향이 ADMIN Recall과 다르게 표시되는 사례 발생
+2. 신규 Export 데이터가 ADMIN Recall 및 USER Search에서 조회되지 않는 사례 발생
+3. USER UI에서 HP/T(두께/타점) 버튼이 사라짐
+4. 트랙(B2T_R 등) 변경 시 캡션 표시가 기존과 다르게 표시되는 사례 발생
+
+### 16.2 조사 결과
+
+#### USER Search 임팩트 방향
+
+분석 결과:
+
+- export / published 데이터 자체는 정상
+- trajectory 계산 엔진 문제 증거 없음
+- Search apply 이후 `targetColor`(UI SSOT)가 `record.targetBall`과 즉시 동기화되지 않는 **설계** 확인
+- USER Search는 draft 생성만 수행 (`applyUserSearchRecall`)
+- `hydrateSlotRuntime()`은 공략 버튼(S1/S2/S3) 선택 시에만 수행 (`pickStrategySlot`)
+- ADMIN Recall은 UI target 선택 상태를 draft에 patch (`applyAdminRecallMatch` · `getAdminSearchTargetBall`)
+
+정리:
+
+임팩트 방향 반전은 trajectory 엔진보다는 **targetColor ↔ draft.targetBall 불일치** 가능성이 가장 유력.
+
+참고: `HYDRATE_CHAIN.md`, `HANDOFF_USER_PHASE2_2026-05.md` §4 — Search 직후 explicit hydrate는 **의도적 미해결(STEP 2-3)** 이력.
+
+**상태:** OPEN (미해결)
+
+#### Published Dataset 검색 실패
+
+현상:
+
+- 신규 저장 → Export → `positions.json` 생성 확인
+- 이후 ADMIN Recall 실패 · USER Search 실패 사례 확인
+
+현재 상태:
+
+- Export 파일 생성 자체는 정상
+- Published Loader 동작 여부 추가 확인 필요
+- `userStrict` / `adminStrict` profile 비교 필요
+- exact match 조건 확인 필요
+- in-memory cache stale 가능성 (`getOrLoadPublishedLeaf` · export 후 `force` 미호출) 조사 대상
+
+**상태:** OPEN (원인 미확정)
+
+#### USER HP/T 버튼 소실
+
+현상:
+
+- USER 좌측 메뉴에서 HP/T 버튼 사라짐
+- 시스템레슨 메뉴 분리 이후 발생한 것으로 추정
+
+현재 상태:
+
+- 의도적 제거인지 UI 회귀인지 확인 필요 (§12·§13에서 USER HP/T **의도적 제거** 기록과 대조)
+- **데이터 정확도 이슈가 아님** — USER UI HP/T 진입 경로·버튼 복구 문제 (후속: **HP/T 버튼 복구 작업**)
+
+**상태:** OPEN
+
+#### 캡션 표시 불일치
+
+현상:
+
+- 동일 데이터라도 트랙 변경 시 C1/C3/CO 캡션 위치 또는 값 표시가 달라지는 사례 확인
+
+추정:
+
+- 최근 Caption/UI 리팩터링 영향 가능성
+- trajectory 계산 자체 문제 증거 없음
+
+**상태:** OPEN
+
+### 16.3 중요 결론
+
+현재 발견된 문제들은 Dataset Architecture 설계 완료 이후 **운영 검증 단계**에서 발견됨.
+
+아직 trajectory 엔진 오류로 확정된 사항 없음.
+
+특히 USER Search 임팩트 방향 문제는 `targetColor` · `draft.targetBall` · `record.targetBall` 동기화 흐름을 **우선 조사 대상**으로 유지.
+
+**SSOT 교차 참조:** `../PROJECT_MASTER_INDEX.md` §Known Issues / Investigation (2026-06)
+
+---
+
+## 17. OPEN-05 조사 및 안정화 작업 (2026-06)
+
+**기록일:** 2026-06-18  
+**범위:** ADMIN Recall · LocalDB · Published Search trajectory rehydration 조사 · OPEN-05C 안정화 · **완전 해결 아님**
+
+### 배경
+
+운영 테스트 중 다음 현상 발견:
+
+- 새로고침 직후 LocalDB 클릭 시 과거 trajectory 표시
+- Search 클릭 시 다른 trajectory 표시
+- SYS 값(C1/C3/CO)이 현재 상태와 무관하게 나타나는 사례
+
+### OPEN-05A
+
+**조사 범위:**
+
+- `syncSlotRuntimeAdminAndTrajectory`
+- `hydrateSlotRuntime`
+- `applyPositionRecall`
+- `buildSlotRuntimePayload`
+- `resolveSlotSysForRender`
+
+**결론:**
+
+- `recommendedFrom` fallback은 원인 아님 (OPEN-05 1차에서 제거 확인)
+- `slot_draft_fallback` 관련 경로는 현재 원인 아님
+
+### OPEN-05B
+
+**조사 범위:**
+
+- applied slot 경로
+- `resolveSlotSysForRender` 우선순위
+- `trajectoryResult` 생성 경로
+
+**결론:**
+
+- applied 오염설 기각
+- recall 데이터는 `slot.draft` 기반
+- 새로고침 직후 `applied`는 null
+- `resolveSlotSysForRender()`는 draft 우선
+
+### OPEN-05C
+
+**수정:**
+
+- mismatch gate 추가
+- recall display draft 제거 강화 (`clearAdminSearchDisplaySlotDrafts` · `clearAdminSearchDisplayFromSlot`)
+- clear 직후 trajectory reset 강화
+- helper crash 수정 (`hasRenderableOutputsResult` import)
+- `flushSync` 적용
+
+**검증 (PASS):**
+
+- no-match alert
+- 화면 백지화 제거
+- explicit target mismatch recall 차단
+
+**미해결 (Known Issue 유지):**
+
+- 새로고침 직후 · target 미선택 · LocalDB/Search 첫 호출에서 spatial match 시 과거 trajectory/SYS label 표시 사례 잔존
+
+### 현재 상태
+
+**Known Issue 유지**
+
+**증상:**
+
+- 새로고침 직후
+- target 미선택
+- LocalDB / Search 첫 호출
+
+상황에서 과거 trajectory 또는 SYS label이 표시되는 사례 존재
+
+### 최종 판단
+
+- 원인 미확정
+- trajectory engine 오류로 확정된 사항 없음
+
+**후보:**
+
+- spatial match
+- hydrate chain
+- trajectory 재생성 시점
+- render cache
+- memoized label source
+- localStorage corpus contamination
+
+**현재 우선순위:** Low
+
+**프로젝트 영향:** 낮음
+
+**실사용 영향:** 낮음 (target 선택·SYS 입력 시 정상)
+
+### 후속 작업
+
+- OPEN-05 추가 추적은 **보류** · 우선순위를 아래로 이동
+
+**다음 작업:**
+
+1. SYS SSOT 정리
+2. **HP/T 버튼 복구 작업** (USER UI 진입 경로·버튼 복구 — 데이터 정확도 작업 아님)
+3. 이후 OPEN-05 재조사 필요 시 재개
+
+**SSOT 교차 참조:** `../PROJECT_MASTER_INDEX.md` §Known Issues / Investigation (2026-06) · OPEN-05
+
+---
+
 ## 부록 A. Git 커밋 요약 (본 세션)
 
 | 날짜 | 커밋 | 요약 |
@@ -467,6 +668,178 @@ frontend/src/components/Stage.jsx
 | 2026-06 | `582a451` | `docs: add PROJECT_LOG_2026-06 and link in PROJECT_MASTER_INDEX` |
 | 2026-06 | **`ffe0a26`** | **`feat(user): add SYSTEM_LESSON overlay and remove USER HP/T`** — P0 완료 |
 | 2026-06-11 | — | `docs: update dataset recall and user search SSOT` — Phase 2~3-1 문서 반영 |
+
+---
+
+## 18. OPEN-04 Caption Placement Engine 완료
+
+**날짜:** 2026-06-20  
+**상태:** OPEN → **CLOSED**  
+**조사 완료 · 설계 확정 · 구현 완료 · 검증 완료**
+
+---
+
+### 배경
+
+운영 검증 과정에서 트랙 변경 시 Caption 위치가 기존 의도와 다르게 표시되는 현상 발견.
+
+초기 조사 결과 다음 구조가 혼재되어 있었음:
+
+- value 기반 탐색 (`findFirstByValue`, `findLastByValue`, `computeCoDepartureAlong`)
+- mark별 switch 분기 및 track별 예외 처리
+- `denseGridStep` 기반 safetyMargin 계산
+- `alignC4SideCaptionsToCo()` 후처리 강제 덮어쓰기
+
+---
+
+### 문제점
+
+**문제 1 — 출발값(CO): 50~60 대신 60~70 공간에 표시**
+
+원인: CO 코너 앵커 `(−2.25, −2.25)` value=50이 bottom bucket에만 포함됨.  
+left/right bucket이 이 점을 알 수 없어 50~60 공간이 외부 공간 판단에 활용되지 않음.
+
+**문제 2 — 1쿠션: 40~50 내부 공간에 배치**
+
+원인: A/B 공간 비교식에서 aWidth/bWidth 산정 시 `safetyMargin`이 차감되어 외부 공간이 과소평가됨.  
+내부 Gap은 `halfNum`만 차감하여 비교 비대칭 발생.
+
+**문제 3 — 4쿠션 측면: CO 위치로 강제 정렬**
+
+원인: `alignC4SideCaptionsToCo()` 후처리가 OPEN-04 엔진 결과를 무조건 덮어씀.
+
+**문제 4 — 5쿠션/6쿠션: 숫자와 캡션 간격 과도**
+
+원인: `safetyMargin = denseGridStep × GRID_GAP_MULTIPLIER` 계산.  
+실제 2grid(20px)보다 5배 이상 크게 산출됨.
+
+---
+
+### 설계 원칙 확정
+
+**배치 우선순위:**
+
+1. A Space — 첫 숫자 이전 공간
+2. B Space — 마지막 숫자 이후 공간
+3. Internal Max Gap — 내부 최대 빈 간격
+
+동률 시 외부 공간(A/B) 우선 (`>=`).
+
+**배치 원칙:**
+
+```
+숫자 + 2grid + 캡션
+또는
+캡션 + 2grid + 숫자
+```
+
+**비교 규칙:** raw width 기준 (safetyMargin 미포함).  
+**배치 좌표:** safetyMargin 적용 (aEnd / bStart 기준).  
+**safetyMargin:** `GRID_GAP_MULTIPLIER × scalePx` = 2grid (20px).  
+`denseGridStep` 기반 계산 **금지**.
+
+---
+
+### 구현
+
+**제거:**
+
+| 항목 | 사유 |
+|------|------|
+| `computeExplicitAlong()` | value 기반 탐색 — track 의존 |
+| `findFirstByValue()` | 동상 |
+| `findLastByValue()` | 동상 |
+| `maxValuePoint()` | 동상 |
+| `betweenAlong()` | 동상 |
+| `computeCoDepartureAlong()` | CO 하드코딩 |
+| `alignC4SideCaptionsToCo()` | 후처리 강제 덮어쓰기 |
+| `CAPTION_TOP_C4_OFFSET_PX` | 하드코딩 오프셋 |
+| `CAPTION_C6_OFFSET_PX` | 동상 |
+
+**추가:**
+
+- `findBestAlongSequential()` — A→B→Gap 순서 Geometry 엔진
+- `CAPTION_ESTIMATED_WIDTH_PX`, `HALF_NUMBER_WIDTH_PX` — 폭 상수
+
+**수정 1 — safetyMargin:**
+
+```typescript
+// 수정 전 (오류): denseGridStep 기반 (100~200px)
+const safetyMargin = denseGridStep(sorted, side) * GRID_GAP_MULTIPLIER;
+
+// 수정 후 (확정): tableBounds 기반 실제 2grid (20px)
+const tableSpan  = isH ? tableBounds.maxX - tableBounds.minX : tableBounds.maxY - tableBounds.minY;
+const tableUnits = isH ? 80 : 40;
+const scalePx    = tableSpan / tableUnits;
+const safetyMargin = GRID_GAP_MULTIPLIER * scalePx;
+```
+
+**수정 2 — 비교식 대칭화 + `>=`:**
+
+```typescript
+// 비교용 폭 (safetyMargin 미포함 — Gap과 대칭)
+const aWidthCompare = firstAlong - halfNum - boundsMin;
+const bWidthCompare = boundsMax - (lastAlong + halfNum);
+
+// 배치 좌표 (safetyMargin 적용)
+const aEnd   = firstAlong - halfNum - safetyMargin;
+const bStart = lastAlong  + halfNum + safetyMargin;
+
+if (aWidthCompare >= maxGapFree) { along = aEnd - captionW / 2; }
+else if (bWidthCompare >= maxGapFree) { along = bStart + captionW / 2; }
+else { along = (bestGapLeft + bestGapRight) / 2; }
+```
+
+**수정 3 — CO 코너 앵커 이중 bucket (`SystemValueLabels.jsx` `pushGroup`):**
+
+```javascript
+// CO 코너 앵커: bottom/top bucket 외 인접 left/right bucket에도 추가
+if (label === "CO") {
+  const atLeft   = Math.abs(x - (-2.25)) < 0.01;
+  const atRight  = Math.abs(x - 82.25)   < 0.01;
+  const atTop    = Math.abs(y - 42.25)   < 0.01;
+  const atBottom = Math.abs(y - (-2.25)) < 0.01;
+  if ((atLeft || atRight) && (atTop || atBottom)) {
+    const sideBucketKey = `${atLeft ? "left" : "right"}:CO`;
+    captionBuckets.get(sideBucketKey)?.points.push(point) ??
+      captionBuckets.set(sideBucketKey, { label, points: [point] });
+  }
+}
+```
+
+---
+
+### 최종 검증 결과
+
+전 트랙 (B2T_L · B2T_R · T2B_L · T2B_R) 검증 완료.
+
+| Mark | 배치 결과 |
+|------|----------|
+| 1쿠션 | 90 이후 외부 공간 (B Space) |
+| 3쿠션 | 90 이전 외부 공간 (A Space) |
+| 4쿠션 측면 | 90 이후/이전 외부 공간 (자체 bucket 기준, CO 강제 정렬 제거) |
+| 5쿠션 | 90 이후 외부 공간 (B Space) |
+| 6쿠션 | 20 이전 외부 공간 (A Space) |
+| 출발값 | 50~60 공간 (코너 앵커 left/right bucket 포함으로 활성화) |
+
+---
+
+### 코드 SSOT
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `domain/systemAxisCaption.ts` | `findBestAlongSequential()` 신규, 비교식 분리, safetyMargin 수정, `alignC4SideCaptionsToCo` 삭제 |
+| `components/table/SystemValueLabels.jsx` | `pushGroup()` CO 코너 앵커 이중 bucket 배정 |
+
+**Build 검증:** `npm run build` exit 0 확인.
+
+---
+
+### 상태
+
+**OPEN-04 종료 — CLOSED**
+
+**SSOT 교차 참조:** `../PROJECT_MASTER_INDEX.md` §Caption Engine (OPEN-04) · §완료 목록
 
 ---
 

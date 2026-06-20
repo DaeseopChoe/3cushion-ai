@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.5  
-Last Updated: 2026-06-11  
+Version: 1.8  
+Last Updated: 2026-06-20  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -15,7 +15,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 ### 신규 세션 온보딩 (Dataset Architecture 포함 시)
 
 1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Phase 1 · §15 Phase 2~3-1)  
+2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Phase 1 · §15 Phase 2~3-1 · §16 운영 검증 조사 · §17 OPEN-05 조사 · §18 OPEN-04 Caption Engine 완료)  
 3. **`SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`** — Dataset Architecture 전용 이관 문서  
 
 ### 전체 문서 계층
@@ -77,7 +77,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 4. **전략 혼합 금지** — `signature = systemId + formulaHash + shotType`; 동일 signature 내에서만 search/merge.
 5. **Recall** — 저장 `sysInputs` 기준; draft에 `outputs.result` 없으면 `buildDraftsFromRecord` 등에서 expr 재실행해 result 채움.
 6. **표기** — UI/데이터는 C1, C3, CO_f … (`1C`, `3C` 역표기 금지).
-7. **저장** — Working: localStorage `positions_dataset`; Published: `dataset/{공략}/{시스템}/positions.json`. **ADMIN Search** → working; **ADMIN Recall · USER Search** → published.
+7. **저장** — Working: localStorage `positions_dataset`; Published: `dataset/{공략}/{시스템}/positions.json`. **ADMIN 로컬DB** → working; **ADMIN Search · USER Search** → published (동일 Published Search).
 
 ### 계산 3계층 (파일 기준)
 
@@ -113,7 +113,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ## Dataset Architecture
 
-**상태:** Phase 1~3-1 완료  
+**상태:** Phase 1~3-1 완료 · **UI 용어 (OPEN-02C~E, 2026-06):** ADMIN **로컬DB** = Local Dataset Search (`positions_dataset`); ADMIN **Search** = USER **Search** = Published Search (`dataset/{공략}/{시스템}/positions.json`). UI에서 Recall 라벨 제거 · published Search active state `isAdminPublishedSearchMatched` · CSS `.published-search-btn`. 내부 handler명(`handlePositionRecall` 등)·profile ID·trace는 2차 정리 예정.  
 **이관 문서:** `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`  
 **월별 로그:** `HISTORY/PROJECT_LOG_2026-06.md` §14 (Phase 1) · §15 (Phase 2~3-1)
 
@@ -121,9 +121,9 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 | 계층 | SSOT | 용도 | 현재 소비자 |
 |------|------|------|-------------|
-| **Working Dataset** | `positions_dataset` (localStorage) | ADMIN 작업·누적 | **ADMIN Search** |
+| **Working Dataset** | `positions_dataset` (localStorage) | ADMIN 작업·누적 | **ADMIN 로컬DB** (UI; profile `adminSearch`) |
 | **Workspace History** | `workspace_history` (localStorage) | SAVE 스냅샷·작업 이력 | History UI (Load / Delete / Export) |
-| **Published Dataset** | `dataset/{공략}/{시스템}/positions.json` | 배포·사용자 검색 | **ADMIN Recall**, **USER Search** |
+| **Published Dataset** | `dataset/{공략}/{시스템}/positions.json` | 배포·사용자 검색 | **ADMIN Search**, **USER Search** (profile `adminStrict` / `userStrict`) |
 
 ### Dataset Export (Phase 1 — 완료)
 
@@ -137,8 +137,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 - `getOrLoadPublishedLeaf(shotType, systemId)` — lazy load + in-memory cache
 - URL SSOT: `domain/datasetPath.ts` → `/dataset/{공략}/{시스템}/positions.json`
-- **ADMIN Recall** → published corpus (`handlePositionRecall`, profile `adminStrict`)
-- Recall URL fallback: 빈 `shotType("")` → `"뒤돌리기"` (`domain/publishedLeafResolve.ts`)
+- **ADMIN Search** (UI; 우측 패널) → published corpus (`handlePositionRecall`, profile `adminStrict`)
+- Published leaf URL fallback: 빈 `shotType("")` → `"뒤돌리기"` (`domain/publishedLeafResolve.ts`)
 
 ### USER Search (Phase 3 — 완료)
 
@@ -151,17 +151,17 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 | Profile | coarsePerBall | totalL1Cap | 용도 |
 |---------|---------------|------------|------|
-| **userStrict** | 2 | 6 | USER Search (permutation, coarse 필수, fallback 없음) |
-| **adminSearch** | 5 | 15 | ADMIN Search — local `positions_dataset` |
-| **adminStrict** | 6 | null | ADMIN Recall · legacy `runPositionRecall` |
+| **userStrict** | 2 | 6 | USER Search · ADMIN Search (published; permutation, coarse 필수) |
+| **adminSearch** | 5 | 15 | ADMIN **로컬DB** (UI) — local `positions_dataset` |
+| **adminStrict** | 6 | null | ADMIN **Search** (UI; published) · legacy `runPositionRecall` |
 
-### Search / Recall / Reset (현재)
+### Search / 로컬DB / Reset (현재 UI 용어)
 
-| 기능 | 데이터 | Profile | 상태 |
-|------|--------|---------|------|
-| ADMIN Search | `positions_dataset` | `adminSearch` | ✅ |
-| ADMIN Recall | Published Dataset | `adminStrict` | ✅ |
-| USER Search | Published Dataset | `userStrict` | ✅ |
+| UI 기능 | 데이터 | Profile | 상태 |
+|---------|--------|---------|------|
+| ADMIN **로컬DB** (Stage rail) | `positions_dataset` | `adminSearch` | ✅ |
+| ADMIN **Search** (우측 패널) | Published Dataset | `adminStrict` | ✅ |
+| USER **Search** | Published Dataset | `userStrict` | ✅ |
 | Reset | 세션 종료 (공·SYS·궤적 유지) | — | 정의만 — 코드 미반영 |
 
 ### 예정
@@ -182,6 +182,44 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - **SYS Overlay**: 메인 렌더는 **`App.jsx` 내 인라인 `SysOverlay`** (교육형 UI). `admin/sys/SysOverlay.tsx`는 메인 트리 미사용.
 - **Render SSOT**: `slotRenderSys`, `resolvedSlotSysValues` / `resolvedSlotBaseSysValues`.
 - **USER 기준값**: 3-Level 토글(보정 / 기준 / 비교), `ImpactLines` dual path.
+
+### Caption Engine (OPEN-04 — 완료)
+
+**OPEN-04 Caption Placement Engine 전면 재설계 완료.**
+
+기존 value 기반 탐색·mark별 예외 처리·track별 하드코딩 배치를 제거하였다.  
+캡션 배치는 숫자 배열 자체를 기준으로 계산하는 **순수 Geometry 기반 엔진**으로 통합하였다.
+
+**배치 우선순위:**
+
+1. A Space — 첫 숫자 이전 공간
+2. B Space — 마지막 숫자 이후 공간
+3. Internal Max Gap — 내부 최대 빈 간격
+
+동률 시 외부 공간(A/B)을 우선 선택한다.
+
+**배치 원칙:**
+
+캡션은 항상 `숫자 + 2grid + 캡션` 또는 `캡션 + 2grid + 숫자` 형태를 유지한다.  
+캡션 자체를 공간 중앙에 두는 것이 아니라 **숫자와의 관계를 기준**으로 배치한다.
+
+**최종 결과:**
+
+| Mark | 결과 |
+|------|------|
+| 1쿠션 | 90 이후 외부 공간 우선 |
+| 3쿠션 | 90 이전 외부 공간 우선 |
+| 4쿠션 측면 | 자체 bucket 기준 계산 (alignC4SideCaptionsToCo 제거) |
+| 5쿠션 | 90 이후 외부 공간 우선 |
+| 6쿠션 | 20 이전 외부 공간 우선 |
+| 출발값 | 코너 앵커 인접 side bucket 포함 → 50~60 공간 사용 |
+
+**코드 SSOT:**
+
+- `domain/systemAxisCaption.ts` — `findBestAlongSequential()`
+- `components/table/SystemValueLabels.jsx` — `pushGroup()` CO 코너 bucket 이중 배정
+
+---
 
 ### HP/T
 
@@ -244,7 +282,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 | 버튼 | 오버레이 | 비고 |
 |------|----------|------|
-| Search / Reset | — | Recall·입력 세션 |
+| **로컬DB** (Stage rail) | — | local `positions_dataset` · profile `adminSearch` |
+| **Search** (우측 패널) | — | published · profile `adminStrict` (= USER Search와 동일 corpus) |
 | S1/S2/S3 | — | slot 전환, hydrate |
 | SYS | `overlayState` SYS | 편집·Apply |
 | HP/T | HPT | 편집 |
@@ -278,6 +317,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | Render SYS | `domain/slotSysResolve.ts` (App: `slotRenderSys`, effective values) |
 | 궤적 | `utils/trajectory/curveTrajectory.ts`, `hooks/useTrajectoryState.ts`, `components/table/ImpactLines.jsx` |
 | Anchors | `domain/anchorLookupEngine.ts`, `domain/anchorCoordinateEngine.ts`, `domain/reflectionEngine.ts` |
+| **Caption Engine** | `domain/systemAxisCaption.ts` (`findBestAlongSequential`), `components/table/SystemValueLabels.jsx` (`pushGroup`) |
 | Admin SYS 식 | `admin/sys/useSysCalculation.ts` |
 | App SYS·궤적 | `utils/systemCalculator.ts`, `utils/trajectorySampleBuilder.ts` |
 | AI 자동 코멘트 | `domain/aiAutoCommentViewModel.ts` |
@@ -319,13 +359,15 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - Modal draggable + viewport clamp
 - Hermite 궤적 baseline, anchors SSOT·canonical persist (2026-05)
 - **Dataset Architecture Phase 1** — Dataset Export, `dataset/{공략}/{시스템}/positions.json`, envelope `schemaVersion: 2`
-- **Dataset Architecture Phase 2** — Published Dataset Loader, ADMIN Recall → published, Recall URL fallback (`publishedLeafResolve`)
+- **Dataset Architecture Phase 2** — Published Dataset Loader, ADMIN Search (published) → published corpus, published leaf URL fallback (`publishedLeafResolve`)
 - **Dataset Architecture Phase 3** — USER Search → published, Search/Recall 토글 제거, carry-over 제거
 - **Dataset Architecture Phase 3-1** — Recall profile 분리 (`userStrict` / `adminSearch` / `adminStrict`)
+- **OPEN-04 Caption Placement Engine** — Geometry 기반 엔진 전면 재설계 (A→B→Gap 순위, safetyMargin 2grid 고정, CO 코너 앵커 이중 bucket, `alignC4SideCaptionsToCo` 제거) — 전 트랙 검증 완료
 
 ### 진행 중
 
-- (없음)
+- 운영 검증 회귀 조사 — §Known Issues / Investigation (2026-06) · `HISTORY/PROJECT_LOG_2026-06.md` §16
+- OPEN-05 ADMIN Recall / LocalDB Trajectory Rehydration — 조사 완료 · Known Issue 유지 · `HISTORY/PROJECT_LOG_2026-06.md` §17
 
 ### 예정
 
@@ -336,11 +378,139 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ---
 
+## Known Issues / Investigation (2026-06)
+
+**기록일:** 2026-06-13 (OPEN-05 갱신: 2026-06-18 · OPEN-04 종료: 2026-06-20)  
+**상세 조사:** `HISTORY/PROJECT_LOG_2026-06.md` §16 · §17 (OPEN-05) · §18 (OPEN-04 완료)
+
+### OPEN-01 USER Search 임팩트 방향 불일치
+
+**상태:** 조사 중
+
+**증상:**
+
+- ADMIN **Search (published)**과 USER Search가 동일 record를 사용해도 임팩트 방향이 다르게 표시되는 사례 존재
+
+**현재 가설:**
+
+- `targetColor`(UI) · `draft.targetBall` · `record.targetBall` 동기화 시점 차이
+- Search apply = draft only; hydrate = 공략 버튼 선택 시
+
+**우선순위:** P0
+
+### OPEN-02 신규 Export 데이터 Search 실패
+
+**상태:** 조사 중
+
+**증상:**
+
+- 신규 export 후 ADMIN Search (published) 및 USER Search에서 조회되지 않는 사례 존재
+
+**현재 가설:**
+
+- Published Dataset Loader · profile (`userStrict` / `adminStrict`) · exact match 조건 · cache stale 중 하나
+
+**우선순위:** P0
+
+### OPEN-03 USER HP/T 버튼 소실
+
+**상태:** 조사 중
+
+**증상:**
+
+- USER UI에서 HP/T 메뉴·진입 경로가 표시되지 않음
+
+**현재 판단:**
+
+- 데이터 정확도 이슈가 아니라 **USER UI HP/T 진입 경로 및 버튼 복구** 문제
+- 후속 작업 명칭: **HP/T 버튼 복구 작업** (「HP/T 데이터 작업」 표현 사용 금지)
+
+**발생 시점:**
+
+- 시스템레슨 메뉴 분리 이후 추정 (`ffe0a26` — §12에서 USER HP/T 의도적 제거 기록과 대조 필요)
+
+**우선순위:** P1
+
+### OPEN-05 — ADMIN Recall / LocalDB Trajectory Rehydration Investigation
+
+**상태:** 조사 완료 · Known Issue 유지
+
+**배경:**
+
+- Dataset Architecture 이후 운영 테스트 중 발견
+- 새로고침 직후 LocalDB 클릭 시 과거 SYS/C1/C3/Trajectory가 표시되는 사례 확인
+- Search 클릭 시 다른 trajectory가 표시되는 사례 확인
+
+**조사 결과:**
+
+1. **recommendedFrom fallback 경로는 제거됨** (OPEN-05A)
+   - 과거 no-match fallback이 원인은 아님
+   - `slot_draft_fallback` 관련 경로는 현재 원인 아님
+
+2. **applied slot 오염 가설 기각** (OPEN-05B)
+   - `applyPositionRecall()`은 applied를 쓰지 않음
+   - recall 결과는 `slot.draft`에 기록
+   - 새로고침 직후 applied는 null 상태
+   - `resolveSlotSysForRender()`는 draft 우선 사용
+
+3. **실제 재생성 경로 확인**
+   - spatial match 성공 → `slot.draft` hydrate → `syncSlotRuntimeAdminAndTrajectory()` → trajectory 재생성
+
+4. **OPEN-05C 안정화 작업**
+   - 수행: mismatch gate 추가 · recall display draft 제거 강화 · clear 직후 trajectory reset 강화 · helper crash 수정 · `flushSync` 적용
+   - 결과: no-match 시 alert 동작 · 백지화 오류 제거 · 일부 recall 경로 정리
+   - **완전 해결 아님** — 아래 현상 잔존
+
+**아직 확인되는 현상:**
+
+- 새로고침 직후 LocalDB 클릭
+- 특정 spatial match 상황
+
+에서 과거 SYS/C1/C3/Trajectory가 표시되는 사례 존재
+
+**현재 판단:**
+
+- trajectory engine 오류로 확정되지 않음
+
+**우선순위:** Known Issue (Low Priority)
+
+**사유:**
+
+- target 선택 시 정상
+- SYS 입력 시 정상
+- 일반 사용자 흐름 영향 낮음
+
+**향후 조사 후보:**
+
+- spatial match 자체
+- hydrate chain
+- `syncSlotRuntimeAdminAndTrajectory`
+- trajectory label source
+- localStorage corpus contamination
+- render memo cache
+
+**상세:** `HISTORY/PROJECT_LOG_2026-06.md` §17
+
+---
+
 ## 다음 작업 우선순위
+
+### P0 — 운영 검증 회귀 (OPEN-01 · OPEN-02)
+
+- USER Search 임팩트 방향: `targetColor` ↔ `draft.targetBall` ↔ `record.targetBall` 동기화 흐름
+- 신규 Export 후 Search 실패: Published Loader · recall profile · cache
 
 ### P0 — trajectory 기반 파생 데이터 생성
 
 - 별도 세션 이관 예정 (interpolation·KD-Tree USER 적용·targetBall 가중은 범위 외)
+
+### P1 — SYS SSOT 정리
+
+- `targetColor` · `draft.targetBall` · `record.targetBall` · render SYS 우선순위 정합
+
+### P1 — HP/T 버튼 복구 작업 (OPEN-03)
+
+- USER UI HP/T 진입 경로·버튼 복구 (데이터 정확도 작업 아님)
 
 ### P1 — Dataset Architecture Phase 4
 
@@ -355,6 +525,11 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 - 학습 흐름: AI → 원 포인트 레슨 → 시스템 레슨 → 실전 공략 (내비만)
 
+### 보류 — OPEN-05 재조사
+
+- 추가 추적 보류 · 우선순위 Low
+- 필요 시 §17·본 절 Known Issues 참고 후 재개
+
 ---
 
 ## 참고 문서
@@ -362,7 +537,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | 문서 | 용도 |
 |------|------|
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
-| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · **Dataset Architecture Phase 1~3-1** (§14·§15) |
+| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
 | `HISTORY/PROJECT_LOG_2026-04.md` | 이전 월 |
 | `HISTORY/HANDOFF_ADMIN_MODAL_TO_USER_DISPLAY_2026-05.md` | ADMIN→USER 표시 핸드오프 |
