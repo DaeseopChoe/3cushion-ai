@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import App from "../App";
-import {
-  LEVEL_CORRECTED,
-  cycleUserBaselineViewLevel,
-} from "../domain/userBaselineDisplayFlags";
+/** @typedef {import("../domain/userDisplayFlags").UserTableDisplayMode} UserTableDisplayMode */
+/** @typedef {import("../domain/userDisplayFlags").TrajectoryCardSource} TrajectoryCardSource */
 
 const STAGE_RATIO = 2.33;
 
@@ -15,7 +13,7 @@ const USER_STRATEGY_PLACEHOLDERS = {
   S3: "공략3",
 };
 const ADMIN_FUNC_IDS = ["SYS", "HP/T", "STR", "AI"];
-const USER_FUNC_IDS = ["AI", "BASELINE", "SYSTEM_LESSON", "HISTORY"];
+const USER_FUNC_IDS = ["AI", "TRAJECTORY", "SYSTEM_VALUES", "SYSTEM_LESSON", "HP/T"];
 
 const ADMIN_SHOT_BUTTONS = [
   { id: "S1", label: "S1", type: "shot" },
@@ -31,9 +29,10 @@ const ADMIN_FUNC_BUTTONS = [
 /** USER info layer labels (ids unchanged for trigger compatibility where mapped). */
 const USER_FUNC_BUTTONS = [
   { id: "AI", label: "AI", type: "info" },
-  { id: "BASELINE", label: "기준값", type: "info" },
+  { id: "TRAJECTORY", label: "동선분석", type: "info" },
+  { id: "SYSTEM_VALUES", label: "시스템값", type: "info" },
   { id: "SYSTEM_LESSON", label: "시스템레슨", type: "info" },
-  { id: "HISTORY", label: "History", type: "info" },
+  { id: "HP/T", label: "두께/타점", type: "info" },
 ];
 
 const STRATEGY_DISPLAY_SUFFIX_RE = /[①②③]$/;
@@ -241,42 +240,6 @@ function computeStageMetrics(vw, vh, appMode) {
     USER_STAGE_MARGIN_LEFT: isUser ? stageW * USER_LAYOUT.stageMarginLeftRatio : 0,
   };
 
-  // #region agent log
-  if (isUser) {
-    fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "de9926" },
-      body: JSON.stringify({
-        sessionId: "de9926",
-        runId: "width-trace",
-        hypothesisId: "H2_H4",
-        location: "Stage.jsx:computeStageMetrics",
-        message: "user_rail_metrics_computed",
-        timestamp: Date.now(),
-        data: {
-          vw,
-          vh,
-          buttonRatioScale: USER_LAYOUT.buttonRatioScale,
-          buttonRatioDesired,
-          buttonRatioFinal: buttonRatio,
-          leftPadRatio,
-          centerPadRatio,
-          rightPadRatio,
-          tableRatioFinal: tableRatio,
-          unit: UNIT,
-          BUTTON_W: metricsOut.BUTTON_W,
-          stageW: metricsOut.stageW,
-          stageH: metricsOut.stageH,
-          stageW_try,
-          overflowBranch: stageW_try > vw,
-          runId: "compact-retune-verify",
-          BUTTON_HEIGHT: metricsOut.BUTTON_HEIGHT,
-          BUTTON_FONT: metricsOut.BUTTON_FONT,
-        },
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
 
   return metricsOut;
 }
@@ -343,10 +306,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const userSearchHandlerRef = useRef(null);
   const userSearchResetHandlerRef = useRef(null);
   const adminSearchHandlerRef = useRef(null);
-  const adminSearchResetHandlerRef = useRef(null);
   const userStrategySlotPickRef = useRef(null);
-  const [userSearchButtonMode, setUserSearchButtonMode] = useState("search");
-  const [adminSearchButtonMode, setAdminSearchButtonMode] = useState("search");
   const userRailActions = useMemo(() => ({}), []);
   const [viewport, setViewport] = useState({ vw: 0, vh: 0 });
   const [currentButtonId, setCurrentButtonId] = useState("S1");
@@ -355,13 +315,15 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const [appMode, setAppMode] = useState("USER");
   const [strategyButtons, setStrategyButtons] = useState([]);
   const [systemControlsAvailable, setSystemControlsAvailable] = useState(false);
-  const [userBaselineViewLevel, setUserBaselineViewLevel] = useState(
-    /** @type {import("../domain/userBaselineDisplayFlags").UserBaselineViewLevel} */ (
-      LEVEL_CORRECTED
-    )
+  const [userTableDisplayMode, setUserTableDisplayMode] = useState(
+    /** @type {UserTableDisplayMode} */ ("default")
   );
-  const resetUserBaselineViewLevel = useCallback(() => {
-    setUserBaselineViewLevel(LEVEL_CORRECTED);
+  const [trajectoryCardSource, setTrajectoryCardSource] = useState(
+    /** @type {TrajectoryCardSource} */ ("baseline")
+  );
+  const resetUserTableDisplayMode = useCallback(() => {
+    setUserTableDisplayMode("default");
+    setTrajectoryCardSource("baseline");
   }, []);
 
   useEffect(() => {
@@ -373,119 +335,6 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
     return () => window.removeEventListener("resize", calc);
   }, []);
 
-  // #region agent log
-  useEffect(() => {
-    if (appMode !== "USER" || !viewport.vw || !viewport.vh) return;
-    const metricsNow = computeStageMetrics(viewport.vw, viewport.vh, appMode);
-    const raf = requestAnimationFrame(() => {
-      const rail = document.querySelector('[data-user-rail="1"]');
-      const railRect = rail?.getBoundingClientRect();
-      const railComputed = rail ? window.getComputedStyle(rail) : null;
-      const stageInner = document.querySelector('[data-stage-inner="1"]');
-      const stageInnerRect = stageInner?.getBoundingClientRect();
-      const stageInnerCs = stageInner ? window.getComputedStyle(stageInner) : null;
-      const rootScale = stageInnerCs?.transform ?? "none";
-
-      const measureButtonDetail = (btn) => {
-        const rect = btn.getBoundingClientRect();
-        const cs = window.getComputedStyle(btn);
-        const parent = btn.parentElement;
-        const parentRect = parent?.getBoundingClientRect();
-        const parentCs = parent ? window.getComputedStyle(parent) : null;
-        const range = document.createRange();
-        range.selectNodeContents(btn);
-        const textRect = range.getBoundingClientRect();
-        const padL = parseFloat(cs.paddingLeft) || 0;
-        const padR = parseFloat(cs.paddingRight) || 0;
-        const borderL = parseFloat(cs.borderLeftWidth) || 0;
-        const borderR = parseFloat(cs.borderRightWidth) || 0;
-        const availableTextWidth = rect.width - padL - padR - borderL - borderR;
-        return {
-          label: btn.textContent?.trim(),
-          dataStageBuild: btn.getAttribute("data-stage-build"),
-          buttonRectWidth: Math.round(rect.width * 100) / 100,
-          textRectWidth: Math.round(textRect.width * 100) / 100,
-          availableTextWidth: Math.round(availableTextWidth * 100) / 100,
-          paddingLeft: padL,
-          paddingRight: padR,
-          fontSize: cs.fontSize,
-          fontWeight: cs.fontWeight,
-          whiteSpace: cs.whiteSpace,
-          overflow: cs.overflow,
-          parentWidth: parentRect ? Math.round(parentRect.width * 100) / 100 : null,
-          parentComputedWidth: parentCs?.width ?? null,
-          computedWidth: cs.width,
-          inlineWidth: btn.style.width || null,
-          flexShrink: cs.flexShrink,
-          transform: cs.transform,
-          boxSizing: cs.boxSizing,
-        };
-      };
-
-      const buttons = rail ? [...rail.querySelectorAll("button")] : [];
-      const hptBtn =
-        buttons.find((b) => b.textContent?.trim() === "두께/타점") ?? null;
-      const hptDetail = hptBtn ? measureButtonDetail(hptBtn) : null;
-      const padXJs = Math.max(6, metricsNow.BUTTON_W * 0.04);
-      const sampleLabels = ["Search", "두께/타점", "AI", "기준선", "History"];
-      const buttonSamples = buttons
-        .filter((btn) => sampleLabels.includes(btn.textContent?.trim() ?? ""))
-        .map(measureButtonDetail);
-
-      const searchBtn = buttons.find((b) => b.textContent?.trim() === "Search") ?? null;
-      const searchRect = searchBtn?.getBoundingClientRect();
-      const searchVisible =
-        !!searchRect &&
-        searchRect.top >= 0 &&
-        searchRect.bottom <= window.innerHeight &&
-        searchRect.height > 0;
-
-      fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "de9926" },
-        body: JSON.stringify({
-          sessionId: "de9926",
-          runId: "compact-retune-verify",
-          hypothesisId: "H1_H6",
-          location: "Stage.jsx:domMeasureEffect",
-          message: "user_rail_compact_trace",
-          timestamp: Date.now(),
-          data: {
-            stageBuildId: STAGE_BUILD_ID,
-            railDataBuild: rail?.getAttribute("data-stage-build") ?? null,
-            vw: viewport.vw,
-            vh: viewport.vh,
-            devicePixelRatio: window.devicePixelRatio,
-            visualViewportScale: window.visualViewport?.scale ?? null,
-            BUTTON_W_js: metricsNow.BUTTON_W,
-            BUTTON_HEIGHT_js: metricsNow.BUTTON_HEIGHT,
-            USER_BTN_PAD_X_js: padXJs,
-            BUTTON_FONT_js: metricsNow.BUTTON_FONT,
-            buttonRatioScale: USER_LAYOUT.buttonRatioScale,
-            buttonRatioFinal: metricsNow.buttonRatioFinal,
-            stageW_js: metricsNow.stageW,
-            stageInnerRectW: stageInnerRect ? Math.round(stageInnerRect.width * 100) / 100 : null,
-            stageTransform: rootScale,
-            railRectW: railRect ? Math.round(railRect.width * 100) / 100 : null,
-            railComputedWidth: railComputed?.width ?? null,
-            railClientWidth: rail?.clientWidth ?? null,
-            railOffsetWidth: rail?.offsetWidth ?? null,
-            railScrollHeight: rail?.scrollHeight ?? null,
-            railClientHeight: rail?.clientHeight ?? null,
-            railHasVerticalScroll: rail ? rail.scrollHeight > rail.clientHeight : null,
-            searchButtonVisible: searchVisible,
-            searchButtonTop: searchRect ? Math.round(searchRect.top * 100) / 100 : null,
-            hptDetail,
-            buttonSamples,
-            duplicateRailCount: document.querySelectorAll('[data-user-rail="1"]').length,
-            duplicateStageInnerCount: document.querySelectorAll('[data-stage-inner="1"]').length,
-          },
-        }),
-      }).catch(() => {});
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [appMode, viewport.vw, viewport.vh]);
-  // #endregion
 
   const { vw, vh } = viewport;
   if (!vw || !vh) return null;
@@ -529,17 +378,21 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
       };
     })
   );
-  const STRATEGY_BUTTON_FONT = BUTTON_FONT * USER_LAYOUT.strategyFontScale;
+  const USER_RAIL_BUTTON_FONT = BUTTON_FONT * 0.88;
+  const USER_RAIL_BUTTON_LINE_HEIGHT = 1.15;
+  const STRATEGY_BUTTON_FONT = USER_RAIL_BUTTON_FONT;
   const STRATEGY_TWO_LINE_MAX_HEIGHT =
-    STRATEGY_BUTTON_FONT * USER_LAYOUT.strategyLineHeight * 2 + USER_STRATEGY_PAD_Y * 2;
+    BUTTON_FONT * USER_LAYOUT.strategyFontScale * USER_LAYOUT.strategyLineHeight * 2 +
+    USER_STRATEGY_PAD_Y * 2;
 
   const userCompactBtnStyle = {
     width: "100%",
     minHeight: BUTTON_HEIGHT,
     height: "auto",
     flexShrink: 0,
-    fontSize: BUTTON_FONT,
+    fontSize: USER_RAIL_BUTTON_FONT,
     fontWeight: "600",
+    lineHeight: USER_RAIL_BUTTON_LINE_HEIGHT,
     boxSizing: "border-box",
     borderRadius: "6px",
     display: "flex",
@@ -552,7 +405,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
     ...userCompactBtnStyle,
     padding: `${USER_BTN_PAD_Y}px ${USER_BTN_PAD_X}px`,
     whiteSpace: "nowrap",
-    lineHeight: 1.15,
+    lineHeight: USER_RAIL_BUTTON_LINE_HEIGHT,
   };
 
   const userStrategyBtnStyle = {
@@ -571,7 +424,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
     textAlign: "center",
     fontWeight: "600",
     whiteSpace: "normal",
-    lineHeight: USER_LAYOUT.strategyLineHeight,
+    lineHeight: USER_RAIL_BUTTON_LINE_HEIGHT,
     wordBreak: "keep-all",
     overflow: "hidden",
   };
@@ -610,7 +463,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const getButtonColor = (id, isSlotSelected, isFuncSelected) => {
     if (id === "SEARCH") return "#4f46e5";
     if (id === "AI") return isFuncSelected ? "#c2410c" : "#ea580c";
-    if (["SYS", "HP/T", "STR", "BASELINE", "SYSVAL", "HISTORY", "SYSTEM_LESSON"].includes(id)) {
+    if (["SYS", "HP/T", "STR", "TRAJECTORY", "SYSTEM_VALUES", "SYSVAL", "HISTORY", "SYSTEM_LESSON"].includes(id)) {
       return isFuncSelected ? "#d97706" : "#f59e0b";
     }
     return isSlotSelected ? "#047857" : "#10b981";
@@ -637,12 +490,8 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         type="button"
         data-stage-build={STAGE_BUILD_ID}
         data-user-info-btn="SEARCH"
-        title={adminSearchButtonMode === "reset" ? "입력 세션 종료" : "Recall 검색 · 입력 시작"}
+        title="로컬 작업 DB 검색 (positions_dataset)"
         onClick={() => {
-          if (adminSearchButtonMode === "reset") {
-            adminSearchResetHandlerRef.current?.();
-            return;
-          }
           adminSearchHandlerRef.current?.();
         }}
         style={{
@@ -662,7 +511,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
           boxSizing: "border-box",
         }}
       >
-        {adminSearchButtonMode === "reset" ? "Reset" : "Search"}
+        로컬DB
       </button>
       {adminButtons.map(({ id, label, type }) => {
         const isShotButton = type === "shot";
@@ -725,17 +574,23 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   );
 
   const renderUserFuncButton = ({ id, label }) => {
-    const isGuideToggle = id === "BASELINE";
+    const isTrajectoryBtn = id === "TRAJECTORY";
+    const isSystemValuesBtn = id === "SYSTEM_VALUES";
+    const isDisplayModeBtn = isTrajectoryBtn || isSystemValuesBtn;
     const isHistoryButton = id === "HISTORY";
     const isFuncSelected =
       USER_FUNC_IDS.includes(id) && currentButtonId === id;
 
-    const baselineBtnBackground = isGuideToggle
-      ? userBaselineViewLevel === 2
-        ? "#ea580c"
-        : userBaselineViewLevel === 1
-          ? "#eab308"
-          : getButtonColor(id, false, false)
+    const displayModeActive =
+      (isTrajectoryBtn && userTableDisplayMode === "trajectory") ||
+      (isSystemValuesBtn && userTableDisplayMode === "systemValues");
+
+    const btnBackground = isDisplayModeBtn
+      ? displayModeActive
+        ? isTrajectoryBtn
+          ? "#0ea5e9"
+          : "#8b5cf6"
+        : getButtonColor(id, false, false)
       : getButtonColor(id, false, isFuncSelected);
 
     return (
@@ -744,26 +599,32 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         type="button"
         data-stage-build={STAGE_BUILD_ID}
         data-user-info-btn={id}
-        data-user-baseline-level={isGuideToggle ? userBaselineViewLevel : undefined}
+        data-user-display-mode={
+          isDisplayModeBtn ? userTableDisplayMode : undefined
+        }
         className={
           [
-            isGuideToggle ? "user-baseline-toggle-btn" : "",
+            isDisplayModeBtn ? "user-display-mode-btn" : "",
             id === "SYSTEM_LESSON" ? "user-rail-btn--system-lesson" : "",
           ]
             .filter(Boolean)
             .join(" ") || undefined
         }
         title={
-          isGuideToggle
-            ? "기준값 표시 (1단계: 보정 / 2단계: 기준 / 3단계: 비교)"
-            : label
+          isTrajectoryBtn
+            ? "동선분석 — 기준/보정 궤적과 계산값"
+            : isSystemValuesBtn
+              ? "시스템값 — 레일·프레임 눈금 학습"
+              : label
         }
         aria-label={label}
-        aria-pressed={isFuncSelected ? true : undefined}
+        aria-pressed={isDisplayModeBtn ? displayModeActive : isFuncSelected ? true : undefined}
         onClick={() => {
-          if (isGuideToggle) {
-            setUserBaselineViewLevel((prev) => cycleUserBaselineViewLevel(prev));
-            setCurrentButtonId("BASELINE");
+          if (isTrajectoryBtn) {
+            setUserTableDisplayMode((prev) =>
+              prev === "trajectory" ? "default" : "trajectory"
+            );
+            setCurrentButtonId("TRAJECTORY");
             (
               onCloseUserOverlay ??
               userRailActions.dismissOverlayPanel ??
@@ -771,7 +632,19 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             )?.();
             return;
           }
-          resetUserBaselineViewLevel();
+          if (isSystemValuesBtn) {
+            setUserTableDisplayMode((prev) =>
+              prev === "systemValues" ? "default" : "systemValues"
+            );
+            setCurrentButtonId("SYSTEM_VALUES");
+            (
+              onCloseUserOverlay ??
+              userRailActions.dismissOverlayPanel ??
+              userRailActions.closeOverlay
+            )?.();
+            return;
+          }
+          resetUserTableDisplayMode();
           setCurrentButtonId(id);
           if (isHistoryButton) {
             (onOpenHistory ?? userRailActions.openHistory)?.();
@@ -780,32 +653,13 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         }}
         style={{
           ...userInfoBtnStyle,
-          ...(id === "SYSTEM_LESSON" ? { fontSize: BUTTON_FONT * 0.88 } : {}),
-          background: baselineBtnBackground,
-          color: isGuideToggle && userBaselineViewLevel === 1 ? "#1f2937" : "#ffffff",
-          border: isFuncSelected ? "3px solid #fff" : "none",
+          background: btnBackground,
+          color: "#ffffff",
+          border: isFuncSelected || displayModeActive ? "3px solid #fff" : "none",
           cursor: "pointer",
         }}
       >
-        {isGuideToggle ? (
-          <span className="user-baseline-toggle-btn__inner">
-            <span className="user-baseline-level-dots" aria-hidden="true">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className={
-                    i === userBaselineViewLevel
-                      ? "user-baseline-level-dot user-baseline-level-dot--active"
-                      : "user-baseline-level-dot"
-                  }
-                />
-              ))}
-            </span>
-            <span className="user-baseline-toggle-btn__label">{label}</span>
-          </span>
-        ) : (
-          label
-        )}
+        {label}
       </button>
     );
   };
@@ -840,30 +694,9 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             type="button"
             data-stage-build={STAGE_BUILD_ID}
             data-user-info-btn="SEARCH"
-            title={userSearchButtonMode === "reset" ? "검색 결과 초기화" : "공략 검색"}
+            title="공략 검색"
             onClick={() => {
-              resetUserBaselineViewLevel();
-              if (userSearchButtonMode === "reset") {
-                userSearchResetHandlerRef.current?.();
-                return;
-              }
-              // #region agent log
-              fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-Debug-Session-Id": "180f59",
-                },
-                body: JSON.stringify({
-                  sessionId: "180f59",
-                  location: "Stage.jsx:USER_SEARCH_CLICK",
-                  message: "STAGE_USER_SEARCH_CLICK",
-                  hypothesisId: "TRACE",
-                  timestamp: Date.now(),
-                  data: { activeSlot, currentButtonId },
-                }),
-              }).catch(() => {});
-              // #endregion
+              resetUserTableDisplayMode();
               userSearchHandlerRef.current?.();
               onSearchStrategies?.();
             }}
@@ -875,10 +708,10 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
               border: "none",
               cursor: "pointer",
               whiteSpace: "nowrap",
-              lineHeight: 1.15,
+              lineHeight: USER_RAIL_BUTTON_LINE_HEIGHT,
             }}
           >
-            {userSearchButtonMode === "reset" ? "Reset" : "Search"}
+            Search
           </button>
         </div>
 
@@ -901,24 +734,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
                 }
                 onClick={() => {
                   if (!isEnabled) return;
-                  resetUserBaselineViewLevel();
-                  // #region agent log
-                  fetch("http://127.0.0.1:7608/ingest/d3b6e5e7-f840-44d2-9550-b3dacd8b3ccf", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "X-Debug-Session-Id": "180f59",
-                    },
-                    body: JSON.stringify({
-                      sessionId: "180f59",
-                      location: "Stage.jsx:USER_STRATEGY_CLICK",
-                      message: "STAGE_USER_STRATEGY_CLICK",
-                      hypothesisId: "TRACE",
-                      timestamp: Date.now(),
-                      data: { slotId: id, activeSlot, currentButtonId },
-                    }),
-                  }).catch(() => {});
-                  // #endregion
+                  resetUserTableDisplayMode();
                   userStrategySlotPickRef.current?.(id);
                   setCurrentButtonId(id);
                 }}
@@ -991,10 +807,12 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         >
           <App
             currentButtonId={currentButtonId}
-            userBaselineViewLevel={userBaselineViewLevel}
+            userTableDisplayMode={userTableDisplayMode}
+            trajectoryCardSource={trajectoryCardSource}
+            onTrajectoryCardSourceChange={setTrajectoryCardSource}
             onActiveSlotChange={setActiveSlot}
             onFuncOverlayClose={() => {
-              resetUserBaselineViewLevel();
+              resetUserTableDisplayMode();
               setCurrentButtonId(activeSlot);
             }}
             onDirtySlotsChange={setDirtySlotIds}
@@ -1007,15 +825,9 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             onUserSearchResetRegister={(fn) => {
               userSearchResetHandlerRef.current = fn ?? null;
             }}
-            onUserSearchButtonModeChange={setUserSearchButtonMode}
             onAdminSearchRegister={(fn) => {
               adminSearchHandlerRef.current = fn ?? null;
             }}
-            onAdminSearchResetRegister={(fn) => {
-              adminSearchResetHandlerRef.current = fn ?? null;
-            }}
-            onAdminSearchButtonModeChange={setAdminSearchButtonMode}
-            onAdminResetRailSelection={() => setCurrentButtonId("SEARCH")}
             onUserFuncButtonSelect={setCurrentButtonId}
             onUserStrategySlotPickRegister={(fn) => {
               userStrategySlotPickRef.current = fn ?? null;

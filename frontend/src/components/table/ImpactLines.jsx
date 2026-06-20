@@ -173,6 +173,9 @@ export default function ImpactLines({
   /** true: slide/draw 곡선 변형 활성 — 빨간 trajectory + CO–C1 보조선 등 */
   curveDeformActive = true,
   showBaseLine = false,
+  /** Level 3: corrected path 위에 baseline reference polyline 추가 */
+  showBaselineReferencePath = false,
+  baselineReferencePath = null,
   /** 픽셀 좌표 { x1, y1, x2, y2 } — 전달 시 베이스 라인으로 우선 렌더 */
   guideLineNode = null,
   /** SVG polyline points 문자열(픽셀) — guideLineNode 없을 때 선택 */
@@ -191,6 +194,17 @@ export default function ImpactLines({
     }
     return parts.join(" ");
   }, [cushionPath, scale, tableH, padding]);
+
+  const baselineReferencePolylinePoints = useMemo(() => {
+    if (!showBaselineReferencePath || !baselineReferencePath?.length) return "";
+    const parts = [];
+    for (const pt of baselineReferencePath) {
+      if (pt == null) break;
+      const p = toPx(pt, scale, tableH);
+      parts.push(`${p.x + padding},${p.y + padding}`);
+    }
+    return parts.join(" ");
+  }, [showBaselineReferencePath, baselineReferencePath, scale, tableH, padding]);
 
   const basePoints = [];
   if (anchorsBase) {
@@ -225,14 +239,8 @@ export default function ImpactLines({
 
   let basePolylinePointsFromAnchors = null;
   if (typeof cushionPathAttrBase === "string" && cushionPathAttrBase.trim()) {
+    /** App.jsx가 pathEndIndex까지 완전한 Rg 경로를 전달 — C4 클리핑 append 생략 */
     basePolylinePointsFromAnchors = cushionPathAttrBase.trim();
-    const p1 = anchorToRgPoint(anchorsBase?.["C3"]);
-    const p2 = anchorToRgPoint(anchorsBase?.["C4"]);
-    const clippedRg = p1 && p2 ? intersectWithTableBounds(p1, p2) : null;
-    if (clippedRg) {
-      const p = toPx(clippedRg, scale, tableH);
-      basePolylinePointsFromAnchors += ` ${p.x + padding},${p.y + padding}`;
-    }
   } else if (baseRgPoints.length >= 2) {
     basePolylinePointsFromAnchors = baseRgPoints
       .map((pt) => {
@@ -302,11 +310,6 @@ export default function ImpactLines({
     curveDeformActive && showBaseLine && hasGuideLine;
   const showAnchorsBaselinePolyline =
     curveDeformActive && showBaseLine && !hasGuideLine && basePolylineValid;
-
-  if (import.meta.env.DEV) {
-    console.log("[DRAW BASELINE]", guideLineNode);
-    console.log("[DRAW CURVE]", cushionPath?.length);
-  }
 
   const pathSplit = useMemo(() => {
     if (!impactSplitRg || !Array.isArray(cushionPath) || cushionPath.length < 2) {
@@ -397,46 +400,6 @@ export default function ImpactLines({
       isStraight = true;
     }
 
-    console.log("[DRAW POINTS]", {
-      length: cushionPath?.length,
-      points: Array.isArray(cushionPath) ? cushionPath.slice(0, 5) : cushionPath,
-    });
-    console.log("[STRAIGHT CHECK]", {
-      deviation,
-      eps: STRAIGHT_EPS,
-      isStraight,
-    });
-    console.log("[POINTS STRING]", {
-      preview: usedEffectivePolylinePoints.slice(0, 160),
-      lengthChars: usedEffectivePolylinePoints.length,
-    });
-
-    // #region agent log
-    fetch("http://127.0.0.1:7698/ingest/05c8c604-4ee9-4069-8fc1-5ac9e58f8454", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "6a4663",
-      },
-      body: JSON.stringify({
-        sessionId: "6a4663",
-        location: "ImpactLines.jsx:redPolyline:beforeRender",
-        message: "red_polyline_preview",
-        hypothesisId: "H-C",
-        data: {
-          cushionPathLen: cushionPath?.length,
-          deviation,
-          eps: STRAIGHT_EPS,
-          isStraight,
-          isCurvePath: cushionPath.length > 2 && !isStraightLine(rgPoints),
-          pointsStringLen: usedEffectivePolylinePoints.length,
-          curveDeformActive,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     if (!curveDeformActive) {
       const whiteStrokeWidth = showBaseLine ? 1 : 2;
       return (
@@ -508,6 +471,17 @@ export default function ImpactLines({
           strokeDasharray="none"
           opacity={0.9}
           fill="none"
+          pointerEvents="none"
+        />
+      )}
+
+      {showBaselineReferencePath && baselineReferencePolylinePoints && (
+        <polyline
+          points={baselineReferencePolylinePoints}
+          stroke="#ffffff"
+          strokeWidth={1}
+          fill="none"
+          opacity={0.85}
           pointerEvents="none"
         />
       )}

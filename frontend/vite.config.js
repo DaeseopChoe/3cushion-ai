@@ -4,44 +4,51 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 import fs from "node:fs";
+import { cpSync } from "node:fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const REPO_DATASET_DIR = path.resolve(__dirname, "../dataset");
 
-/** DEV: browser debug fetch → workspace NDJSON (debug-6a4663.log) for Cursor */
-function debugIngestToWorkspaceLog() {
+/** Serve repo-root dataset/ at /dataset (dev) and copy into dist on build. */
+function publishedDatasetStatic() {
+  const mimeFor = (filePath) => {
+    if (filePath.endsWith(".json")) return "application/json; charset=utf-8";
+    return "application/octet-stream";
+  };
+
   return {
-    name: "debug-ingest-ndjson",
+    name: "published-dataset-static",
     configureServer(server) {
-      server.middlewares.use("/__debug/ingest", (req, res, next) => {
-        if (req.method !== "POST") {
-          return next();
-        }
-        console.log("INGEST HIT");
-        const chunks = [];
-        req.on("data", (c) => chunks.push(c));
-        req.on("end", () => {
-          const body = Buffer.concat(chunks).toString("utf8").trim();
-          const logFile = path.resolve(__dirname, "../debug-6a4663.log");
-          try {
-            // 재시작 시에도 기존 로그 유지: truncate 금지. 없을 때만 append로 빈 파일 생성
-            if (!fs.existsSync(logFile)) {
-              fs.appendFileSync(logFile, "", "utf8");
-            }
-            if (body) fs.appendFileSync(logFile, body + "\n", "utf8");
-          } catch (e) {
-            console.warn("[debug-ingest] write failed", e);
-          }
-          res.statusCode = 204;
+      server.middlewares.use("/dataset", (req, res, next) => {
+        if (!req.url) return next();
+        const rel = decodeURIComponent(req.url.split("?")[0] || "/");
+        const normalized = path.normalize(rel).replace(/^(\.\.[/\\])+/, "");
+        const filePath = path.join(REPO_DATASET_DIR, normalized);
+        if (!filePath.startsWith(REPO_DATASET_DIR)) {
+          res.statusCode = 403;
           res.end();
-        });
+          return;
+        }
+        if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+          res.statusCode = 404;
+          res.end();
+          return;
+        }
+        res.setHeader("Content-Type", mimeFor(filePath));
+        res.end(fs.readFileSync(filePath));
       });
+    },
+    closeBundle() {
+      if (!fs.existsSync(REPO_DATASET_DIR)) return;
+      const outDir = path.resolve(__dirname, "dist/dataset");
+      cpSync(REPO_DATASET_DIR, outDir, { recursive: true });
     },
   };
 }
 
 export default defineConfig({
-  plugins: [react(), debugIngestToWorkspaceLog()],
+  plugins: [react(), publishedDatasetStatic()],
 
   resolve: {
     alias: {
