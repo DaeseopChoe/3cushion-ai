@@ -1,9 +1,9 @@
 # PROJECT LOG – 2026-06
 
-Version: v1.4  
+Version: v1.5  
 Created: 2026-06-02  
 Last Updated: 2026-06-22  
-Scope: AI 코멘트 SSOT · USER AI 패널 · SYSTEM_LESSON P0 · Dataset Architecture Phase 2~3-1 · 운영 검증 회귀 조사 · OPEN-05 조사 및 안정화 · OPEN-04 Caption Placement Engine · USER Overlay Scale · 동선분석 · 시스템값 라벨  
+Scope: AI 코멘트 SSOT · USER AI 패널 · SYSTEM_LESSON P0 · Dataset Architecture Phase 2~3-1 · 운영 검증 회귀 조사 · OPEN-05 · OPEN-04 Caption · USER Overlay · Trajectory Display Cap  
 
 이전 월 로그: `PROJECT_LOG_2026-05.md`  
 현재 상태 SSOT: `../PROJECT_MASTER_INDEX.md`
@@ -953,6 +953,55 @@ frontend/src/components/Stage.jsx                 (USER_FUNC_IDS: TRAJECTORY, SY
 
 - `../PROJECT_MASTER_INDEX.md` — §USER 동선분석 · §USER 시스템값 라벨 · §HP/T · §USER Overlay · OPEN-03 CLOSED
 - Overlay Scale Layer 통합 (Phase 2) — **예정·보류** (§19.1)
+
+---
+
+## 20. Trajectory Display Cap — same-rail segment 차단 (2026-06-22)
+
+**일자:** 2026-06-22  
+**범위:** USER 동선분석 baseline/corrected 궤적·라벨 표시 depth · **Display Layer only**  
+**계산 엔진:** 변경 없음 (`buildSlotEffectiveRenderSysValues` · C5/C6 sync 유지)
+
+### 20.1 배경
+
+- baseline `pathNodesBase`가 있음에도 `pathEndIndexBase = pathEndIndex`(corrected 공유)로 corrected 세컨드볼 판정을 따름
+- C4=C5=C16 등 동일 값 sync 시 C4→C5→C6 **동일 rail 연속 segment** → 비물리 궤적·역행 polyline (기준값 탭 두드러짐)
+
+### 20.2 정책
+
+| 규칙 | 내용 |
+|------|------|
+| 허용 | CO·C3·C6 모두 BOTTOM 등 **비연속** 동일 rail |
+| 금지 | 연속 segment `node[i]→node[i+1]` 양 끝 **동일 rail** |
+| 종료 | invalid segment **직전 node**까지 path·label 유지 |
+| cap | `endIndex = min(sameRailCap, secondBallCap, chainBreakCap)` |
+| baseline/corrected | **독립** `resolveTrajectoryDisplayCap(pathNodes, secondPoint)` |
+
+**rail 판정:** `reflectionEngine.detectRail`  
+**코너 보조:** `distance(a,b) < 0.75` Rg → same-rail degenerate
+
+### 20.3 코드 SSOT
+
+| 파일 | 역할 |
+|------|------|
+| `domain/trajectoryPathDisplayPolicy.ts` | `computeSameRailCapEndIndex`, `computeSecondBallCapEndIndex`, `resolveTrajectoryDisplayCap`, `slicePathNodesToCap` |
+| `domain/trajectoryPathDisplayPolicy.test.ts` | Case 1~4 unit test (7 pass) |
+| `App.jsx` | capCorrected/capBaseline 적용 · `visibleKeysForLabels` 동기화 · `pathEndIndexBase=pathEndIndex` **제거** |
+
+**미변경:** `ImpactLines.jsx`, `SystemValueLabels.jsx` (cap된 path/keys 수신), SYS 엔진, `logic.json`
+
+### 20.4 검증
+
+| Case | 결과 |
+|------|------|
+| baseline C4=C5=C16 same-rail | C4까지 · C5/C6 label/path 없음 |
+| corrected C4 LEFT → C5 TOP → C6 BOTTOM | C6까지 유지 |
+| CO/C3/C6 non-consecutive BOTTOM | 허용 |
+| baseline 독립 second-ball hit | chain 유효 시 C6까지 가능 |
+| 기준값 ↔ 보정값 탭 | path depth = label depth |
+| `npm run build` | exit 0 |
+
+**SSOT 교차 참조:** `../PROJECT_MASTER_INDEX.md` §USER 동선분석 · Trajectory Display Cap
 
 ---
 

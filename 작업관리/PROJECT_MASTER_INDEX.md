@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.9  
+Version: 1.10  
 Last Updated: 2026-06-22  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
@@ -15,7 +15,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 ### 신규 세션 온보딩 (Dataset Architecture 포함 시)
 
 1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Phase 1 · §15 Phase 2~3-1 · §16 운영 검증 조사 · §17 OPEN-05 조사 · §18 OPEN-04 Caption Engine · §19 USER Overlay 반응형·동선분석·시스템값 라벨)  
+2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Phase 1 · §15 Phase 2~3-1 · §16 운영 검증 조사 · §17 OPEN-05 조사 · §18 OPEN-04 Caption Engine · §19 USER Overlay · §20 Trajectory Display Cap)  
 3. **`SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`** — Dataset Architecture 전용 이관 문서  
 
 ### 전체 문서 계층
@@ -289,6 +289,12 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - **스타일**: 패널 **완전 투명** (`background: transparent`, border/shadow 없음) · 탭만 자체 배경
 - **가독성**: 본문 26px · 라벨 24px · `--overlay-text-shadow` · `--overlay-scale` (tablet 0.72 · phone landscape 0.44)
 - **ViewModel**: `domain/userTrajectoryCardViewModel.ts` — 5½ 우선; `title` 필드는 VM에 잔존, UI 미표시
+- **Trajectory Display Cap** (2026-06-22): `domain/trajectoryPathDisplayPolicy.ts` — baseline/corrected **독립** path depth
+  - `endIndex = min(sameRailCap, secondBallCap, chainBreakCap)`
+  - 연속 segment `(node[i]→node[i+1])` 양 끝 **동일 rail** → 해당 segment부터 path·label **미표시** (CO–C3–C6 비연속 동일 rail은 허용)
+  - rail 판정: `reflectionEngine.detectRail` · 코너 degenerate: `distance < 0.75` Rg
+  - `ImpactLines` / `SystemValueLabels` — cap된 path·`visibleKeysForLabels` 공유 (`App.jsx`)
+  - **계산 엔진·C5/C6 sync 무변경** (표시 레이어만)
 - **코드**: `components/user/UserTrajectoryInfoCard.jsx`, `.user-trajectory-info-card` (`index.css`)
 
 ### USER 시스템값 라벨 (System Value Labels)
@@ -352,7 +358,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | USER 패널 | `domain/userInfoPanelModel.ts`, `components/user/UserAiPanel.jsx` |
 | USER 시스템 레슨 | `domain/userSystemLessonViewModel.ts`, `components/user/UserSystemLessonPanel.jsx` |
 | USER HP/T | `components/user/UserHptPanel.jsx`, `domain/userHptViewModel.ts`, `.modal-panel--user-hpt` |
-| USER 동선분석 | `components/user/UserTrajectoryInfoCard.jsx`, `domain/userTrajectoryCardViewModel.ts`, `.user-trajectory-info-card` |
+| USER 동선분석 | `components/user/UserTrajectoryInfoCard.jsx`, `domain/userTrajectoryCardViewModel.ts`, `domain/trajectoryPathDisplayPolicy.ts`, `.user-trajectory-info-card` |
 | USER 시스템값 라벨 | `components/table/SystemValueLabels.jsx`, `components/table/LabelText.jsx`, `config/tableConfig.ts` |
 | Overlay 반응형 CSS | `frontend/src/index.css` — `--overlay-scale`, `--ai-scale`, `--overlay-svg-scale` |
 
@@ -402,6 +408,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - **USER HP/T read-only 오버레이** — 모바일 스케일·반투명 패널·SVG 축소 · `UserHptPanel`
 - **USER System Value Labels** — phone landscape 1.5× · 터치 persistent selection · `App.jsx` hooks 순서 수정
 - **USER 동선분석 Overlay** — 투명 패널 · 가독성(26px·shadow) · `[공식]`/`[계산]` 섹션 · 기준/보정 계산값 제목 제거
+- **Trajectory Display Cap** — same-rail 연속 segment 차단 · baseline/corrected 독립 세컨드볼 cap · `trajectoryPathDisplayPolicy.ts`
 
 ### 진행 중
 

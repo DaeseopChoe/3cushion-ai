@@ -70,7 +70,6 @@ import {
   snapToRail,
 } from "./utils/geometry/rail";
 import { createCurveSegment } from "./utils/trajectory/curveTrajectory";
-import { isSegmentHitBall } from "./utils/geometry";
 import {
   normalizeAnchor,
   resolveAnchorPoint,
@@ -126,6 +125,11 @@ import {
 } from "./domain/anchorCoordinateEngine";
 import { getAnchorCoordFromSys } from "./domain/anchorLookupEngine";
 import { buildBaselineDraftApplyDelta } from "./domain/buildBaselineDraftApplyDelta";
+import {
+  PATH_NODE_MARKS,
+  resolveTrajectoryDisplayCap,
+  slicePathNodesToCap,
+} from "./domain/trajectoryPathDisplayPolicy";
 
 function ingestBaselineP043Debug(location, message, data, hypothesisId) {
   console.log(message, data);
@@ -7866,29 +7870,14 @@ function handlePointerCancel(e) {
       ? { x: secondBall.x, y: secondBall.y }
       : null;
 
-  let pathEndIndex = 3;
-  if (secondPoint) {
-    const postC3Segments = [
-      [pathNodes[3], pathNodes[4]],
-      [pathNodes[4], pathNodes[5]],
-      [pathNodes[5], pathNodes[6]],
-    ];
-    for (let i = 0; i < postC3Segments.length; i++) {
-      const [A, B] = postC3Segments[i];
-      if (!A || !B) continue;
-      if (isSegmentHitBall(A, B, secondPoint, HIT_TOLERANCE)) {
-        pathEndIndex = 4 + i;
-        break;
-      }
-    }
-  }
+  const capCorrected = resolveTrajectoryDisplayCap(
+    pathNodes,
+    secondPoint,
+    HIT_TOLERANCE
+  );
+  const cushionPath = slicePathNodesToCap(pathNodes, capCorrected);
 
-  const cushionPath = [];
-  for (let i = 0; i <= pathEndIndex && i < pathNodes.length; i++) {
-    const p = pathNodes[i];
-    if (p == null) break;
-    cushionPath.push(p);
-  }
+  let capBaseline = capCorrected;
 
   const calcImpactForContact = calcImpactBall(
     cueBall ?? balls.cue,
@@ -7907,7 +7896,7 @@ function handlePointerCancel(e) {
   let curvePointsLen = 0;
   let curvePointsSampleRg = [];
 
-  /** CO → curve(P…M) → 이후 쿠션 궤적. tail은 pathEndIndex 반영된 cushionPath 사용. CO는 polyline에 넣지 않음(직선 구간 제거). */
+  /** CO → curve(P…M) → 이후 쿠션 궤적. tail은 display cap 반영된 cushionPath 사용. CO는 polyline에 넣지 않음(직선 구간 제거). */
   let cushionPathForRender;
   if (useCurveDeform) {
     console.log("[H-App]", {
@@ -8057,15 +8046,12 @@ function handlePointerCancel(e) {
       C6_path_b,
     ];
 
-    /** 기준선 종료: 보정선 pathEndIndex 공유 (기준선 자체 세컨드볼 판정 금지) */
-    const pathEndIndexBase = pathEndIndex;
-
-    const cushionPathBase = [];
-    for (let i = 0; i <= pathEndIndexBase && i < pathNodesBase.length; i++) {
-      const p = pathNodesBase[i];
-      if (p == null) break;
-      cushionPathBase.push(p);
-    }
+    capBaseline = resolveTrajectoryDisplayCap(
+      pathNodesBase,
+      secondPoint,
+      HIT_TOLERANCE
+    );
+    const cushionPathBase = slicePathNodesToCap(pathNodesBase, capBaseline);
 
     cushionPathBaselineRg = cushionPathBase;
     cushionPathAttrBase = cushionPathBase
@@ -8110,21 +8096,27 @@ function handlePointerCancel(e) {
     }
   }
 
-  const orderedKeys = ["CO", "C1", "C2", "C3", "C4", "C5", "C6"];
-  // NOTE: 라벨 미표시 원인 구분용 — 현재는 좌표계 이슈와 별개로
-  // visibleKeysForLabels(cushionPath 길이 기반) 정책이 먼저 라벨 대상을 제한한다.
   const useBaselineLabelAnchors =
     appMode === "USER"
       ? userDisplayFlags?.labelAnchorSource === "baseline"
       : showBaseLine;
-  const labelPathLengthForKeys =
-    useBaselineLabelAnchors && cushionPathBaselineRg?.length
-      ? cushionPathBaselineRg.length
-      : cushionPath.length;
-  const visibleKeysForLabels = orderedKeys.slice(
-    0,
-    Math.min(labelPathLengthForKeys, orderedKeys.length)
-  );
+  const activeDisplayCap =
+    useBaselineLabelAnchors && cushionPathBaselineRg
+      ? capBaseline
+      : capCorrected;
+  const visibleKeysForLabels =
+    activeDisplayCap.endIndex >= 0
+      ? PATH_NODE_MARKS.slice(0, activeDisplayCap.endIndex + 1)
+      : [];
+  if (import.meta.env.DEV && userDisplayModeActive) {
+    console.log("[TRAJ_DISPLAY_CAP]", {
+      mode: useBaselineLabelAnchors ? "baseline" : "corrected",
+      capCorrected,
+      capBaseline,
+      activeDisplayCap,
+      visibleKeysForLabels,
+    });
+  }
 
   // SystemValueLabels는 data.coord.{x,y}를 기대. anchorLookupEngine 형태 { coord, valueSpace }는 그대로 두고, plain {x,y}(예: reflection C2)만 감싼다. 좌표 숫자는 변경하지 않음.
   const labelPayload = (anchorOrPoint) => {
