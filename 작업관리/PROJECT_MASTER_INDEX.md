@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.8  
-Last Updated: 2026-06-20  
+Version: 1.9  
+Last Updated: 2026-06-22  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -15,7 +15,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 ### 신규 세션 온보딩 (Dataset Architecture 포함 시)
 
 1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Phase 1 · §15 Phase 2~3-1 · §16 운영 검증 조사 · §17 OPEN-05 조사 · §18 OPEN-04 Caption Engine 완료)  
+2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Phase 1 · §15 Phase 2~3-1 · §16 운영 검증 조사 · §17 OPEN-05 조사 · §18 OPEN-04 Caption Engine · §19 USER Overlay 반응형·동선분석·시스템값 라벨)  
 3. **`SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`** — Dataset Architecture 전용 이관 문서  
 
 ### 전체 문서 계층
@@ -225,7 +225,9 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 - **두께/타점 Overlay**: **ADMIN 전용** 편집 (`HptOverlay`, `overlayState` HPT).
 - **관리자 입력**: `adminState.hpt`, slot `draft`/`applied` 동기화.
-- **USER**: 좌측 HP/T 메뉴 **제거** (2026-06). `UserHptPanel` / `userHptViewModel`은 ADMIN·향후 재사용 가능.
+- **USER HP/T read-only 오버레이** (2026-06-22): 좌측 **두께/타점** 메뉴 복구 · `UserHptPanel` + `userHptViewModel` · `.modal-panel--user-hpt`
+  - **Overlay Scale Framework**: `--overlay-scale` (tablet 0.72 · phone landscape 0.44), `--overlay-svg-scale` (SVG 별도 축소)
+  - 반투명 패널 `rgba(255,255,255,0.72)` + `backdrop-filter: blur(2px)` · 내부 viz/grid 박스 투명 · `width: fit-content`
 
 ### 시스템 레슨 (System Lesson)
 
@@ -272,7 +274,30 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - **USER AI 패널**: `components/user/UserAiPanel.jsx` + `domain/userInfoPanelModel.ts` (`buildUserInfoPanel`).
   - 본문 32px / 제목 40px, 패널 `min(80vw, 1400px)`, `max-height: 72vh`.
   - 상단 공략 제목 중복 제거, 공간 최적화.
+  - **반응형 스케일**: `--ai-scale` (tablet 0.72 · phone landscape 0.44) — SYSTEM_LESSON 등과 동일 계수, 변수명만 분리 (통합 Phase 2 **보류**)
 - **Deprecated**: `utils/aiPlayStrategyBuilder.ts` `buildPlayStrategy()` — SYS/HP/T/STR 나열형.
+
+### USER 동선분석 (Trajectory Info Card)
+
+- **메뉴**: `TRAJECTORY` · 라벨 **동선분석** (`Stage.jsx`)
+- **표시**: 테이블 영역 중앙 고정 overlay — `UserTrajectoryInfoCard` (ModalShell 밖, `App.jsx` table-area 자식)
+- **탭**: `[기준값]` / `[보정값]` — baseline vs corrected 계산값 전환
+- **본문 구조** (2026-06-22 확정):
+  - ~~`기준 계산값` / `보정 계산값` 제목~~ **제거** (탭과 중복)
+  - **`[공식]`** · **`[계산]`** 섹션 헤더 — accent `#38bdf8`, `font-weight: 700`, 블록 배치
+  - 계산값 줄(`출발값 = 30` 등) — 흰색 본문 스타일 유지
+- **스타일**: 패널 **완전 투명** (`background: transparent`, border/shadow 없음) · 탭만 자체 배경
+- **가독성**: 본문 26px · 라벨 24px · `--overlay-text-shadow` · `--overlay-scale` (tablet 0.72 · phone landscape 0.44)
+- **ViewModel**: `domain/userTrajectoryCardViewModel.ts` — 5½ 우선; `title` 필드는 VM에 잔존, UI 미표시
+- **코드**: `components/user/UserTrajectoryInfoCard.jsx`, `.user-trajectory-info-card` (`index.css`)
+
+### USER 시스템값 라벨 (System Value Labels)
+
+- **메뉴**: `SYSTEM_VALUES` · 라벨 **시스템값** — 테이블 rail C0/C1/C3/C4/C5/C6 캡션·값 표시
+- **Phone Landscape 확대**: `MEDIA_PHONE_LANDSCAPE` → `labelScale` **1.5** (`SYS_LABEL_PHONE_LANDSCAPE_SCALE`, `tableConfig.ts`)
+- **터치 Persistent Selection** (2026-06-22): 라벨 탭 → 선택 유지(1.8× 확대) · 다른 라벨 탭 → 전환 · 빈 테이블 영역 탭 → 해제 · document capture + transparent dismiss rect
+- **Caption Engine 연동**: `systemAxisCaption.ts` — `labelScale` 비례 placement · `SystemValueLabels.jsx` · `LabelText.jsx`
+- **버그 수정**: `App.jsx` — `sysLabelScale` hooks를 `loading`/`error` early return **이전**으로 이동 (React hooks 순서 오류 해결)
 
 ---
 
@@ -296,9 +321,12 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 |------|----------|------|
 | Search | — | published · profile `userStrict` · 버튼 라벨 **Search** (Recall 토글 없음) |
 | 공략 버튼 | — | `userTableDisplaySlotId` · **USER Search 성공 시에만** 활성 (`recommendedFrom`) |
-| AI | `overlayContent === "AI"` | `UserAiPanel` |
+| AI | `overlayContent === "AI"` | `UserAiPanel` · `--ai-scale` |
+| 동선분석 | table-area overlay | `UserTrajectoryInfoCard` · 기준/보정 탭 · `[공식]`/`[계산]` |
+| 시스템값 | 테이블 rail 라벨 | `SystemValueLabels` · phone landscape 1.5× · 터치 선택 |
 | 기준값 | 패널 dismiss | 오버레이만 닫기, 3-Level 토글 |
-| 시스템레슨 | `overlayContent === "SYSTEM_LESSON"` | `UserSystemLessonPanel` (독립·표·스크롤) |
+| 시스템레슨 | `overlayContent === "SYSTEM_LESSON"` | `UserSystemLessonPanel` (독립·표·스크롤) · `--overlay-scale` |
+| 두께/타점 | `overlayContent === "HP/T"` | `UserHptPanel` read-only · `--overlay-scale` + `--overlay-svg-scale` |
 | History | 모달 | |
 
 ---
@@ -323,7 +351,10 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | AI 자동 코멘트 | `domain/aiAutoCommentViewModel.ts` |
 | USER 패널 | `domain/userInfoPanelModel.ts`, `components/user/UserAiPanel.jsx` |
 | USER 시스템 레슨 | `domain/userSystemLessonViewModel.ts`, `components/user/UserSystemLessonPanel.jsx` |
-| USER HP/T (ADMIN·레거시) | `components/user/UserHptPanel.jsx`, `domain/userHptViewModel.ts` |
+| USER HP/T | `components/user/UserHptPanel.jsx`, `domain/userHptViewModel.ts`, `.modal-panel--user-hpt` |
+| USER 동선분석 | `components/user/UserTrajectoryInfoCard.jsx`, `domain/userTrajectoryCardViewModel.ts`, `.user-trajectory-info-card` |
+| USER 시스템값 라벨 | `components/table/SystemValueLabels.jsx`, `components/table/LabelText.jsx`, `config/tableConfig.ts` |
+| Overlay 반응형 CSS | `frontend/src/index.css` — `--overlay-scale`, `--ai-scale`, `--overlay-svg-scale` |
 
 ---
 
@@ -336,10 +367,14 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | USER AI UI | `frontend/src/components/user/UserAiPanel.jsx` |
 | USER 시스템 레슨 UI | `frontend/src/components/user/UserSystemLessonPanel.jsx` |
 | USER 시스템 레슨 VM | `frontend/src/domain/userSystemLessonViewModel.ts` |
-| USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · SYSTEM_LESSON) |
+| USER 동선분석 UI | `frontend/src/components/user/UserTrajectoryInfoCard.jsx` |
+| USER 동선분석 VM | `frontend/src/domain/userTrajectoryCardViewModel.ts` |
+| USER HP/T UI | `frontend/src/components/user/UserHptPanel.jsx` |
+| USER 시스템값 라벨 | `frontend/src/components/table/SystemValueLabels.jsx` |
+| USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · SYSTEM_LESSON · HP/T; table-area: Trajectory card) |
 | Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`USER_FUNC_IDS`, `onUserFuncButtonSelect`) |
 | ADMIN AI | `frontend/src/App.jsx` `AiOverlay` |
-| 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.modal-panel--user-system-lesson`) |
+| 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.modal-panel--user-system-lesson`, `.user-trajectory-info-card`, `.modal-panel--user-hpt`) |
 
 ---
 
@@ -363,6 +398,10 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - **Dataset Architecture Phase 3** — USER Search → published, Search/Recall 토글 제거, carry-over 제거
 - **Dataset Architecture Phase 3-1** — Recall profile 분리 (`userStrict` / `adminSearch` / `adminStrict`)
 - **OPEN-04 Caption Placement Engine** — Geometry 기반 엔진 전면 재설계 (A→B→Gap 순위, safetyMargin 2grid 고정, CO 코너 앵커 이중 bucket, `alignC4SideCaptionsToCo` 제거) — 전 트랙 검증 완료
+- **USER Overlay Scale Framework (B-1)** — `--overlay-scale` / `--ai-scale` / `--overlay-svg-scale` · tablet 0.72 · phone landscape 0.44 (`index.css`)
+- **USER HP/T read-only 오버레이** — 모바일 스케일·반투명 패널·SVG 축소 · `UserHptPanel`
+- **USER System Value Labels** — phone landscape 1.5× · 터치 persistent selection · `App.jsx` hooks 순서 수정
+- **USER 동선분석 Overlay** — 투명 패널 · 가독성(26px·shadow) · `[공식]`/`[계산]` 섹션 · 기준/보정 계산값 제목 제거
 
 ### 진행 중
 
@@ -371,6 +410,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ### 예정
 
+- **Overlay Scale Layer 통합 (Phase 2, 보류)** — `--ai-scale` → `--overlay-scale` 통일 · MQ 블록 4→1 축소 (기능 영향 없음, 유지보수용)
 - **Dataset Architecture Phase 4** — Spatial Index (`spatialCells`, 8×4 grid)
 - **trajectory 기반 파생 데이터 생성** — 별도 세션 이관 예정
 - 시스템 레슨: sunrise/sunset 등 **비 5½** 시스템 확장
@@ -380,8 +420,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ## Known Issues / Investigation (2026-06)
 
-**기록일:** 2026-06-13 (OPEN-05 갱신: 2026-06-18 · OPEN-04 종료: 2026-06-20)  
-**상세 조사:** `HISTORY/PROJECT_LOG_2026-06.md` §16 · §17 (OPEN-05) · §18 (OPEN-04 완료)
+**기록일:** 2026-06-13 (OPEN-05 갱신: 2026-06-18 · OPEN-04 종료: 2026-06-20 · OPEN-03 종료: 2026-06-22)  
+**상세 조사:** `HISTORY/PROJECT_LOG_2026-06.md` §16 · §17 (OPEN-05) · §18 (OPEN-04) · §19 (USER Overlay)
 
 ### OPEN-01 USER Search 임팩트 방향 불일치
 
@@ -414,22 +454,15 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ### OPEN-03 USER HP/T 버튼 소실
 
-**상태:** 조사 중
+**상태:** **해결** (2026-06-22) — USER 좌측 **두께/타점** 메뉴·read-only `UserHptPanel` 복구
 
-**증상:**
+**이력:**
 
-- USER UI에서 HP/T 메뉴·진입 경로가 표시되지 않음
+- 시스템레슨 메뉴 분리 시 USER HP/T **의도적 제거** (`ffe0a26`, §12)
+- 운영 검증(§16)에서 버튼 소실 OPEN 등록
+- 2026-06-22: `Stage.jsx` `HP/T` · `overlayContent === "HP/T"` · `.modal-panel--user-hpt` 스케일·UI 복구
 
-**현재 판단:**
-
-- 데이터 정확도 이슈가 아니라 **USER UI HP/T 진입 경로 및 버튼 복구** 문제
-- 후속 작업 명칭: **HP/T 버튼 복구 작업** (「HP/T 데이터 작업」 표현 사용 금지)
-
-**발생 시점:**
-
-- 시스템레슨 메뉴 분리 이후 추정 (`ffe0a26` — §12에서 USER HP/T 의도적 제거 기록과 대조 필요)
-
-**우선순위:** P1
+**우선순위:** ~~P1~~ CLOSED
 
 ### OPEN-05 — ADMIN Recall / LocalDB Trajectory Rehydration Investigation
 
@@ -508,10 +541,6 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 - `targetColor` · `draft.targetBall` · `record.targetBall` · render SYS 우선순위 정합
 
-### P1 — HP/T 버튼 복구 작업 (OPEN-03)
-
-- USER UI HP/T 진입 경로·버튼 복구 (데이터 정확도 작업 아님)
-
 ### P1 — Dataset Architecture Phase 4
 
 - Spatial Index (`spatialCells`, Recall 1차 필터)
@@ -537,7 +566,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | 문서 | 용도 |
 |------|------|
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
-| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) |
+| `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) · **USER Overlay** (§19) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
 | `HISTORY/PROJECT_LOG_2026-04.md` | 이전 월 |
 | `HISTORY/HANDOFF_ADMIN_MODAL_TO_USER_DISPLAY_2026-05.md` | ADMIN→USER 표시 핸드오프 |
@@ -553,9 +582,15 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 ## USER Overlay (요약)
 
 ```
-좌측 AI → overlayContent = "AI" → UserAiPanel
+좌측 AI → overlayContent = "AI" → UserAiPanel (--ai-scale)
 
-좌측 시스템레슨 → overlayContent = "SYSTEM_LESSON" → UserSystemLessonPanel (표·스크롤·독립)
+좌측 시스템레슨 → overlayContent = "SYSTEM_LESSON" → UserSystemLessonPanel (--overlay-scale)
+
+좌측 두께/타점 → overlayContent = "HP/T" → UserHptPanel read-only (--overlay-scale + --overlay-svg-scale)
+
+좌측 동선분석 → table-area UserTrajectoryInfoCard (기준값/보정값 탭 · [공식]/[계산])
+
+좌측 시스템값 → SystemValueLabels on table rail (phone landscape labelScale 1.5×)
 
 backdrop / handleCloseUserInfoOverlay → overlayContent = null
 

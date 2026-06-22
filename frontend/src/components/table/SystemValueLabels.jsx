@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { toPx } from "../../utils/geometry/coords";
 import { cushionMarkToDisplayLabel } from "../../utils/cushionDisplayLabel";
 import { getLabelNumericSuffix } from "../../domain/anchorCoordinateEngine";
@@ -7,6 +7,7 @@ import {
   detectAxisSideFromFg,
   getMarkLabelColor,
 } from "../../domain/systemAxisCaption";
+import { SYS_LABEL_BASE_FONT_SIZE } from "../../config/tableConfig";
 import AnchorPoint from "./AnchorPoint";
 import LabelText from "./LabelText";
 
@@ -255,7 +256,22 @@ function rawLabelColor(label) {
   return getMarkLabelColor(label);
 }
 
-function renderGroupLabels(captionBuckets, scale, tableH, padding) {
+const TOUCH_HIT_ATTR = "data-sys-label-hit";
+
+function buildLabelTextProps(labelId, touchCtx) {
+  if (!touchCtx?.interactive) {
+    return { interactive: false, active: false };
+  }
+  const isActive = touchCtx.activeLabelId === labelId;
+  return {
+    interactive: true,
+    active: isActive,
+    hitDataAttr: TOUCH_HIT_ATTR,
+    onPointerDown: (e) => touchCtx.onPointerDown(labelId, e),
+  };
+}
+
+function renderGroupLabels(captionBuckets, scale, tableH, padding, labelScale, touchCtx) {
   /** 시스템값 그룹 라벨 — (axis+mark) 버킷당 1회, 여유 공간 기반 배치 */
   const bucketInputs = [];
   for (const [bucketKey, bucket] of captionBuckets) {
@@ -275,40 +291,54 @@ function renderGroupLabels(captionBuckets, scale, tableH, padding) {
     maxY: tableH + padding,
   };
 
-  const placements = computeGroupCaptionPlacements(bucketInputs, tableBounds);
-  return placements.map((placement) => (
-    <g
-      key={`CAP-${placement.side}-${placement.mark}`}
-      transform={
-        placement.rotationDeg !== 0
-          ? `rotate(${placement.rotationDeg}, ${placement.x}, ${placement.y})`
-          : undefined
-      }
-    >
-      <LabelText
-        x={placement.x}
-        y={placement.y}
-        text={placement.text}
-        fontSize={placement.fontSize}
-        color={placement.fill}
-      />
-    </g>
-  ));
+  const placements = computeGroupCaptionPlacements(
+    bucketInputs,
+    tableBounds,
+    labelScale
+  );
+  return placements.map((placement) => {
+    const labelId = `CAP-${placement.side}-${placement.mark}`;
+    return {
+      id: labelId,
+      node: (
+        <g
+          key={labelId}
+          transform={
+            placement.rotationDeg !== 0
+              ? `rotate(${placement.rotationDeg}, ${placement.x}, ${placement.y})`
+              : undefined
+          }
+        >
+          <LabelText
+            x={placement.x}
+            y={placement.y}
+            text={placement.text}
+            fontSize={placement.fontSize}
+            color={placement.fill}
+            {...buildLabelTextProps(labelId, touchCtx)}
+          />
+        </g>
+      ),
+    };
+  });
 }
 
-function renderRawLabelAnchors(
+function buildRawLabelEntries(
   labelAnchors,
   scale,
   tableH,
   padding,
   labelStrategy,
-  showAxisCaptions = false
+  showAxisCaptions = false,
+  labelScale = 1,
+  touchCtx = null
 ) {
-  if (!labelAnchors) return null;
+  if (!labelAnchors) return [];
 
   const applyCushionNudges = true;
-  const nodes = [];
+  const entries = [];
   const captionBuckets = new Map();
+  const rawFontSize = SYS_LABEL_BASE_FONT_SIZE * labelScale;
 
   const pushGroup = (label, coord, value, idx) => {
     let { x, y } = coord;
@@ -318,18 +348,23 @@ function renderRawLabelAnchors(
     const pxX = p.x + padding;
     const pxY = p.y + padding;
 
-    let fillColor = rawLabelColor(label);
+    const fillColor = rawLabelColor(label);
+    const labelId = `RAW-${label}-${idx}`;
 
-    nodes.push(
-      <LabelText
-        key={`RAW-${label}-${idx}`}
-        x={pxX}
-        y={pxY}
-        text={value != null ? String(value) : ""}
-        fontSize={10}
-        color={fillColor}
-      />
-    );
+    entries.push({
+      id: labelId,
+      node: (
+        <LabelText
+          key={labelId}
+          x={pxX}
+          y={pxY}
+          text={value != null ? String(value) : ""}
+          fontSize={rawFontSize}
+          color={fillColor}
+          {...buildLabelTextProps(labelId, touchCtx)}
+        />
+      ),
+    });
 
     if (showAxisCaptions) {
       const side = detectAxisSideFromFg(x, y);
@@ -384,10 +419,19 @@ function renderRawLabelAnchors(
   });
 
   if (showAxisCaptions && captionBuckets.size > 0) {
-    nodes.push(...renderGroupLabels(captionBuckets, scale, tableH, padding));
+    entries.push(
+      ...renderGroupLabels(
+        captionBuckets,
+        scale,
+        tableH,
+        padding,
+        labelScale,
+        touchCtx
+      )
+    );
   }
 
-  return nodes;
+  return entries;
 }
 
 export default function SystemValueLabels({
@@ -408,7 +452,43 @@ export default function SystemValueLabels({
   showAxisCaptions = false,
   /** 시스템값 모드: 궤적 라벨 없이 눈금+캡션만 */
   showSystemValuesOnly = false,
+  /** Rail/frame number + axis caption scale (1 = PC/tablet). */
+  labelScale = 1,
 }) {
+  const [activeLabelId, setActiveLabelId] = useState(null);
+  const touchExpandEnabled = labelScale > 1;
+
+  const handleLabelPointerDown = useCallback((labelId, e) => {
+    e.stopPropagation();
+    setActiveLabelId(labelId);
+  }, []);
+
+  const handleBackgroundPointerDown = useCallback((e) => {
+    setActiveLabelId(null);
+  }, []);
+
+  useEffect(() => {
+    if (!touchExpandEnabled) return undefined;
+
+    const onDocumentPointerDown = (e) => {
+      if (e.target?.closest?.(`[${TOUCH_HIT_ATTR}]`)) return;
+      setActiveLabelId(null);
+    };
+
+    document.addEventListener("pointerdown", onDocumentPointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDocumentPointerDown, true);
+    };
+  }, [touchExpandEnabled]);
+
+  const touchCtx = touchExpandEnabled
+    ? {
+        interactive: true,
+        activeLabelId,
+        onPointerDown: handleLabelPointerDown,
+      }
+    : null;
+
   if (!showSystemValuesOnly && !outputs?.result) return null;
   if (
     showSystemValuesOnly &&
@@ -430,19 +510,44 @@ export default function SystemValueLabels({
   };
 
   const nodes = showSystemValuesOnly ? [] : collectBaseNodes(anchors);
-  const rawLabels = renderRawLabelAnchors(
+  const labelEntries = buildRawLabelEntries(
     labelAnchors,
     scale,
     tableH,
     padding,
     labelStrategy,
-    showAxisCaptions
+    showAxisCaptions,
+    labelScale,
+    touchCtx
+  );
+  const inactiveLabelEntries = labelEntries.filter(
+    (entry) => entry.id !== activeLabelId
+  );
+  const activeLabelEntry = labelEntries.find(
+    (entry) => entry.id === activeLabelId
   );
 
   return (
-    <>
-      {showSystemGrid && rawLabels}
+    <g
+      className="system-value-labels"
+      onPointerDown={touchExpandEnabled ? handleBackgroundPointerDown : undefined}
+    >
+      {touchExpandEnabled && (
+        <rect
+          x={padding}
+          y={padding}
+          width={scale * 80}
+          height={tableH}
+          fill="transparent"
+          pointerEvents="all"
+        />
+      )}
+      {showSystemGrid &&
+        inactiveLabelEntries.map((entry) => (
+          <React.Fragment key={entry.id}>{entry.node}</React.Fragment>
+        ))}
+      {showSystemGrid && activeLabelEntry?.node}
       {nodes.map((node) => renderNode(node, renderProps))}
-    </>
+    </g>
   );
 }

@@ -93,7 +93,7 @@ import CoachingOverlay from "./components/table/CoachingOverlay";
 import { useCoachingController } from "./hooks/useCoachingController";
 import { useSystemController } from "./hooks/useSystemController";
 import { useDisplayController } from "./hooks/useDisplayController";
-import { TABLE_CONFIG } from "./config/tableConfig";
+import { TABLE_CONFIG, MEDIA_PHONE_LANDSCAPE, SYS_LABEL_PHONE_LANDSCAPE_SCALE } from "./config/tableConfig";
 import { buildRailGroupedStrategy } from "./domain/railEngine";
 import {
   getUserDisplayFlags,
@@ -6350,6 +6350,20 @@ function handleJoyPadPointerCancel(e) {
     BALL_RADIUS_RG,
   });
 
+  const [sysLabelScale, setSysLabelScale] = useState(1);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+    const mq = window.matchMedia(MEDIA_PHONE_LANDSCAPE);
+    const sync = () => {
+      setSysLabelScale(mq.matches ? SYS_LABEL_PHONE_LANDSCAPE_SCALE : 1);
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#334155' }}>
@@ -8589,6 +8603,7 @@ function handlePointerCancel(e) {
       <SystemValueLabels
         showSystemValuesOnly={userShowSystemValuesOnly}
         showAxisCaptions={!!userDisplayFlags?.showAxisCaptions}
+        labelScale={sysLabelScale}
         showSystemGrid={
           appMode === "USER"
             ? userTableDisplayMode === "systemValues"

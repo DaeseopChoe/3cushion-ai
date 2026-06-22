@@ -13,6 +13,15 @@ export const TABLE_CONFIG = {
   FRAME_RG: FRAME_MM / RG_UNIT_MM,
 } as const;
 
+/** System value rail/frame label base font size (SVG viewBox px). */
+export const SYS_LABEL_BASE_FONT_SIZE = 10;
+
+/** Phone landscape label scale — same MQ as Overlay Framework. */
+export const SYS_LABEL_PHONE_LANDSCAPE_SCALE = 1.5;
+
+export const MEDIA_PHONE_LANDSCAPE =
+  "(orientation: landscape) and (max-height: 520px)";
+
 export type TableLayout = {
   cushionW: number;
   frameW: number;
