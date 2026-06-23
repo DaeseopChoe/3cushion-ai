@@ -33,7 +33,12 @@ describe("buildUserSystemLessonViewModel", () => {
     });
 
     expect(vm.isEmpty).toBe(false);
-    expect(vm.title).toContain("파이브");
+    expect(vm.title).toContain("레슨");
+    expect(vm.overviewSection?.body).toContain("공식");
+    expect(vm.positionExplainLine).toContain("1쿠션값");
+    expect(vm.systemValuesSection?.entries.some((e) => e.label === "CO")).toBe(
+      true
+    );
     expect(vm.positionSection?.c4.resultLine).toBe("4쿠션값 : 16");
     expect(vm.positionSection?.c4.calcLine).toContain("= 16");
     expect(vm.correctionSection?.c4.resultLine).toBe("4쿠션값 : 25.5");

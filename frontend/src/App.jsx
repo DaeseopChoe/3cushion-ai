@@ -39,7 +39,6 @@ import {
 } from "./domain/userInfoPanelModel";
 import { AiAutoCommentDisplay } from "./components/user/UserAiPanel";
 import { buildUserHptViewModel } from "./domain/userHptViewModel";
-import { buildUserSystemLessonViewModel } from "./domain/userSystemLessonViewModel";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
 import { convertThetaToClock } from "./utils/tipClockConverter";
@@ -85,7 +84,7 @@ import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
 import ModalShell from "./components/common/ModalShell";
 import UserAiPanel from "./components/user/UserAiPanel.jsx";
 import UserHptPanel from "./components/user/UserHptPanel.jsx";
-import UserSystemLessonPanel from "./components/user/UserSystemLessonPanel.jsx";
+import UserToast from "./components/common/UserToast.jsx";
 import ImpactLines from "./components/table/ImpactLines";
 import SystemGrid from "./components/table/SystemGrid";
 import CoachingOverlay from "./components/table/CoachingOverlay";
@@ -100,6 +99,7 @@ import {
 } from "./domain/userDisplayFlags";
 import { buildUserTrajectoryCardModel } from "./domain/userTrajectoryCardViewModel";
 import UserTrajectoryInfoCard from "./components/user/UserTrajectoryInfoCard";
+import { useUserToast } from "./hooks/useUserToast";
 import { createStrategyEntry } from "./domain/adminSaveEngine";
 import {
   MERGE_EPSILON,
@@ -3374,7 +3374,11 @@ export default function App({
   currentButtonId,
   userTableDisplayMode = "default",
   trajectoryCardSource = "baseline",
+  trajectoryShowAxisValues = false,
+  trajectoryCardOffset = { x: 0, y: 0 },
+  onTrajectoryCardOffsetChange,
   onTrajectoryCardSourceChange,
+  onTrajectoryShowAxisValuesChange,
   onActiveSlotChange,
   onFuncOverlayClose,
   onDirtySlotsChange,
@@ -3385,6 +3389,7 @@ export default function App({
   onSystemControlsAvailabilityChange,
   onUserSearchStrategiesRegister,
   onUserSearchResetRegister,
+  onUserSearchHasResultsChange,
   onUserStrategySlotPickRegister,
   onAdminSearchRegister,
   onUserFuncButtonSelect,
@@ -3395,6 +3400,7 @@ export default function App({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [overlayContent, setOverlayContent] = useState(null);
+  const userToast = useUserToast(3000);
 
   
   // ============================================
@@ -5256,6 +5262,7 @@ export default function App({
 
     clearUserSearchDisplayRuntime();
     actions.clearSearchSlotDrafts();
+    resetUserSearchTargetSelection();
 
     const loadResult = await getOrLoadPublishedLeaf(shotType, systemId);
 
@@ -5313,7 +5320,7 @@ export default function App({
 
     const spatialResult = runSpatialRecall({
       dataset: publishedRecords,
-      query: { balls: currentBalls, targetBall: targetColor ?? null },
+      query: { balls: currentBalls, targetBall: null },
       profile: recallProfile,
     });
 
@@ -5364,7 +5371,7 @@ export default function App({
     if (!result || result.kind === "no-match") {
       const reason = result?.reason ?? "unknown";
       console.log("[USER_SEARCH_RECALL] no-match", reason);
-      alert(userSearchNoMatchAlertMessage(reason, { shotType, systemId }));
+      userToast.show("일치하는 포지션이 없습니다.", { variant: "center" });
       return;
     }
 
@@ -5391,6 +5398,8 @@ export default function App({
     userTableDisplaySlotId,
     clearUserSearchDisplayRuntime,
     userPublishedSearchContext,
+    userToast.show,
+    resetUserSearchTargetSelection,
   ]);
 
   const handleOpenUserHistory = useCallback(() => {
@@ -5629,8 +5638,6 @@ function handleJoyPadPointerCancel(e) {
       console.log("🎯 코칭 버튼 클릭 감지");
     } else if (currentButtonId === "HP/T") {
       setOverlayContent("HPT");
-    } else if (currentButtonId === "SYSTEM_LESSON") {
-      setOverlayContent("SYSTEM_LESSON");
     } else if (currentButtonId === "STR") {
       setOverlayContent("STR");
     } else if (currentButtonId === "AI") {
@@ -5713,6 +5720,12 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     onAppModeChange?.(appMode);
   }, [appMode, onAppModeChange]);
+
+  useEffect(() => {
+    onUserSearchHasResultsChange?.(
+      appMode === "USER" && userLastSearchRecord != null
+    );
+  }, [appMode, userLastSearchRecord, onUserSearchHasResultsChange]);
 
   useEffect(() => {
     if (appMode !== "USER") {
@@ -6126,31 +6139,6 @@ function handleJoyPadPointerCancel(e) {
     view?.ui?.strategy,
   ]);
 
-  const userSystemLessonModel = useMemo(() => {
-    if (appMode !== "USER") return null;
-    if (!userTableDisplaySlotId) {
-      return buildUserSystemLessonViewModel({ noStrategySelected: true });
-    }
-    const slotLabel =
-      strategyButtons.find((b) => b.slotId === userTableDisplaySlotId && b.hasRecall)
-        ?.label ?? "";
-    return buildUserSystemLessonViewModel({
-      strategyButtonLabel: slotLabel,
-      slotRenderSys,
-      resolvedSlotSys,
-      resolvedSlotBaseSysValues,
-      resolvedSlotSysValues,
-    });
-  }, [
-    appMode,
-    userTableDisplaySlotId,
-    strategyButtons,
-    slotRenderSys,
-    resolvedSlotSys,
-    resolvedSlotBaseSysValues,
-    resolvedSlotSysValues,
-  ]);
-
   const userHptModel = useMemo(() => {
     if (appMode !== "USER") return null;
     if (!userTableDisplaySlotId) {
@@ -6397,7 +6385,11 @@ function handleJoyPadPointerCancel(e) {
   const system = systemCtrl.system;
   const userDisplayFlags =
     appMode === "USER"
-      ? getUserDisplayFlags(userTableDisplayMode, trajectoryCardSource)
+      ? getUserDisplayFlags(
+          userTableDisplayMode,
+          trajectoryCardSource,
+          trajectoryShowAxisValues
+        )
       : null;
   const userDisplayModeActive =
     appMode === "USER" && isUserDisplayModeActive(userTableDisplayMode);
@@ -6405,6 +6397,16 @@ function handleJoyPadPointerCancel(e) {
     appMode === "USER" &&
     userTableDisplayMode === "systemValues" &&
     !!userTableDisplaySlotId;
+
+  const userTrajectoryAxisOverlayActive =
+    appMode === "USER" &&
+    userTableDisplayMode === "trajectory" &&
+    trajectoryShowAxisValues &&
+    !!userTableDisplaySlotId;
+
+  const userAxisGridLabelsActive =
+    (appMode === "USER" && userTableDisplayMode === "systemValues") ||
+    userTrajectoryAxisOverlayActive;
 
   const systemLabelsOutputsForRender =
     appMode === "USER" &&
@@ -8214,7 +8216,7 @@ function handlePointerCancel(e) {
     });
   });
   const labelAnchorsForRender =
-    appMode === "USER" && userTableDisplayMode === "systemValues"
+    appMode === "USER" && userAxisGridLabelsActive
       ? Object.fromEntries(
           visibleKeysForLabels
             .filter((k) => k !== "C2" && labelAnchorsForRaw[k])
@@ -8241,13 +8243,6 @@ function handlePointerCancel(e) {
     passedToLabels: Object.keys(allAnchorsForLabels),
     rawAllAnchors: allAnchors
   });
-  console.log("[LABEL_VISIBILITY_TRACE]", {
-    orderedKeys,
-    visibleKeysForLabels,
-    cushionPathLength: cushionPath.length,
-    allAnchorsKeys: Object.keys(allAnchors),
-    passedToLabels: Object.keys(allAnchorsForLabels)
-  });
   console.log("LABEL_INPUT_CO", allAnchorsForLabels["CO"]);
   const renderSystemValues =
     resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
@@ -8262,6 +8257,25 @@ function handlePointerCancel(e) {
   const railGroups = strategyResult.railGroups;
 
   const canEditPosition = true;
+
+  /** USER: 공략 선택 후 시스템이 결정한 타겟만 설명용 하이라이트 */
+  const userSystemTargetHighlight =
+    appMode === "USER" &&
+    !!userTableDisplaySlotId &&
+    (targetColor === "red" || targetColor === "yellow");
+
+  function ballTargetEmphasis(ballId) {
+    if (appMode === "USER") {
+      return userSystemTargetHighlight &&
+        isConfirmedTargetBall(ballId, targetColor, true)
+        ? "selected"
+        : undefined;
+    }
+    return canEditPosition &&
+      isConfirmedTargetBall(ballId, targetColor, isTargetSelected)
+      ? "selected"
+      : undefined;
+  }
 
   const slotSysValuesForRender =
     resolvedSlotSysValues && Object.keys(resolvedSlotSysValues).length > 0
@@ -8496,12 +8510,7 @@ function handlePointerCancel(e) {
         <Ball
           {...balls.target_center}
           color="#fde047"
-          emphasis={
-            canEditPosition &&
-            isConfirmedTargetBall("target_center", targetColor, isTargetSelected)
-              ? "selected"
-              : undefined
-          }
+          emphasis={ballTargetEmphasis("target_center")}
           onDoubleClick={
             canEdit
               ? (e) => handleBallDoubleClickForTarget("target_center", e)
@@ -8513,12 +8522,7 @@ function handlePointerCancel(e) {
         <Ball
           {...balls.second}
           color="#f87171"
-          emphasis={
-            canEditPosition &&
-            isConfirmedTargetBall("second", targetColor, isTargetSelected)
-              ? "selected"
-              : undefined
-          }
+          emphasis={ballTargetEmphasis("second")}
           onDoubleClick={
             canEdit
               ? (e) => handleBallDoubleClickForTarget("second", e)
@@ -8627,6 +8631,11 @@ function handlePointerCancel(e) {
 
   return (
     <div className="app-layout">
+      <UserToast
+        message={userToast.message}
+        visible={userToast.visible}
+        variant={userToast.variant}
+      />
       <div className="table-area">
         <div className="table-area-inner">
           {tableSVG}
@@ -8639,6 +8648,10 @@ function handlePointerCancel(e) {
               model={userTrajectoryCardModel}
               cardSource={trajectoryCardSource}
               onCardSourceChange={onTrajectoryCardSourceChange}
+              showAxisValues={trajectoryShowAxisValues}
+              onShowAxisValuesChange={onTrajectoryShowAxisValuesChange}
+              dragOffset={trajectoryCardOffset}
+              onDragOffsetChange={onTrajectoryCardOffsetChange}
             />
           )}
       {showHistoryModal && (
@@ -8879,10 +8892,8 @@ function handlePointerCancel(e) {
         onClose={handleCloseUserInfoOverlay}
         draggable={false}
         panelClassName={
-          overlayContent === "SYSTEM_LESSON"
-            ? "modal-panel--user-system-lesson"
-            : overlayContent === "HPT"
-              ? "modal-panel--user-hpt"
+          overlayContent === "HPT"
+            ? "modal-panel--user-hpt"
             : overlayContent === "AI"
               ? "modal-panel--user-ai"
               : "modal-panel--compact"
@@ -8890,26 +8901,19 @@ function handlePointerCancel(e) {
         title={undefined}
         panelStyle={{
           maxHeight:
-            overlayContent === "SYSTEM_LESSON"
-              ? "86vh"
-              : overlayContent === "AI"
+            overlayContent === "AI"
+              ? undefined
+              : overlayContent === "HPT"
                 ? undefined
-                : overlayContent === "HPT"
-                  ? undefined
-                  : "78vh",
-          ...(overlayContent === "SYSTEM_LESSON"
-            ? { minWidth: 0, minHeight: 0, overflow: "hidden" }
-            : overlayContent === "HPT"
-              ? { minWidth: 0, minHeight: 0, overflowY: "auto" }
+                : "78vh",
+          ...(overlayContent === "HPT"
+            ? { minWidth: 0, minHeight: 0, overflowY: "auto" }
             : overlayContent === "AI"
               ? { minWidth: 0, minHeight: 0, overflowY: "auto" }
               : { overflowY: "auto" }),
         }}
       >
         {overlayContent === "HPT" && <UserHptPanel model={userHptModel} />}
-        {overlayContent === "SYSTEM_LESSON" && (
-          <UserSystemLessonPanel model={userSystemLessonModel} />
-        )}
         {overlayContent === "AI" && <UserAiPanel model={userInfoPanel} />}
       </ModalShell>
       </div>

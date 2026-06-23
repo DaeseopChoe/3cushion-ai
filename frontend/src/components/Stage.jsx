@@ -13,7 +13,7 @@ const USER_STRATEGY_PLACEHOLDERS = {
   S3: "공략3",
 };
 const ADMIN_FUNC_IDS = ["SYS", "HP/T", "STR", "AI"];
-const USER_FUNC_IDS = ["AI", "TRAJECTORY", "SYSTEM_VALUES", "SYSTEM_LESSON", "HP/T"];
+const USER_FUNC_IDS = ["AI", "TRAJECTORY", "HP/T"];
 
 const ADMIN_SHOT_BUTTONS = [
   { id: "S1", label: "S1", type: "shot" },
@@ -26,14 +26,13 @@ const ADMIN_FUNC_BUTTONS = [
   { id: "STR", label: "STR", type: "info" },
   { id: "AI", label: "AI", type: "info" },
 ];
-/** USER info layer labels (ids unchanged for trigger compatibility where mapped). */
-const USER_FUNC_BUTTONS = [
+/** USER info layer — AI · 타법 · 동선 */
+const USER_PRIMARY_FUNC_BUTTONS = [
   { id: "AI", label: "AI", type: "info" },
-  { id: "TRAJECTORY", label: "동선분석", type: "info" },
-  { id: "SYSTEM_VALUES", label: "시스템값", type: "info" },
-  { id: "SYSTEM_LESSON", label: "시스템레슨", type: "info" },
-  { id: "HP/T", label: "두께/타점", type: "info" },
+  { id: "HP/T", label: "타법", type: "info" },
+  { id: "TRAJECTORY", label: "동선", type: "info" },
 ];
+const USER_FUNC_BUTTON_COUNT = USER_PRIMARY_FUNC_BUTTONS.length;
 
 const STRATEGY_DISPLAY_SUFFIX_RE = /[①②③]$/;
 const USER_STRATEGY_VARIANT_COLORS = [
@@ -321,10 +320,21 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const [trajectoryCardSource, setTrajectoryCardSource] = useState(
     /** @type {TrajectoryCardSource} */ ("baseline")
   );
+  const [trajectoryShowAxisValues, setTrajectoryShowAxisValues] = useState(false);
+  const [trajectoryCardOffset, setTrajectoryCardOffset] = useState({ x: 0, y: 0 });
+  const [userSearchHasResults, setUserSearchHasResults] = useState(false);
   const resetUserTableDisplayMode = useCallback(() => {
     setUserTableDisplayMode("default");
     setTrajectoryCardSource("baseline");
+    setTrajectoryShowAxisValues(false);
+    setTrajectoryCardOffset({ x: 0, y: 0 });
   }, []);
+
+  const handleUserSearchReset = useCallback(() => {
+    resetUserTableDisplayMode();
+    setCurrentButtonId("S1");
+    userSearchResetHandlerRef.current?.();
+  }, [resetUserTableDisplayMode]);
 
   useEffect(() => {
     const calc = () => {
@@ -448,7 +458,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
     const userSizing = computeUserRailHeight(
       stageH,
       USER_LAYOUT.strategySlotCount,
-      USER_FUNC_BUTTONS.length,
+      USER_FUNC_BUTTON_COUNT,
       BUTTON_HEIGHT,
       STRATEGY_BUTTON_HEIGHT,
       BUTTON_GAP,
@@ -462,8 +472,9 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
 
   const getButtonColor = (id, isSlotSelected, isFuncSelected) => {
     if (id === "SEARCH") return "#4f46e5";
+    if (id === "RESET") return "#64748b";
     if (id === "AI") return isFuncSelected ? "#c2410c" : "#ea580c";
-    if (["SYS", "HP/T", "STR", "TRAJECTORY", "SYSTEM_VALUES", "SYSVAL", "HISTORY", "SYSTEM_LESSON"].includes(id)) {
+    if (["SYS", "HP/T", "STR", "TRAJECTORY", "SYSVAL", "HISTORY"].includes(id)) {
       return isFuncSelected ? "#d97706" : "#f59e0b";
     }
     return isSlotSelected ? "#047857" : "#10b981";
@@ -575,21 +586,17 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
 
   const renderUserFuncButton = ({ id, label }) => {
     const isTrajectoryBtn = id === "TRAJECTORY";
-    const isSystemValuesBtn = id === "SYSTEM_VALUES";
-    const isDisplayModeBtn = isTrajectoryBtn || isSystemValuesBtn;
+    const isDisplayModeBtn = isTrajectoryBtn;
     const isHistoryButton = id === "HISTORY";
     const isFuncSelected =
       USER_FUNC_IDS.includes(id) && currentButtonId === id;
 
     const displayModeActive =
-      (isTrajectoryBtn && userTableDisplayMode === "trajectory") ||
-      (isSystemValuesBtn && userTableDisplayMode === "systemValues");
+      isTrajectoryBtn && userTableDisplayMode === "trajectory";
 
     const btnBackground = isDisplayModeBtn
       ? displayModeActive
-        ? isTrajectoryBtn
-          ? "#0ea5e9"
-          : "#8b5cf6"
+        ? "#0ea5e9"
         : getButtonColor(id, false, false)
       : getButtonColor(id, false, isFuncSelected);
 
@@ -602,41 +609,26 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         data-user-display-mode={
           isDisplayModeBtn ? userTableDisplayMode : undefined
         }
-        className={
-          [
-            isDisplayModeBtn ? "user-display-mode-btn" : "",
-            id === "SYSTEM_LESSON" ? "user-rail-btn--system-lesson" : "",
-          ]
-            .filter(Boolean)
-            .join(" ") || undefined
-        }
+        className={isDisplayModeBtn ? "user-display-mode-btn" : undefined}
         title={
           isTrajectoryBtn
-            ? "동선분석 — 기준/보정 궤적과 계산값"
-            : isSystemValuesBtn
-              ? "시스템값 — 레일·프레임 눈금 학습"
+            ? "동선 — 기준/보정 궤적과 계산값"
+            : id === "HP/T"
+              ? "타법 — 두께·타점"
               : label
         }
         aria-label={label}
         aria-pressed={isDisplayModeBtn ? displayModeActive : isFuncSelected ? true : undefined}
         onClick={() => {
           if (isTrajectoryBtn) {
-            setUserTableDisplayMode((prev) =>
-              prev === "trajectory" ? "default" : "trajectory"
-            );
+            setUserTableDisplayMode((prev) => {
+              const next = prev === "trajectory" ? "default" : "trajectory";
+              if (next === "default") {
+                setTrajectoryCardOffset({ x: 0, y: 0 });
+              }
+              return next;
+            });
             setCurrentButtonId("TRAJECTORY");
-            (
-              onCloseUserOverlay ??
-              userRailActions.dismissOverlayPanel ??
-              userRailActions.closeOverlay
-            )?.();
-            return;
-          }
-          if (isSystemValuesBtn) {
-            setUserTableDisplayMode((prev) =>
-              prev === "systemValues" ? "default" : "systemValues"
-            );
-            setCurrentButtonId("SYSTEM_VALUES");
             (
               onCloseUserOverlay ??
               userRailActions.dismissOverlayPanel ??
@@ -693,9 +685,17 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
           <button
             type="button"
             data-stage-build={STAGE_BUILD_ID}
-            data-user-info-btn="SEARCH"
-            title="공략 검색"
+            data-user-info-btn={userSearchHasResults ? "RESET" : "SEARCH"}
+            title={
+              userSearchHasResults
+                ? "검색 결과 초기화 (공 위치 유지)"
+                : "공략 검색"
+            }
             onClick={() => {
+              if (userSearchHasResults) {
+                handleUserSearchReset();
+                return;
+              }
               resetUserTableDisplayMode();
               userSearchHandlerRef.current?.();
               onSearchStrategies?.();
@@ -703,7 +703,11 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             style={{
               ...userCompactBtnStyle,
               padding: `${USER_BTN_PAD_Y}px ${USER_BTN_PAD_X}px`,
-              background: getButtonColor("SEARCH", false, false),
+              background: getButtonColor(
+                userSearchHasResults ? "RESET" : "SEARCH",
+                false,
+                false
+              ),
               color: "#ffffff",
               border: "none",
               cursor: "pointer",
@@ -711,7 +715,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
               lineHeight: USER_RAIL_BUTTON_LINE_HEIGHT,
             }}
           >
-            Search
+            {userSearchHasResults ? "Reset" : "Search"}
           </button>
         </div>
 
@@ -759,7 +763,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         <div aria-hidden="true" style={groupSpacerStyle} />
 
         <div style={userRailSectionStyle}>
-          {USER_FUNC_BUTTONS.map(renderUserFuncButton)}
+          {USER_PRIMARY_FUNC_BUTTONS.map(renderUserFuncButton)}
         </div>
       </div>
     );
@@ -810,6 +814,10 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             userTableDisplayMode={userTableDisplayMode}
             trajectoryCardSource={trajectoryCardSource}
             onTrajectoryCardSourceChange={setTrajectoryCardSource}
+            trajectoryShowAxisValues={trajectoryShowAxisValues}
+            onTrajectoryShowAxisValuesChange={setTrajectoryShowAxisValues}
+            trajectoryCardOffset={trajectoryCardOffset}
+            onTrajectoryCardOffsetChange={setTrajectoryCardOffset}
             onActiveSlotChange={setActiveSlot}
             onFuncOverlayClose={() => {
               resetUserTableDisplayMode();
@@ -825,6 +833,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             onUserSearchResetRegister={(fn) => {
               userSearchResetHandlerRef.current = fn ?? null;
             }}
+            onUserSearchHasResultsChange={setUserSearchHasResults}
             onAdminSearchRegister={(fn) => {
               adminSearchHandlerRef.current = fn ?? null;
             }}

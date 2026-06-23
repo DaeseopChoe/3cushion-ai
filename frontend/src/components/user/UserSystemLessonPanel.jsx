@@ -1,7 +1,8 @@
 /**
- * USER read-only 시스템 레슨 — 설계안 기준 표(Table) 레이아웃.
- * ViewModel 문자열을 UI에서만 파싱·배치 (domain 로직 무변경).
+ * USER read-only 레슨 — 시스템 개요 · 포지션 해설 · 시스템값(접기).
  */
+
+import UserLessonSystemValuesSection from "./UserLessonSystemValuesSection.jsx";
 
 /** 설계안 표기: 출발값 - 3쿠션값 = 1쿠션값 */
 function formulaForTableDisplay(formulaLine) {
@@ -60,7 +61,6 @@ function RowHeader({ children }) {
   return <th className="user-sys-lesson__th">{children}</th>;
 }
 
-/** 포지션 표: 4쿠션 3칸 — 내용량 기준 비균등 (기준값 행 균등과 분리) */
 function PositionC4ResultRow({ block }) {
   if (!block) return null;
   return (
@@ -87,7 +87,6 @@ function PositionC4ResultRow({ block }) {
   );
 }
 
-/** totalCols 5=보정 표(보정치 행 4칸) */
 function C4ResultRow({ block, totalCols = 4 }) {
   if (!block) return null;
   const exprSpan = totalCols === 5 ? 2 : 1;
@@ -110,7 +109,6 @@ function C4ResultRow({ block, totalCols = 4 }) {
   );
 }
 
-/** ViewModel footnotes 그대로 — 50 기준 3줄만 UI에서 1줄 병합 */
 function normalizeFootnoteLines(lines) {
   if (!lines?.length) return [];
   const out = [];
@@ -146,11 +144,33 @@ function Footnotes({ lines }) {
   );
 }
 
-function PositionBlock({ formulaLine, section }) {
+function OverviewBlock({ section }) {
+  if (!section) return null;
+  return (
+    <section className="user-sys-lesson__block user-sys-lesson__block--overview">
+      <h3 className="user-sys-lesson__block-title">시스템 개요</h3>
+      <p className="user-sys-lesson__prose">{section.body}</p>
+    </section>
+  );
+}
+
+function PositionExplainBlock({ explainLine }) {
+  if (!explainLine) return null;
+  return (
+    <section className="user-sys-lesson__block user-sys-lesson__block--explain">
+      <h3 className="user-sys-lesson__block-title">현재 포지션 해설</h3>
+      <p className="user-sys-lesson__prose">{explainLine}</p>
+    </section>
+  );
+}
+
+function PositionDetailBlock({ formulaLine, section }) {
   const [v0, v1, v2] = splitValuesTriple(section.valuesLine);
   return (
-    <section className="user-sys-lesson__block">
-      <h3 className="user-sys-lesson__block-title">[포지션 기준 계산]</h3>
+    <section className="user-sys-lesson__block user-sys-lesson__block--detail">
+      <h3 className="user-sys-lesson__block-title user-sys-lesson__block-title--sub">
+        [포지션 기준 계산]
+      </h3>
       <LessonTable className="user-sys-lesson__table--position">
         <tbody>
           <tr>
@@ -176,8 +196,10 @@ function PositionBlock({ formulaLine, section }) {
 function CorrectionBlock({ section }) {
   const quads = splitCorrectionsQuad(section.correctionsLine);
   return (
-    <section className="user-sys-lesson__block">
-      <h3 className="user-sys-lesson__block-title">[보정치 반영 계산]</h3>
+    <section className="user-sys-lesson__block user-sys-lesson__block--detail">
+      <h3 className="user-sys-lesson__block-title user-sys-lesson__block-title--sub">
+        [보정치 반영 계산]
+      </h3>
       <LessonTable>
         <tbody>
           <tr>
@@ -211,7 +233,7 @@ function CorrectionBlock({ section }) {
 export default function UserSystemLessonPanel({ model }) {
   if (!model) {
     return (
-      <p className="user-sys-lesson-empty">시스템 레슨 정보를 불러올 수 없습니다.</p>
+      <p className="user-sys-lesson-empty">레슨 정보를 불러올 수 없습니다.</p>
     );
   }
 
@@ -219,6 +241,9 @@ export default function UserSystemLessonPanel({ model }) {
     return (
       <div className="user-sys-lesson">
         <h2 className="user-sys-lesson__title">{model.title}</h2>
+        {model.overviewSection && (
+          <OverviewBlock section={model.overviewSection} />
+        )}
         <p className="user-sys-lesson-empty">{model.emptyMessage}</p>
       </div>
     );
@@ -229,8 +254,10 @@ export default function UserSystemLessonPanel({ model }) {
       <h2 className="user-sys-lesson__title">{model.title}</h2>
 
       <div className="user-sys-lesson__stack">
+        <OverviewBlock section={model.overviewSection} />
+        <PositionExplainBlock explainLine={model.positionExplainLine} />
         {model.positionSection && (
-          <PositionBlock
+          <PositionDetailBlock
             formulaLine={model.formulaLine}
             section={model.positionSection}
           />
@@ -238,6 +265,7 @@ export default function UserSystemLessonPanel({ model }) {
         {model.correctionSection && (
           <CorrectionBlock section={model.correctionSection} />
         )}
+        <UserLessonSystemValuesSection section={model.systemValuesSection} />
       </div>
     </div>
   );

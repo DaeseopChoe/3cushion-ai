@@ -35,13 +35,30 @@ export type SystemLessonCorrectionSection = {
   footnotes: string[];
 };
 
+export type SystemLessonOverviewSection = {
+  systemName: string;
+  body: string;
+};
+
+export type SystemLessonValueEntry = {
+  label: string;
+  value: string;
+};
+
+export type SystemLessonSystemValuesSection = {
+  entries: SystemLessonValueEntry[];
+};
+
 export type UserSystemLessonModel = {
   title: string;
   formulaLine: string;
   isEmpty: boolean;
   emptyMessage?: string;
+  overviewSection: SystemLessonOverviewSection | null;
+  positionExplainLine: string | null;
   positionSection: SystemLessonPositionSection | null;
   correctionSection: SystemLessonCorrectionSection | null;
+  systemValuesSection: SystemLessonSystemValuesSection | null;
 };
 
 export type BuildUserSystemLessonArgs = {
@@ -113,6 +130,60 @@ function fmtSignedParen(n: number): string {
 function fmtSignedCalc(n: number): string {
   if (n >= 0) return `+ ${fmt(n)}`;
   return `- ${fmt(Math.abs(n))}`;
+}
+
+function formatSysValue(
+  values: Record<string, number> | null | undefined,
+  keys: string[]
+): string | undefined {
+  if (!values) return undefined;
+  for (const key of keys) {
+    const v = values[key];
+    if (typeof v === "number" && Number.isFinite(v)) {
+      return fmt(v);
+    }
+  }
+  return undefined;
+}
+
+function buildOverviewBody(systemName: string, formulaLine: string): string {
+  const formulaDisplay = formulaLine.replace(/^1쿠션값\s*=\s*/, "");
+  if (formulaDisplay && formulaDisplay !== formulaLine) {
+    return `${systemName}은(는) ${formulaDisplay} 공식을 사용하는 시스템입니다.`;
+  }
+  return `${systemName}의 계산 방식을 설명합니다.`;
+}
+
+function buildPositionExplainLine(
+  co: number,
+  c3: number,
+  c1: number
+): string {
+  return `현재 포지션은 출발값 ${fmt(co)}, 3쿠션값 ${fmt(c3)}이므로 1쿠션값은 ${fmt(c1)}가 됩니다.`;
+}
+
+function buildSystemValuesSection(
+  values: Record<string, number> | null | undefined,
+  coKey: string,
+  c1Key: string,
+  c3Key: string
+): SystemLessonSystemValuesSection | null {
+  if (!values || typeof values !== "object") return null;
+  const spec: Array<{ label: string; keys: string[] }> = [
+    { label: "CO", keys: [coKey, "CO_f", "CO_r", "CO"] },
+    { label: "C1", keys: [c1Key, "C1_f", "C1_r", "oneC", "C1"] },
+    { label: "C3", keys: [c3Key, "C3_r", "C3_f", "threeC", "C3"] },
+    { label: "C4", keys: ["C4_f", "C4_r", "C4"] },
+    { label: "C5", keys: ["C5_f", "C5_r", "C5"] },
+    { label: "C6", keys: ["C6_f", "C6_r", "C6"] },
+    { label: "Sn", keys: ["Sn"] },
+  ];
+  const entries: SystemLessonValueEntry[] = [];
+  for (const { label, keys } of spec) {
+    const value = formatSysValue(values, keys);
+    if (value != null) entries.push({ label, value });
+  }
+  return entries.length > 0 ? { entries } : null;
 }
 
 function snFromCo(co: number): number {
@@ -194,17 +265,24 @@ export function buildUserSystemLessonViewModel(
 ): UserSystemLessonModel {
   const systemId = resolveSystemId(args.slotRenderSys, args.resolvedSlotSys);
   const systemName = getSystemNameKo(systemId);
-  const title = `시스템 레슨 : ${systemName}`;
+  const title = `레슨 : ${systemName}`;
   const formulaLine = getUserFormulaLine(systemId);
+  const overviewSection: SystemLessonOverviewSection = {
+    systemName,
+    body: buildOverviewBody(systemName, formulaLine),
+  };
 
   if (args.noStrategySelected) {
     return {
-      title,
+      title: "레슨",
       formulaLine,
       isEmpty: true,
-      emptyMessage: "공략을 선택한 뒤 시스템 레슨을 열어주세요.",
+      emptyMessage: "공략을 선택한 뒤 레슨을 열어주세요.",
+      overviewSection: null,
+      positionExplainLine: null,
       positionSection: null,
       correctionSection: null,
+      systemValuesSection: null,
     };
   }
 
@@ -213,9 +291,12 @@ export function buildUserSystemLessonViewModel(
       title,
       formulaLine,
       isEmpty: true,
-      emptyMessage: "현재 시스템 레슨은 파이브 앤드 하프 시스템부터 제공됩니다.",
+      emptyMessage: "현재 레슨은 파이브 앤드 하프 시스템부터 제공됩니다.",
+      overviewSection,
+      positionExplainLine: null,
       positionSection: null,
       correctionSection: null,
+      systemValuesSection: null,
     };
   }
 
@@ -257,10 +338,21 @@ export function buildUserSystemLessonViewModel(
       formulaLine,
       isEmpty: true,
       emptyMessage: "SYS 입력이 완료되지 않았습니다. 관리자 설정 후 다시 열어주세요.",
+      overviewSection,
+      positionExplainLine: null,
       positionSection: null,
       correctionSection: null,
+      systemValuesSection: null,
     };
   }
+
+  const positionExplainLine = buildPositionExplainLine(coBase, c3Base, c1Base);
+  const systemValuesSection = buildSystemValuesSection(
+    corrected ?? base,
+    coKey,
+    c1Key,
+    c3Key
+  );
 
   const positionSection: SystemLessonPositionSection = {
     valuesLine: `출발(${fmt(coBase)}) · 3쿠션(${fmt(c3Base)}) · 1쿠션(${fmt(c1Base)})`,
@@ -298,7 +390,10 @@ export function buildUserSystemLessonViewModel(
     title,
     formulaLine,
     isEmpty: false,
+    overviewSection,
+    positionExplainLine,
     positionSection,
     correctionSection,
+    systemValuesSection,
   };
 }
