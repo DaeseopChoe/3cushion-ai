@@ -1,5 +1,7 @@
 // src/createMobileContract.js
 
+import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel.js";
+
 /**
  * Phase D
  * - PC(App.jsx)에서 계산 완료되고 이미 렌더링에 사용된 px 좌표를
@@ -174,7 +176,7 @@ export function createMobileContract(computationResult) {
             id: `sys-bottom-${i}`,
             x: item.x * SCALE + PADDING,
             y: TABLE_H + PADDING + 45,
-            text: `${item.mark}: ${item.sys}`,
+            text: `${cushionMarkToDisplayLabel(item.mark)}: ${item.sys}`,
             fontSize: 13,
             fontWeight: "bold",
             fill: "#fff",
@@ -192,7 +194,7 @@ export function createMobileContract(computationResult) {
             id: `sys-top-${i}`,
             x: item.x * SCALE + PADDING,
             y: PADDING - 35,
-            text: `${item.mark}: ${item.sys}`,
+            text: `${cushionMarkToDisplayLabel(item.mark)}: ${item.sys}`,
             fontSize: 13,
             fontWeight: "bold",
             fill: "#fff",
@@ -210,7 +212,7 @@ export function createMobileContract(computationResult) {
             id: `sys-left-${i}`,
             x: PADDING - 45,
             y: TABLE_H - item.y * SCALE + PADDING + 3,
-            text: `${item.mark}: ${item.sys}`,
+            text: `${cushionMarkToDisplayLabel(item.mark)}: ${item.sys}`,
             fontSize: 13,
             fontWeight: "bold",
             fill: "#fff",
@@ -228,7 +230,7 @@ export function createMobileContract(computationResult) {
             id: `sys-right-${i}`,
             x: TABLE_W + PADDING + 45,
             y: TABLE_H - item.y * SCALE + PADDING + 3,
-            text: `${item.mark}: ${item.sys}`,
+            text: `${cushionMarkToDisplayLabel(item.mark)}: ${item.sys}`,
             fontSize: 13,
             fontWeight: "bold",
             fill: "#fff",

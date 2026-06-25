@@ -1,5 +1,13 @@
 {
-  "id": "short_plate_system",
-  "짧은 각 접시 시스템",
-  "description": "단쿠션을 1쿠션으로 선택, 되돌아오는 공략할 때 활용"
+  "system_id": "short_plate_system",
+  "family": "plate",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 4,
+  "notes": "reviewed"
 }

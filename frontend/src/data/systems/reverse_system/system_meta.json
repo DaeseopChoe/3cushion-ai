@@ -1,5 +1,13 @@
 {
-  "id": "reverse_system",
-  "리버스 시스템",
-  "description": "역회전을 이용, 상하로 당점을 변경하면 공의 진로가 달라진다는 점 유의"
+  "system_id": "reverse_system",
+  "family": "reverse",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 5,
+  "notes": "reviewed"
 }

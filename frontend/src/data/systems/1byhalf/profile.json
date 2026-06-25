@@ -19,25 +19,13 @@
   },
 
   "formula": {
-    "expr": "1C_f = base(CO_f) + correction(3C_y)"
+    "expr": "C1_f = base(CO_f) + correction(C3_y)"
   },
 
   "value_domains": {
-    "CO_f": {
-      "unit": 1,
-      "range": [0, 80],
-      "notes": "Cue ball reference value on frame grid (bottom rail)"
-    },
-    "3C_y": {
-      "unit": 1,
-      "allowed": [11, 15, 19],
-      "notes": "Allowed third-cushion target y-values"
-    },
-    "1C_f": {
-      "unit": 1,
-      "range": [0, 80],
-      "notes": "Derived first cushion value (primary output)"
-    }
+    "CO_f": [0, 80],
+    "C3_y": [11, 19],
+    "C1_f": [0, 80]
   },
 
   "safety": {
@@ -64,10 +52,10 @@
     "version": "1.0",
     "role": "system_definition",
     "notes": [
-      "1byhalf system combines a base value from CO with a correction derived from 3C target",
+      "1byhalf system combines a base value from CO with a correction derived from C3 target",
       "Third cushion y must be one of the discrete allowed values (11, 15, 19)",
       "Spin and correction values are defined in derivations layer",
-      "Primary output is the first cushion position (1C)",
+      "Primary output is the first cushion position (C1)",
       "All calculations are performed strictly in system space"
     ]
   }

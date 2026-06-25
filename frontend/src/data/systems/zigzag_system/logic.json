@@ -4,9 +4,9 @@
   "role": "track_selection_only",
 
   "input_policy": {
-    "required_marks": ["CO", "3C"],
-    "optional_marks": ["track", "1C"],
-    "note": "track이 명시되면 그대로 사용. 없으면 CO/3C(선택적으로 1C) 상수선 스냅으로 추론."
+    "required_marks": ["CO", "C3"],
+    "optional_marks": ["track", "C1"],
+    "note": "track이 명시되면 그대로 사용. 없으면 CO/3C(선택적으로 C1) 상수선 스냅으로 추론."
   },
 
   "track_policy": {
@@ -19,19 +19,19 @@
     "frame_constants": [-2.25, 42.25, 82.25],
     "ruleset": [
       {
-        "if": "CO.y≈-2.25 AND 1C.y≈42.25 AND 3C.x≈82.25",
+        "if": "CO.y≈-2.25 AND C1.y≈42.25 AND 3C.x≈82.25",
         "then": "B2T_R"
       },
       {
-        "if": "CO.y≈-2.25 AND 1C.y≈42.25 AND 3C.x≈-2.25",
+        "if": "CO.y≈-2.25 AND C1.y≈42.25 AND 3C.x≈-2.25",
         "then": "B2T_L"
       },
       {
-        "if": "CO.y≈42.25 AND 1C.y≈-2.25 AND 3C.x≈-2.25",
+        "if": "CO.y≈42.25 AND C1.y≈-2.25 AND 3C.x≈-2.25",
         "then": "T2B_R"
       },
       {
-        "if": "CO.y≈42.25 AND 1C.y≈-2.25 AND 3C.x≈82.25",
+        "if": "CO.y≈42.25 AND C1.y≈-2.25 AND 3C.x≈82.25",
         "then": "T2B_L"
       }
     ],

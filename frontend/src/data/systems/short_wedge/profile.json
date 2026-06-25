@@ -7,6 +7,10 @@
     "en": "Short wedge system computing 1C by multiplying CO(frame) and 2C(rail) sys values"
   },
 
+  "formula": {
+    "expr": "C1_f = CO_f * C2_r"
+  },
+
   "system_characteristics": {
     "type": "continuous",
     "continuous_calculation": true,
@@ -25,8 +29,8 @@
 
   "ui": {
     "category": "wedge",
-    "input_marks": ["CO", "2C"],
-    "output_marks": ["1C"],
+    "input_marks": ["CO", "C2"],
+    "output_marks": ["C1"],
     "display_hint": {
       "hit_point": "12시 (고정)"
     }

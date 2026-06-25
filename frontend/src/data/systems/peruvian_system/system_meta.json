@@ -1,5 +1,13 @@
 {
-  "id": "peruvian_system",
-  "페루 시스템",
-  "description": "일출일몰과 성격이 같으며 긴 각 비켜치기할 때 사용"
+  "system_id": "peruvian_system",
+  "family": "other",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 3,
+  "notes": "reviewed"
 }

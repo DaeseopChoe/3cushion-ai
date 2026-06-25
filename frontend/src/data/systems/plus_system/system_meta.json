@@ -1,5 +1,13 @@
 {
-  "id": "plus_system",
-  "label": "플러스 시스템",
-  "description": "앞 돌리기 짧게 공략할 때 주로 사용하는 시스템"
+  "system_id": "plus_system",
+  "family": "plus",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 3,
+  "notes": "reviewed"
 }

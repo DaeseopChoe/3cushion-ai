@@ -30,3 +30,10 @@ repo/
 # =========================
 .env
 .env.local
+
+# =========================
+# Project-specific excludes
+# =========================
+dataset/
+stage_diff.txt
+작업관리/SESSION_TRANSFER/

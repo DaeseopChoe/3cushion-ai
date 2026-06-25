@@ -25,11 +25,11 @@
   },
 
   "formula": {
-    "expr": "1C_f = intersect(line(CB, TB), rail)"
+    "expr": "C1_f = intersect(line(CB, TB), rail)"
   },
 
   "value_domains": {
-    "4C_f": {
+    "C4_f": {
       "unit": 1,
       "range": [0, 80],
       "notes": "Fourth cushion reference value on frame grid"
@@ -50,7 +50,7 @@
       },
       "notes": "Target ball (impact ball) center position"
     },
-    "1C_f": {
+    "C1_f": {
       "unit": 1,
       "range": [-10, 90],
       "notes": "Derived first cushion intersection value (primary output)"
@@ -82,8 +82,8 @@
     "version": "1.0",
     "role": "system_definition",
     "notes": [
-      "3and4 system is a geometry-based system derived from 4C reference",
-      "System determines 1C by intersecting the CB–TB line with the cushion rail",
+      "3and4 system is a geometry-based system derived from C4 reference",
+      "System determines C1 by intersecting the CB–TB line with the cushion rail",
       "Inside/Outside classification depends on the relative position of the target ball",
       "System operates on continuous geometry rather than discrete integer tables",
       "Interpolation is inherent to the system; extrapolation is strictly forbidden",

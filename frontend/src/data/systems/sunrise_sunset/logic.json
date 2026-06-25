@@ -16,14 +16,14 @@
   },
   "variables": {
     "CO": { "space": "Fg", "role": "origin", "tag": "CO_f" },
-    "1C": { "space": "Fg", "role": "first_cushion", "tag": "1C_f" },
-    "2C": { "space": "Rg", "role": "second_cushion", "tag": "2C_r" },
-    "3C": { "space": "Rg", "role": "third_cushion", "tag": "3C_r" }
+    "C1": { "space": "Fg", "role": "first_cushion", "tag": "C1_f" },
+    "C2": { "space": "Rg", "role": "second_cushion", "tag": "C2_r" },
+    "C3": { "space": "Rg", "role": "third_cushion", "tag": "C3_r" }
   },
   "formulae": [
     {
       "name": "primary_hp",
-      "expression": "CO_f + 1C_f + 3C_r",
+      "expression": "CO_f + C1_f + C3_r",
       "result": "HP_n",
       "notes": "Sunrise–Sunset primary formula. Engines evaluate only left-hand side; result alias is informational."
     }
@@ -50,16 +50,16 @@
       "fallback": "B2T"
     },
     "turn_determination": {
-      "dx": "1C.x - CO.x",
+      "dx": "C1.x - CO.x",
       "if": [
         { "when": "dx > +tol", "then": "R" },
         { "when": "dx < -tol", "then": "L" }
       ],
       "tie_breaker": [
-        { "when": "abs(3C.y - 40.0) <= tol", "set_base": "T2B" },
-        { "when": "abs(3C.y - 0.0) <= tol", "set_base": "B2T" },
-        { "when": "3C.x > CO.x + tol", "then": "R" },
-        { "when": "3C.x < CO.x - tol", "then": "L" },
+        { "when": "abs(C3.y - 40.0) <= tol", "set_base": "T2B" },
+        { "when": "abs(C3.y - 0.0) <= tol", "set_base": "B2T" },
+        { "when": "C3.x > CO.x + tol", "then": "R" },
+        { "when": "C3.x < CO.x - tol", "then": "L" },
         { "default": "L" }
       ]
     },
@@ -99,12 +99,12 @@
   "io": {
     "requires": ["anchors.json", "profile_<system>.json"],
     "produces": ["HP_n", "selected_track"],
-    "labels_expected": ["CO", "1C", "3C"]
+    "labels_expected": ["CO", "C1", "C3"]
   },
   "pipeline": [
-    "1) Select track from CO/1C/3C coordinates with tolerance.",
-    "2) From anchors.json, fetch sys for CO/1C/3C: exact match else linear interpolation within the constant-rail group (clamp).",
-    "3) Read formula from profile and evaluate with CO_f, 1C_f, 3C_r (others default 0 unless present).",
+    "1) Select track from CO/1C/C3 coordinates with tolerance.",
+    "2) From anchors.json, fetch sys for CO/1C/C3: exact match else linear interpolation within the constant-rail group (clamp).",
+    "3) Read formula from profile and evaluate with CO_f, C1_f, C3_r (others default 0 unless present).",
     "4) Emit HP_n and selected_track; apply optional correction rules from profile, if defined."
   ]
 }

@@ -6,28 +6,28 @@
   "track_policy": {
     "available_tracks": ["RLTR_R", "LRTL_L", "RLBR_L", "LRBL_R"],
     "selection_mode": "auto_or_explicit",
-    "note": "Track can be explicitly provided, otherwise inferred from CO/1C rails and relative direction."
+    "note": "Track can be explicitly provided, otherwise inferred from CO/C1 rails and relative direction."
   },
 
   "input_mode": {
     "type": "solve_one_of_four",
-    "required_any_three_of": ["CO", "1C", "3C", "TIP"],
+    "required_any_three_of": ["CO", "C1", "C3", "TIP"],
     "optional": ["track"],
-    "derived_marks": ["CO", "1C", "3C", "TIP"],
+    "derived_marks": ["CO", "C1", "C3", "TIP"],
     "description": "Exactly 3 of 4 values must be provided; the remaining one is derived in rules.json."
   },
 
   "spin_policy": {
     "mode": "auto_or_explicit",
-    "note": "If spin(L/R) is not provided, infer using CO/1C route and relative direction.",
+    "note": "If spin(L/R) is not provided, infer using CO/C1 route and relative direction.",
     "inference": {
       "route_rule": [
-        "if CO.rail==RIGHT and 1C.rail==LEFT => route=RL",
-        "if CO.rail==LEFT and 1C.rail==RIGHT => route=LR"
+        "if CO.rail==RIGHT and C1.rail==LEFT => route=RL",
+        "if CO.rail==LEFT and C1.rail==RIGHT => route=LR"
       ],
       "direction_rule": [
-        "if y(1C) > y(CO): RL->R, LR->L",
-        "if y(1C) < y(CO): RL->L, LR->R"
+        "if y(C1) > y(CO): RL->R, LR->L",
+        "if y(C1) < y(CO): RL->L, LR->R"
       ]
     }
   },

@@ -26,7 +26,7 @@
     }
   },
 
-  "required_marks": ["CO", "C1", "3C"],
+  "required_marks": ["CO", "C1", "C3"],
 
   "aliases": {
     "TB": "C1"
@@ -34,11 +34,11 @@
 
   "hp_policy": {
     "pattern": "long-short-long",
-    "description": "Ball System: input uses CO (cue), C1 (target ball / TB), and 3C arrival rail mark. Thickness(T) and tip(HP) candidates are derived in derivations layer.",
+    "description": "Ball System: input uses CO (cue), C1 (target ball / TB), and C3 arrival rail mark. Thickness(T) and tip(HP) candidates are derived in derivations layer.",
     "mark_semantics": {
       "CO": "cue_ball (physical position)",
       "C1": "target_ball (TB physical position)",
-      "3C": "third_cushion arrival mark (rail mark from anchors)"
+      "C3": "third_cushion arrival mark (rail mark from anchors)"
     }
   },
 

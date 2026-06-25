@@ -11,9 +11,9 @@
 
   "input_mode": {
     "type": "continuous",
-    "required_marks": ["CO", "2C"],
+    "required_marks": ["CO", "C2"],
     "optional_marks": [],
-    "derived_marks": ["1C"],
+    "derived_marks": ["C1"],
     "description": "CO and 2C are inputs; 1C is derived by calculation."
   },
 

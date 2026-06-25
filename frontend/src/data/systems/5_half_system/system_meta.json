@@ -1,5 +1,13 @@
 {
-  "id": "5_half_system",
-  "label": "5 and half 시스템",
-  "description": "가장 어렵고, 가장 많이 사용하는 시스템"
+  "system_id": "5_half_system",
+  "family": "5_half",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 5,
+  "notes": "reviewed"
 }

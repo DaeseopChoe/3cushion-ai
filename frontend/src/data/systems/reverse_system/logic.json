@@ -11,9 +11,9 @@
 
   "input_mode": {
     "type": "continuous",
-    "required_marks": ["CO", "2C"],
+    "required_marks": ["CO", "C2"],
     "optional_marks": [],
-    "derived_marks": ["1C"],
+    "derived_marks": ["C1"],
     "description": "CO and 2C are inputs; 1C is always derived by calculation."
   },
 
@@ -33,10 +33,10 @@
     "strategy": "ruleset",
     "tolerance": 0.02,
     "ruleset": [
-      { "if": "CO.on_bottom_or_left && 1C.x > CO.x && 2C.x > CO.x", "then": "B2T_R" },
-      { "if": "CO.on_bottom_or_right && 1C.x < CO.x && 2C.x < CO.x", "then": "B2T_L" },
-      { "if": "CO.on_top_or_right && 1C.x < CO.x && 2C.x < CO.x", "then": "T2B_R" },
-      { "if": "CO.on_top_or_left && 1C.x > CO.x && 2C.x > CO.x", "then": "T2B_L" }
+      { "if": "CO.on_bottom_or_left && C1.x > CO.x && C2.x > CO.x", "then": "B2T_R" },
+      { "if": "CO.on_bottom_or_right && C1.x < CO.x && C2.x < CO.x", "then": "B2T_L" },
+      { "if": "CO.on_top_or_right && C1.x < CO.x && C2.x < CO.x", "then": "T2B_R" },
+      { "if": "CO.on_top_or_left && C1.x > CO.x && C2.x > CO.x", "then": "T2B_L" }
     ]
   },
 

@@ -1,5 +1,13 @@
 {
-  "id": "n_across",
-  "N자 횡단",
-  "description": "종단 샷, 뱅크샷, 정교한 스트로크가 관건"
+  "system_id": "n_across",
+  "family": "across",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 5,
+  "notes": "reviewed"
 }

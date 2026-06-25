@@ -11,7 +11,7 @@
 
   "input_mode": {
     "type": "continuous",
-    "required_marks": ["CO", "1C"],
+    "required_marks": ["CO", "C1"],
     "optional_marks": [],
     "derived_marks": ["HP"],
     "description": "CO and 1C are inputs; HP is always derived by calculation."

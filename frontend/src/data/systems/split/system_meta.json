@@ -1,5 +1,13 @@
 {
-  "id": "split",
-  "분열",
-  "description": "짧은 각 N자 횡단은 상단 당점, 분열은 중단 무회전 이용한다는 점이 차이"
+  "system_id": "split",
+  "family": "other",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 2,
+  "notes": "reviewed"
 }

@@ -1,5 +1,13 @@
 {
-  "id": "plus2_system",
-  "플러스 2 시스템",
-  "description": "앞 돌리기 짧게 공략할 때 사용, 코너를 겨냥하면 2포인트(20) 더한 지점에 도착하는 것이 특징"
+  "system_id": "plus2_system",
+  "family": "plus",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 3,
+  "notes": "reviewed"
 }

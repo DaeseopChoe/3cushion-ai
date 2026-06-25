@@ -1,0 +1,13 @@
+{
+  "system_id": "spread30",
+  "family": "other",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 2,
+  "notes": "reviewed"
+}

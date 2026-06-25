@@ -1,5 +1,13 @@
 {
-  "id": "3tip_plus",
-  "label": "3팁 플러스 시스템",
-  "description": "플러스 시스템과 유사, 실전에서 매우 유용한 시스템"
+  "system_id": "3tip_plus",
+  "family": "plus",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 2,
+  "notes": "reviewed"
 }

@@ -1,5 +1,13 @@
 {
-  "id": "short_wedge",
-  "짧은 각 2뱅크 시스템",
-  "description": "단쿠션 2뱅크 공략할 때 1쿠션 값을 찾을 때 유용"
+  "system_id": "short_wedge",
+  "family": "other",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 4,
+  "notes": "reviewed"
 }

@@ -18,6 +18,26 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // #region agent log
+      fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "75c16c",
+        },
+        body: JSON.stringify({
+          sessionId: "75c16c",
+          runId: "snap-debug-pre",
+          hypothesisId: "H9",
+          location: "index.html:pre-main-script",
+          message: "index html script executed",
+          data: { phase: "pre-main" },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

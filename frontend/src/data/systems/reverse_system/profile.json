@@ -6,7 +6,9 @@
     "ko": "CO와 2C 위치를 기준으로 1C를 역산하는 프레임 전용 리버스 시스템",
     "en": "Frame-only reverse system that infers 1C from CO and 2C"
   },
-
+"formula": {
+    "expr": "C1_f = (CO_f + C2_f - 20) * 2/3"
+},
   "system_characteristics": {
     "type": "continuous_reverse",
     "continuous_calculation": true,
@@ -23,8 +25,8 @@
 
   "ui": {
     "category": "reverse",
-    "input_marks": ["CO", "2C"],
-    "output_marks": ["1C"],
+    "input_marks": ["CO", "C2"],
+    "output_marks": ["C1"],
     "display_mode": "frame_only"
   },
 

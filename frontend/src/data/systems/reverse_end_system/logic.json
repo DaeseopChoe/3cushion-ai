@@ -11,7 +11,7 @@
 
   "input_mode": {
     "type": "discrete_lookup",
-    "required_marks": ["CO", "2C"],
+    "required_marks": ["CO", "C2"],
     "optional_marks": [],
     "description": "Inputs are treated as discrete selections, not continuous values."
   },

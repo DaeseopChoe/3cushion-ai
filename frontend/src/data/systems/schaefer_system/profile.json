@@ -24,7 +24,7 @@
 
   "ui": {
     "category": "basic",
-    "input_marks": ["CO", "1C"],
+    "input_marks": ["CO", "C1"],
     "output_marks": ["HP"],
     "display_hint": {
       "hit_point": "9시"

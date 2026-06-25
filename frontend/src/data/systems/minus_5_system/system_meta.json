@@ -1,5 +1,13 @@
 {
-  "id": "minus_5_system",
-  "label": "마이너스 5",
-  "description": "하프 시스템과 성격이 비슷, 옆 돌리기할 때 간단하게 응용"
+  "system_id": "minus_5_system",
+  "family": "5_half",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 2,
+  "notes": "reviewed"
 }

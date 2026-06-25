@@ -12,7 +12,7 @@
         "id": "B2T_R_pattern",
         "condition": {
           "CO": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 82.25 },
-          "3C": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
+          "C3": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
         },
         "result": "B2T_R"
       },
@@ -20,7 +20,7 @@
         "id": "B2T_L_pattern",
         "condition": {
           "CO": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -2.25 },
-          "3C": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
+          "C3": { "space": "Rg", "rail": "TOP", "axis": "short", "value": 40 }
         },
         "result": "B2T_L"
       },
@@ -28,7 +28,7 @@
         "id": "T2B_R_pattern",
         "condition": {
           "CO": { "space": "Fg", "rail": "LEFT", "axis": "long", "value": -2.25 },
-          "3C": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
+          "C3": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
         },
         "result": "T2B_R"
       },
@@ -36,7 +36,7 @@
         "id": "T2B_L_pattern",
         "condition": {
           "CO": { "space": "Fg", "rail": "RIGHT", "axis": "long", "value": 82.25 },
-          "3C": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
+          "C3": { "space": "Rg", "rail": "BOTTOM", "axis": "short", "value": 0 }
         },
         "result": "T2B_L"
       }
@@ -44,12 +44,12 @@
 
     "fallback": {
       "policy": "error",
-      "message": "Unable to resolve track: CO and 3C must lie on N-Across Short constant lines within snap tolerance."
+      "message": "Unable to resolve track: CO and C3 must lie on N-Across Short constant lines within snap tolerance."
     }
   },
 
-  "required_marks": ["CO", "3C"],
-  "optional_marks": ["1C"],
+  "required_marks": ["CO", "C3"],
+  "optional_marks": ["C1"],
 
   "input_validation": {
     "rail_required": true,
@@ -57,7 +57,7 @@
     "error_on_missing": true,
     "error_messages": {
       "missing_CO": "CO 입력이 필요합니다.",
-      "missing_3C": "3C 입력이 필요합니다.",
+      "missing_C3": "C3 입력이 필요합니다.",
       "invalid_pattern": "입력 마크가 N-Across Short 상수선 패턴과 일치하지 않습니다."
     }
   },
@@ -71,15 +71,15 @@
   "notes": {
     "ko": [
       "logic.json은 트랙 선택만 담당합니다.",
-      "N-Across Short는 CO와 3C의 상수선 조합으로 트랙을 판정합니다.",
-      "3C는 항상 단쿠션(short cushion)에 위치합니다.",
+      "N-Across Short는 CO와 C3의 상수선 조합으로 트랙을 판정합니다.",
+      "C3는 항상 단쿠션(short cushion)에 위치합니다.",
       "CO_sys, c 계산 및 2D 보간은 rules.json에서만 수행됩니다."
     ]
   },
 
   "meta": {
     "spec_version": "v1.3",
-    "generator": "3Cushion AI (PM)",
+    "generator": "C3ushion AI (PM)",
     "no_calc_in_logic": true,
     "last_updated": "2026-01-12",
     "source": "N_Across_short_logic_manual.txt"

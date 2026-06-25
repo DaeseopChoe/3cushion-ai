@@ -5,45 +5,45 @@
 
     "ruleset": [
       {
-        "if": "CO.y == -2.25 and 1C.y == 42.25 and CO.x <= 40",
+        "if": "CO.y == -2.25 and C1.y == 42.25 and CO.x <= 40",
         "then": "B2T_L"
       },
       {
-        "if": "CO.y == -2.25 and 1C.y == 42.25 and CO.x > 40",
+        "if": "CO.y == -2.25 and C1.y == 42.25 and CO.x > 40",
         "then": "B2T_R"
       },
       {
-        "if": "CO.y == 42.25 and 1C.y == -2.25 and CO.x <= 40",
+        "if": "CO.y == 42.25 and C1.y == -2.25 and CO.x <= 40",
         "then": "T2B_R"
       },
       {
-        "if": "CO.y == 42.25 and 1C.y == -2.25 and CO.x > 40",
+        "if": "CO.y == 42.25 and C1.y == -2.25 and CO.x > 40",
         "then": "T2B_L"
       }
     ]
   },
 
   "usage_conditions": {
-    "required_marks": ["CO", "1C", "3C"],
-    "optional_marks": ["4C", "5C", "6C"],
+    "required_marks": ["CO", "C1", "C3"],
+    "optional_marks": ["C4", "C5", "C6"],
     "allow_double_rail": true,
     "third_cushion_mode": ["straight", "curved"]
   },
 
   "branch_rules": {
     "third_cushion": {
-      "if": "3C.axis == long",
+      "if": "C3.axis == long",
       "then": "BOTTOM_OR_TOP",
       "else": "LEFT_OR_RIGHT"
     },
 
     "multi_cushion_generation": [
       {
-        "if": "4C.exists == true and 4C.rail in ['LEFT','RIGHT']",
-        "then": ["5C", "6C"]
+        "if": "C4.exists == true and C4.rail in ['LEFT','RIGHT']",
+        "then": ["C5", "C6"]
       },
       {
-        "if": "4C.exists == true and 4C.rail in ['TOP','BOTTOM']",
+        "if": "C4.exists == true and C4.rail in ['TOP','BOTTOM']",
         "then": []
       }
     ]

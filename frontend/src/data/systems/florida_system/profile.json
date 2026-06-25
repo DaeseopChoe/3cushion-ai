@@ -1,6 +1,6 @@
 {
   "system": "Florida_system",
-  "formula": "1C_f = CO_f - (4C_r * An)",
+  "formula": { "expr": "C1_f = CO_f - (C4_r * An)" },
   "value_domains": {
     "co_sys_labels": [40, 30, 20, 10],
     "fourth_cushion_sys": [1, 2, 3, 4, 5, 6, 7, 8],
@@ -32,7 +32,7 @@
   },
   "meta": {
     "version": "1.0",
-    "generator": "3Cushion AI",
+    "generator": "C3ushion AI",
     "hit_point": "center"
   }
 }

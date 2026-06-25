@@ -1,5 +1,13 @@
 {
-  "id": "tokyo_system",
-  "도쿄 시스템",
-  "description": "1뱅크 앞 걸어치기, 2뱅크 뒤 걸어치기할 때 기준되는 시스템"
+  "system_id": "tokyo_system",
+  "family": "5_half",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 5,
+  "notes": "reviewed"
 }

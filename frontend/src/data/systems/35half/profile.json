@@ -1,0 +1,72 @@
+{
+  "system_id": "35half",
+  "system_name": "35&½ System",
+  "alias": ["35half", "35_and_half"],
+  "category": {
+    "family": "angle",
+    "type": "composite",
+    "difficulty": "medium"
+  },
+  "display": {
+    "ko": {
+      "title": "35½ 시스템",
+      "short_title": "35½",
+      "description": "CO와 C3가 같은 시스템값을 공유하는 제한 구간 앵글 시스템. C1는 반대편 장쿠션에 형성된다."
+    },
+    "en": {
+      "title": "35&½ System",
+      "short_title": "35½",
+      "description": "A domain-limited angle system where CO and C3 share the same system scale and C1 is formed on the opposite long cushion."
+    }
+  },
+  "formula": {
+    "expr": "C1_f = ((35 + CO_f) / 2) - C3_f",
+    "text": "C1 is conceptually derived from CO and C3 using the 35&½ relation.",
+    "note": "This is a conceptual description only. All actual computation rules live in derivations/35half.rules.json."
+  },
+  "aim_policy": {
+    "tip": {
+      "fixed": true,
+      "mapping": {
+        "left_turn": "9시",
+        "right_turn": "3시"
+      },
+      "note": "Spin and tip are fixed per track direction."
+    }
+  },
+  "ui": {
+    "inputs": [
+      { "id": "CO", "label_ko": "CO", "label_en": "CO" },
+      { "id": "C3", "label_ko": "C3", "label_en": "C3" }
+    ],
+    "outputs": [
+      { "id": "C1", "label_ko": "C1", "label_en": "C1" }
+    ],
+    "hints_ko": [
+      "CO_sys는 0~35 또는 45~80 구간만 유효합니다.",
+      "35~45 구간은 시스템 비정의 영역이며 계산 시 clamp 됩니다.",
+      "계산은 sys 전용이며 좌표는 표시용입니다."
+    ]
+  },
+  "domains": {
+    "co_sys_valid_primary": [0, 35],
+    "co_sys_valid_mirror": [45, 80],
+    "undefined_gap": [35, 45],
+    "note": "The system is not defined in the gap (35,45); values are clamped to nearest valid bound."
+  },
+  "notes": {
+    "ssot_roles": [
+      "systems/35half/profile.json : identity, UI, concept only",
+      "systems/35half/logic.json : track selection only",
+      "systems/35half/anchors.json : anchor references (do not modify)",
+      "derivations/35half.rules.json : all computation, interpolation, clamp rules"
+    ]
+  },
+  "meta": {
+    "rule_version": "v1.3",
+    "generator": "C3ushion AI (PM)",
+    "no_calc_in_profile": true,
+    "last_updated": "2026-01-11",
+    "source": "35&half_system_logic_manual.txt"
+  }
+}

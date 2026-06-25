@@ -6,22 +6,22 @@
   "inputs_required": [
     "CB_xy",
     "TB_xy",
-    "4C_f"
+    "C4_f"
   ],
 
   "decision_steps": [
     {
       "step": "classify_inside_outside",
-      "description": "Determine whether the target ball lies on the inside or outside of the CB–4C reference line",
+      "description": "Determine whether the target ball lies on the inside or outside of the CB–C4 reference line",
       "method": "signed_area",
 
-      "inputs": ["CB_xy", "TB_xy", "4C_f"],
+      "inputs": ["CB_xy", "TB_xy", "C4_f"],
 
       "output": "path_type",
 
       "rules": {
-        "inside": "TB lies on the same side of the CB–4C line as the table center",
-        "outside": "TB lies on the opposite side of the CB–4C line"
+        "inside": "TB lies on the same side of the CB–C4 line as the table center",
+        "outside": "TB lies on the opposite side of the CB–C4 line"
       },
 
       "on_ambiguity": "error"

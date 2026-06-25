@@ -1,5 +1,13 @@
 {
-  "id": "turkish_angle_system",
-  "터키 시스템",
-  "description": "무회전 긴각 옆 돌리기할 때 주로 활용, 2/3 시스템과 기본 원리는 같음"
+  "system_id": "turkish_angle_system",
+  "family": "two_thirds",
+  "required_cushions": 3,
+  "canonical_track": "B2T_L",
+  "entry_rail": "BOTTOM",
+  "exit_rail": "TOP",
+  "allowed_tracks": [
+    "B2T_L"
+  ],
+  "difficulty": 4,
+  "notes": "reviewed"
 }
