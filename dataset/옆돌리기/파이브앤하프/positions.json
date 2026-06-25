@@ -1,0 +1,372 @@
+{
+  "schemaVersion": 2,
+  "shotType": "옆돌리기",
+  "systemId": "5_half_system",
+  "systemLabel": "파이브앤하프",
+  "exportedAt": "2026-06-19T03:17:21.242Z",
+  "sourceSnapshotId": "48b57d46-2110-47ae-8376-2f33676d0414",
+  "records": [
+    {
+      "positionId": "200160236301554200",
+      "balls": {
+        "cue": {
+          "x": 20,
+          "y": 16
+        },
+        "target": {
+          "x": 23.625,
+          "y": 30.125
+        },
+        "second": {
+          "x": 55.375,
+          "y": 20
+        }
+      },
+      "strategies": {
+        "S1": {
+          "slot": "S1",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": ""
+          },
+          "track": "B2T_R",
+          "sysInputs": {
+            "CO_f": 35.01000000000077,
+            "C3_r": 31.010000000000773,
+            "baseOneC": 0,
+            "baseThreeC": 0
+          },
+          "hpT": {
+            "T": "-3/8",
+            "hit_point": {
+              "x": 2.5,
+              "y": 1.2
+            },
+            "mode": "SPIN",
+            "tipCount": 0
+          },
+          "ai": {
+            "text": "",
+            "onePointLessons": []
+          },
+          "meta": {
+            "impact": {
+              "x": 22.322882004815412,
+              "y": 28.986034356604367
+            },
+            "final": {
+              "x": 74.0828402366864,
+              "y": 40
+            },
+            "angle_ci": 1.3937929145834835,
+            "angle_fs": -2.3228245039296134
+          },
+          "corrections": {
+            "slide": 0,
+            "curve_ratio": 0,
+            "draw": 0,
+            "departure": 0,
+            "spin": 0
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "red"
+    },
+    {
+      "positionId": "200160209276685284",
+      "balls": {
+        "cue": {
+          "x": 20,
+          "y": 16
+        },
+        "target": {
+          "x": 20.875,
+          "y": 27.625
+        },
+        "second": {
+          "x": 68.5,
+          "y": 28.375
+        }
+      },
+      "strategies": {
+        "S1": {
+          "slot": "S1",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": "옆돌리기"
+          },
+          "track": "B2T_L",
+          "sysInputs": {
+            "CO_f": 34.16800000000083,
+            "C3_r": 30.16800000000083,
+            "HP_n": 0,
+            "An": 0,
+            "baseThreeC": 0,
+            "baseOneC": 0
+          },
+          "hpT": {
+            "T": "-2/8",
+            "hit_point": {
+              "x": -2.8,
+              "y": 1.1
+            },
+            "mode": "SPIN",
+            "tipCount": 0
+          },
+          "str": {
+            "type": null,
+            "acceleration": "smooth_const",
+            "speed": 2.5,
+            "depth": 2,
+            "impact": "medium"
+          },
+          "ai": {
+            "text": "",
+            "onePointLessons": []
+          },
+          "meta": {
+            "impact": {
+              "x": 19.620032063627253,
+              "y": 26.43428194399535
+            },
+            "final": {
+              "x": 5.9171597633136095,
+              "y": 40
+            },
+            "angle_ci": 1.6071955841974581,
+            "angle_fs": -0.18366051677662443
+          },
+          "corrections": {
+            "slide": 0,
+            "curve_ratio": 0,
+            "draw": 0,
+            "departure": 0,
+            "spin": 0
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "yellow"
+    },
+    {
+      "positionId": "200160209276644249",
+      "balls": {
+        "cue": {
+          "x": 20,
+          "y": 16
+        },
+        "target": {
+          "x": 20.875,
+          "y": 27.625
+        },
+        "second": {
+          "x": 64.375,
+          "y": 24.875
+        }
+      },
+      "strategies": {
+        "S1": {
+          "slot": "S1",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": "옆돌리기"
+          },
+          "track": "B2T_L",
+          "sysInputs": {
+            "CO_f": 34.16800000000083,
+            "C3_r": 30.16800000000083
+          },
+          "hpT": {
+            "T": "-2/8",
+            "hit_point": {
+              "x": -2.8,
+              "y": 1.1
+            },
+            "mode": "SPIN",
+            "tipCount": 0
+          },
+          "str": {
+            "type": null,
+            "acceleration": "smooth_const",
+            "speed": 2.5,
+            "depth": 2,
+            "impact": "medium"
+          },
+          "ai": {
+            "text": "",
+            "onePointLessons": []
+          },
+          "meta": {
+            "impact": {
+              "x": 19.620032063627253,
+              "y": 26.43428194399535
+            },
+            "final": {
+              "x": 5.9171597633136095,
+              "y": 40
+            },
+            "angle_ci": 1.6071955841974581,
+            "angle_fs": -0.2531813615982132
+          },
+          "corrections": {
+            "slide": 0,
+            "curve_ratio": 0,
+            "draw": 0,
+            "departure": 0,
+            "spin": 0
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "yellow"
+    },
+    {
+      "positionId": "200160195308600200",
+      "balls": {
+        "cue": {
+          "x": 20,
+          "y": 16
+        },
+        "target": {
+          "x": 19.5,
+          "y": 30.75
+        },
+        "second": {
+          "x": 60,
+          "y": 20
+        }
+      },
+      "strategies": {
+        "S1": {
+          "slot": "S1",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": "옆돌리기"
+          },
+          "track": "B2T_L",
+          "sysInputs": {
+            "CO_f": 34.46400000000081,
+            "C3_r": 28.346000000000878
+          },
+          "hpT": {
+            "T": "-2/8",
+            "hit_point": {
+              "x": -2.8,
+              "y": 1.1
+            },
+            "mode": "SPIN",
+            "tipCount": 0
+          },
+          "str": {
+            "type": null,
+            "acceleration": "smooth_const",
+            "speed": 2.5,
+            "depth": 2,
+            "impact": "medium"
+          },
+          "ai": {
+            "text": "",
+            "onePointLessons": []
+          },
+          "meta": {
+            "impact": {
+              "x": 18.351315773197808,
+              "y": 29.456447311736003
+            },
+            "final": {
+              "x": 7.9223668639052605,
+              "y": 40
+            },
+            "angle_ci": 1.6927087566145422,
+            "angle_fs": -0.36667427006426134
+          },
+          "corrections": {
+            "slide": 0,
+            "curve_ratio": 0,
+            "draw": 0,
+            "departure": 0,
+            "spin": 5.5
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "yellow"
+    },
+    {
+      "positionId": "200160200301600200",
+      "balls": {
+        "cue": {
+          "x": 20,
+          "y": 16
+        },
+        "target": {
+          "x": 20.040061950683594,
+          "y": 30.114054870605468
+        },
+        "second": {
+          "x": 60,
+          "y": 20
+        }
+      },
+      "strategies": {
+        "S2": {
+          "slot": "S2",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": "옆돌리기"
+          },
+          "track": "B2T_L",
+          "sysInputs": {
+            "CO_f": 35.958000000000716,
+            "HP_n": 0,
+            "An": 0,
+            "C3_r": 32.958000000000716,
+            "baseThreeC": 0,
+            "baseOneC": 0
+          },
+          "hpT": {
+            "T": "-3/8",
+            "hit_point": {
+              "x": -2.82842712474619,
+              "y": 2.8284271247461903
+            },
+            "mode": "TIP",
+            "tipCount": 2
+          },
+          "meta": {
+            "impact": {
+              "x": 19.061414696464272,
+              "y": 28.687519360347085
+            },
+            "final": {
+              "x": 4.970414201183432,
+              "y": 40
+            },
+            "angle_ci": 1.644638873027709,
+            "angle_fs": -0.34859832183808404
+          },
+          "corrections": {
+            "slide": 0,
+            "curve_ratio": 0,
+            "draw": 0,
+            "departure": 0,
+            "spin": 0
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "yellow"
+    }
+  ]
+}

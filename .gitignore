@@ -34,6 +34,6 @@ repo/
 # =========================
 # Project-specific excludes
 # =========================
-dataset/
+# dataset/
 stage_diff.txt
 작업관리/SESSION_TRANSFER/
