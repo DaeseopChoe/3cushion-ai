@@ -1333,7 +1333,117 @@ AI
 
 3축 구조를 USER UX의 기준 구조로 확정한다.
 
+21. Published Dataset Git 관리 복구 및 Production Search 검증 (2026-06)
+배경
 
+Dataset Architecture Phase 2~3-1 완료 이후
+
+localhost 환경에서는 USER Search 정상
+https://www.3cushionai.com 운영 환경에서는 USER Search 실패
+
+현상 확인.
+
+조사
+
+브라우저 Network 확인 결과
+
+/dataset/뒤돌리기/파이브앤하프/positions.json
+
+요청이 발생하나
+
+404 NOT_FOUND
+
+반환.
+
+직접 URL 접근 시에도 동일.
+
+원인
+
+프로젝트 루트 .gitignore 에
+
+dataset/
+
+가 포함되어 있었음.
+
+결과적으로
+
+로컬
+  dataset 존재
+  Search 성공
+
+Github
+  dataset 없음
+
+Vercel
+  dataset 없음
+
+Production
+  Search 실패
+
+구조가 형성됨.
+
+수정
+
+.gitignore
+
+수정 전
+
+dataset/
+
+수정 후
+
+# dataset/
+Git 반영
+
+추가된 Published Dataset
+
+dataset/뒤돌리기/파이브앤하프/positions.json
+dataset/옆돌리기/파이브앤하프/positions.json
+
+커밋
+
+55190d0
+add published gameplay datasets
+결과
+
+Github main 에 dataset 포함.
+
+Vercel 재배포 후
+
+https://www.3cushionai.com/dataset/...
+
+접근 가능 확인.
+
+검증 결과
+localhost
+USER Search
+PASS
+Production
+USER Search
+PASS
+결론
+
+Dataset Architecture Phase 2~3-1의
+
+Published Dataset Loader
+USER Search
+ADMIN Recall
+
+이 실제 Production 환경에서도 동작함을 최초 검증.
+
+중요 설계 확인
+
+현재 Published Dataset SSOT
+
+dataset/
+
+이며
+
+frontend/src/data/systems/
+
+는 시스템 정의 데이터(공식·anchors·logic) 용도임.
+
+양자는 역할이 다름.
 
 
 *End of PROJECT_LOG_2026-06*
