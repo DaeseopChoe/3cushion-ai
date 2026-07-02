@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.10  
-Last Updated: 2026-06-22  
+Version: 1.11  
+Last Updated: 2026-06-23  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -43,10 +43,10 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | 영역 | 상태 |
 |------|------|
 | ADMIN | Position Lock → SYS / HP·T / STR / AI 입력 → Dataset SAVE |
-| USER | Search(published) → 공략 슬롯 표시 → **읽기 전용** AI·**시스템 레슨** 오버레이 |
+| USER | Search(published) → 공략 선택 → **AI · 두께/타점 · 동선** 중심 실전 공략 UI |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
 | AI 코멘트 | SYS+STR 자동 문장 SSOT + 원 포인트 레슨 분리 **완료** |
-| 시스템 레슨 | **P0 완료** (5½ · 독립 메뉴 · 표 기반 UI · 모바일 가로 UX 확정 · `ffe0a26`) |
+| 시스템 레슨 | **보류** — USER UI 단순화 정책에 따라 현재 메뉴 비노출 · 관련 코드/VM은 보존 |
 | **Dataset Architecture** | **Phase 1~3-1 완료** — Export · Published Loader · USER/ADMIN Recall·Search SSOT |
 
 ### 핵심 설계 원칙
@@ -125,6 +125,16 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | **Workspace History** | `workspace_history` (localStorage) | SAVE 스냅샷·작업 이력 | History UI (Load / Delete / Export) |
 | **Published Dataset** | `dataset/{공략}/{시스템}/positions.json` | 배포·사용자 검색 | **ADMIN Search**, **USER Search** (profile `adminStrict` / `userStrict`) |
 
+**Production SSOT (검증 완료, 2026-06):**
+
+- Published Dataset은 **Git 관리 대상**이다.
+- Vercel은 Git Repository의 `dataset/` 경로를 직접 배포한다.
+- USER Search / ADMIN Search는 Production에서 `dataset/{공략}/{시스템}/positions.json`을 fetch한다.
+- `dataset/`이 Git에 포함되지 않으면 Production Search는 동작하지 않는다.
+
+> **`dataset/`은 작업용 데이터가 아니라 Production Search가 사용하는 Published Corpus SSOT이다.**  
+> 절대 `.gitignore` 대상이 되어서는 안 된다.
+
 ### Dataset Export (Phase 1 — 완료)
 
 - History Export 버튼 → `handleExportSnapshots` → `saveDatasetExportToFile`
@@ -139,6 +149,15 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - URL SSOT: `domain/datasetPath.ts` → `/dataset/{공략}/{시스템}/positions.json`
 - **ADMIN Search** (UI; 우측 패널) → published corpus (`handlePositionRecall`, profile `adminStrict`)
 - Published leaf URL fallback: 빈 `shotType("")` → `"뒤돌리기"` (`domain/publishedLeafResolve.ts`)
+
+**운영 검증 완료 (2026-06):**
+
+- localhost USER Search
+- Production USER Search
+- Published Dataset Loader
+- Vercel Static Asset Delivery
+
+→ 모두 정상 확인.
 
 ### USER Search (Phase 3 — 완료)
 
@@ -155,6 +174,29 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | **adminSearch** | 5 | 15 | ADMIN **로컬DB** (UI) — local `positions_dataset` |
 | **adminStrict** | 6 | null | ADMIN **Search** (UI; published) · legacy `runPositionRecall` |
 
+### Published Dataset 운영 검증 (Phase 3-2 — 완료)
+
+- Published Dataset Git 관리 복구
+- Vercel 정적 배포 검증
+- USER Search Production 검증
+- `positions.json` 직접 URL 검증
+
+**결과:** Published Dataset Architecture 운영 검증 완료
+
+### Production Dataset Delivery
+
+| 환경 | 경로 |
+|------|------|
+| **localhost** | `dataset/` 직접 참조 |
+| **Production** | GitHub → Vercel → `dataset/*` 정적 배포 |
+
+Production Search 장애 발생 시 점검 순서:
+
+1. `dataset` 파일 존재 여부
+2. GitHub 반영 여부
+3. Vercel 배포 여부
+4. `positions.json` 직접 URL 확인
+
 ### Search / 로컬DB / Reset (현재 UI 용어)
 
 | UI 기능 | 데이터 | Profile | 상태 |
@@ -162,7 +204,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | ADMIN **로컬DB** (Stage rail) | `positions_dataset` | `adminSearch` | ✅ |
 | ADMIN **Search** (우측 패널) | Published Dataset | `adminStrict` | ✅ |
 | USER **Search** | Published Dataset | `userStrict` | ✅ |
-| Reset | 세션 종료 (공·SYS·궤적 유지) | — | 정의만 — 코드 미반영 |
+| USER **Reset** | 공 위치만 유지 · 검색 결과/공략/오버레이/타겟/동선 카드 offset 초기화 | — | ✅ (Search 성공 시 Reset 버튼으로 전환) |
 
 ### 예정
 
@@ -231,32 +273,31 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ### 시스템 레슨 (System Lesson)
 
-**최종 확정 (아키텍처)**
+**상태:** 보류
 
-- **USER 전용 독립 메뉴** — `SYSTEM_LESSON` (`Stage.jsx` 라벨: **시스템레슨**)
-- **AI 패널과 완전 분리** — AI 오버레이·코칭 흐름과 무관
-- **USER HP/T 메뉴 제거** — ADMIN HP/T 편집은 유지
-- **AI 패널 CTA 없음** — `[두께/타점 보기]` / 시스템 레슨 진입 버튼 없음
-- **`userOverlayChild` 스택 없음** — 이중 `ModalShell` HP/T 스택 삭제
-- **`overlayContent === "SYSTEM_LESSON"`** — 단일 read-only 오버레이만 사용
+USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않는다.
 
-**최종 확정 (UI · UX)**
+기존 P0 구현은 삭제하지 않고 보존한다.
 
-- **표(Table) 기반 교육 UI** — 텍스트 나열형 카드 폐기, 학습용 계산표 구조
-- **모바일 가로모드 우선** — landscape 기준 레이아웃·폰트·간격 튜닝
-- **대형 폰트** — 스마트폰 확대 없이 읽을 수 있는 본문·표 셀 크기 (AI 패널과 별도 스케일)
-- **오버레이 내부 스크롤** — `.modal-panel-body` `overflow-y: auto`, 터치 스크롤
-- **당구대 영역 내부 표시** — 패널 폭 **90%** (부모 영역 기준), 프레임 밖 이탈 방지
-- **2개 섹션 (세로 스택)** — `[포지션 기준 계산]` · `[보정치 반영 계산]`
-- **4쿠션 중간 계산식** — 식 · 계산 · 결과 3칸 (포지션 4쿠션 행은 내용량 비균등 inner table)
-- **파란 설명문** — 본문과 **동일 font-size** (`1em`), disc bullet(검정), 50 기준 설명 1줄 병합(UI)
+**보존 대상**
 
-**데이터·코드 (P0)**
+- `components/user/UserSystemLessonPanel.jsx`
+- `domain/userSystemLessonViewModel.ts`
+- `.modal-panel--user-system-lesson`
+- 기존 `SYSTEM_LESSON` 관련 데이터/계산 ViewModel
 
-- **데이터**: `buildSlotEffectiveRenderSysValues` → `resolvedSlotBaseSysValues` / `resolvedSlotSysValues` (계산 엔진 추가 없음)
-- **ViewModel**: `domain/userSystemLessonViewModel.ts`
-- **UI**: `components/user/UserSystemLessonPanel.jsx`, `.modal-panel--user-system-lesson` (`index.css`)
-- **P0 시스템**: 파이브 앤드 하프 (`useSn`) 우선; 그 외 `systemId`는 empty 안내
+**현재 판단**
+
+- USER의 1차 목적은 시스템 학습이 아니라 현재 포지션의 실전 공략 확인이다.
+- 기존 레슨 콘텐츠는 AI 및 동선 내용과 일부 중복된다.
+- 따라서 현재 USER UI는 AI / 두께·타점 / 동선 중심으로 단순화한다.
+- 시스템 레슨은 향후 “시스템 학습 모드” 또는 별도 교육 UX로 재설계할 수 있다.
+
+**현재 USER 런타임**
+
+- 레슨 버튼 없음
+- `overlayContent === "SYSTEM_LESSON"` 경로는 USER 메뉴에서 진입하지 않음
+- 관련 파일은 향후 재사용을 위해 보존
 
 ### STR
 
@@ -279,27 +320,119 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ### USER 동선분석 (Trajectory Info Card)
 
-- **메뉴**: `TRAJECTORY` · 라벨 **동선분석** (`Stage.jsx`)
-- **표시**: 테이블 영역 중앙 고정 overlay — `UserTrajectoryInfoCard` (ModalShell 밖, `App.jsx` table-area 자식)
-- **탭**: `[기준값]` / `[보정값]` — baseline vs corrected 계산값 전환
-- **본문 구조** (2026-06-22 확정):
-  - ~~`기준 계산값` / `보정 계산값` 제목~~ **제거** (탭과 중복)
-  - **`[공식]`** · **`[계산]`** 섹션 헤더 — accent `#38bdf8`, `font-weight: 700`, 블록 배치
-  - 계산값 줄(`출발값 = 30` 등) — 흰색 본문 스타일 유지
-- **스타일**: 패널 **완전 투명** (`background: transparent`, border/shadow 없음) · 탭만 자체 배경
-- **가독성**: 본문 26px · 라벨 24px · `--overlay-text-shadow` · `--overlay-scale` (tablet 0.72 · phone landscape 0.44)
-- **ViewModel**: `domain/userTrajectoryCardViewModel.ts` — 5½ 우선; `title` 필드는 VM에 잔존, UI 미표시
-- **Trajectory Display Cap** (2026-06-22): `domain/trajectoryPathDisplayPolicy.ts` — baseline/corrected **독립** path depth
-  - `endIndex = min(sameRailCap, secondBallCap, chainBreakCap)`
-  - 연속 segment `(node[i]→node[i+1])` 양 끝 **동일 rail** → 해당 segment부터 path·label **미표시** (CO–C3–C6 비연속 동일 rail은 허용)
-  - rail 판정: `reflectionEngine.detectRail` · 코너 degenerate: `distance < 0.75` Rg
-  - `ImpactLines` / `SystemValueLabels` — cap된 path·`visibleKeysForLabels` 공유 (`App.jsx`)
-  - **계산 엔진·C5/C6 sync 무변경** (표시 레이어만)
-- **코드**: `components/user/UserTrajectoryInfoCard.jsx`, `.user-trajectory-info-card` (`index.css`)
+- **메뉴:** `TRAJECTORY` · 라벨 **동선**
+- **표시:** table-area overlay — `UserTrajectoryInfoCard`
+- **역할:** 현재 선택 공략의 기준값/보정값 계산과 진행 경로를 확인하는 실전 분석 UI
+
+#### 카드 위치
+
+- 기본 중앙 배치
+- 사용자 드래그 이동 가능
+- `trajectoryCardOffset` 기준 위치 관리
+- 기준값 ↔ 보정값 전환 시 위치 유지
+- 시스템값 표시 ON/OFF 시 위치 유지
+- Reset 또는 동선 종료 시 offset 초기화
+
+#### 내부 버튼
+
+동선 카드 내부에는 다음 3개 버튼이 있다.
+
+- **기준값**
+- **보정값**
+- **시스템값 표시**
+
+#### 기준값 / 보정값
+
+- `trajectoryCardSource`
+- 값: `baseline | corrected`
+- 상호배타 토글
+- 기준값 ON이면 보정값 OFF
+- 보정값 ON이면 기준값 OFF
+- 둘 중 하나만 표시
+
+#### 시스템값 표시
+
+- `trajectoryShowAxisValues`
+- boolean 독립 토글
+- 기준값/보정값 상태와 독립적으로 ON/OFF
+- 사용자가 직접 `시스템값 표시` 버튼을 눌렀을 때만 변경
+
+허용 조합:
+
+- 기준값 + 시스템값 표시 OFF
+- 기준값 + 시스템값 표시 ON
+- 보정값 + 시스템값 표시 OFF
+- 보정값 + 시스템값 표시 ON
+
+중요 유지 규칙:
+
+- 시스템값 표시 ON 상태에서 기준값 → 보정값 전환 시 ON 유지
+- 시스템값 표시 ON 상태에서 보정값 → 기준값 전환 시 ON 유지
+- 시스템값 표시는 사용자가 다시 버튼을 눌렀을 때만 OFF
+
+#### 시스템값 표시의 의미
+
+여기서 말하는 시스템값 표시는 현재 계산 결과값 목록이 아니다.
+
+위 값들은 이미 궤적 라벨과 동선 카드 계산값으로 표시된다.
+
+동선 카드의 `시스템값 표시`는 관리자 SYS/Grid에서 사용하는 **레일/프레임 축 시스템 기준 눈금**을 USER 동선 화면에 표시하는 기능이다.
+
+사용 목적:
+
+- 사용자가 “왜 출발값이 33인가?”를 즉시 이해할 수 있도록 한다.
+- 기준값/보정값 궤적 위에 축 기준 숫자를 함께 표시해 위치 감각을 제공한다.
+
+#### 렌더링 원칙
+
+시스템값 표시 ON:
+
+- 현재 기준값/보정값 궤적 유지
+- 현재 CO/C1/C3/C4 등 궤적 라벨 유지
+- 추가로 레일/프레임 축 시스템 기준 숫자 표시
+
+시스템값 표시 OFF:
+
+- 축 시스템 기준 숫자만 숨김
+- 궤적과 현재 계산 라벨은 유지
+
+#### 금지
+
+- ADMIN용 Grid 편집 UI 노출 금지
+- SYS 계산 엔진 변경 금지
+- `SystemValueLabels` 축 숫자 크기/`labelScale` 임의 변경 금지
+- baseline/corrected 계산 로직 변경 금지
+
+#### UI 스타일
+
+- 반투명 카드
+- blur 적용 가능
+- 카드 전체 드래그 가능
+- 버튼 클릭은 기존 동작 유지
+- 스크롤 없는 compact layout 지향
+- 모바일/PC에서 동일 기능 유지
+
+#### ViewModel / 코드
+
+- `domain/userTrajectoryCardViewModel.ts`
+- `components/user/UserTrajectoryInfoCard.jsx`
+- `.user-trajectory-info-card` (`index.css`)
+- `App.jsx` — `trajectoryCardSource`, `trajectoryShowAxisValues`, `trajectoryCardOffset`
+
+#### Trajectory Display Cap
+
+2026-06에 추가된 표시 안전 정책은 유지한다.
+
+- `domain/trajectoryPathDisplayPolicy.ts`
+- baseline/corrected 독립 path depth
+- `endIndex = min(sameRailCap, secondBallCap, chainBreakCap)`
+- 연속 segment `(node[i] → node[i+1])` 양 끝 동일 rail이면 해당 segment부터 path/label 미표시
+- CO–C3–C6 같은 비연속 동일 rail은 허용
+- 계산 엔진 및 C5/C6 sync rule은 변경하지 않음
 
 ### USER 시스템값 라벨 (System Value Labels)
 
-- **메뉴**: `SYSTEM_VALUES` · 라벨 **시스템값** — 테이블 rail C0/C1/C3/C4/C5/C6 캡션·값 표시
+- **노출 방식**: 독립 USER 메뉴가 아니라 **동선 카드 내부 `시스템값 표시` 토글**로 노출
 - **Phone Landscape 확대**: `MEDIA_PHONE_LANDSCAPE` → `labelScale` **1.5** (`SYS_LABEL_PHONE_LANDSCAPE_SCALE`, `tableConfig.ts`)
 - **터치 Persistent Selection** (2026-06-22): 라벨 탭 → 선택 유지(1.8× 확대) · 다른 라벨 탭 → 전환 · 빈 테이블 영역 탭 → 해제 · document capture + transparent dismiss rect
 - **Caption Engine 연동**: `systemAxisCaption.ts` — `labelScale` 비례 placement · `SystemValueLabels.jsx` · `LabelText.jsx`
@@ -325,14 +458,11 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 | 버튼 | 오버레이 | 비고 |
 |------|----------|------|
-| Search | — | published · profile `userStrict` · 버튼 라벨 **Search** (Recall 토글 없음) |
-| 공략 버튼 | — | `userTableDisplaySlotId` · **USER Search 성공 시에만** 활성 (`recommendedFrom`) |
-| AI | `overlayContent === "AI"` | `UserAiPanel` · `--ai-scale` |
-| 동선분석 | table-area overlay | `UserTrajectoryInfoCard` · 기준/보정 탭 · `[공식]`/`[계산]` |
-| 시스템값 | 테이블 rail 라벨 | `SystemValueLabels` · phone landscape 1.5× · 터치 선택 |
-| 기준값 | 패널 dismiss | 오버레이만 닫기, 3-Level 토글 |
-| 시스템레슨 | `overlayContent === "SYSTEM_LESSON"` | `UserSystemLessonPanel` (독립·표·스크롤) · `--overlay-scale` |
-| 두께/타점 | `overlayContent === "HP/T"` | `UserHptPanel` read-only · `--overlay-scale` + `--overlay-svg-scale` |
+| Search / Reset | — | Search 성공 시 Reset으로 전환 · Reset은 공 위치만 유지하고 검색 결과/공략/오버레이/타겟 상태 초기화 |
+| 공략 버튼 | — | USER Search 성공 시 활성 · 선택 공략 기준으로 AI/타법/동선 표시 |
+| AI | `overlayContent === "AI"` | `UserAiPanel` · 현재 공략 핵심/원포인트 레슨 |
+| 두께/타점 | `overlayContent === "HP/T"` | `UserHptPanel` read-only |
+| 동선 | table-area overlay | `UserTrajectoryInfoCard` · 기준값/보정값/시스템값 표시 |
 | History | 모달 | |
 
 ---
@@ -356,10 +486,10 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | App SYS·궤적 | `utils/systemCalculator.ts`, `utils/trajectorySampleBuilder.ts` |
 | AI 자동 코멘트 | `domain/aiAutoCommentViewModel.ts` |
 | USER 패널 | `domain/userInfoPanelModel.ts`, `components/user/UserAiPanel.jsx` |
-| USER 시스템 레슨 | `domain/userSystemLessonViewModel.ts`, `components/user/UserSystemLessonPanel.jsx` |
+| USER 시스템 레슨 (보류) | `domain/userSystemLessonViewModel.ts`, `components/user/UserSystemLessonPanel.jsx` — 현재 USER 메뉴 비노출, 향후 학습 모드 재사용 후보 |
 | USER HP/T | `components/user/UserHptPanel.jsx`, `domain/userHptViewModel.ts`, `.modal-panel--user-hpt` |
-| USER 동선분석 | `components/user/UserTrajectoryInfoCard.jsx`, `domain/userTrajectoryCardViewModel.ts`, `domain/trajectoryPathDisplayPolicy.ts`, `.user-trajectory-info-card` |
-| USER 시스템값 라벨 | `components/table/SystemValueLabels.jsx`, `components/table/LabelText.jsx`, `config/tableConfig.ts` |
+| USER 동선 | `components/user/UserTrajectoryInfoCard.jsx`, `domain/userTrajectoryCardViewModel.ts`, `domain/trajectoryPathDisplayPolicy.ts`, `.user-trajectory-info-card`, `App.jsx` (`trajectoryCardSource`, `trajectoryShowAxisValues`, `trajectoryCardOffset`) |
+| USER 시스템값 표시 | `components/table/SystemValueLabels.jsx`, `components/table/LabelText.jsx`, `config/tableConfig.ts` — 동선 카드 내부 토글로 노출 |
 | Overlay 반응형 CSS | `frontend/src/index.css` — `--overlay-scale`, `--ai-scale`, `--overlay-svg-scale` |
 
 ---
@@ -371,13 +501,13 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | 자동 코멘트 모델 | `frontend/src/domain/aiAutoCommentViewModel.ts` |
 | USER 패널 모델 | `frontend/src/domain/userInfoPanelModel.ts` |
 | USER AI UI | `frontend/src/components/user/UserAiPanel.jsx` |
-| USER 시스템 레슨 UI | `frontend/src/components/user/UserSystemLessonPanel.jsx` |
-| USER 시스템 레슨 VM | `frontend/src/domain/userSystemLessonViewModel.ts` |
+| USER 시스템 레슨 (보류) UI | `frontend/src/components/user/UserSystemLessonPanel.jsx` |
+| USER 시스템 레슨 (보류) VM | `frontend/src/domain/userSystemLessonViewModel.ts` |
 | USER 동선분석 UI | `frontend/src/components/user/UserTrajectoryInfoCard.jsx` |
 | USER 동선분석 VM | `frontend/src/domain/userTrajectoryCardViewModel.ts` |
 | USER HP/T UI | `frontend/src/components/user/UserHptPanel.jsx` |
-| USER 시스템값 라벨 | `frontend/src/components/table/SystemValueLabels.jsx` |
-| USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · SYSTEM_LESSON · HP/T; table-area: Trajectory card) |
+| USER 시스템값 표시 | `frontend/src/components/table/SystemValueLabels.jsx` — 동선 카드 내부 `시스템값 표시` 토글로 제어 |
+| USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · HP/T; table-area: Trajectory card) |
 | Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`USER_FUNC_IDS`, `onUserFuncButtonSelect`) |
 | ADMIN AI | `frontend/src/App.jsx` `AiOverlay` |
 | 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.modal-panel--user-system-lesson`, `.user-trajectory-info-card`, `.modal-panel--user-hpt`) |
@@ -391,11 +521,15 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - AI 오버레이 리팩토링 (SYS+STR SSOT, 레슨 분리)
 - 원 포인트 레슨 ADMIN/USER 표시 분리
 - USER AI 패널 가독성·크기·공간 최적화
-- USER **시스템 레슨** P0 구현·커밋 (`ffe0a26`: 독립 메뉴, HP/T 제거, ViewModel·Panel)
-- **SYSTEM_LESSON 모바일 UI 최적화 완료** (가로모드·대형 폰트·간격·90% 폭)
-- **SYSTEM_LESSON Table Layout 확정** (표 기반·2섹션·4쿠션 3칸)
-- **SYSTEM_LESSON Overlay UX 확정** (단일 오버레이·내부 스크롤·AI/CTA/스택 없음)
-- USER HP/T 메뉴·AI CTA·`userOverlayChild` 스택 **제거**
+- **USER UX 단순화** — USER 레슨 버튼 제거, AI/두께·타점/동선 중심 실전 공략 구조 확정
+- **USER 동선 카드 개편** — 기준값/보정값 상호배타 토글 + 시스템값 표시 독립 토글
+- **USER 시스템값 표시 이동** — 독립 메뉴가 아니라 동선 카드 내부 축 시스템값 표시 토글로 통합
+- **동선 카드 위치 관리** — 드래그 이동, 위치 유지, Reset 시 offset 초기화
+- **Search/Reset UX** — Search 성공 시 Reset 전환, Reset은 공 위치만 유지하고 검색 결과/공략/오버레이/타겟 상태 초기화
+- USER **시스템 레슨** P0 구현 이력 보존 (`ffe0a26`: ViewModel·Panel) — 현재는 USER UX 단순화 정책에 따라 메뉴 비노출
+- **SYSTEM_LESSON 모바일 UI 최적화 이력 보존** — 현재 활성 메뉴는 아니며 향후 학습 모드 재사용 후보
+- **SYSTEM_LESSON Table Layout 확정 이력 보존** — 표 기반·2섹션·4쿠션 3칸
+- **SYSTEM_LESSON Overlay UX 이력 보존** — 단일 오버레이·내부 스크롤·AI/CTA/스택 없음
 - Slot runtime / Recall canonical (2026-05 PHASE 2)
 - Modal draggable + viewport clamp
 - Hermite 궤적 baseline, anchors SSOT·canonical persist (2026-05)
