@@ -37,3 +37,8 @@ repo/
 # dataset/
 stage_diff.txt
 작업관리/SESSION_TRANSFER/
+
+# =========================
+# Binary archives (not source)
+# =========================
+Application Architecture Standard (AAS) v2.0/Chapter/Chapter.zip
