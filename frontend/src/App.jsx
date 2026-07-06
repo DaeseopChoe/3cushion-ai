@@ -39,6 +39,21 @@ import {
 } from "./domain/userInfoPanelModel";
 import { AiAutoCommentDisplay } from "./components/user/UserAiPanel";
 import { buildUserHptViewModel } from "./domain/userHptViewModel";
+import {
+  canonicalSystemIdForConfig,
+  getSysSystemMode,
+  getSysUseSn,
+  isFiveHalfSystemId,
+} from "./domain/system/systemIdentity";
+import {
+  sysOverlayInputFinite,
+  solveFiveHalfTwoOfThree,
+  fiveHalfComputedInputKey,
+} from "./domain/calculator/fiveHalfCalculator";
+import {
+  parseSysFormulaExpr,
+  getDisplayExprForSys,
+} from "./domain/calculator/formulaExpr";
 import { SYSTEM_PROFILES } from "./data/systems";
 import { calculateByProfileExpr } from "./utils/systemCalculator";
 import { convertThetaToClock } from "./utils/tipClockConverter";
@@ -658,85 +673,6 @@ function resolveCoC1C3Keys(forced, spaceSel) {
   return { coKey: co, c1Key: c1, c3Key: c3 };
 }
 
-/** 시스템별 SYS 입력 유도·Sn 사용 (신규 시스템은 이 테이블에만 등록) */
-const SYS_SYSTEM_CONFIG = {
-  five_half: { mode: "derived", useSn: true },
-  "5_half_system": { mode: "derived", useSn: true },
-  "5_HALF": { mode: "derived", useSn: true },
-  sunrise_sunset: { mode: "full_input", useSn: false },
-  sunset: { mode: "full_input", useSn: false },
-};
-
-function canonicalSystemIdForConfig(systemId) {
-  if (systemId == null || systemId === "") return "5_half_system";
-  return systemId === "5_HALF" ? "5_half_system" : systemId;
-}
-
-function getSysSystemMode(systemId) {
-  const sid = canonicalSystemIdForConfig(systemId);
-  return SYS_SYSTEM_CONFIG[sid]?.mode ?? "full_input";
-}
-
-function getSysUseSn(systemId) {
-  const sid = canonicalSystemIdForConfig(systemId);
-  return SYS_SYSTEM_CONFIG[sid]?.useSn ?? false;
-}
-
-function isFiveHalfSystemId(systemId) {
-  const s = systemId == null ? "" : String(systemId);
-  return s === "5_half_system" || s === "5_HALF" || s === "five_half";
-}
-
-/** formData.inputs 기준: 비어 있지 않고 유한 숫자면 값 반환, 아니면 null */
-function sysOverlayInputFinite(inputs, key) {
-  if (!inputs || !(key in inputs)) return null;
-  const v = inputs[key];
-  if (v === "" || v === null || v === undefined) return null;
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
- * 5&Half 전용 2-of-3: CO·C1·C3 중 2개 입력 시 나머지 1개 계산 (base만, CV 미사용).
- * C1 = CO − C3 정합: CO+C1→C3, CO+C3→C1, C1+C3→CO 모두 CO_base(co)만 사용.
- */
-function solveFiveHalfTwoOfThree(inputs, coKey, c1Key, c3Key) {
-  const co = sysOverlayInputFinite(inputs, coKey);
-  const c1 = sysOverlayInputFinite(inputs, c1Key);
-  const c3 = sysOverlayInputFinite(inputs, c3Key);
-  const out = {};
-  if (co != null && c1 != null) {
-    out[coKey] = co;
-    out[c1Key] = c1;
-    out[c3Key] = co - c1;
-    return out;
-  }
-  if (co != null && c3 != null) {
-    out[coKey] = co;
-    out[c3Key] = c3;
-    out[c1Key] = co - c3;
-    return out;
-  }
-  if (c1 != null && c3 != null) {
-    out[c1Key] = c1;
-    out[c3Key] = c3;
-    out[coKey] = c1 + c3;
-    return out;
-  }
-  return null;
-}
-
-/** CO/C1/C3 중 자동으로 채워지는 입력 키 (2-of-3) */
-function fiveHalfComputedInputKey(inputs, coKey, c1Key, c3Key) {
-  const co = sysOverlayInputFinite(inputs, coKey);
-  const c1 = sysOverlayInputFinite(inputs, c1Key);
-  const c3 = sysOverlayInputFinite(inputs, c3Key);
-  if (co != null && c1 != null) return c3Key;
-  if (co != null && c3 != null) return c1Key;
-  if (c1 != null && c3 != null) return coKey;
-  return null;
-}
-
 /** 5&Half SYS 표시용 숫자 포맷 (계산 로직과 무관) */
 function fmtFiveHalfDisplayNum(n) {
   const x = Number(n);
@@ -882,27 +818,6 @@ function normalizeSlideDrawCorrections(corrections) {
   return { slide, draw };
 }
 
-function parseSysFormulaExpr(expr) {
-  if (!expr) return { forced: {}, neededKeys: new Set(), needsHP: false, needsAn: false };
-
-  const rx = /\b(CO|C1|C2|C3|C4)_(f|r)\b/g;
-  const forced = { CO: null, C1: null, C2: null, C3: null, C4: null };
-  const neededKeys = new Set();
-
-  let m;
-  while ((m = rx.exec(expr)) !== null) {
-    const mark = m[1];
-    const sp = m[2];
-    forced[mark] = sp;
-    neededKeys.add(`${mark}_${sp}`);
-  }
-
-  const needsHP = /\bHP_n\b/.test(expr);
-  const needsAn = /\bAn\b/.test(expr);
-
-  return { forced, neededKeys, needsHP, needsAn };
-}
-
 /**
  * 슬롯 sys 병합값(base) + adminState.sys(CV·spaceSel·systemConfig) → 표시/앵커/궤적용 effective 맵.
  * SysOverlay의 normalizedBase → adjustedInputs → effDisplayMap 규약과 동일.
@@ -919,7 +834,7 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
   }
 
   const rawSid = resolvedSlotSys?.systemId ?? "5_half_system";
-  const systemId = rawSid === "5_HALF" ? "5_half_system" : rawSid;
+  const systemId = canonicalSystemIdForConfig(rawSid);
   const systemMode = getSysSystemMode(systemId);
   const useSn = getSysUseSn(systemId);
   const profile = SYSTEM_PROFILES[systemId];
@@ -1059,14 +974,6 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
   }
 
   return out;
-}
-
-/** 표시용 식: full_input은 profile 그대로, derived(5½)는 C3 자동 관계 안내 문구 */
-function getDisplayExprForSys(expr, systemId, systemMode) {
-  if (!expr || !expr.trim()) return expr;
-  if (systemMode === "full_input") return expr;
-  if (!isFiveHalfSystemId(systemId)) return expr;
-  return "C3_r = CO_f - C1_f";
 }
 
 /** SysOverlay 표시 전용 — admin/sys SysOverlay.tsx와 동일 규약 */
@@ -4495,8 +4402,7 @@ export default function App({
       "H-D"
     );
 
-    const systemId =
-      systemIdForGrid === "5_HALF" ? "5_half_system" : systemIdForGrid ?? "5_half_system";
+    const systemId = canonicalSystemIdForConfig(systemIdForGrid);
     const trackVal = trackForAnchors ?? slotSys?.track ?? "B2T_L";
     const inputDelta = mergeBaselineDraftInputDeltaForCommit(
       applyDelta,
@@ -6444,8 +6350,7 @@ function handleJoyPadPointerCancel(e) {
 
   const canonical = trackForAnchors;
   const rawSystemIdForGrid = resolvedSlotSys?.systemId ?? "5_half_system";
-  const systemIdForGrid =
-    rawSystemIdForGrid === "5_HALF" ? "5_half_system" : rawSystemIdForGrid;
+  const systemIdForGrid = canonicalSystemIdForConfig(rawSystemIdForGrid);
 
   // USER/ADMIN 공통: slot SSOT anchors (display.anchors fallback when slot empty)
   const rawAnchors = (() => {

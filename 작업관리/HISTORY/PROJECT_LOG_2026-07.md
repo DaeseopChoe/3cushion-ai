@@ -6,6 +6,128 @@ Status : Active Project Log
 
 ---
 
+# 2026-07-06
+
+## 제목
+
+AAS Runtime Migration Batch 1 Completed
+
+## Summary
+
+Application Runtime Refactoring의 첫 번째 구현 Batch가 완료되었다.
+
+App.jsx에서 순수 Domain 책임을 분리하고, Domain Layer의 초기 구조를 생성하였다.
+
+이번 작업은 Runtime behavior 변경 없이 수행되었다. App.jsx를 Application Runtime Orchestrator로 축소하기 위한 **첫 번째 실제 구현 기준점**이다.
+
+---
+
+## Major Accomplishments
+
+### 1. Batch1 Analysis 완료
+
+- App.jsx 대상 블록 정밀 분석 (SYS-004/005, CAL-001, MISC-006)
+- 함수 Line range · 입출력 · Purity Check · Dependency Map 확정
+- Open Question 6건 식별 → Design 단계에서 전부 해결
+
+### 2. Batch1 Design v1.2 확정
+
+- SYS_SYSTEM_CONFIG co-location 전략: API Stable / Implementation Replace (Batch 6 교체 예약)
+- Canonical API → Legacy Alias → 삭제 3단계 Migration Lifecycle 확정
+- `sysOverlayInputFinite` Private Helper 정책 + Batch 1 한정 예외 export 결정
+- R-10 Import Graph Validation · AC-11 No Circular Dependency 추가
+- Migration Debt Ledger (D-001, D-002, D-003) 신설
+
+### 3. Batch1 Architecture Review 완료
+
+- Option B (Wrapper Function Alias) 채택 — Deprecation/Telemetry seam 확보
+- Lifecycle 4단계 확정 (Soft Gate: Batch 4, Hard Deadline: Batch 6 착수 전)
+- Design Consistency Review — Constitution/Dictionary/Map/ADR 전 항목 정합 확인
+
+### 4. Domain system module 생성
+
+```text
+frontend/src/domain/system/systemIdentity.ts
+```
+
+- Canonical API: `canonicalSystemId` · `getSystemMode` · `getUseSn` · `isFiveHalf`
+- Legacy Wrapper: `canonicalSystemIdForConfig` · `getSysSystemMode` · `getSysUseSn` · `isFiveHalfSystemId` (`@deprecated`)
+- `SYS_SYSTEM_CONFIG` 내부 은닉 (Batch 6 Runtime Contract 전까지)
+
+### 5. Domain calculator modules 생성
+
+```text
+frontend/src/domain/calculator/fiveHalfCalculator.ts
+frontend/src/domain/calculator/formulaExpr.ts
+```
+
+- `solveFiveHalfTwoOfThree` · `fiveHalfComputedInputKey` (Public API)
+- `sysOverlayInputFinite` (Batch 1 한정 예외 export, Batch 2에서 private 전환 예정, Migration Debt D-002)
+- `parseSysFormulaExpr` · `getDisplayExprForSys` · `ParsedFormulaExpr` type
+- `formulaExpr → systemIdentity` 단방향 import (허용 방향)
+
+### 6. App.jsx 순수 함수 제거
+
+App.jsx에서 아래 함수·상수 정의가 제거되었다 (약 95 lines):
+
+- `SYS_SYSTEM_CONFIG` (상수)
+- `canonicalSystemIdForConfig` · `getSysSystemMode` · `getSysUseSn` · `isFiveHalfSystemId`
+- `sysOverlayInputFinite` · `solveFiveHalfTwoOfThree` · `fiveHalfComputedInputKey`
+- `parseSysFormulaExpr` · `getDisplayExprForSys`
+- SYS-005 inline 정규화 (`"5_HALF" ? "5_half_system"` 패턴) 3곳 → `canonicalSystemIdForConfig()` 호출로 교체
+
+### 7. Validation 완료
+
+| 항목 | 결과 |
+|------|------|
+| npm run build | ✅ PASS |
+| Regression R-1 ~ R-10 | ✅ PASS (8 tests, 전수 통과) |
+| Acceptance AC-1 ~ AC-11 | ✅ PASS |
+| Import Graph Validation | ✅ PASS (순환참조 0, 역방향 0) |
+| 베이스라인 대비 신규 실패 | ✅ 0건 |
+
+---
+
+## Architecture Decisions Confirmed
+
+- App.jsx는 Domain 계산을 직접 보유하지 않는다.
+- Domain module은 Named Export Only를 사용한다. Default Export / Barrel Export 금지.
+- `systemIdentity.ts`는 Batch 6 Runtime Contract 전까지 `SYS_SYSTEM_CONFIG`를 임시 은닉한다.
+- API Stable / Implementation Replace 전략 유지 (Batch 6에서 공급원만 교체).
+- `calculator → system` 방향 import 허용. 역방향 금지. 순환참조 금지.
+- Canonical API 이름(Migration Map 명칭)을 Batch 1부터 즉시 확정하고, Legacy는 Wrapper로 병행 유지.
+
+---
+
+## Current Status
+
+| 항목 | 상태 |
+|------|------|
+| AAS | **Completed** |
+| Runtime Migration | **In Progress** |
+| Batch 1 | **Completed** (2026-07-06) |
+| Batch 2 | Analysis 대기 |
+
+---
+
+## Migration Debt (Batch 1 발생분)
+
+| ID | 항목 | Target Batch | Status |
+|----|------|-------------|--------|
+| D-001 | Legacy Alias 4개 제거 | Soft: Batch 4 / Hard: Batch 6 착수 전 | Open |
+| D-002 | `sysOverlayInputFinite` private 전환 | Batch 2 (OVL-005 이동 후) | Open |
+| D-003 | `domain/*` 3파일 `isFiveHalfSystemId` 중복 통합 | Unscheduled (Batch 4 이전 권장) | Open |
+
+---
+
+## Next Priority
+
+**Batch 2 Analysis**
+
+대상: APP-013(라벨 배율), RND-002/004(시스템 그리드·앵커 변환), TRJ-002(display cap), OVL-001~003/005~008(Overlay 인라인 컴포넌트 분리 준비)
+
+---
+
 # 2026-07-03
 
 ## 제목
