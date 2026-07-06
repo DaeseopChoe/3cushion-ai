@@ -7,20 +7,17 @@
  *
  * Public API: solveFiveHalfTwoOfThree / fiveHalfComputedInputKey.
  *
- * sysOverlayInputFinite는 Batch 1 한정 예외로 export한다
- * (App.jsx SysOverlay 잔존 직접 호출 1건, Migration Debt D-002).
- * Batch 2에서 OVL-005(SysOverlay) 이동이 완료되면 export를 제거하고
- * module-private helper로 전환한다.
+ * AD-B2-02 (Batch 2 STEP 2-6): sysOverlayInputFinite export 제거.
+ * SysOverlay.jsx로 이동 완료. Migration Debt D-002 해소.
  */
 
 type NumericInputs = Record<string, unknown>;
 
 /**
  * formData.inputs 기준: 비어 있지 않고 유한 숫자면 값 반환, 아니면 null.
- * @internal Batch1 한정 예외 export — App.jsx SysOverlay 직접 호출 때문.
- * Batch 2에서 OVL-005 이동 완료 후 export 제거 예정 (Migration Debt D-002).
+ * module-private — AD-B2-02 (Batch 2 STEP 2-6).
  */
-export function sysOverlayInputFinite(
+function sysOverlayInputFinite(
   inputs: NumericInputs | null | undefined,
   key: string
 ): number | null {

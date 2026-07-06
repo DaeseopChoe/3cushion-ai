@@ -2,7 +2,6 @@
 import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
 import { angleSpinTargetRail } from "./domain/angleSpinCorrectionTarget";
-import { getShotTypeCorrectionSign } from "./domain/englishCorrectionSign";
 import {
   adminSysShallowEqual,
   createEmptyAdminSysSnapshot,
@@ -25,10 +24,28 @@ import {
   isFiveHalfSystemId,
 } from "./domain/system/systemIdentity";
 import {
-  sysOverlayInputFinite,
   solveFiveHalfTwoOfThree,
   fiveHalfComputedInputKey,
 } from "./domain/calculator/fiveHalfCalculator";
+import {
+  resolveCoC1C3Keys,
+  fmtFiveHalfDisplayNum,
+  fmtSysOverlayInputDisplay,
+  normalizeToFormulaInputsApp,
+  isRhsKeyReadOnlyForSys,
+  isMarkBasisReadOnly,
+  lhsTokenFromExpr,
+  showMarkRowExtraForSys,
+  buildSysOverlayInitialInputs,
+  buildSysOverlayNumericPayload,
+  unifiedSlideFromCorrections,
+  normalizeSlideDrawCorrections,
+  formatFormulaDisplay,
+  SYS_FORMULA_TOKEN_RE,
+  renderMixedFormulaLine,
+  renderSysFormulaContent,
+} from "./overlay/utils/sysOverlayUtils";
+import { SysOverlay } from "./components/overlays/SysOverlay";
 import {
   parseSysFormulaExpr,
   getDisplayExprForSys,
@@ -654,157 +671,11 @@ function diffSortedKeyArrays(prevSorted, nextSorted) {
   };
 }
 
-function resolveCoC1C3Keys(forced, spaceSel) {
-  const co = forced?.CO ? `CO_${forced.CO}` : `CO_${spaceSel.CO}`;
-  const c1 = forced?.C1 ? `C1_${forced.C1}` : `C1_${spaceSel.C1}`;
-  const c3 = forced?.C3 ? `C3_${forced.C3}` : `C3_${spaceSel.C3}`;
-  return { coKey: co, c1Key: c1, c3Key: c3 };
-}
-
-/** 5&Half SYS 표시용 숫자 포맷 (계산 로직과 무관) */
-function fmtFiveHalfDisplayNum(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return "?";
-  return x % 1 === 0 ? String(Math.round(x)) : String(Math.round(x * 10) / 10);
-}
-
-/** SysOverlay input 표시 전용 — 빈값 유지, 숫자는 fmtFiveHalfDisplayNum */
-function fmtSysOverlayInputDisplay(value) {
-  if (value === "" || value === null || value === undefined) return "";
-  const x = Number(value);
-  if (!Number.isFinite(x)) return "";
-  return fmtFiveHalfDisplayNum(x);
-}
-
-/**
- * derived: CO·C1으로 c3Key 자동 (C3 = CO + coSlide − C1). coSlide는 기본 0(공식 C1_f=CO_f−C3_r 정합).
- * full_input: CO/C1/C3 등 사용자 입력 필드는 수정하지 않음.
- */
-function normalizeToFormulaInputsApp(
-  numericPayload,
-  systemMode,
-  coKey,
-  c1Key,
-  c3Key,
-  coSlide = 0
-) {
-  const out = { ...numericPayload };
-  if (systemMode !== "derived" || !c3Key || !coKey || !c1Key) {
-    return out;
-  }
-  const coN = Number(out[coKey]);
-  const c1N = Number(out[c1Key]);
-  const co = Number.isFinite(coN) ? coN : 0;
-  const c1 = Number.isFinite(c1N) ? c1N : 0;
-  const coEff = co + (Number(coSlide) || 0);
-  out[c3Key] = coEff - c1;
-  return out;
-}
-
-function isRhsKeyReadOnlyForSys(key, systemMode, c3Key) {
-  if (!key || key === "HP_n" || key === "An") return false;
-  if (systemMode === "derived" && c3Key && key === c3Key) return true;
-  return false;
-}
-
-function isMarkBasisReadOnly(mark, systemMode) {
-  return systemMode === "derived" && mark === "C3";
-}
-
-function lhsTokenFromExpr(expr) {
-  if (!expr || !expr.trim()) return "";
-  const parts = expr.trim().split("=");
-  return parts[0]?.trim() ?? "";
-}
-
-function showMarkRowExtraForSys(mark, systemMode, lhsToken) {
-  if (systemMode !== "derived" || !lhsToken) return false;
-  if (mark === "C1" && lhsToken.startsWith("C1_")) return true;
-  if (mark === "C3" && lhsToken.startsWith("C3_")) return true;
-  return false;
-}
-
-/** 적용 시 저장된 system_values(base)를 입력 필드 초기값으로 병합 */
-function buildSysOverlayInitialInputs(data) {
-  const ins = {
-    CO_f: data?.inputs?.CO_f ?? "",
-    CO_r: data?.inputs?.CO_r ?? "",
-    C1_f: data?.inputs?.C1_f ?? "",
-    C1_r: data?.inputs?.C1_r ?? "",
-    C2_f: data?.inputs?.C2_f ?? "",
-    C2_r: data?.inputs?.C2_r ?? "",
-    C3_f: data?.inputs?.C3_f ?? "",
-    C3_r: data?.inputs?.C3_r ?? "",
-    C4_f: data?.inputs?.C4_f ?? "",
-    C4_r: data?.inputs?.C4_r ?? "",
-    HP_n: data?.inputs?.HP_n ?? 0,
-    An: data?.inputs?.An ?? 0.0,
-  };
-  const saved = data?.system_values;
-  if (saved && typeof saved === "object") {
-    for (const [k, v] of Object.entries(saved)) {
-      if (!(k in ins)) continue;
-      if (v === undefined || v === null) continue;
-      if (k === "HP_n") ins.HP_n = typeof v === "number" ? v : Number(v) || 0;
-      else if (k === "An") ins.An = typeof v === "number" ? v : Number(v) || 0;
-      else ins[k] = v;
-    }
-  }
-  return ins;
-}
-
-/** normalize 전 숫자 payload (rhs + CO/C1/C3 토큰 + HP/An) */
-function buildSysOverlayNumericPayload(
-  inputs,
-  rhsKeys,
-  coKey,
-  c1Key,
-  c3Key,
-  needsHP,
-  needsAn
-) {
-  const payload = {};
-  (rhsKeys || []).forEach((k) => {
-    const v = inputs[k];
-    payload[k] = v === "" || v == null ? 0 : Number(v);
-  });
-  [coKey, c1Key, c3Key].forEach((k) => {
-    if (!k) return;
-    if (!(k in payload)) {
-      const v = inputs[k];
-      payload[k] = v === "" || v == null ? 0 : Number(v);
-    }
-  });
-  if (needsHP) payload.HP_n = Number(inputs.HP_n ?? 0);
-  if (needsAn) payload.An = Number(inputs.An ?? 0);
-  return payload;
-}
-
-/** SysOverlay·슬롯 렌더 공통: 공식에서 강제 cushion면·RHS 키 집합 추출 */
-/** slide(양수 밀림)와 draw(음수 끌림 저장) 상호 배타 → 단일 signed 스칼라 (물리·곡선 공통). */
-function unifiedSlideFromCorrections(corrections, shotType) {
-  if (!corrections || typeof corrections !== "object") return 0;
-  const s = Number(corrections.slide);
-  const d = Number(corrections.draw);
-  const slideVal = Math.abs(Number.isFinite(s) ? s : 0);
-  const drawVal = -Math.abs(Number.isFinite(d) ? d : 0);
-  const raw = drawVal !== 0 ? drawVal : slideVal;
-  return raw * getShotTypeCorrectionSign(shotType);
-}
-
-/** 저장·복원 시 slide≥0, draw≤0, 상호 배타(draw 우선 시 slide=0) */
-function normalizeSlideDrawCorrections(corrections) {
-  if (!corrections || typeof corrections !== "object") {
-    return { slide: 0, draw: 0 };
-  }
-  const s = Number(corrections.slide);
-  const d = Number(corrections.draw);
-  let slide = Math.abs(Number.isFinite(s) ? s : 0);
-  let draw = Number.isFinite(d) ? d : 0;
-  if (draw !== 0) draw = -Math.abs(draw);
-  if (draw !== 0) slide = 0;
-  return { slide, draw };
-}
+// resolveCoC1C3Keys, fmtFiveHalfDisplayNum, fmtSysOverlayInputDisplay,
+// normalizeToFormulaInputsApp, isRhsKeyReadOnlyForSys, isMarkBasisReadOnly,
+// lhsTokenFromExpr, showMarkRowExtraForSys, buildSysOverlayInitialInputs,
+// buildSysOverlayNumericPayload, unifiedSlideFromCorrections, normalizeSlideDrawCorrections
+// → overlay/utils/sysOverlayUtils.jsx (Batch 2 STEP 2-6)
 
 /**
  * 슬롯 sys 병합값(base) + adminState.sys(CV·spaceSel·systemConfig) → 표시/앵커/궤적용 effective 맵.
@@ -964,70 +835,12 @@ function buildSlotEffectiveRenderSysValues(merged, resolvedSlotSys, adminSys) {
   return out;
 }
 
-/** SysOverlay 표시 전용 — admin/sys SysOverlay.tsx와 동일 규약 */
-function formatFormulaDisplay(expr, output) {
-  const idx = expr.indexOf("=");
-  if (idx < 0) return expr;
-  const lhs = expr.slice(0, idx).trim();
-  const rhs = expr.slice(idx + 1).trim();
-  const lhsVal = lhs in output ? fmtFiveHalfDisplayNum(output[lhs]) : "?";
-  const rhsSubstituted = rhs.replace(/[A-Za-z_][A-Za-z0-9_]*/g, (token) => {
-    if (token in output) {
-      return `${token}_${fmtFiveHalfDisplayNum(output[token])}`;
-    }
-    return token;
-  });
-  return `${lhs}_${lhsVal} = ${rhsSubstituted}`;
-}
+// formatFormulaDisplay, SYS_FORMULA_TOKEN_RE, renderMixedFormulaLine, renderSysFormulaContent
+// → overlay/utils/sysOverlayUtils.jsx (Batch 2 STEP 2-6)
 
-const SYS_FORMULA_TOKEN_RE = /[A-Z][A-Z0-9]*_[fr](?:_[-\d.]+)?/g;
-
-function renderMixedFormulaLine(line) {
-  if (!line) return null;
-  SYS_FORMULA_TOKEN_RE.lastIndex = 0;
-  const nodes = [];
-  let lastIndex = 0;
-  let match;
-  while ((match = SYS_FORMULA_TOKEN_RE.exec(line)) !== null) {
-    if (match.index > lastIndex) {
-      nodes.push(
-        <span key={`t-${lastIndex}`} className="sys-info-box__text">
-          {line.slice(lastIndex, match.index)}
-        </span>
-      );
-    }
-    nodes.push(
-      <span key={`m-${match.index}`} className="sys-info-box__mono">
-        {match[0]}
-      </span>
-    );
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < line.length) {
-    nodes.push(
-      <span key={`t-${lastIndex}`} className="sys-info-box__text">
-        {line.slice(lastIndex)}
-      </span>
-    );
-  }
-  return nodes;
-}
-
-function renderSysFormulaContent(line) {
-  if (!line) return null;
-  const hasKorean = /[\uAC00-\uD7A3]/.test(line);
-  SYS_FORMULA_TOKEN_RE.lastIndex = 0;
-  const hasFormulaToken = SYS_FORMULA_TOKEN_RE.test(line);
-  if (!hasKorean && hasFormulaToken) {
-    return <span className="sys-info-box__mono">{line}</span>;
-  }
-  if (hasKorean) {
-    return renderMixedFormulaLine(line);
-  }
-  return <span className="sys-info-box__text">{line}</span>;
-}
-
-function SysOverlay({ data, onSave, onCancel }) {
+// SysOverlay → components/overlays/SysOverlay.jsx (Batch 2 STEP 2-6)
+// NOTE: SysOverlay now receives computeValues and solveFiveHalf as props (AD-B2-01)
+function _REMOVED_SysOverlay_PLACEHOLDER({ data, onSave, onCancel }) {
   // ==========================================
   // v1 공략 유형 (내부 상수 고정)
   // ==========================================
@@ -1247,7 +1060,7 @@ function SysOverlay({ data, onSave, onCancel }) {
     let ok;
     if (isFiveHalfSystemId(formData.system)) {
       const filled = [coKey, c1Key, c3Key].filter(
-        (k) => sysOverlayInputFinite(formData.inputs, k) != null
+        (k) => { const v = formData.inputs?.[k]; if (v === "" || v == null) return false; const n = typeof v === "number" ? v : Number(v); return Number.isFinite(n); }
       ).length;
       ok = filled >= 2;
       if (ok) {
@@ -7378,6 +7191,8 @@ function handlePointerCancel(e) {
               <SysOverlay
                 key={`sys-${shotEditor.activeSlot}`}
                 data={adminState.sys}
+                computeValues={calculateByProfileExpr}
+                solveFiveHalf={solveFiveHalfTwoOfThree}
                 onSave={(newData) => {
                   console.log("[SYS_APPLY_START]", {
                     hypothesisId: "SYS_APPLY_START",
