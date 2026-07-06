@@ -58,6 +58,9 @@ import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel";
 import { AnchorEditOverlay } from "./components/overlays/AnchorEditOverlay";
 import { HptOverlay, StrOverlay } from "./components/overlays/HptOverlay";
 import { AiOverlay, ensureLessonItems } from "./components/overlays/AiOverlay";
+import { useAdminOverlayRouter } from "./overlay/router/adminOverlayRouter";
+import { useAdminOverlayLifecycle } from "./overlay/state/overlayStateMachine";
+import { useUserOverlayRouter } from "./overlay/router/userOverlayRouter";
 import {
   computeRailPoints,
   c1ArrivalRailForTrack,
@@ -3009,22 +3012,13 @@ export default function App({
     event.target.value = "";
   }
 
-  // 오버레이 열기 (가드 로직 포함)
-  function openOverlay(type) {
-    // 드래그 중이면 강제 종료
-    if (dragState.dragging) {
-      handlePointerUp({ pointerId: null });
-    }
-    
-    // 조이스틱 숨김
-    setDragState(prev => ({ ...prev, joystickVisible: false }));
-    
-    setOverlayState({ open: true, type });
-  }
-
-  function openAnchorEdit(anchorKey) {
-    setOverlayState({ open: true, type: "ANCHOR_EDIT", anchorKey });
-  }
+  // OVL-001: useAdminOverlayRouter (Batch 2 STEP 2-4)
+  const { openOverlay, openAnchorEdit } = useAdminOverlayRouter({
+    dragState,
+    handlePointerUp,
+    setDragState,
+    setOverlayState,
+  });
 
   /**
    * P0-4c: buildBaselineDraftApplyDelta 결과를 슬롯 SSOT와 병합해 commitDraftSys용 delta 완성.
@@ -3393,23 +3387,18 @@ export default function App({
     }
   }
 
-  useEffect(() => {
-    if (appMode !== "ADMIN") return;
-    if (isAdminInputSessionActive && isAdminTargetReady()) return;
-    if (!overlayState.open) return;
-    const t = overlayState.type;
-    if (!t || !["SYS", "HPT", "STR", "AI"].includes(t)) return;
-    notifyFuncOverlayClosedByAdminUi();
-    setOverlayState({ open: false, type: null, anchorKey: null });
-  }, [
+  // OVL-002: useAdminOverlayLifecycle (Batch 2 STEP 2-4)
+  useAdminOverlayLifecycle({
     appMode,
     isAdminInputSessionActive,
     isTargetSelected,
     targetColor,
-    overlayState.open,
-    overlayState.type,
+    overlayOpen: overlayState.open,
+    overlayType: overlayState.type,
     onFuncOverlayClose,
-  ]);
+    setOverlayState,
+    isAdminTargetReady,
+  });
 
   const evalForSave = (args) =>
     evaluateStrategy({
@@ -4181,18 +4170,12 @@ export default function App({
     setShowHistoryModal(true);
   }, [appMode, setShowHistoryModal]);
 
-  /** 모달만 닫기 (기준값 레벨 유지 — BASELINE 순환 시 사용) */
-  const handleDismissUserInfoOverlayPanel = useCallback(() => {
-    if (appMode !== "USER") return;
-    setOverlayContent(null);
-  }, [appMode]);
-
-  /** Overlay 닫기 + Stage rail 선택 복귀 + 기준값 L1 리셋 */
-  const handleCloseUserInfoOverlay = useCallback(() => {
-    if (appMode !== "USER") return;
-    setOverlayContent(null);
-    onFuncOverlayClose?.();
-  }, [appMode, onFuncOverlayClose]);
+  // OVL-003: useUserOverlayRouter (Batch 2 STEP 2-4)
+  const { handleDismissUserInfoOverlayPanel, handleCloseUserInfoOverlay } = useUserOverlayRouter({
+    appMode,
+    setOverlayContent,
+    onFuncOverlayClose,
+  });
 
   // ⭐ 핵심: 버튼 클릭 → Overlay 여는 함수
   function handleSelectAdminButton(buttonId) {
