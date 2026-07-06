@@ -1,5 +1,4 @@
 ﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { convertCanonicalAnchors } from "./lib/convertCanonicalAnchors";
 import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
 import { angleSpinTargetRail } from "./domain/angleSpinCorrectionTarget";
@@ -61,6 +60,10 @@ import { AiOverlay, ensureLessonItems } from "./components/overlays/AiOverlay";
 import { useAdminOverlayRouter } from "./overlay/router/adminOverlayRouter";
 import { useAdminOverlayLifecycle } from "./overlay/state/overlayStateMachine";
 import { useUserOverlayRouter } from "./overlay/router/userOverlayRouter";
+import { useSysLabelScale } from "./renderer/labels/labelScalePolicy";
+import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRenderModel";
+import { buildSystemAxisLabelModel } from "./renderer/labels/systemAxisLabelModel";
+import { buildRgAnchors } from "./renderer/trajectory/anchorConversionModel";
 import {
   computeRailPoints,
   c1ArrivalRailForTrack,
@@ -92,7 +95,7 @@ import CoachingOverlay from "./components/table/CoachingOverlay";
 import { useCoachingController } from "./hooks/useCoachingController";
 import { useSystemController } from "./hooks/useSystemController";
 import { useDisplayController } from "./hooks/useDisplayController";
-import { TABLE_CONFIG, MEDIA_PHONE_LANDSCAPE, SYS_LABEL_PHONE_LANDSCAPE_SCALE } from "./config/tableConfig";
+import { TABLE_CONFIG } from "./config/tableConfig";
 import { buildRailGroupedStrategy } from "./domain/railEngine";
 import {
   getUserDisplayFlags,
@@ -127,7 +130,6 @@ import {
 import { getAnchorCoordFromSys } from "./domain/anchorLookupEngine";
 import { buildBaselineDraftApplyDelta } from "./domain/buildBaselineDraftApplyDelta";
 import {
-  PATH_NODE_MARKS,
   resolveTrajectoryDisplayCap,
   slicePathNodesToCap,
 } from "./domain/trajectoryPathDisplayPolicy";
@@ -5099,19 +5101,8 @@ function handleJoyPadPointerCancel(e) {
     BALL_RADIUS_RG,
   });
 
-  const [sysLabelScale, setSysLabelScale] = useState(1);
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return undefined;
-    }
-    const mq = window.matchMedia(MEDIA_PHONE_LANDSCAPE);
-    const sync = () => {
-      setSysLabelScale(mq.matches ? SYS_LABEL_PHONE_LANDSCAPE_SCALE : 1);
-    };
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
+  // APP-013: useSysLabelScale (Batch 2 STEP 2-5)
+  const sysLabelScale = useSysLabelScale();
 
   if (loading) {
     return (
@@ -6070,61 +6061,17 @@ function handlePointerCancel(e) {
   handlePointerUp(e);
 }
 
-  // canonical 처리 (안전하게) — canonical은 위에서 이미 계산됨
-  let anchors = rawAnchors;
-
-  const profileForCanonical = SYSTEM_PROFILES?.[systemIdForGrid];
-  const offsetFg2rg =
-    typeof system?.values?.offset_fg2rg === "number"
-      ? system.values.offset_fg2rg
-      : profileForCanonical?.safety?.offset_fg2rg;
-
-  const hasConversionData =
-    canonical &&
-    canonical !== "canonical" &&
-    typeof offsetFg2rg === "number";
-
-  if (hasConversionData) {
-    try {
-      const canonicalConfig = {
-        track: canonical,
-        coords: {
-          offset_fg2rg: offsetFg2rg ?? 2.25,
-        },
-      };
-      anchors = convertCanonicalAnchors(rawAnchors, canonicalConfig);
-    } catch (e) {
-      console.warn("좌표 변환 실패, 원본 사용:", e);
-    }
-  } else {
-    if (!canonical) {
-      console.warn("canonical 정보 없음, 좌표 변환 스킵");
-    } else if (typeof offsetFg2rg !== "number") {
-      console.warn("offset_fg2rg 없음(profile/view), 좌표 변환 스킵");
-    }
-  }
-
+  // RND-004(partial): buildRgAnchors (Batch 2 STEP 2-5)
+  // D-005 주의: SYSTEM_PROFILES 직접 참조 → Batch 6 Runtime Contract 해소 예정
   const override = adminState?.anchorsOverride ?? {};
-  anchors = { ...anchors, ...override };
-
-  let anchorsBase = null;
-  if (rawAnchorsBase) {
-    anchorsBase = rawAnchorsBase;
-    if (hasConversionData) {
-      try {
-        const canonicalConfigBase = {
-          track: canonical,
-          coords: {
-            offset_fg2rg: offsetFg2rg ?? 2.25,
-          },
-        };
-        anchorsBase = convertCanonicalAnchors(rawAnchorsBase, canonicalConfigBase);
-      } catch (e) {
-        console.warn("base trajectory 좌표 변환 실패, 원본 사용:", e);
-      }
-    }
-    anchorsBase = { ...anchorsBase, ...override };
-  }
+  const { anchors, anchorsBase } = buildRgAnchors({
+    rawAnchors,
+    rawAnchorsBase,
+    canonical,
+    systemValues: system?.values,
+    profileForCanonical: SYSTEM_PROFILES?.[systemIdForGrid],
+    anchorsOverride: override,
+  });
 
   // ⚠️ convertCanonicalAnchors가 이미 Fg → Rg 변환을 함!
   // 따라서 anchors.CO, anchors["C1"]는 Rg 좌표
@@ -6858,14 +6805,14 @@ function handlePointerCancel(e) {
     appMode === "USER"
       ? userDisplayFlags?.labelAnchorSource === "baseline"
       : showBaseLine;
-  const activeDisplayCap =
-    useBaselineLabelAnchors && cushionPathBaselineRg
-      ? capBaseline
-      : capCorrected;
-  const visibleKeysForLabels =
-    activeDisplayCap.endIndex >= 0
-      ? PATH_NODE_MARKS.slice(0, activeDisplayCap.endIndex + 1)
-      : [];
+  // TRJ-002: buildTrajectoryRenderModel (Batch 2 STEP 2-5)
+  const { activeDisplayCap, visibleKeysForLabels } = buildTrajectoryRenderModel({
+    systemIdForGrid,
+    useBaselineLabelAnchors,
+    cushionPathBaselineRg,
+    capBaseline,
+    capCorrected,
+  });
   if (import.meta.env.DEV && userDisplayModeActive) {
     console.log("[TRAJ_DISPLAY_CAP]", {
       mode: useBaselineLabelAnchors ? "baseline" : "corrected",
@@ -6952,33 +6899,6 @@ function handlePointerCancel(e) {
   };
   const trackAnchorItems =
     getAnchorsForSystem(systemIdForGrid)?.trajectories?.[trackForAnchors]?.anchors ?? [];
-  const labelAnchorsForRaw = {};
-  trackAnchorItems.forEach((a) => {
-    const id = a?.id;
-    if (typeof id !== "string") return;
-    const match = id.match(/^([A-Z0-9]+)_\(([-\d.]+),([-\d.]+)\)_(\d+)/);
-    if (!match) return;
-    const label = match[1];
-    const x = parseFloat(match[2]);
-    const y = parseFloat(match[3]);
-    const value = parseFloat(match[4]);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(value)) return;
-    if (!labelAnchorsForRaw[label]) {
-      labelAnchorsForRaw[label] = [];
-    }
-    labelAnchorsForRaw[label].push({
-      coord: { x, y },
-      value,
-    });
-  });
-  const labelAnchorsForRender =
-    appMode === "USER" && userAxisGridLabelsActive
-      ? Object.fromEntries(
-          visibleKeysForLabels
-            .filter((k) => k !== "C2" && labelAnchorsForRaw[k])
-            .map((k) => [k, labelAnchorsForRaw[k]])
-        )
-      : labelAnchorsForRaw;
   console.log("[ANCHOR_BEFORE_RENDER]", {
     stage: "App:allAnchors",
     rawAnchors,
@@ -6987,11 +6907,14 @@ function handlePointerCancel(e) {
     trackForAnchors,
     systemIdForGrid,
   });
-  const allAnchorsForLabels = Object.fromEntries(
-    visibleKeysForLabels
-      .map((k) => [k, allAnchors[k]])
-      .filter(([, v]) => v && v.coord != null)
-  );
+  // RND-002: buildSystemAxisLabelModel (Batch 2 STEP 2-5)
+  const { labelAnchorsForRender, allAnchorsForLabels } = buildSystemAxisLabelModel({
+    appMode,
+    userAxisGridLabelsActive,
+    visibleKeysForLabels,
+    trackAnchorItems,
+    allAnchors,
+  });
   console.log("[LABEL_VISIBILITY_TRACE]", {
     cushionPathLength: cushionPath.length,
     visibleKeysForLabels,
@@ -7089,10 +7012,14 @@ function handlePointerCancel(e) {
     appMode === "USER"
       ? userShowBaselinePath && !userShowCorrectedPath
       : showBaseLine;
-  const labelStrategy =
-    systemIdForGrid === "5_half_system"
-      ? "five_half_reference"
-      : "anchor_ssot";
+  // TRJ-002: labelStrategy (from buildTrajectoryRenderModel — D-005: Batch 6 해소 예정)
+  const labelStrategy = buildTrajectoryRenderModel({
+    systemIdForGrid,
+    useBaselineLabelAnchors,
+    cushionPathBaselineRg,
+    capBaseline,
+    capCorrected,
+  }).labelStrategy;
 
   const cushionPathForTableImpact =
     !userShowTrajectoryOnTable
