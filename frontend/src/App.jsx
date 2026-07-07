@@ -28,6 +28,10 @@ import {
   fiveHalfComputedInputKey,
 } from "./domain/calculator/fiveHalfCalculator";
 import {
+  loadOnePoints,
+  saveOnePoints,
+} from "./domain/lesson/onePointLibrary";
+import {
   resolveCoC1C3Keys,
   normalizeToFormulaInputsApp,
   isRhsKeyReadOnlyForSys,
@@ -1481,27 +1485,13 @@ export default function App({
   /** C2 reflection fallback용 수동 힌트 (추후 draggable C2 UI 연결용) */
   const [c2ManualHint, setC2ManualHint] = useState(null);
 
-  // 원 포인트 레슨 라이브러리 (로컬스토리지)
-  const ONE_POINT_KEY = "ONE_POINT_LESSON_LIBRARY_V1";
-  const [onePointLibrary, setOnePointLibrary] = useState([]);
+  // 원 포인트 레슨 라이브러리 (로컬스토리지 — domain/lesson/onePointLibrary.ts 위임)
+  const [onePointLibrary, setOnePointLibrary] = useState(loadOnePoints);
   const [onePointSelectedId, setOnePointSelectedId] = useState("");
   const [onePointDraft, setOnePointDraft] = useState("");
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(ONE_POINT_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(parsed)) setOnePointLibrary(parsed);
-    } catch (e) {
-      console.warn("Failed to load onePointLibrary", e);
-    }
-  }, []);
   const saveOnePointLibrary = (next) => {
     setOnePointLibrary(next);
-    try {
-      localStorage.setItem(ONE_POINT_KEY, JSON.stringify(next));
-    } catch (e) {
-      console.warn("Failed to save onePointLibrary", e);
-    }
+    saveOnePoints(next);
   };
   const sortedOnePointLibrary = useMemo(() => {
     return [...onePointLibrary].sort((a, b) => {
