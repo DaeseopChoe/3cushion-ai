@@ -152,6 +152,7 @@ import { runAdminLocalDbRecall } from "./application/flows/adminLocalDbFlow";
 import { runAdminSearch } from "./application/flows/adminSearchFlow";
 import { runUserSearch } from "./application/flows/userSearchFlow";
 import { runSaveStrategy } from "./application/flows/saveFlow";
+import { runCanonicalSave } from "./application/flows/historyFlow";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
@@ -2024,29 +2025,28 @@ export default function App({
     });
   }
 
-  /** 우측 SAVE: strategy persistence → workspace_history append (snapshot.dataset = result.updated) */
+  /** 우측 SAVE: DS-003 → historyFlow.runCanonicalSave */
   function handleCanonicalRightPanelSave() {
-    if (!canUseSystemControls) {
-      alert("Search/로컬DB 편집 세션 및 Target 확정 후 저장할 수 있습니다.");
-      return;
-    }
-    const systemId =
-      adminState?.sys?.system_id ?? adminState?.sys?.system ?? "5_half_system";
-    if (!systemId || systemId === "null") {
-      alert("시스템을 선택하세요 (SYS 설정)");
-      return;
-    }
-    const r = handleSaveStrategy();
-    if (!r?.ok) {
-      if (import.meta.env.DEV) {
-        console.warn("[SAVE] failed", r?.reason);
-      }
-      if (r?.reason === "missing-balls-state-cue") {
-        alert("공 배치(ballsState)를 확인할 수 없습니다. 테이블 공 위치를 확인 후 다시 저장하세요.");
-      }
-      return;
-    }
-    commitWorkspaceHistoryWithStrategyDataset(r.updated);
+    runCanonicalSave({
+      dataset,
+      ballsState,
+      adminState,
+      activeSlot: shotEditor.activeSlot,
+      slots: shotEditor.slots,
+      targetColor,
+      aiOverride: null,
+      system,
+      resolvedSlotSysValues,
+      autoSave,
+      saveWorkingDataset,
+      setDataset,
+      setUserPublishedSearchContext,
+      setAdminState,
+      patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
+      saveToFile,
+      canUseSystemControls,
+      commitWorkspaceHistoryWithStrategyDataset,
+    });
   }
 
   // SRCH-001: runAdminPositionRecall → application/flows/adminLocalDbFlow.ts (STEP 3-5)
