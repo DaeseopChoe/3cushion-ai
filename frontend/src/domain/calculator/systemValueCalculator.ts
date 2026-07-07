@@ -4,8 +4,10 @@
  * AAS v2.0 Batch 4 — CAL-002/003/005 Calculation Domain SSOT.
  * STEP 4-1: buildEffectiveRenderSysValues (CAL-002).
  * STEP 4-2: computeSysOverlayValues (CAL-005) — D-008 App/Overlay 경로 해소.
+ * STEP 4-3: buildSlotSysSnapshot (CAL-003) — Recall snapshot SSOT.
  */
 
+import type { StrategyEntry } from "../positionSearchEngine";
 import { angleSpinTargetRail } from "../angleSpinCorrectionTarget";
 import {
   canonicalSystemIdForConfig,
@@ -51,6 +53,13 @@ export type ComputeSysOverlayValuesParams = {
   shotType: string;
   isRestored: boolean;
   hasAllInputs: boolean;
+};
+
+export type SlotSysSnapshot = {
+  systemId: string;
+  track: string;
+  inputs: Record<string, unknown>;
+  outputs: { result: Record<string, unknown> };
 };
 
 export type ComputeSysOverlayValuesResult = {
@@ -131,6 +140,56 @@ export function evaluateSysOverlayHasAllInputs(params: {
     if (v === "" || v === null || v === undefined) return false;
   }
   return true;
+}
+
+/**
+ * CAL-003: Recall entry → slot draft.sys snapshot (StrategyEntry → sys snapshot).
+ * D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open — Batch 6).
+ */
+export function buildSlotSysSnapshot(
+  entry: StrategyEntry | null | undefined
+): SlotSysSnapshot | null {
+  if (!entry) return null;
+  const systemId =
+    entry.signature.systemId === "5_HALF"
+      ? "5_half_system"
+      : (entry.signature.systemId ?? "5_half_system");
+  const inputs = entry.sysInputs ?? {};
+  const profile = SYSTEM_PROFILES[systemId];
+  const expr: string | undefined = profile?.formula?.expr;
+  const baseThreeC =
+    typeof inputs.baseThreeC === "number"
+      ? inputs.baseThreeC
+      : typeof inputs.C3 === "number"
+        ? inputs.C3
+        : typeof inputs.C3_r === "number"
+          ? inputs.C3_r
+          : 0;
+  const baseOneC =
+    typeof inputs.baseOneC === "number"
+      ? inputs.baseOneC
+      : typeof inputs.CO === "number"
+        ? inputs.CO
+        : typeof inputs.CO_f === "number"
+          ? inputs.CO_f
+          : 0;
+  const exprInputs = {
+    ...inputs,
+    baseThreeC,
+    baseOneC,
+    CO_f: typeof inputs.CO_f === "number" ? inputs.CO_f : baseOneC,
+    C3_r: typeof inputs.C3_r === "number" ? inputs.C3_r : baseThreeC,
+  };
+  let calcResult: Record<string, unknown> = {};
+  if (expr) {
+    calcResult = calculateByProfileExpr(expr, exprInputs as Record<string, number>);
+  }
+  return {
+    systemId,
+    track: entry.track ?? "B2T_L",
+    inputs,
+    outputs: { result: calcResult },
+  };
 }
 
 const EMPTY_OVERLAY_RESULT: ComputeSysOverlayValuesResult = {

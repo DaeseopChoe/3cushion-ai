@@ -1,79 +1,23 @@
 // application/flows/recallHydrateFlow.ts
 // CAL-004 — Recall Hydrate 순수 함수 추출
-// Batch 3 STEP 3-3
+// Batch 3 STEP 3-3 · Batch 4 STEP 4-3 (CAL-003 Domain 위임)
 //
 // AD-B3-03: Object Context 없음. 모든 함수는 명시적 파라미터 → Return 형태.
 // React state / dispatch / ref / hook / Context 사용 금지.
 //
 // Migration Debt:
-//   D-006: SYSTEM_PROFILES 직접 접근 — Batch 6에서 해소 예정
-//   D-008: calculateByProfileExpr 직접 호출 — Batch 4 (CAL-005 통합) 시 해소 예정
+//   D-006: SYSTEM_PROFILES 직접 접근 (adminSysFromRecallEntry) — Batch 6에서 해소 예정
 
-// D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
-import { SYSTEM_PROFILES } from "../../data/systems";
-// D-008: calculateByProfileExpr 직접 호출 (Migration Debt Open)
-import { calculateByProfileExpr } from "../../utils/systemCalculator";
+import { buildSlotSysSnapshot } from "../../domain/calculator/systemValueCalculator";
 import {
   buildSlotRuntimePayload,
   extractSlotRuntimeMeta,
   type SlotRuntimeDraftSlice,
 } from "../../domain/slotRuntimeHydrate";
 import { mergeCorrectionsForRecallHydrate } from "../../domain/canonicalStrategy";
+// D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
+import { SYSTEM_PROFILES } from "../../data/systems";
 import type { StrategyEntry } from "../../domain/positionSearchEngine";
-
-// ---------------------------------------------------------------------------
-// module-private
-// ---------------------------------------------------------------------------
-
-/**
- * Position Recall 직후 SYS 모달 폼용: 한 StrategyEntry에서 슬롯 draft.sys와 동일한
- * 수치 파이프라인 스냅샷. (module-private)
- * D-008: calculateByProfileExpr 직접 호출 (Migration Debt Open)
- */
-function buildSlotSysSnapshotFromEntry(entry: StrategyEntry | null | undefined) {
-  if (!entry) return null;
-  const systemId =
-    entry.signature.systemId === "5_HALF"
-      ? "5_half_system"
-      : (entry.signature.systemId ?? "5_half_system");
-  const inputs = entry.sysInputs ?? {};
-  // D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
-  const profile = SYSTEM_PROFILES[systemId];
-  const expr: string | undefined = profile?.formula?.expr;
-  const baseThreeC =
-    typeof inputs.baseThreeC === "number"
-      ? inputs.baseThreeC
-      : typeof inputs.C3 === "number"
-        ? inputs.C3
-        : typeof inputs.C3_r === "number"
-          ? inputs.C3_r
-          : 0;
-  const baseOneC =
-    typeof inputs.baseOneC === "number"
-      ? inputs.baseOneC
-      : typeof inputs.CO === "number"
-        ? inputs.CO
-        : typeof inputs.CO_f === "number"
-          ? inputs.CO_f
-          : 0;
-  const exprInputs = {
-    ...inputs,
-    baseThreeC,
-    baseOneC,
-    CO_f: typeof inputs.CO_f === "number" ? inputs.CO_f : baseOneC,
-    C3_r: typeof inputs.C3_r === "number" ? inputs.C3_r : baseThreeC,
-  };
-  let calcResult: Record<string, unknown> = {};
-  if (expr) {
-    calcResult = calculateByProfileExpr(expr, exprInputs) as Record<string, unknown>;
-  }
-  return {
-    systemId,
-    track: entry.track ?? "B2T_L",
-    inputs,
-    outputs: { result: calcResult },
-  };
-}
 
 // ---------------------------------------------------------------------------
 // exports
@@ -129,7 +73,7 @@ export function adminSysFromRecallEntry(
   entry: StrategyEntry | null | undefined,
   prevSys: Record<string, unknown> | null | undefined
 ): Record<string, unknown> | null {
-  const snap = buildSlotSysSnapshotFromEntry(entry);
+  const snap = buildSlotSysSnapshot(entry);
   if (!snap) return null;
   const sid = snap.systemId;
   // D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
