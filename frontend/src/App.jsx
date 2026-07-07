@@ -114,7 +114,6 @@ import { useUserToast } from "./hooks/useUserToast";
 import { createStrategyEntry } from "./domain/adminSaveEngine";
 import {
   MERGE_EPSILON,
-  normalizeDatasetFromStorage,
   normalizeTargetBallForKey,
   upsertPositionRecord,
 } from "./domain/positionMergeEngine";
@@ -153,7 +152,12 @@ import {
   intersectRayWithRail,
   directionFromAngleDeg,
 } from "./domain/reflectionEngine";
-import { createCaptureCandidate } from "./data/autoCaptureEngine";
+import {
+  loadWorkingDataset,
+  saveWorkingDataset,
+  importDatasetFromFile,
+} from "./domain/dataset/infra/datasetStorage";
+import { useAutoCapture } from "./domain/dataset/autoCapture";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
@@ -1443,16 +1447,8 @@ export default function App({
     onSystemControlsAvailabilityChange?.(canUseSystemControls);
   }, [canUseSystemControls, onSystemControlsAvailabilityChange]);
 
-  // dataset: PositionRecord[] (localStorage "positions_dataset")
-  const [dataset, setDataset] = useState(() => {
-    try {
-      const saved = localStorage.getItem("positions_dataset");
-      const raw = saved ? JSON.parse(saved) : [];
-      return normalizeDatasetFromStorage(raw);
-    } catch {
-      return [];
-    }
-  });
+  // dataset: PositionRecord[] (localStorage — domain/dataset/infra/datasetStorage 위임)
+  const [dataset, setDataset] = useState(loadWorkingDataset);
 
   const {
     workspaceHistory,
@@ -1722,32 +1718,18 @@ export default function App({
     fileInputRef.current?.click();
   }
 
-  function handleFileImport(event) {
+  async function handleFileImport(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const json = JSON.parse(e.target.result);
-
-        const importedDataset = json.dataset ?? (Array.isArray(json) ? json : null);
-        if (!importedDataset) {
-          alert("Invalid dataset.json format");
-          return;
-        }
-        const normalized = normalizeDatasetFromStorage(importedDataset);
-        setDataset(normalized);
-        localStorage.setItem(
-          "positions_dataset",
-          JSON.stringify(normalized)
-        );
-      } catch (err) {
-        alert("Failed to import dataset.json");
-      }
-    };
-    reader.readAsText(file);
     event.target.value = "";
+
+    try {
+      const normalized = await importDatasetFromFile(file);
+      setDataset(normalized);
+      saveWorkingDataset(normalized);
+    } catch (err) {
+      alert(err?.message ?? "Failed to import dataset.json");
+    }
   }
 
   // OVL-001: useAdminOverlayRouter (Batch 2 STEP 2-4)
@@ -3730,26 +3712,15 @@ function handleJoyPadPointerCancel(e) {
     }
   }, [view]);
 
-  // Strategy Auto Capture: 1초간 안정 시 dataset candidate 생성
-  const lastCapturedRef = useRef(null);
-  useEffect(() => {
-    if (!canEdit || overlayState.open) return;
-    const balls = ballsState ?? view?.ui?.balls ?? {};
-    const cue = balls.cue;
-    const target = balls.target_center ?? balls.target;
-    if (!cue || !target) return;
-    const timer = setTimeout(() => {
-      const impact = balls.impact ?? (calcImpactBall(cue, target, adminState?.hpt?.T ?? "8/8"));
-      const sysVals = adminState?.sys?.systemValues ?? adminState?.sys?.inputs ?? {};
-      const candidate = createCaptureCandidate({
-        balls,
-        impact: impact ?? undefined,
-        systemValues: sysVals,
-      });
-      lastCapturedRef.current = candidate;
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [canEdit, overlayState.open, ballsState, adminState?.sys, adminState?.hpt?.T, view?.ui?.balls]);
+  // Strategy Auto Capture: 1초간 안정 시 dataset candidate 생성 (MISC-002 → domain/dataset/autoCapture)
+  useAutoCapture({
+    canEdit,
+    overlayOpen: overlayState.open,
+    ballsState,
+    adminSys: adminState?.sys,
+    adminHptT: adminState?.hpt?.T,
+    viewBalls: view?.ui?.balls,
+  });
 
   // ============================================
   // 키보드 단축키 (관리자 모드)
