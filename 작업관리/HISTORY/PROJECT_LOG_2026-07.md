@@ -1,8 +1,421 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.1  
+Version : v1.3  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-07 (Batch 3 Complete — Closure)
+
+## 제목
+
+AAS Runtime Migration Batch 3 완료 — Application Flow Layer 분리 · Batch 4 Ready
+
+## Summary
+
+Batch3_Design.md(v1.0) 기준 STEP 3-1 ~ 3-8 전체 구현을 완료하고, Closure 절차(Regression · Acceptance Criteria · Architecture 검증 · 문서 업데이트)를 수행하여 Batch 3를 공식 종료하였다.
+
+## Major Accomplishments
+
+### 1. Batch 3 STEP 구현 완료 (9 STEP, 9 commits)
+
+| STEP | Commit | Title |
+|------|--------|-------|
+| 3-1 | `252be8f` | onePointLibrary persistence extraction (AI-002) |
+| 3-2 | `4f0aac6` | dataset infrastructure extraction (DS-001 DS-004 DS-005 MISC-002) |
+| 3-3 | `eca7e19` | recallHydrate flow extraction (CAL-004) |
+| 3-4 | `2af68b6` | reset flow extraction (SRCH-004) |
+| 3-5 | `778e2d4` | admin LocalDB flow extraction (SRCH-001) |
+| 3-6 | `e13d183` | published search flow extraction (SRCH-002 SRCH-003) |
+| 3-7A | `38fe4b2` | save flow extraction (SRCH-005 DS-002) |
+| 3-7B | `e35c600` | history flow extraction (DS-003) |
+| 3-8 | `b7d7712` | ballDragFlow extraction (CAL-006) |
+
+### 2. 신규 파일 (11개)
+
+- `application/flows/` — 8개 (recallHydrateFlow, resetFlow, adminLocalDbFlow, adminSearchFlow, userSearchFlow, saveFlow, historyFlow, ballDragFlow)
+- `domain/lesson/onePointLibrary.ts` — 1개 (AI-002)
+- `domain/dataset/infra/datasetStorage.ts` — 1개 (DS-001 + DS-004)
+- `domain/dataset/autoCapture.ts` — 1개 (MISC-002)
+
+### 3. App.jsx 변화
+
+```
+Before (Batch 2) : 6,509 lines
+After  (Batch 3) : 5,807 lines
+Delta            : −702 lines
+```
+
+### 4. Regression 결과
+
+- 공통 Regression R-B3-C1~C8: **전체 PASS**
+- STEP Regression STEP 3-1~3-8: **전체 PASS**
+
+### 5. Acceptance Criteria (AC-1~AC-17)
+
+| AC | 항목 | 결과 |
+|----|------|------|
+| AC-1 | npm run build exit 0 | ✅ PASS |
+| AC-2 | App.jsx ~5,400 lines (−1,100+) | ⚠️ PARTIAL (5,807 lines, −702) |
+| AC-3 | 신규 폴더 4개 | ✅ PASS |
+| AC-4 | 신규 파일 11개 | ✅ PASS |
+| AC-5 | Import Graph 순환/역방향 0 | ✅ PASS |
+| AC-6 | Flow Layer 단방향 | ✅ PASS |
+| AC-7 | localStorage DS-001/004 infra 경유 | ✅ PASS |
+| AC-8 | in-flight guard App.jsx 보유 | ✅ PASS |
+| AC-9 | Runtime 동일성 | ✅ PASS |
+| AC-10 | Named Export Only | ✅ PASS |
+| AC-11 | D-006/D-007/D-008 Open | ✅ PASS |
+| AC-12 | CL-001~005 Cleanup Backlog | ✅ PASS |
+| AC-13 | STEP Lock 9 commits | ✅ PASS |
+| AC-14 | RecallHydrate Pure Params | ✅ PASS |
+| AC-15 | R-B3-C1~C8 PASS | ✅ PASS |
+| AC-16 | Batch 4 진입 조건 | ✅ PASS (Closure 후) |
+| AC-17 | SESSION_HANDOFF_CURSOR.md | ✅ PASS (Closure 후) |
+
+### 6. Architecture 결과
+
+- App = Orchestrator 유지
+- `application/flows/` → `domain/` 단방향
+- React Hook 없음 (Flow Layer)
+- Object Context (AD-B3-02) 유지
+- Named Export Only
+
+### 7. Migration Debt 상태
+
+| Debt | 상태 | 해소 예정 |
+|------|------|----------|
+| D-006 | Open | Batch 6 (SYSTEM_PROFILES 직접 접근) |
+| D-007 | Open | Batch 6 (getAnchorsForSystem 직접 접근) |
+| D-008 | Open | Batch 4 (calculateByProfileExpr 직접 호출) |
+
+### 8. Batch 3 공식 종료
+
+- Closure commit: `docs(batch3): complete Batch3 closure and prepare Batch4`
+- **Batch 4 Ready**
+
+---
+
+# 2026-07-07 (Batch 3 Design v1.0 Approved)
+
+## 제목
+
+AAS Runtime Migration Batch 3 Design v1.0 승인 — Implementation Ready
+
+## Summary
+
+Batch3_Analysis 및 Batch3_Analysis_Refinement에서 확정된 내용을 기반으로 Batch3_Design.md(v1.0)를 작성하고 최종 승인하였다.
+
+이 문서는 Batch 3 구현의 공식 Design SSOT이다. Architecture Decisions (AD-B3-01~05), Migration Sequence (STEP 3-1~3-8), Flow Context 설계, Regression Strategy, Acceptance Criteria(AC-1~17), Migration Debt Ledger, Cleanup Backlog, Design Completeness Checklist, Future Enhancement를 모두 포함한다.
+
+Implementation은 수행하지 않았다. 다음 Agent 세션부터 STEP 3-1 구현을 시작할 수 있다.
+
+---
+
+## Major Accomplishments
+
+### 1. Batch3_Design.md v1.0 작성 및 승인
+
+```text
+작업관리/Runtime Refactoring/Batch03/Batch3_Design.md
+```
+
+- Status: Implementation Ready
+- Architecture Decisions: AD-B3-01~05 (5건) 확정
+- Migration Sequence: STEP 3-1~3-8 (STEP 3-7A/3-7B 포함, 총 9 STEP) 확정
+- Flow Context 설계: 8개 FlowContext 인터페이스 확정
+- Regression Strategy: R-B3-C1~C8 공통 + STEP별 Regression 전부 정의
+- Acceptance Criteria: AC-1~17 (17항) 확정
+- Migration Debt Ledger: D-001, D-004~D-008 (D-002 Closed)
+- Cleanup Backlog: CL-001~CL-005 (5건)
+- Design Completeness Checklist: Open Question Q1~Q5 전부 해결 확인
+- Future Enhancement: FE-001 Deferred (Batch5 대상), FE-002/FE-003 Reserved
+
+### 2. Architecture Decisions Confirmed (Batch 3)
+
+| ID | 결정 | 요약 |
+|----|------|------|
+| AD-B3-01 | Application Flow Layer 도입 | `App.jsx → application/flows/ → domain/` 계층 신설 |
+| AD-B3-02 | Flow Context Pattern: Hybrid Object Context | READ/WRITE/ACTION/HELPER 4종 분리. React ref는 App.jsx 보유 |
+| AD-B3-03 | RecallHydrate = Pure Function Parameter | CAL-004 5개 함수는 Object Context 없이 파라미터 방식 사용 |
+| AD-B3-04 | STEP 3-7 분리 (3-7A Save + 3-7B History) | Rollback 독립성 확보, STEP Lock Rule 강화 |
+| AD-B3-05 | Migration Debt / Cleanup Backlog 분리 | Architecture Rule/ADR/Runtime Block 여부로 분류 기준 명확화 |
+
+### 3. Migration Debt 재분류 확정
+
+- 구 D-003 → CL-001 (Cleanup Backlog) — `isFiveHalfSystemId` 중복 통합
+- 구 D-009 → CL-002 (Cleanup Backlog) — `publishedDatasetStore.ts` 재배치
+- **신규 D-006**: `SYSTEM_PROFILES` 직접 접근 (Batch 3 발생 예정 / Batch 6 해소)
+- **신규 D-007**: `getAnchorsForSystem` 직접 접근 (Batch 3 발생 예정 / Batch 6 해소)
+- **신규 D-008**: `calculateByProfileExpr` 직접 호출 (Batch 3 발생 예정 / Batch 4 해소)
+
+### 4. STEP 3-7A / 3-7B 분리 확정
+
+- STEP 3-7A: `saveFlow.ts` (SRCH-005 + DS-002) — STEP 3-2 선행 필수
+- STEP 3-7B: `historyFlow.ts` (DS-003) — STEP 3-7A 선행 필수
+- 각 STEP 독립 Rollback 가능
+
+### 5. Acceptance Criteria AC-17 추가
+
+- `SESSION_HANDOFF_CURSOR.md` 업데이트 완료 → Batch 3 완료 조건에 포함
+
+### 6. Future Enhancement 등록
+
+- FE-001: RuntimeFlowContext Base Interface 추상화 — Batch 5 Runtime Contract Design 착수 시 검토 (Deferred)
+- FE-002 / FE-003: Reserved
+
+### 7. 프로젝트 기준 문서 업데이트
+
+- `PROJECT_MASTER_INDEX.md` v1.14 — Batch 3 Design 완료 상태 반영
+- `PROJECT_LOG_2026-07.md` v1.2 — 이번 작업 로그 추가
+- `SESSION_HANDOFF_CURSOR.md` — Batch 3 인계 상태 업데이트
+
+---
+
+## Architecture Consistency Review
+
+| 문서 | 충돌 여부 |
+|------|----------|
+| Architecture Constitution | ✅ 충돌 없음 |
+| Architecture Dictionary | ✅ 충돌 없음 |
+| ADR (001~010) | ✅ 충돌 없음 (D-006/007 Open Debt로 계획됨) |
+| App_Migration_Map.md | ✅ 변경 없음 |
+| PROJECT_MASTER_INDEX | ✅ 반영 완료 |
+
+---
+
+## Current Status
+
+| 항목 | 상태 |
+|------|------|
+| AAS | **Completed** |
+| Runtime Migration | **In Progress** |
+| Batch 1 | **Completed** (2026-07-06) |
+| Batch 2 | **Completed** (2026-07-06) |
+| Batch 3 Analysis | **Completed** |
+| Batch 3 Design | **Completed / Implementation Ready** (2026-07-07) |
+| Batch 3 Implementation | STEP 3-1 대기 |
+
+---
+
+## Migration Debt Ledger (Batch 3 Design 승인 시점)
+
+| ID | 항목 | Target Batch | Status |
+|----|------|-------------|--------|
+| D-001 | Legacy Alias 4개 (`canonicalSystemIdForConfig` 등) 제거 | Soft: Batch 4 / Hard: Batch 6 착수 전 | Open |
+| D-002 | `sysOverlayInputFinite` private 전환 | Batch 2 완료 | **Closed** |
+| D-004 | `SysOverlay.jsx` 내 `SYSTEM_OPTIONS` 하드코딩 | Batch 6 | Open |
+| D-005 | `labelStrategy` 직접 분기 | Batch 6 | Open |
+| D-006 | `SYSTEM_PROFILES` 직접 접근 | Batch 6 | 🔜 Open (Batch 3 구현 시 발생) |
+| D-007 | `getAnchorsForSystem` 직접 접근 | Batch 6 | 🔜 Open (Batch 3 구현 시 발생) |
+| D-008 | `calculateByProfileExpr` 직접 호출 | Batch 4 | 🔜 Open (Batch 3 구현 시 발생) |
+
+## Cleanup Backlog (Batch 3 Design 승인 시점)
+
+| ID | 항목 | 권장 시기 |
+|----|------|----------|
+| CL-001 (구 D-003) | `isFiveHalfSystemId` 중복 통합 | Batch 4 이전 |
+| CL-002 (구 D-009) | `publishedDatasetStore.ts` 재배치 | Batch 3 cleanup 또는 Batch 4 이전 |
+| CL-003 | `handleSave` Dead code 제거 | Batch 3 cleanup |
+| CL-004 | `STRContent` 컴포넌트 위치 이동 | Batch 3 또는 standalone |
+| CL-005 | debug/trace 함수 정리 | Batch 4+ |
+
+---
+
+## Next Priority
+
+**Batch 3 Implementation (STEP 3-1 착수)**
+
+Design SSOT: `작업관리/Runtime Refactoring/Batch03/Batch3_Design.md`
+
+첫 번째 구현 STEP:
+
+```
+STEP 3-1 — AI-002: One-Point Library Persistence 격리
+  파일: domain/lesson/onePointLibrary.ts (신규)
+  변경: App.jsx onePointLibrary 초기화 + saveOnePointLibrary → import 교체
+  Commit: feat(batch3): STEP 3-1 - onePointLibrary persistence extraction (AI-002)
+```
+
+---
+
+# 2026-07-06 (Batch 2 Completed)
+
+## 제목
+
+AAS Runtime Migration Batch 2 Completed
+
+## Summary
+
+Application Runtime Refactoring의 두 번째 구현 Batch가 완료되었다.
+
+App.jsx에서 Presentation Layer 전체를 분리하였다. Overlay 컴포넌트 · Overlay Router Hooks · Renderer 모듈을 독립 파일로 추출하고, SysOverlay에 AD-B2-01(Pure Presentation) 및 AD-B2-02(sysOverlayInputFinite module-private)를 적용하였다.
+
+Runtime behavior 변경 없이 수행되었다. App.jsx는 8,983 lines에서 6,509 lines으로 축소되었으며, Batch 2 Baseline이 origin/main에 확정되었다.
+
+---
+
+## Major Accomplishments
+
+### 1. Batch2 Design v1.1 확정
+
+- Batch2 Design v1.0 작성 (Architecture Decisions AD-B2-01/02/03 포함)
+- STEP Lock Rule (Implementation Safety Rule) 추가 → v1.1
+- Design Consistency Review 완료 (Constitution / Dictionary / ADR / Map / Index / Log 전 항목 정합 확인)
+
+### 2. STEP 2-1 AnchorEditOverlay 분리 (OVL-006)
+
+```text
+frontend/src/components/overlays/AnchorEditOverlay.jsx
+```
+
+- 앵커 좌표 편집 오버레이 추출
+- `cushionMarkToDisplayLabel` 의존 분리
+- App.jsx에서 inline 정의 제거 → named import로 교체
+
+### 3. STEP 2-2 HptOverlay / StrOverlay 분리 (OVL-002/003)
+
+```text
+frontend/src/components/overlays/HptOverlay.jsx
+```
+
+- HP/T 오버레이 + STR 오버레이 추출
+- `useHptController`, `clampHpToRadius` 의존 분리
+
+### 4. STEP 2-3 AiOverlay 분리 (OVL-008)
+
+```text
+frontend/src/components/overlays/AiOverlay.jsx
+```
+
+- AI 코멘트·레슨 오버레이 + `ensureLessonItems`, `LessonRow` 추출
+- dnd-kit 의존 분리
+- `buildAiAutoCommentFromContext`, `AiAutoCommentDisplay` 의존 분리
+
+### 5. STEP 2-4 Overlay Router Hooks 분리 (OVL-001/007)
+
+```text
+frontend/src/overlay/router/adminOverlayRouter.ts
+frontend/src/overlay/state/overlayStateMachine.ts
+frontend/src/overlay/router/userOverlayRouter.ts
+```
+
+- `useAdminOverlayRouter` — Admin Overlay 열기/닫기 라우팅
+- `useAdminOverlayLifecycle` — Admin Overlay 자동 닫기 생명주기
+- `useUserOverlayRouter` — User Overlay 닫기 라우팅
+
+### 6. STEP 2-5 Renderer 모듈 분리 (APP-013 / TRJ-002 / RND-002 / RND-004)
+
+```text
+frontend/src/renderer/labels/labelScalePolicy.ts
+frontend/src/renderer/trajectory/trajectoryRenderModel.ts
+frontend/src/renderer/labels/systemAxisLabelModel.ts
+frontend/src/renderer/trajectory/anchorConversionModel.ts
+```
+
+- `useSysLabelScale` — phone landscape 라벨 배율 훅
+- `buildTrajectoryRenderModel` — activeDisplayCap · visibleKeysForLabels · labelStrategy
+- `buildSystemAxisLabelModel` — 시스템 축 라벨 앵커 모델
+- `buildRgAnchors` — 캐노니컬 앵커 변환 모델
+
+### 7. STEP 2-6 SysOverlay 분리 (OVL-005) + AD-B2-01 / AD-B2-02
+
+```text
+frontend/src/components/overlays/SysOverlay.jsx
+frontend/src/overlay/utils/sysOverlayUtils.jsx
+```
+
+- **AD-B2-01 적용**: SysOverlay는 Domain 계산 함수를 직접 호출하지 않는다.
+  - `computeValues` prop = `calculateByProfileExpr` (App.jsx 주입)
+  - `solveFiveHalf` prop = `solveFiveHalfTwoOfThree` (App.jsx 주입)
+- **AD-B2-02 적용**: `sysOverlayInputFinite` export 제거 → `checkInputFinite` module-private
+  - `fiveHalfCalculator.ts`에서 `export function` → `function`
+  - Migration Debt D-002 해소 완료
+- `sysOverlayUtils.jsx`: 공유 헬퍼 16개 named export
+  - `resolveCoC1C3Keys`, `fmtFiveHalfDisplayNum`, `fmtSysOverlayInputDisplay`
+  - `normalizeToFormulaInputsApp`, `isRhsKeyReadOnlyForSys`, `isMarkBasisReadOnly`
+  - `lhsTokenFromExpr`, `showMarkRowExtraForSys`, `buildSysOverlayInitialInputs`
+  - `buildSysOverlayNumericPayload`, `unifiedSlideFromCorrections`, `normalizeSlideDrawCorrections`
+  - `formatFormulaDisplay`, `SYS_FORMULA_TOKEN_RE`, `renderMixedFormulaLine`, `renderSysFormulaContent`
+
+### 8. App.jsx 대규모 축소
+
+| 항목 | Before | After | 감소 |
+|------|--------|-------|------|
+| App.jsx lines | 8,983 | 6,509 | −2,474 |
+
+---
+
+## Architecture Decisions Confirmed
+
+### AD-B2-01 — Presentation Layer Pure
+
+- Presentation Layer는 Domain 계산을 직접 보유하지 않는다.
+- SysOverlay는 `computeValues`/`solveFiveHalf`를 props로 받는다 (Dependency Injection).
+- Option B (Props Injection) 채택 — Batch 2 한정 실용 패턴, Batch 6 이후 재검토 가능.
+
+### AD-B2-02 — sysOverlayInputFinite module-private
+
+- `fiveHalfCalculator.ts`의 `sysOverlayInputFinite` export 제거.
+- SysOverlay.jsx 내부 `checkInputFinite`로 대체 (module-private).
+- **Migration Debt D-002 해소.**
+
+### AD-B2-03 — Overlay Router Hook Pattern
+
+- Overlay 열기/닫기 로직을 React Hook Pattern으로 추출.
+- `useAdminOverlayRouter`, `useAdminOverlayLifecycle`, `useUserOverlayRouter`.
+
+---
+
+## STEP Lock Rule 적용
+
+각 STEP 완료 후 아래 조건을 만족하고 commit:
+
+| STEP | Build | Import Graph | Git Commit |
+|------|-------|-------------|------------|
+| 2-1 AnchorEditOverlay | ✅ | ✅ | `a0972db` |
+| 2-2 HptOverlay | ✅ | ✅ | `49f4512` |
+| 2-3 AiOverlay | ✅ | ✅ | `cbc19c2` |
+| 2-4 Overlay Router Hooks | ✅ | ✅ | `f950495` |
+| 2-5 Renderer Modules | ✅ | ✅ | `976bc0e` |
+| 2-6 SysOverlay | ✅ | ✅ | `f6dcc54` |
+| 2-6 Cleanup | ✅ | ✅ | `6bdce39` |
+
+---
+
+## Current Status
+
+| 항목 | 상태 |
+|------|------|
+| AAS | **Completed** |
+| Runtime Migration | **In Progress** |
+| Batch 1 | **Completed** (2026-07-06) |
+| Batch 2 | **Completed** (2026-07-06) |
+| Batch 3 | Analysis 대기 |
+| origin/main | **Push 완료** (6bdce39) |
+
+---
+
+## Migration Debt Ledger (Batch 2 완료 시점)
+
+| ID | 항목 | Target Batch | Status |
+|----|------|-------------|--------|
+| D-001 | Legacy Alias 4개 제거 | Soft: Batch 4 / Hard: Batch 6 착수 전 | Open |
+| D-002 | `sysOverlayInputFinite` private 전환 | Batch 2 (OVL-005 이동 후) | **Closed** (2026-07-06) |
+| D-003 | `domain/*` 3파일 `isFiveHalfSystemId` 중복 통합 | Unscheduled (Batch 4 이전 권장) | Open |
+| D-004 | `SysOverlay.jsx` 내 `SYSTEM_OPTIONS` 하드코딩 | Batch 6 (Runtime Contract 해소 후) | Open |
+| D-005 | `labelStrategy` 내 `systemIdForGrid === "5_half_system"` 직접 분기 | Batch 6 | Open |
+
+---
+
+## Next Priority
+
+**Batch 3 Analysis**
+
+대상: SRCH-001~005, DS-001~007, CAL-004/006, AI-001~003
+
+영역: Application Flow · Search · Dataset · AI Domain
 
 ---
 
