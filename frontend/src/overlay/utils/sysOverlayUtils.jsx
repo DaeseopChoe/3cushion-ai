@@ -1,11 +1,10 @@
-import { getShotTypeCorrectionSign } from "../../domain/englishCorrectionSign";
-
-export function resolveCoC1C3Keys(forced, spaceSel) {
-  const co = forced?.CO ? `CO_${forced.CO}` : `CO_${spaceSel.CO}`;
-  const c1 = forced?.C1 ? `C1_${forced.C1}` : `C1_${spaceSel.C1}`;
-  const c3 = forced?.C3 ? `C3_${forced.C3}` : `C3_${spaceSel.C3}`;
-  return { coKey: co, c1Key: c1, c3Key: c3 };
-}
+export {
+  resolveCoC1C3Keys,
+  normalizeToFormulaInputsApp,
+  isRhsKeyReadOnlyForSys,
+  buildSysOverlayNumericPayload,
+  unifiedSlideFromCorrections,
+} from "../../domain/calculator/sysOverlayCalcHelpers";
 
 /** 5&Half SYS 표시용 숫자 포맷 (계산 로직과 무관) */
 export function fmtFiveHalfDisplayNum(n) {
@@ -20,37 +19,6 @@ export function fmtSysOverlayInputDisplay(value) {
   const x = Number(value);
   if (!Number.isFinite(x)) return "";
   return fmtFiveHalfDisplayNum(x);
-}
-
-/**
- * derived: CO·C1으로 c3Key 자동 (C3 = CO + coSlide − C1). coSlide는 기본 0(공식 C1_f=CO_f−C3_r 정합).
- * full_input: CO/C1/C3 등 사용자 입력 필드는 수정하지 않음.
- */
-export function normalizeToFormulaInputsApp(
-  numericPayload,
-  systemMode,
-  coKey,
-  c1Key,
-  c3Key,
-  coSlide = 0
-) {
-  const out = { ...numericPayload };
-  if (systemMode !== "derived" || !c3Key || !coKey || !c1Key) {
-    return out;
-  }
-  const coN = Number(out[coKey]);
-  const c1N = Number(out[c1Key]);
-  const co = Number.isFinite(coN) ? coN : 0;
-  const c1 = Number.isFinite(c1N) ? c1N : 0;
-  const coEff = co + (Number(coSlide) || 0);
-  out[c3Key] = coEff - c1;
-  return out;
-}
-
-export function isRhsKeyReadOnlyForSys(key, systemMode, c3Key) {
-  if (!key || key === "HP_n" || key === "An") return false;
-  if (systemMode === "derived" && c3Key && key === c3Key) return true;
-  return false;
 }
 
 export function isMarkBasisReadOnly(mark, systemMode) {
@@ -97,44 +65,6 @@ export function buildSysOverlayInitialInputs(data) {
     }
   }
   return ins;
-}
-
-/** normalize 전 숫자 payload (rhs + CO/C1/C3 토큰 + HP/An) */
-export function buildSysOverlayNumericPayload(
-  inputs,
-  rhsKeys,
-  coKey,
-  c1Key,
-  c3Key,
-  needsHP,
-  needsAn
-) {
-  const payload = {};
-  (rhsKeys || []).forEach((k) => {
-    const v = inputs[k];
-    payload[k] = v === "" || v == null ? 0 : Number(v);
-  });
-  [coKey, c1Key, c3Key].forEach((k) => {
-    if (!k) return;
-    if (!(k in payload)) {
-      const v = inputs[k];
-      payload[k] = v === "" || v == null ? 0 : Number(v);
-    }
-  });
-  if (needsHP) payload.HP_n = Number(inputs.HP_n ?? 0);
-  if (needsAn) payload.An = Number(inputs.An ?? 0);
-  return payload;
-}
-
-/** slide(양수 밀림)와 draw(음수 끌림 저장) 상호 배타 → 단일 signed 스칼라 (물리·곡선 공통). */
-export function unifiedSlideFromCorrections(corrections, shotType) {
-  if (!corrections || typeof corrections !== "object") return 0;
-  const s = Number(corrections.slide);
-  const d = Number(corrections.draw);
-  const slideVal = Math.abs(Number.isFinite(s) ? s : 0);
-  const drawVal = -Math.abs(Number.isFinite(d) ? d : 0);
-  const raw = drawVal !== 0 ? drawVal : slideVal;
-  return raw * getShotTypeCorrectionSign(shotType);
 }
 
 /** 저장·복원 시 slide≥0, draw≤0, 상호 배타(draw 우선 시 slide=0) */
