@@ -121,7 +121,6 @@ import {
   applySchemaVersionToDatasetRecord,
   attachCanonicalFieldsToStrategyEntry,
   getPersistableBaseSysInputs,
-  mergeCorrectionsForRecallHydrate,
   normalizeCanonicalSaveDraft,
   toCanonicalStrategyEntry,
 } from "./domain/canonicalStrategy";
@@ -158,6 +157,11 @@ import {
   importDatasetFromFile,
 } from "./domain/dataset/infra/datasetStorage";
 import { useAutoCapture } from "./domain/dataset/autoCapture";
+import {
+  adminSysFromRecallEntry,
+  normalizePublishedShotTypeHint,
+  resolvePublishedLeafHints,
+} from "./application/flows/recallHydrateFlow";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
@@ -529,84 +533,9 @@ function mergeSysOverlayPayloadToNumericInputs(newData) {
   return { ...fromInputs, ...fromCalc, ...fromAdjusted, ...fromSystemValues };
 }
 
-/**
- * Position Recall 직후 SYS 모달 폼용: 한 StrategyEntry에서 슬롯 draft.sys와 동일한 수치 파이프라인 스냅샷.
- * useShotSlots.buildDraftsFromRecord의 sys 산출과 동일 식(훅·저장·슬롯 SSOT 구조 비변경).
- */
-function buildSlotSysSnapshotFromStrategyEntry(entry) {
-  if (!entry) return null;
-  const systemId =
-    entry.signature.systemId === "5_HALF"
-      ? "5_half_system"
-      : (entry.signature.systemId ?? "5_half_system");
-  const inputs = entry.sysInputs ?? {};
-  const profile = SYSTEM_PROFILES[systemId];
-  const expr = profile?.formula?.expr;
-  const baseThreeC =
-    typeof inputs.baseThreeC === "number"
-      ? inputs.baseThreeC
-      : typeof inputs.C3 === "number"
-        ? inputs.C3
-        : typeof inputs.C3_r === "number"
-          ? inputs.C3_r
-          : 0;
-  const baseOneC =
-    typeof inputs.baseOneC === "number"
-      ? inputs.baseOneC
-      : typeof inputs.CO === "number"
-        ? inputs.CO
-        : typeof inputs.CO_f === "number"
-          ? inputs.CO_f
-          : 0;
-  const exprInputs = {
-    ...inputs,
-    baseThreeC,
-    baseOneC,
-    CO_f: typeof inputs.CO_f === "number" ? inputs.CO_f : baseOneC,
-    C3_r: typeof inputs.C3_r === "number" ? inputs.C3_r : baseThreeC,
-  };
-  let calcResult = {};
-  if (expr) {
-    calcResult = calculateByProfileExpr(expr, exprInputs);
-  }
-  return {
-    systemId,
-    track: entry.track ?? "B2T_L",
-    inputs,
-    outputs: { result: calcResult },
-  };
-}
-
-function shotTypeForSysOverlayFromSignature(sigShotType, prevShotType) {
-  if (sigShotType && sigShotType !== "default" && sigShotType !== "_") {
-    return sigShotType;
-  }
-  return prevShotType || "뒤돌리기";
-}
-
-/** Published leaf shotType hint — empty/default/_ → omit (no silent 뒤돌리기). */
-function normalizePublishedShotTypeHint(raw) {
-  const trimmed = String(raw ?? "").trim();
-  if (!trimmed || trimmed === "default" || trimmed === "_") return null;
-  return trimmed;
-}
-
-function resolvePublishedLeafHintsFromRuntime(adminSys, slots, activeSlot) {
-  const slot = slots?.[activeSlot];
-  const slotMeta = extractSlotRuntimeMeta(slot);
-  const slotPayload = buildSlotRuntimePayload(slot);
-  const shotType =
-    normalizePublishedShotTypeHint(adminSys?.shotType) ??
-    normalizePublishedShotTypeHint(slotMeta.shotType) ??
-    normalizePublishedShotTypeHint(slotPayload.adminSys?.shotType);
-  const systemId =
-    adminSys?.systemId ??
-    adminSys?.system_id ??
-    slotPayload.adminSys?.systemId ??
-    slotPayload.adminSys?.system_id ??
-    null;
-  return { shotType, systemId };
-}
+// CAL-004: buildSlotSysSnapshotFromEntry / shotTypeForSysOverlay /
+// normalizePublishedShotTypeHint / resolvePublishedLeafHints
+// → application/flows/recallHydrateFlow.ts (STEP 3-3)
 
 function userSearchNoMatchAlertMessage(reason, leafKey) {
   const leafLabel = `${leafKey.shotType}/${leafKey.systemId}`;
@@ -619,41 +548,7 @@ function userSearchNoMatchAlertMessage(reason, leafKey) {
   return `일치하는 포지션이 없습니다.\n공략: ${leafLabel}\n공 위치를 확인하거나 관리자에서 저장·Export 후 다시 Search하세요.`;
 }
 
-/**
- * Recall 성공 직후 adminState.sys 1회 채움 (SYS 모달 표시/편집용). trajectory SSOT는 슬롯 draft 유지.
- */
-function adminSysFromRecallStrategyEntry(entry, prevSys) {
-  const snap = buildSlotSysSnapshotFromStrategyEntry(entry);
-  if (!snap) return null;
-  const sid = snap.systemId;
-  const profile = SYSTEM_PROFILES[sid];
-  const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-  const mergedInputs = {
-    ...(snap.inputs ?? {}),
-    ...(snap.outputs?.result ?? {}),
-  };
-  const corr = mergeCorrectionsForRecallHydrate(entry, prevSys);
-  const result = {
-    system_id: sid,
-    system: sid,
-    systemId: sid,
-    track: snap.track ?? "B2T_L",
-    shotType: shotTypeForSysOverlayFromSignature(entry.signature?.shotType, prevSys?.shotType),
-    inputs: mergedInputs,
-    outputs: snap.outputs,
-    formulaHash,
-    corrections: {
-      slide: Number(corr.slide) || 0,
-      curve_ratio: Number(corr.curve_ratio) || 0,
-      draw: Number(corr.draw) || 0,
-      departure: Number(corr.departure) || 0,
-      spin: Number(corr.spin) || 0,
-    },
-    ...(prevSys?.spaceSel ? { spaceSel: prevSys.spaceSel } : {}),
-  };
-  console.log("[ADMIN_SYS_FROM_RECALL]", result);
-  return result;
-}
+// CAL-004: adminSysFromRecallEntry → application/flows/recallHydrateFlow.ts (STEP 3-3)
 
 /** 디버그 전용: 정렬된 키 배열 간 added/removed */
 function diffSortedKeyArrays(prevSorted, nextSorted) {
@@ -2456,7 +2351,7 @@ export default function App({
     const recallEntry = result.record?.strategies?.[shotEditor.activeSlot];
     if (recallEntry) {
       setAdminState((prev) => {
-        const nextSys = adminSysFromRecallStrategyEntry(recallEntry, prev.sys);
+        const nextSys = adminSysFromRecallEntry(recallEntry, prev.sys);
         if (!nextSys) return prev;
         return { ...prev, sys: nextSys };
       });
@@ -2492,7 +2387,7 @@ export default function App({
     const recallEntry = record?.strategies?.[shotEditor.activeSlot];
     if (recallEntry) {
       setAdminState((prev) => {
-        const nextSys = adminSysFromRecallStrategyEntry(recallEntry, prev.sys);
+        const nextSys = adminSysFromRecallEntry(recallEntry, prev.sys);
         if (!nextSys) return prev;
         return { ...prev, sys: nextSys };
       });
@@ -2729,7 +2624,7 @@ export default function App({
     userSearchInFlightRef.current = true;
 
     try {
-    const runtimeHints = resolvePublishedLeafHintsFromRuntime(
+    const runtimeHints = resolvePublishedLeafHints(
       adminState?.sys,
       shotEditor.slots,
       shotEditor.activeSlot
@@ -3226,7 +3121,7 @@ function handleJoyPadPointerCancel(e) {
     const prev = prevAppModeForUserSessionRef.current;
     if (prev === "ADMIN" && appMode === "USER") {
       resetUserSearchSessionOnAdminExit();
-      const hints = resolvePublishedLeafHintsFromRuntime(
+      const hints = resolvePublishedLeafHints(
         adminState?.sys,
         shotEditor.slots,
         shotEditor.activeSlot
