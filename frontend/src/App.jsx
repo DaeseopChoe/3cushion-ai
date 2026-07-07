@@ -164,14 +164,13 @@ import {
 } from "./application/flows/recallHydrateFlow";
 import { runUserSearchReset } from "./application/flows/resetFlow";
 import { runAdminLocalDbRecall } from "./application/flows/adminLocalDbFlow";
+import { runAdminSearch } from "./application/flows/adminSearchFlow";
+import { runUserSearch } from "./application/flows/userSearchFlow";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
 } from "./admin/slotAutoRecommend";
 import { PositionKDIndex } from "./domain/search/positionKDIndex";
-import { runSpatialRecall } from "./domain/recall/recallEngine";
-import { getOrLoadPublishedLeaf } from "./domain/publishedDatasetStore";
-import { resolvePublishedLeafKey } from "./domain/publishedLeafResolve";
 import {
   buildRecallTracePayload,
   summarizeDatasetRecords,
@@ -2247,115 +2246,28 @@ export default function App({
 
   // SRCH-001: runAdminPositionRecall → application/flows/adminLocalDbFlow.ts (STEP 3-5)
 
-  /** L1 거리합(Recall v1) 상한 참고 — strict ±3 내 최대 18, 초과 시 참고용 안내 */
-  const HARD_THRESHOLD_L1 = 14;
-
-  function applyAdminRecallMatch(record, queryTargetBall) {
-    if (rejectAdminRecallHydrateForMismatch(record, queryTargetBall)) {
-      return false;
-    }
-    actions.applyPositionRecall(record);
-    if (queryTargetBall) {
-      actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
-        targetBall: queryTargetBall,
-      });
-    }
-    const recallEntry = record?.strategies?.[shotEditor.activeSlot];
-    if (recallEntry) {
-      setAdminState((prev) => {
-        const nextSys = adminSysFromRecallEntry(recallEntry, prev.sys);
-        if (!nextSys) return prev;
-        return { ...prev, sys: nextSys };
-      });
-    }
-    setIsAdminPublishedSearchMatched(true);
-    return true;
-  }
-
-  /** 우측 ADMIN Search (published) — Published Dataset lazy load (`handlePositionRecall`; 로컬DB `runAdminPositionRecall` 미사용). */
+  /** 우측 ADMIN Search (published) — SRCH-002 → adminSearchFlow.runAdminSearch */
   async function handlePositionRecall() {
     if (appMode !== "ADMIN") return;
-
-    clearAdminSearchDisplayRuntime();
-
-    console.log("[RECALL_READ]", adminState?.sys?.shotType, adminState?.sys);
-    const { shotType, systemId } = resolvePublishedLeafKey({
-      mode: "ADMIN",
-      shotType: normalizePublishedShotTypeHint(
-        userPublishedSearchContext?.shotType
-      ),
-      systemId: userPublishedSearchContext?.systemId,
-    });
-    const loadResult = await getOrLoadPublishedLeaf(shotType, systemId);
-
-    if (loadResult.kind === "error") {
-      alert(`Search 데이터 로드 오류: ${loadResult.message}`);
-      return;
-    }
-
-    const publishedRecords =
-      loadResult.kind === "ok" ? loadResult.records : [];
-    const currentBalls = normalizeBallsToBall3(
-      ballsState ?? adminState?.balls ?? {}
-    );
-    const searchQueryTargetBall = getAdminRecallQueryTargetBall();
-    const recallProfile = "adminStrict";
-
-    console.log("[ADMIN_PUBLISHED_RECALL]", {
-      shotType,
-      systemId,
-      dataSource: "published",
-      url: loadResult.url,
-      fromCache: loadResult.fromCache,
-      recordCount: publishedRecords.length,
-      leafSource: "userPublishedSearchContext_or_default",
-      persistedContext: userPublishedSearchContext,
-    });
-
-    console.log("[RECALL_QUERY_DEBUG]", {
-      publishedRecordsLength: publishedRecords?.length,
-      currentBalls,
-      searchQueryTargetBall,
-      adminShotType: adminState?.sys?.shotType,
-      systemId: adminState?.sys?.system_id,
+    await runAdminSearch({
+      ballsState,
+      adminState,
       activeSlot: shotEditor.activeSlot,
+      slots: shotEditor.slots,
+      isTargetSelected,
+      targetColor,
+      userPublishedSearchContext,
+      setAdminState,
+      setIsAdminPublishedSearchMatched,
+      setAdminTableLayersVisible,
+      setShowCoaching,
+      applyPositionRecall: actions.applyPositionRecall,
+      patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
+      clearAdminSearchDisplayRuntime,
+      beginAdminInputSession,
+      getAdminRecallQueryTargetBall,
+      rejectAdminRecallHydrateForMismatch,
     });
-
-    const spatialResult = runSpatialRecall({
-      dataset: publishedRecords,
-      query: { balls: currentBalls, targetBall: searchQueryTargetBall },
-      profile: recallProfile,
-    });
-
-    console.log("[RECALL_SPATIAL_RESULT]", {
-      kind: spatialResult.kind,
-      reason: spatialResult.reason ?? null,
-      recordId: spatialResult.record?.positionId ?? null,
-    });
-
-    if (spatialResult.kind !== "match") {
-      alert("해당 데이터 없음");
-      beginAdminInputSession();
-      return;
-    }
-
-    if (rejectAdminRecallHydrateForMismatch(spatialResult.record, searchQueryTargetBall)) {
-      beginAdminInputSession();
-      return;
-    }
-
-    if (!beginAdminInputSession()) return;
-
-    if (!applyAdminRecallMatch(spatialResult.record, searchQueryTargetBall)) {
-      return;
-    }
-
-    if (spatialResult.distance > HARD_THRESHOLD_L1) {
-      alert("유사도 낮음");
-    }
-
-    setAdminTableLayersVisible(true);
-    setShowCoaching(true);
   }
 
   /** Search/Recall 후 Editing Session 시작 (볼 이동 허용, SYS는 Apply 전까지 참고용) */
@@ -2487,150 +2399,27 @@ export default function App({
     setUserTableDisplaySlotId(null);
   }, [actions]);
 
-  /** USER Search: published corpus → userStrict recall → draft apply (query SSOT = ballsState). */
+  /** USER Search: published corpus → userStrict recall → draft apply (SRCH-003 → userSearchFlow.runUserSearch). */
   const handleUserSearchStrategies = useCallback(async () => {
     if (appMode !== "USER") return;
     if (userSearchInFlightRef.current) return;
     userSearchInFlightRef.current = true;
-
     try {
-    const runtimeHints = resolvePublishedLeafHints(
-      adminState?.sys,
-      shotEditor.slots,
-      shotEditor.activeSlot
-    );
-    const { shotType, systemId } = resolvePublishedLeafKey({
-      mode: "USER",
-      shotType:
-        runtimeHints.shotType ??
-        normalizePublishedShotTypeHint(userPublishedSearchContext?.shotType),
-      systemId:
-        runtimeHints.systemId ?? userPublishedSearchContext?.systemId,
-    });
-
-    clearUserSearchDisplayRuntime();
-    actions.clearSearchSlotDrafts();
-    resetUserSearchTargetSelection();
-
-    const loadResult = await getOrLoadPublishedLeaf(shotType, systemId);
-
-    if (loadResult.kind === "error") {
-      alert(`Search 데이터 로드 오류: ${loadResult.message}`);
-      return;
-    }
-
-    const publishedRecords =
-      loadResult.kind === "ok" ? loadResult.records : [];
-
-    console.log("[USER_PUBLISHED_SEARCH]", {
-      shotType,
-      systemId,
-      url: loadResult.url,
-      fromCache: loadResult.fromCache,
-      recordCount: publishedRecords.length,
-      leafHints: runtimeHints,
-      persistedContext: userPublishedSearchContext,
-    });
-
-
-    const recallProfile = "userStrict";
-    const rawBalls = ballsState ?? {};
-    const currentBalls = normalizeBallsToBall3(rawBalls);
-    const compareTrace = buildRecallTracePayload(
-      {
-        dataset: publishedRecords,
-        balls: currentBalls,
-        targetBall: targetColor ?? null,
-      },
-      "USER_SEARCH_PRE",
-      recallProfile
-    );
-    postRecallTraceLog(
-      "App.jsx:USER_SEARCH_PRE",
-      "USER_SEARCH_PRE",
-      "H2C_G5",
-      {
-        recallProfile,
-        querySsot: "ballsState",
-        dataSource: "published",
-        publishedShotType: shotType,
-        publishedSystemId: systemId,
-        publishedUrl: loadResult.url,
-        datasetLength: publishedRecords.length,
-        rawBalls,
-        normalizedBalls: currentBalls,
-        targetColor,
+      await runUserSearch({
+        ballsState,
+        adminState,
         activeSlot: shotEditor.activeSlot,
-        slotPresence: traceSlotPresence(shotEditor.slots),
-        compareTrace,
-      }
-    );
-
-    const spatialResult = runSpatialRecall({
-      dataset: publishedRecords,
-      query: { balls: currentBalls, targetBall: null },
-      profile: recallProfile,
-    });
-
-    const result =
-      spatialResult.kind === "match"
-        ? {
-            kind: "match",
-            record: spatialResult.record,
-            distance: spatialResult.distance,
-          }
-        : {
-            kind: "no-match",
-            reason:
-              spatialResult.reason === "empty-dataset"
-                ? "empty-dataset"
-                : spatialResult.reason === "over-max-distance"
-                  ? "over-max-distance"
-                  : "coarse-empty",
-          };
-
-    console.log("[USER_SEARCH_RECALL]", { profile: recallProfile, spatialResult, result });
-
-    postRecallTraceLog(
-      "App.jsx:USER_SEARCH_RESULT",
-      "USER_SEARCH_RESULT",
-      "H2C_G5",
-      {
-        recallProfile,
-        kind: result?.kind ?? "null",
-        reason: result?.kind === "no-match" ? result.reason : undefined,
-        spatialKind: spatialResult.kind,
-        selectedPositionId:
-          result?.kind === "match" ? result.record.positionId : null,
-        selectedStrategyKeys:
-          result?.kind === "match"
-            ? Object.keys(result.record.strategies ?? {})
-            : [],
-        distance: result?.kind === "match" ? result.distance : null,
-        coarseCandidateCount: compareTrace.coarseCandidateCount,
-        totalL1Cap: compareTrace.totalL1Cap,
-        usedPermutation:
-          spatialResult.kind === "match"
-            ? spatialResult.meta.usedPermutation
-            : null,
-      }
-    );
-
-    if (!result || result.kind === "no-match") {
-      const reason = result?.reason ?? "unknown";
-      console.log("[USER_SEARCH_RECALL] no-match", reason);
-      userToast.show("일치하는 포지션이 없습니다.", { variant: "center" });
-      return;
-    }
-
-    console.log("[USER_SEARCH_RECALL] applyUserSearchRecall", {
-      profile: recallProfile,
-      positionId: result.record?.positionId,
-      distance: result.distance,
-    });
-    actions.applyUserSearchRecall(result.record);
-    setUserLastSearchRecord(result.record);
-    setUserPublishedSearchContext({ shotType, systemId });
+        slots: shotEditor.slots,
+        targetColor,
+        userPublishedSearchContext,
+        setUserLastSearchRecord,
+        setUserPublishedSearchContext,
+        applyUserSearchRecall: actions.applyUserSearchRecall,
+        clearSearchSlotDrafts: actions.clearSearchSlotDrafts,
+        clearUserSearchDisplayRuntime,
+        resetUserSearchTargetSelection,
+        showToast: userToast.show,
+      });
     } finally {
       userSearchInFlightRef.current = false;
     }
@@ -2639,11 +2428,9 @@ export default function App({
     ballsState,
     targetColor,
     actions,
-    trajectory,
     adminState,
     shotEditor.slots,
     shotEditor.activeSlot,
-    userTableDisplaySlotId,
     clearUserSearchDisplayRuntime,
     userPublishedSearchContext,
     userToast.show,
