@@ -163,6 +163,7 @@ import {
   resolvePublishedLeafHints,
 } from "./application/flows/recallHydrateFlow";
 import { runUserSearchReset } from "./application/flows/resetFlow";
+import { runAdminLocalDbRecall } from "./application/flows/adminLocalDbFlow";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
@@ -2244,136 +2245,10 @@ export default function App({
     commitWorkspaceHistoryWithStrategyDataset(r.updated);
   }
 
+  // SRCH-001: runAdminPositionRecall → application/flows/adminLocalDbFlow.ts (STEP 3-5)
+
   /** L1 거리합(Recall v1) 상한 참고 — strict ±3 내 최대 18, 초과 시 참고용 안내 */
   const HARD_THRESHOLD_L1 = 14;
-
-  /** ADMIN strict recall — match 여부 반환 (우측 Recall / rail Search 공용) */
-  function runAdminPositionRecall() {
-    const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
-    const sys = adminState?.sys;
-    const systemId = sys?.systemId ?? sys?.system_id ?? "5_half_system";
-    const profile = SYSTEM_PROFILES[systemId];
-    const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-    /** 키는 systemId+formulaHash만; StrategySignature 타입상 shotType 필드는 더미 */
-    const signatureKey = makeSignatureKey({
-      systemId,
-      formulaHash,
-      shotType: "_",
-    });
-    const ds = dataset ?? [];
-    const datasetSigKeys = new Set();
-    for (const r of ds) {
-      for (const e of listStrategiesInRecord(r)) {
-        datasetSigKeys.add(makeSignatureKey(e.signature));
-      }
-    }
-    const recallProfile = "adminSearch";
-    const recallDebugPayload = {
-      hypothesisId: "H_RECALL_QUERY",
-      recallProfile,
-      signatureKey,
-      systemId,
-      formulaHash,
-      uiShotType: sys?.shotType ?? null,
-      datasetLength: ds.length,
-      uniqueSignatureKeysInDataset: [...datasetSigKeys].slice(0, 40),
-      uniqueKeyCount: datasetSigKeys.size,
-    };
-    console.log("[RECALL_QUERY]", recallDebugPayload);
-    console.log("[RECALL_DATASET_SIGNATURES]", {
-      datasetLength: ds.length,
-      signatures: [...datasetSigKeys],
-    });
-
-    const searchQueryTargetBall = getAdminRecallQueryTargetBall();
-    const spatialResult = runSpatialRecall({
-      dataset: ds,
-      query: { balls: currentBalls, targetBall: searchQueryTargetBall },
-      profile: recallProfile,
-    });
-
-    const result =
-      spatialResult.kind === "match"
-        ? {
-            kind: "match",
-            record: spatialResult.record,
-            distance: spatialResult.distance,
-          }
-        : {
-            kind: "no-match",
-            reason:
-              spatialResult.reason === "empty-dataset"
-                ? "empty-dataset"
-                : spatialResult.reason === "over-max-distance"
-                  ? "over-max-distance"
-                  : "coarse-empty",
-          };
-
-    console.log("[RECALL_RESULT]", { profile: recallProfile, result, spatialResult });
-
-    if (!result || result.kind === "no-match") {
-      const noMatchSnap = adminRecallTraceCtxRef.current?.() ?? {};
-      emitAdminRecallTrace("ADMIN_SEARCH_NO_MATCH", "H5_H6_H7", {
-        ...noMatchSnap,
-        queryBalls: currentBalls,
-        recallProfile,
-        spatialKind: spatialResult.kind,
-        recallReason: result?.reason ?? spatialResult.reason ?? null,
-        signatureKey,
-        datasetLength: ds.length,
-        searchQueryTargetBall,
-      });
-      alert("해당 데이터 없음");
-      return false;
-    }
-
-    if (rejectAdminRecallHydrateForMismatch(result.record, searchQueryTargetBall)) {
-      const mismatchSnap = adminRecallTraceCtxRef.current?.() ?? {};
-      emitAdminRecallTrace("ADMIN_SEARCH_NO_MATCH", "H5", {
-        ...mismatchSnap,
-        queryBalls: currentBalls,
-        recallProfile,
-        recallReason: "target-ball-mismatch",
-        searchQueryTargetBall,
-        recordTargetBall: result.record?.targetBall ?? null,
-        positionId: result.record?.positionId ?? null,
-      });
-      return false;
-    }
-
-    console.log("[RECALL_APPLY]", { positionId: result.record?.positionId, kind: result.kind });
-
-    actions.applyPositionRecall(result.record);
-    if (searchQueryTargetBall) {
-      actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
-        targetBall: searchQueryTargetBall,
-      });
-    }
-    const recallEntry = result.record?.strategies?.[shotEditor.activeSlot];
-    if (recallEntry) {
-      setAdminState((prev) => {
-        const nextSys = adminSysFromRecallEntry(recallEntry, prev.sys);
-        if (!nextSys) return prev;
-        return { ...prev, sys: nextSys };
-      });
-    }
-    setIsAdminPublishedSearchMatched(true);
-
-    if (result.distance > HARD_THRESHOLD_L1) {
-      alert("유사도 낮음");
-    }
-    const successSnap = adminRecallTraceCtxRef.current?.() ?? {};
-    emitAdminRecallTrace("ADMIN_SEARCH_SUCCESS", "H5", {
-      ...successSnap,
-      queryBalls: currentBalls,
-      recallProfile,
-      spatialKind: spatialResult.kind,
-      positionId: result.record?.positionId ?? null,
-      distance: result.distance ?? null,
-      strategyKeys: Object.keys(result.record?.strategies ?? {}),
-    });
-    return true;
-  }
 
   function applyAdminRecallMatch(record, queryTargetBall) {
     if (rejectAdminRecallHydrateForMismatch(record, queryTargetBall)) {
@@ -2514,58 +2389,49 @@ export default function App({
     setShowCoaching(false);
   }, [actions, trajectory]);
 
-  const handleAdminSearch = useCallback(() => {
+  const handleAdminSearch = useCallback(async () => {
     if (appMode !== "ADMIN") return;
-    clearAdminSearchDisplayRuntime();
     logAdminSearchTargetState("ADMIN_SEARCH_TARGET_STATE");
-    const currentBalls = normalizeBallsToBall3(ballsState ?? adminState?.balls ?? {});
-    const startSnap = adminRecallTraceCtxRef.current?.() ?? {};
-    emitAdminRecallTrace("ADMIN_SEARCH_START", "H5_H6_H7", {
-      ...startSnap,
-      queryBalls: currentBalls,
-      recallProfile: "adminSearch",
-      datasetLength: dataset?.length ?? 0,
-      searchQueryTargetBall: getAdminSearchTargetBall(),
-    });
-    const matched = runAdminPositionRecall();
-    if (!beginAdminInputSession()) return;
-    console.log("[ADMIN_INPUT_SESSION]", {
-      phase: "after_beginAdminInputSession",
-      isAdminInputSessionActive: true,
+    const matched = await runAdminLocalDbRecall({
+      dataset,
+      ballsState,
+      adminState,
+      activeSlot: shotEditor.activeSlot,
+      slots: shotEditor.slots,
       isTargetSelected,
-      canUseSystemControlsExpected: isAdminTargetReady(),
-      adminInputSession: true,
-      searchMatched: matched,
+      targetColor,
+      setAdminState,
+      setIsAdminPublishedSearchMatched,
+      setAdminTableLayersVisible,
+      setShowCoaching,
+      applyPositionRecall: actions.applyPositionRecall,
+      patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
+      clearAdminSearchDisplayRuntime,
+      beginAdminInputSession,
+      getAdminRecallQueryTargetBall,
     });
     if (matched) {
-      setAdminTableLayersVisible(true);
-      setShowCoaching(true);
       setUserTableDisplaySlotId(null);
-      const slot = shotEditor.slots[shotEditor.activeSlot];
-      emitAdminTargetStateTrace("ADMIN_SEARCH_AFTER_HYDRATE", "H2", {
-        targetColor,
-        slotRuntimeMetaTargetBall: slot?.draft?.targetBall ?? null,
-        draftTargetBall: slot?.draft?.targetBall ?? null,
-        appliedTargetBall: slot?.applied?.targetBall ?? null,
-        searchQueryTargetBall: getAdminSearchTargetBall(),
-        hydratePayloadTargetBall:
-          buildSlotRuntimePayload(slot).targetBall ?? null,
-      });
-      requestAnimationFrame(() => {
-        emitAdminTargetStateTrace("ADMIN_SEARCH_AFTER_HYDRATE_POST_FRAME", "H2", {
-          ...buildAdminTargetStateSnapshot(),
-        });
-      });
     }
     // no-match: 포지션 유지, beginAdminInputSession으로 새 입력 상태 진입 (Reset 버튼 없음)
   }, [
     appMode,
+    dataset,
+    ballsState,
+    adminState,
     shotEditor.activeSlot,
     shotEditor.slots,
     isTargetSelected,
     targetColor,
-    beginAdminInputSession,
+    setAdminState,
+    setIsAdminPublishedSearchMatched,
+    setAdminTableLayersVisible,
+    setShowCoaching,
+    actions.applyPositionRecall,
+    actions.patchSlotRuntimeMeta,
     clearAdminSearchDisplayRuntime,
+    beginAdminInputSession,
+    getAdminRecallQueryTargetBall,
   ]);
 
   const clearUserSearchDisplayRuntime = useCallback(() => {
