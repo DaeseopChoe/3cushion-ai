@@ -112,7 +112,7 @@ import { buildUserTrajectoryCardModel } from "./domain/userTrajectoryCardViewMod
 import UserTrajectoryInfoCard from "./components/user/UserTrajectoryInfoCard";
 import { useUserToast } from "./hooks/useUserToast";
 import { normalizeTargetBallForKey } from "./domain/positionMergeEngine";
-import { computeSystemFromPositions, sysValuesToAnchors } from "./domain/systemEngine";
+import { sysValuesToAnchors } from "./domain/systemEngine";
 import {
   getAnchorsForRendering,
   getLabelNumericSuffix,
@@ -153,6 +153,7 @@ import { runAdminSearch } from "./application/flows/adminSearchFlow";
 import { runUserSearch } from "./application/flows/userSearchFlow";
 import { runSaveStrategy } from "./application/flows/saveFlow";
 import { runCanonicalSave } from "./application/flows/historyFlow";
+import { runBallDrag } from "./application/flows/ballDragFlow";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
@@ -4066,36 +4067,15 @@ function handlePointerUp(e) {
     // targetColor / isTargetSelected: pointerUp에서 건드리지 않음 (조이스틱=후보, Target으로만 확정/무효화는 뷰/복원 등에서)
   }
 
-  if (
-    canEdit &&
-    !isAdminInputSessionActive &&
-    nextBallPos &&
-    (dragState.ballId === "cue" ||
-      dragState.ballId === "target" ||
-      dragState.ballId === "target_center")
-  ) {
-    const nextBalls = { ...balls, [dragState.ballId]: nextBallPos };
-    const cuePos = nextBalls.cue;
-    const targetPos = nextBalls.target_center ?? nextBalls.target;
-    if (cuePos && targetPos) {
-      const computed = computeSystemFromPositions({ cue: cuePos, target: targetPos });
-      if (Object.keys(computed).length > 0) {
-        setAdminState((prev) => {
-          const p = prev || {};
-          const prevSys = p?.sys ?? {};
-          const prevVals = prevSys?.systemValues ?? prevSys?.inputs ?? {};
-          return {
-            ...p,
-            sys: {
-              ...prevSys,
-              systemValues: { ...prevVals, ...computed },
-              inputs: { ...(prevSys?.inputs ?? {}), ...computed },
-            },
-          };
-        });
-      }
-    }
-  }
+  // CAL-006 → ballDragFlow.runBallDrag
+  runBallDrag({
+    canEdit,
+    isAdminInputSessionActive,
+    ballId: dragState.ballId,
+    nextBallPos,
+    balls,
+    setAdminState,
+  });
 
   // 드래그는 종료하되, 선택/조이스틱은 유지 (바깥 탭으로 닫기)
   ballDragLastPointerRgRef.current = null;
