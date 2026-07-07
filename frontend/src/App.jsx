@@ -162,6 +162,7 @@ import {
   normalizePublishedShotTypeHint,
   resolvePublishedLeafHints,
 } from "./application/flows/recallHydrateFlow";
+import { runUserSearchReset } from "./application/flows/resetFlow";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
@@ -2578,36 +2579,39 @@ export default function App({
     setOverlayState({ open: false, type: null });
   }, [trajectory]);
 
-  /** USER Reset: balls 유지, 표시/runtime Search draft 제거 */
+  /** USER Reset: balls 유지, 표시/runtime Search draft 제거 (SRCH-004 → resetFlow) */
   const handleUserSearchReset = useCallback(() => {
-    if (appMode !== "USER") return;
-    emitAdminRecallTrace("USER_RESET", "R1", {
-      tracePhase: "before_clear",
-      slotPresence: traceSlotPresence(shotEditor.slots),
-      ...traceSearchRuntimeSnapshot(trajectory, adminState, userTableDisplaySlotId),
+    runUserSearchReset({
+      appMode,
+      slots: shotEditor.slots,
+      trajectory,
+      adminState,
+      userTableDisplaySlotId,
       targetColor,
       isTargetSelected,
-    });
-    clearUserSearchDisplayRuntime();
-    actions.clearSearchSlotDrafts();
-    resetUserSearchTargetSelection();
-    setUserLastSearchRecord(null);
-    emitAdminRecallTrace("USER_RESET", "R1", {
-      tracePhase: "after_clear",
-      targetColor: null,
-      isTargetSelected: false,
-      userTableDisplaySlotId: null,
+      setUserTableDisplaySlotId,
+      setOverlayContent,
+      setOverlayState,
+      setAdminState,
+      setUserLastSearchRecord,
+      clearSearchSlotDrafts: actions.clearSearchSlotDrafts,
+      resetUserSearchTargetSelection,
     });
   }, [
     appMode,
-    clearUserSearchDisplayRuntime,
-    actions,
     shotEditor.slots,
     trajectory,
     adminState,
     userTableDisplaySlotId,
     targetColor,
     isTargetSelected,
+    setUserTableDisplaySlotId,
+    setOverlayContent,
+    setOverlayState,
+    setAdminState,
+    setUserLastSearchRecord,
+    actions.clearSearchSlotDrafts,
+    resetUserSearchTargetSelection,
   ]);
 
   /** ADMIN→USER: USER session을 새로고침 직후와 동일하게 (recommendedFrom carry-over 금지). */
