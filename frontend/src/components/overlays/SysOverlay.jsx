@@ -6,25 +6,19 @@ import {
   getDisplayExprForSys,
 } from "../../domain/calculator/formulaExpr";
 import {
-  canonicalSystemIdForConfig,
   getSysSystemMode,
   getSysUseSn,
   isFiveHalfSystemId,
 } from "../../domain/system/systemIdentity";
 import { fiveHalfComputedInputKey } from "../../domain/calculator/fiveHalfCalculator";
-import { angleSpinTargetRail } from "../../domain/angleSpinCorrectionTarget";
 import {
   resolveCoC1C3Keys,
   fmtFiveHalfDisplayNum,
   fmtSysOverlayInputDisplay,
-  normalizeToFormulaInputsApp,
-  isRhsKeyReadOnlyForSys,
   isMarkBasisReadOnly,
   lhsTokenFromExpr,
   showMarkRowExtraForSys,
   buildSysOverlayInitialInputs,
-  buildSysOverlayNumericPayload,
-  unifiedSlideFromCorrections,
   normalizeSlideDrawCorrections,
   formatFormulaDisplay,
   renderMixedFormulaLine,
@@ -32,10 +26,9 @@ import {
 } from "../../overlay/utils/sysOverlayUtils";
 
 /**
- * AD-B2-01: Presentation Layer Pure.
- * SysOverlay 내부에서 Domain 계산 함수를 직접 호출하지 않는다.
- * computeValues(expr, payload) = calculateByProfileExpr (App이 주입)
- * solveFiveHalf(inputs, coKey, c1Key, c3Key) = solveFiveHalfTwoOfThree (App이 주입)
+ * AD-B2-01 / Batch 4 STEP 4-2: Presentation Layer Pure.
+ * SysOverlay는 Domain 계산을 직접 수행하지 않는다.
+ * computeSysOverlayValues / evaluateSysOverlayHasAllInputs (App → Domain 주입)
  */
 
 /** module-private: sysOverlayInputFinite 역할 (AD-B2-02: export 제거) */
@@ -47,7 +40,13 @@ function checkInputFinite(inputs, key) {
   return Number.isFinite(n) ? n : null;
 }
 
-export function SysOverlay({ data, onSave, onCancel, computeValues, solveFiveHalf }) {
+export function SysOverlay({
+  data,
+  onSave,
+  onCancel,
+  computeSysOverlayValues,
+  evaluateSysOverlayHasAllInputs,
+}) {
   // ==========================================
   // v1 공략 유형 (내부 상수 고정)
   // D-004: SYSTEM_OPTIONS 하드코딩 → Batch 6 (Runtime Contract 후) 해소 예정
@@ -212,45 +211,75 @@ export function SysOverlay({ data, onSave, onCancel, computeValues, solveFiveHal
   const systemMode = getSysSystemMode(formData.system);
   const useSnForSystem = getSysUseSn(formData.system);
 
-  const normalizedBasePayload = useMemo(() => {
-    if (!expr || !expr.trim()) return {};
-    const payload = buildSysOverlayNumericPayload(
+  const hasAllInputs = useMemo(
+    () =>
+      evaluateSysOverlayHasAllInputs({
+        systemId: formData.system,
+        expr,
+        inputs: formData.inputs,
+        coKey,
+        c1Key,
+        c3Key,
+        rhsKeys,
+        needsHP,
+        needsAn,
+      }),
+    [
+      evaluateSysOverlayHasAllInputs,
+      formData.system,
       formData.inputs,
-      rhsKeys,
+      expr,
       coKey,
       c1Key,
       c3Key,
+      rhsKeys,
       needsHP,
-      needsAn
-    );
-    if (isRestored) {
-      return payload;
-    }
-    if (isFiveHalfSystemId(formData.system)) {
-      // AD-B2-01: solveFiveHalf prop 호출 (computeValues 주입 패턴)
-      const solved = solveFiveHalf(formData.inputs, coKey, c1Key, c3Key);
-      if (solved) {
-        return { ...payload, ...solved };
-      }
-      return payload;
-    }
-    const mode = getSysSystemMode(formData.system);
-    return normalizeToFormulaInputsApp(payload, mode, coKey, c1Key, c3Key, 0);
-  }, [
-    expr,
-    rhsKeys,
-    formData.inputs,
-    formData.system,
-    needsHP,
-    needsAn,
-    coKey,
-    c1Key,
-    c3Key,
-    isRestored,
-    solveFiveHalf,
-  ]);
+      needsAn,
+    ]
+  );
 
-  // 공식 로딩 시 f/r 스위치 자동 고정
+  const sysComputed = useMemo(
+    () =>
+      computeSysOverlayValues({
+        systemId: formData.system,
+        inputs: formData.inputs,
+        spaceSel,
+        corrections: formData.corrections,
+        shotType: formData.shotType,
+        isRestored,
+        hasAllInputs,
+      }),
+    [
+      computeSysOverlayValues,
+      formData.system,
+      formData.inputs,
+      formData.corrections,
+      formData.shotType,
+      spaceSel,
+      isRestored,
+      hasAllInputs,
+    ]
+  );
+
+  const {
+    normalizedBasePayload,
+    calcResult,
+    adjustedInputs,
+    finalCalc,
+    lhsKey,
+    effDisplayMap,
+    snFor5Half,
+    snFor5HalfEffective,
+    formUnifiedSlide,
+    p_spin,
+    formAngleTilt,
+  } = sysComputed;
+
+  const baseResultValue =
+    Object.keys(calcResult).length > 0 ? Object.values(calcResult)[0] : null;
+  const baseResultKey =
+    Object.keys(calcResult).length > 0 ? Object.keys(calcResult)[0] : null;
+
   useEffect(() => {
     const { forced: forcedSpaces } = parsed;
     setSpaceSel(prev => {
@@ -261,69 +290,6 @@ export function SysOverlay({ data, onSave, onCancel, computeValues, solveFiveHal
       return next;
     });
   }, [expr]);
-
-  const hasAllInputs = useMemo(() => {
-    if (!rhsKeys || rhsKeys.length === 0) return false;
-
-    const mode = getSysSystemMode(formData.system);
-    let ok;
-    if (isFiveHalfSystemId(formData.system)) {
-      // AD-B2-02: checkInputFinite (module-private, 대체 sysOverlayInputFinite)
-      const filled = [coKey, c1Key, c3Key].filter(
-        (k) => checkInputFinite(formData.inputs, k) != null
-      ).length;
-      ok = filled >= 2;
-      if (ok) {
-        const preview = solveFiveHalf(formData.inputs, coKey, c1Key, c3Key);
-        ok = !!preview && rhsKeys.every((k) => Number.isFinite(Number(preview[k])));
-      }
-    } else {
-      ok = rhsKeys.every((k) => {
-        if (isRhsKeyReadOnlyForSys(k, mode, c3Key)) return true;
-        const v = formData.inputs && formData.inputs[k];
-        return v !== "" && v !== null && v !== undefined;
-      });
-    }
-    if (!ok) return false;
-
-    if (needsHP) {
-      const v = formData.inputs.HP_n;
-      if (v === "" || v === null || v === undefined) return false;
-    }
-    if (needsAn) {
-      const v = formData.inputs.An;
-      if (v === "" || v === null || v === undefined) return false;
-    }
-    return true;
-  }, [formData.inputs, rhsKeys, needsHP, needsAn, formData.system, c3Key, coKey, c1Key, solveFiveHalf]);
-
-  // ==========================================
-  // AD-B2-01: 계산 엔진 연결 — computeValues prop 호출
-  // ==========================================
-  const [calcResult, setCalcResult] = useState({});
-
-  useEffect(() => {
-    if (!expr) {
-      setCalcResult({});
-      return;
-    }
-    if (!hasAllInputs) {
-      setCalcResult({});
-      return;
-    }
-
-    // AD-B2-01: Domain 함수는 computeValues prop을 통해 호출
-    const result = computeValues(expr, normalizedBasePayload);
-    setCalcResult((prev) => {
-      const prevKey = Object.keys(prev)[0];
-      const nextKey = Object.keys(result)[0];
-      if (prevKey === nextKey && prev[prevKey] === result[nextKey]) return prev;
-      return result;
-    });
-  }, [expr, hasAllInputs, normalizedBasePayload, computeValues]);
-
-  const baseResultValue = Object.keys(calcResult).length > 0 ? Object.values(calcResult)[0] : null;
-  const baseResultKey = Object.keys(calcResult).length > 0 ? Object.keys(calcResult)[0] : null;
 
   useEffect(() => {
     if (isFiveHalfSystemId(formData.system)) return;
@@ -337,110 +303,6 @@ export function SysOverlay({ data, onSave, onCancel, computeValues, solveFiveHal
       };
     });
   }, [baseResultValue, baseResultKey, formData.system]);
-
-  // 물리 보정
-  const formUnifiedSlide = unifiedSlideFromCorrections(
-    formData.corrections,
-    formData.shotType
-  );
-  const p_spin = Number(formData.corrections.spin) || 0;
-  const formAngleTilt = Number(formData.corrections.curve_ratio) || 0;
-  const snFor5Half = useMemo(() => {
-    if (!useSnForSystem || !isFiveHalfSystemId(formData.system)) return null;
-    const CO_base = Number(normalizedBasePayload.CO_f) || 0;
-    const CO_eff = CO_base + formUnifiedSlide;
-    const C3_r = Number(normalizedBasePayload.C3_r) || 0;
-    return { Sn: (CO_eff - 50) * 0.5, C4_f: C3_r + (CO_eff - 50) * 0.5, CO_f: CO_base, C3_r };
-  }, [
-    formData.system,
-    formData.shotType,
-    normalizedBasePayload,
-    useSnForSystem,
-    formUnifiedSlide,
-  ]);
-  const p_start =
-    useSnForSystem && isFiveHalfSystemId(formData.system) && snFor5Half
-      ? snFor5Half.Sn
-      : Number(formData.corrections.departure) || 0;
-
-  const { adjustedInputs, finalCalc, lhsKey } = useMemo(() => {
-    if (!expr || !expr.trim()) return { adjustedInputs: {}, finalCalc: {}, lhsKey: null };
-    if (!hasAllInputs) return { adjustedInputs: {}, finalCalc: {}, lhsKey: null };
-    const adjusted = { ...normalizedBasePayload };
-    if ("CO_f" in adjusted) adjusted.CO_f += formUnifiedSlide;
-    if ("CO_r" in adjusted) adjusted.CO_r += formUnifiedSlide;
-    if (angleSpinTargetRail === "C3" && systemMode === "full_input") {
-      const c3AngleSpin = formAngleTilt + p_spin;
-      if ("C3_f" in adjusted) adjusted.C3_f += c3AngleSpin;
-      if ("C3_r" in adjusted) adjusted.C3_r += c3AngleSpin;
-    }
-    ["C4_f", "C4_r", "C5_f", "C5_r", "C6_f", "C6_r"].forEach((k) => {
-      if (k in adjusted) adjusted[k] += p_start;
-    });
-
-    // AD-B2-01: Domain 함수는 computeValues prop을 통해 호출
-    const final = computeValues(expr, adjusted);
-    const keys = Object.keys(final);
-    return { adjustedInputs: adjusted, finalCalc: final, lhsKey: keys.length > 0 ? keys[0] : null };
-  }, [
-    expr,
-    hasAllInputs,
-    normalizedBasePayload,
-    formUnifiedSlide,
-    p_spin,
-    formAngleTilt,
-    systemMode,
-    p_start,
-    needsHP,
-    needsAn,
-    computeValues,
-  ]);
-
-  /** 표시용: full_input은 base 그대로, derived는 CO 보정 후 C3 = CO_eff − C1(base). */
-  const effDisplayMap = useMemo(() => {
-    if (!hasAllInputs) return {};
-    const base = normalizedBasePayload;
-    if (systemMode === "full_input") {
-      return { ...base, ...adjustedInputs };
-    }
-    const adj = adjustedInputs;
-    const CO_eff = Number(adj?.CO_f ?? base?.CO_f ?? 0);
-    const c1 = Number((c1Key && base[c1Key]) ?? 0);
-    const out = { ...base, CO_f: CO_eff };
-    if (c3Key) {
-      let c3Eff = CO_eff - c1;
-      if (angleSpinTargetRail === "C3") {
-        c3Eff += formAngleTilt + p_spin;
-      }
-      out[c3Key] = c3Eff;
-    }
-    return out;
-  }, [
-    hasAllInputs,
-    normalizedBasePayload,
-    adjustedInputs,
-    systemMode,
-    c1Key,
-    c3Key,
-    formAngleTilt,
-    p_spin,
-  ]);
-
-  const snFor5HalfEffective = useMemo(() => {
-    if (!useSnForSystem || !isFiveHalfSystemId(formData.system) || !hasAllInputs) return null;
-    const basePl = normalizedBasePayload;
-    if (!effDisplayMap || Object.keys(effDisplayMap).length === 0) return null;
-    const CO_used = Number(effDisplayMap?.CO_f ?? basePl?.CO_f ?? 0);
-    const C3_used = Number(effDisplayMap?.C3_r ?? basePl?.C3_r ?? 0);
-    const Sn_eff = (CO_used - 50) * 0.5;
-    const C4_eff = C3_used + Sn_eff;
-    return {
-      Sn: Sn_eff,
-      C4_f: C4_eff,
-      CO_f: CO_used,
-      C3_r: C3_used,
-    };
-  }, [formData.system, hasAllInputs, effDisplayMap, normalizedBasePayload, useSnForSystem]);
 
   const finalResultDisplay = (() => {
     if (!lhsKey) return null;

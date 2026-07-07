@@ -17,8 +17,11 @@ import {
 import { buildUserInfoPanel } from "./domain/userInfoPanelModel";
 import { buildUserHptViewModel } from "./domain/userHptViewModel";
 import { canonicalSystemIdForConfig } from "./domain/system/systemIdentity";
-import { solveFiveHalfTwoOfThree } from "./domain/calculator/fiveHalfCalculator";
-import { buildEffectiveRenderSysValues } from "./domain/calculator/systemValueCalculator";
+import {
+  buildEffectiveRenderSysValues,
+  computeSysOverlayValues,
+  evaluateSysOverlayHasAllInputs,
+} from "./domain/calculator/systemValueCalculator";
 import { unifiedSlideFromCorrections } from "./domain/calculator/sysOverlayCalcHelpers";
 import {
   loadOnePoints,
@@ -26,7 +29,6 @@ import {
 } from "./domain/lesson/onePointLibrary";
 import { SysOverlay } from "./components/overlays/SysOverlay";
 import { SYSTEM_PROFILES } from "./data/systems";
-import { calculateByProfileExpr } from "./utils/systemCalculator";
 import { convertThetaToClock } from "./utils/tipClockConverter";
 import {
   hitPointToTipDisplay,
@@ -5251,8 +5253,8 @@ function handlePointerCancel(e) {
               <SysOverlay
                 key={`sys-${shotEditor.activeSlot}`}
                 data={adminState.sys}
-                computeValues={calculateByProfileExpr}
-                solveFiveHalf={solveFiveHalfTwoOfThree}
+                computeSysOverlayValues={computeSysOverlayValues}
+                evaluateSysOverlayHasAllInputs={evaluateSysOverlayHasAllInputs}
                 onSave={(newData) => {
                   console.log("[SYS_APPLY_START]", {
                     hypothesisId: "SYS_APPLY_START",

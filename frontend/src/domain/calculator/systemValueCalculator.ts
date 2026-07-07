@@ -3,6 +3,7 @@
  *
  * AAS v2.0 Batch 4 — CAL-002/003/005 Calculation Domain SSOT.
  * STEP 4-1: buildEffectiveRenderSysValues (CAL-002).
+ * STEP 4-2: computeSysOverlayValues (CAL-005) — D-008 App/Overlay 경로 해소.
  */
 
 import { angleSpinTargetRail } from "../angleSpinCorrectionTarget";
@@ -34,6 +35,296 @@ type RenderSys = {
   corrections?: Record<string, number>;
   shotType?: string;
 } | null | undefined;
+
+export type SysOverlayFiveHalfSn = {
+  Sn: number;
+  C4_f: number;
+  CO_f: number;
+  C3_r: number;
+};
+
+export type ComputeSysOverlayValuesParams = {
+  systemId: string;
+  inputs: Record<string, unknown>;
+  spaceSel: Record<string, string>;
+  corrections: Record<string, unknown>;
+  shotType: string;
+  isRestored: boolean;
+  hasAllInputs: boolean;
+};
+
+export type ComputeSysOverlayValuesResult = {
+  normalizedBasePayload: Record<string, number>;
+  calcResult: Record<string, number>;
+  adjustedInputs: Record<string, number>;
+  finalCalc: Record<string, number>;
+  lhsKey: string | null;
+  effDisplayMap: Record<string, number>;
+  snFor5Half: SysOverlayFiveHalfSn | null;
+  snFor5HalfEffective: SysOverlayFiveHalfSn | null;
+  formUnifiedSlide: number;
+  p_spin: number;
+  formAngleTilt: number;
+  p_start: number;
+  systemMode: string;
+  useSnForSystem: boolean;
+  coKey: string;
+  c1Key: string;
+  c3Key: string;
+};
+
+function sysOverlayInputFinite(
+  inputs: Record<string, unknown> | null | undefined,
+  key: string
+): number | null {
+  if (!inputs || !(key in inputs)) return null;
+  const v = inputs[key];
+  if (v === "" || v === null || v === undefined) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** SysOverlay hasAllInputs — UI gate (CAL-005). */
+export function evaluateSysOverlayHasAllInputs(params: {
+  systemId: string;
+  expr: string;
+  inputs: Record<string, unknown>;
+  coKey: string;
+  c1Key: string;
+  c3Key: string;
+  rhsKeys: string[];
+  needsHP: boolean;
+  needsAn: boolean;
+}): boolean {
+  const { systemId, expr, inputs, coKey, c1Key, c3Key, rhsKeys, needsHP, needsAn } =
+    params;
+
+  if (!rhsKeys || rhsKeys.length === 0) return false;
+
+  const mode = getSysSystemMode(systemId);
+  let ok: boolean;
+  if (isFiveHalfSystemId(systemId)) {
+    const filled = [coKey, c1Key, c3Key].filter(
+      (k) => sysOverlayInputFinite(inputs, k) != null
+    ).length;
+    ok = filled >= 2;
+    if (ok) {
+      const preview = solveFiveHalfTwoOfThree(inputs, coKey, c1Key, c3Key);
+      ok =
+        !!preview && rhsKeys.every((k) => Number.isFinite(Number(preview[k])));
+    }
+  } else {
+    ok = rhsKeys.every((k) => {
+      if (isRhsKeyReadOnlyForSys(k, mode, c3Key)) return true;
+      const v = inputs && inputs[k];
+      return v !== "" && v !== null && v !== undefined;
+    });
+  }
+  if (!ok) return false;
+
+  if (needsHP) {
+    const v = inputs.HP_n;
+    if (v === "" || v === null || v === undefined) return false;
+  }
+  if (needsAn) {
+    const v = inputs.An;
+    if (v === "" || v === null || v === undefined) return false;
+  }
+  return true;
+}
+
+const EMPTY_OVERLAY_RESULT: ComputeSysOverlayValuesResult = {
+  normalizedBasePayload: {},
+  calcResult: {},
+  adjustedInputs: {},
+  finalCalc: {},
+  lhsKey: null,
+  effDisplayMap: {},
+  snFor5Half: null,
+  snFor5HalfEffective: null,
+  formUnifiedSlide: 0,
+  p_spin: 0,
+  formAngleTilt: 0,
+  p_start: 0,
+  systemMode: "",
+  useSnForSystem: false,
+  coKey: "",
+  c1Key: "",
+  c3Key: "",
+};
+
+/**
+ * CAL-005: SysOverlay 실시간 SYS 계산 SSOT.
+ * SysOverlay.jsx inline calc → Domain (App이 prop으로 주입).
+ */
+export function computeSysOverlayValues(
+  params: ComputeSysOverlayValuesParams
+): ComputeSysOverlayValuesResult {
+  const { systemId, inputs, spaceSel, corrections, shotType, isRestored, hasAllInputs } =
+    params;
+
+  const profile = SYSTEM_PROFILES?.[systemId];
+  const expr =
+    typeof profile?.formula === "string"
+      ? profile.formula
+      : profile?.formula?.expr || "";
+
+  if (!expr || !expr.trim()) {
+    return { ...EMPTY_OVERLAY_RESULT };
+  }
+
+  const parsed = parseSysFormulaExpr(expr);
+  const { forced, neededKeys, needsHP, needsAn } = parsed;
+
+  const lhs = expr.trim().split("=")[0].trim();
+  const rhsKeys = Array.from(neededKeys || []).filter((k) => k !== lhs);
+  const { coKey, c1Key, c3Key } = resolveCoC1C3Keys(forced, spaceSel);
+
+  const systemMode = getSysSystemMode(systemId);
+  const useSnForSystem = getSysUseSn(systemId);
+
+  const payload = buildSysOverlayNumericPayload(
+    inputs as Record<string, number>,
+    rhsKeys,
+    coKey,
+    c1Key,
+    c3Key,
+    needsHP,
+    needsAn
+  );
+
+  let normalizedBasePayload: Record<string, number>;
+  if (isRestored) {
+    normalizedBasePayload = payload;
+  } else if (isFiveHalfSystemId(systemId)) {
+    const solved = solveFiveHalfTwoOfThree(inputs, coKey, c1Key, c3Key);
+    normalizedBasePayload = solved ? { ...payload, ...solved } : payload;
+  } else {
+    const mode = getSysSystemMode(systemId);
+    normalizedBasePayload = normalizeToFormulaInputsApp(
+      payload,
+      mode,
+      coKey,
+      c1Key,
+      c3Key,
+      0
+    );
+  }
+
+  const formUnifiedSlide = unifiedSlideFromCorrections(corrections, shotType);
+  const p_spin = Number(corrections.spin) || 0;
+  const formAngleTilt = Number(corrections.curve_ratio) || 0;
+
+  const snFor5Half =
+    useSnForSystem && isFiveHalfSystemId(systemId)
+      ? (() => {
+          const CO_base = Number(normalizedBasePayload.CO_f) || 0;
+          const CO_eff = CO_base + formUnifiedSlide;
+          const C3_r = Number(normalizedBasePayload.C3_r) || 0;
+          return {
+            Sn: (CO_eff - 50) * 0.5,
+            C4_f: C3_r + (CO_eff - 50) * 0.5,
+            CO_f: CO_base,
+            C3_r,
+          };
+        })()
+      : null;
+
+  const p_start =
+    useSnForSystem && isFiveHalfSystemId(systemId) && snFor5Half
+      ? snFor5Half.Sn
+      : Number(corrections.departure) || 0;
+
+  if (!hasAllInputs) {
+    return {
+      ...EMPTY_OVERLAY_RESULT,
+      normalizedBasePayload,
+      snFor5Half,
+      formUnifiedSlide,
+      p_spin,
+      formAngleTilt,
+      p_start,
+      systemMode,
+      useSnForSystem,
+      coKey,
+      c1Key,
+      c3Key,
+    };
+  }
+
+  const calcResult = calculateByProfileExpr(expr, normalizedBasePayload);
+
+  const adjusted = { ...normalizedBasePayload };
+  if ("CO_f" in adjusted) adjusted.CO_f += formUnifiedSlide;
+  if ("CO_r" in adjusted) adjusted.CO_r += formUnifiedSlide;
+  if (angleSpinTargetRail === "C3" && systemMode === "full_input") {
+    const c3AngleSpin = formAngleTilt + p_spin;
+    if ("C3_f" in adjusted) adjusted.C3_f += c3AngleSpin;
+    if ("C3_r" in adjusted) adjusted.C3_r += c3AngleSpin;
+  }
+  ["C4_f", "C4_r", "C5_f", "C5_r", "C6_f", "C6_r"].forEach((k) => {
+    if (k in adjusted) adjusted[k] += p_start;
+  });
+
+  const finalCalc = calculateByProfileExpr(expr, adjusted);
+  const finalKeys = Object.keys(finalCalc);
+  const lhsKey = finalKeys.length > 0 ? finalKeys[0] : null;
+
+  const base = normalizedBasePayload;
+  let effDisplayMap: Record<string, number>;
+  if (systemMode === "full_input") {
+    effDisplayMap = { ...base, ...adjusted };
+  } else {
+    const adj = adjusted;
+    const CO_eff = Number(adj?.CO_f ?? base?.CO_f ?? 0);
+    const c1 = Number((c1Key && base[c1Key]) ?? 0);
+    effDisplayMap = { ...base, CO_f: CO_eff };
+    if (c3Key) {
+      let c3Eff = CO_eff - c1;
+      if (angleSpinTargetRail === "C3") {
+        c3Eff += formAngleTilt + p_spin;
+      }
+      effDisplayMap[c3Key] = c3Eff;
+    }
+  }
+
+  let snFor5HalfEffective: SysOverlayFiveHalfSn | null = null;
+  if (useSnForSystem && isFiveHalfSystemId(systemId)) {
+    const basePl = normalizedBasePayload;
+    if (effDisplayMap && Object.keys(effDisplayMap).length > 0) {
+      const CO_used = Number(effDisplayMap?.CO_f ?? basePl?.CO_f ?? 0);
+      const C3_used = Number(effDisplayMap?.C3_r ?? basePl?.C3_r ?? 0);
+      const Sn_eff = (CO_used - 50) * 0.5;
+      const C4_eff = C3_used + Sn_eff;
+      snFor5HalfEffective = {
+        Sn: Sn_eff,
+        C4_f: C4_eff,
+        CO_f: CO_used,
+        C3_r: C3_used,
+      };
+    }
+  }
+
+  return {
+    normalizedBasePayload,
+    calcResult,
+    adjustedInputs: adjusted,
+    finalCalc,
+    lhsKey,
+    effDisplayMap,
+    snFor5Half,
+    snFor5HalfEffective,
+    formUnifiedSlide,
+    p_spin,
+    formAngleTilt,
+    p_start,
+    systemMode,
+    useSnForSystem,
+    coKey,
+    c1Key,
+    c3Key,
+  };
+}
 
 /**
  * 슬롯 sys 병합값(base) + render sys(CV·spaceSel·systemConfig) → 표시/앵커/궤적용 effective 맵.
