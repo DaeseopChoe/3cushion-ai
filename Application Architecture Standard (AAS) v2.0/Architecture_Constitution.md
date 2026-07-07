@@ -1,10 +1,11 @@
-# 3Cushion AI Application Architecture SSOT v2.0
+# 3Cushion AI Application Architecture SSOT v2.1
 
 # Architecture Constitution
 
-Version: 2.0  
-Status: Draft SSOT  
-Scope: Application Architecture · App.jsx Authority · Application Layer · Domain Layer · System SSOT · Dataset SSOT · Cursor Execution Rule
+Version: 2.1  
+Status: Active SSOT  
+Scope: Application Architecture · App.jsx Authority · Application Layer · Application Flow Layer · Domain Runtime · ViewModel · System SSOT · Dataset SSOT · Cursor Execution Rule · Migration Debt Governance  
+Revision: Post Batch 4 Runtime Migration (2026-07-07) — Baseline `540a275`
 
 ---
 
@@ -86,6 +87,10 @@ system_meta.json
 
 모든 계산은 Domain Layer에서 수행한다.
 
+**Calculation Runtime SSOT (Batch 4 확정):**  
+SYS Render·Recall·Overlay 계산의 공식 SSOT는 `frontend/src/domain/calculator/systemValueCalculator.ts`이다.  
+자세한 규칙은 **§10 Calculation Runtime SSOT** 참조.
+
 ---
 
 ### Constitution 6. 업무 흐름은 Application Layer가 담당한다.
@@ -102,6 +107,12 @@ Dataset load
 
 이 흐름은 UI도 아니고 순수 계산도 아니다.  
 따라서 Application Layer가 담당한다.
+
+**Application Flow Rule (Batch 3 도입 · Batch 4 확정):**  
+구체적 Flow 구현은 `frontend/src/application/flows/`에 둔다.  
+Flow는 orchestration·hydrate·sequencing·context assembly만 수행한다.  
+계산·Runtime 생성·ViewModel 생성은 금지한다.  
+자세한 규칙은 **§2.6 Application Flow Layer** 참조.
 
 ---
 
@@ -211,7 +222,8 @@ AI 자동 문장, 원 포인트 레슨, 시스템 레슨, USER 교육 패널은 
 ```text
 Presentation
 → Application
-→ Domain
+→ Application Flow
+→ Domain Runtime
 → System
 → Dataset
 ```
@@ -222,9 +234,14 @@ Presentation
 
 ```text
 Domain → React Component
+Domain → Application Flow (역참조)
 System → App.jsx
 Dataset → Presentation
 ```
+
+**Runtime Ownership (Batch 4 확정):**  
+각 Layer는 자신의 책임 범위만 소유한다.  
+공식 Layer Rule과 SSOT File Map은 **§12 Runtime Ownership**, **§13 Runtime SSOT File Map** 참조.
 
 ---
 
@@ -313,6 +330,7 @@ Overlay components
 - Domain 호출 순서 관리
 - Session update
 - Flow orchestration
+- Flow Context 생성 및 Flow 호출 (`App.jsx` → `application/flows/`)
 
 예:
 
@@ -328,19 +346,63 @@ slotFlow
 
 ---
 
+### 2.6 Application Flow Layer
+
+**경로 SSOT:** `frontend/src/application/flows/`
+
+**역할 (Batch 3 도입 · Batch 4 확정):**
+
+`application/flows/`는 업무 흐름만 담당한다.
+
+**허용:**
+
+- orchestration
+- hydrate
+- sequencing
+- context assembly
+- Domain Runtime / ViewModel **호출** (직접 구현 금지)
+
+**금지:**
+
+- 계산 (formula, correction, Sn, SYS snapshot calc 등)
+- Runtime 생성 (Calculation Runtime inline 구현)
+- ViewModel 생성 (`resolveSlotSys` 등 ViewModel inline 구성)
+
+**대표 Flow (현재 구현):**
+
+| Flow | 역할 |
+|------|------|
+| `recallHydrateFlow.ts` | Recall hydrate · Domain `buildSlotSysSnapshot()` 호출 |
+| `saveFlow.ts` | Strategy save orchestration |
+| `adminSearchFlow.ts` | ADMIN Published Search |
+| `userSearchFlow.ts` | USER Published Search |
+| `resetFlow.ts` | USER Search reset |
+| `adminLocalDbFlow.ts` | ADMIN LocalDB Recall |
+| `historyFlow.ts` | Canonical save history |
+| `ballDragFlow.ts` | Ball drag end orchestration |
+
+Flow Layer는 React Hook을 사용하지 않는다.  
+Flow는 Named Export Only를 따른다.
+
+---
+
 ### 2.3 Domain Layer
 
 역할:
 
 - 순수 로직
-- 계산
+- 계산 (Calculation Runtime)
 - Search/Recall
 - Dataset transform
 - Trajectory
 - Caption
 - AI/Lesson ViewModel
+- Render ViewModel (Rendering용 데이터 구성)
 
 Domain은 React에 의존하지 않는다.
+
+**Calculation Runtime SSOT:** `domain/calculator/systemValueCalculator.ts` (§10)  
+**Render ViewModel SSOT:** `domain/system/slotSysViewModel.ts` (§11)
 
 ---
 
@@ -376,6 +438,28 @@ Published Dataset은 Git → Vercel → Production으로 배포된다.
 
 `App.jsx`의 최종 목표는 800~1200 lines 수준의 Orchestrator이다.
 
+### 3.1 App = Orchestrator (Constitution 1 구체화)
+
+`App.jsx`는 Application Orchestrator이다.  
+계산기, 검색 엔진, 시스템 엔진, Dataset Manager, Trajectory Builder가 아니다.
+
+**허용:**
+
+- React State
+- React Hook
+- Flow 호출 (`application/flows/`)
+- Rendering
+- View 연결 (Domain Runtime / ViewModel 결과를 Presentation에 전달)
+- in-flight guard 등 Orchestrator 전용 ref (AD-B3-02)
+
+**금지:**
+
+- Runtime 계산 (SYS effective values, overlay calc, recall snapshot calc 등)
+- ViewModel 생성 (`resolveSlotSys` inline 구현)
+- Search Algorithm (similarity, scoring, coarse filter)
+- Trajectory 생성 (node, segment, cap, reflection)
+- Formula 계산 (`calculateByProfileExpr` 직접 호출)
+
 App가 보유할 수 있는 책임:
 
 ```text
@@ -385,6 +469,7 @@ Event Dispatch
 Screen Composition
 Render Coordination
 Context Provider
+Flow Context Assembly
 ```
 
 App에서 제거할 책임:
@@ -400,6 +485,8 @@ Search
 AI
 Lesson
 History Merge
+Calculation Runtime
+Render ViewModel Assembly
 ```
 
 ---
@@ -498,6 +585,10 @@ Accept
 8. System Layer가 App.jsx에 의존
 9. Published Dataset을 `.gitignore`에 포함
 10. Regression 없이 리팩터링 commit
+11. `application/flows/`에서 Calculation Runtime inline 구현 (§2.6, §10)
+12. `App.jsx`에서 ViewModel inline 생성 — `resolveSlotSys` 등 (§3.1, §11)
+13. Calculation Runtime SSOT (`systemValueCalculator.ts`) bypass — `calculateByProfileExpr` 직접 호출 (§10, D-008)
+14. Domain → Application Flow 역방향 import (§12)
 
 ---
 
@@ -527,3 +618,189 @@ Architecture SSOT v2.0이 완료되었다고 판단하는 기준:
 
 따라서 App.jsx는 시스템을 구현하지 않는다.  
 App.jsx는 시스템을 실행하는 Application Orchestrator일 뿐이다.
+
+---
+
+## 10. Calculation Runtime SSOT
+
+**Batch 4 확정 (2026-07-07)**
+
+`frontend/src/domain/calculator/systemValueCalculator.ts`는 본 프로젝트의 **Calculation Runtime SSOT**이다.
+
+모든 SYS Render·Recall·Overlay Runtime 계산은 Domain Runtime에서 수행한다.  
+`App.jsx`, `application/flows/`, Presentation Layer에서 inline 계산을 구현하지 않는다.
+
+### 대표 Runtime API
+
+| API | Migration ID | 역할 |
+|-----|-------------|------|
+| `buildEffectiveRenderSysValues()` | CAL-002 | effective sys / Sn / C4–C6 Render 값 |
+| `computeSysOverlayValues()` | CAL-005 | SysOverlay 실시간 SYS 계산 |
+| `evaluateSysOverlayHasAllInputs()` | CAL-005 | SysOverlay 입력 완전성 판정 |
+| `buildSlotSysSnapshot()` | CAL-003 | Recall → sys snapshot |
+
+### 보조 SSOT
+
+| 파일 | 역할 |
+|------|------|
+| `domain/calculator/sysOverlayCalcHelpers.ts` | 순수 calc helper (AD-B4-01 Option A) |
+| `domain/calculator/formulaExpr.ts` | formula expr parsing (Batch 1) |
+| `domain/calculator/fiveHalfCalculator.ts` | 5½ 2-of-3 (Batch 1) |
+
+### 규칙
+
+1. `calculateByProfileExpr` 직접 호출은 Calculation Runtime SSOT를 통해서만 허용한다.
+2. Flow Layer는 Calculation Runtime을 **호출**할 수 있으나 **구현**할 수 없다.
+3. Presentation Layer는 Domain Runtime 결과를 prop으로 **수신**한다 (AD-B2-01).
+
+---
+
+## 11. Render ViewModel SSOT
+
+**Batch 4 확정 (2026-07-07)**
+
+`frontend/src/domain/system/slotSysViewModel.ts`는 본 프로젝트의 **Render ViewModel SSOT**이다.
+
+ViewModel은 Rendering을 위한 데이터 구성만 수행한다.  
+ViewModel은 계산을 수행하지 않는다.
+
+### 대표 API
+
+| API | Migration ID | 역할 |
+|-----|-------------|------|
+| `resolveSlotSys()` | MISC-004 | slot draft/applied → resolvedSlotSys ViewModel |
+
+### 규칙
+
+1. ViewModel은 Calculation Runtime 결과를 조합·정규화하여 Render에 전달한다.
+2. ViewModel은 `calculateByProfileExpr`, Sn/C4–C6 formula 등 **계산을 수행하지 않는다**.
+3. `App.jsx`는 `resolveSlotSys()`를 호출하고 결과를 Presentation에 연결한다.
+
+---
+
+## 12. Runtime Ownership
+
+**Batch 4 확정 — 공식 Layer Rule**
+
+```text
+Presentation
+    ↓
+Application          (App.jsx Orchestrator)
+    ↓
+Application Flow     (application/flows/)
+    ↓
+Domain Runtime       (Calculation · Search · Trajectory · Caption · AI)
+    ↓
+System               (data/systems/* · domain/system/*)
+    ↓
+Dataset              (domain/dataset/* · published dataset/)
+```
+
+### Layer 소유권
+
+| Layer | 소유 | 금지 |
+|-------|------|------|
+| **Presentation** | UI 표시 · 사용자 입력 · Overlay 렌더 | 계산 · Flow · Search · Dataset merge |
+| **Application** | State · Event · Flow 호출 · Render 조립 | Runtime 계산 · ViewModel 생성 · Search Algorithm |
+| **Application Flow** | orchestration · hydrate · sequencing | 계산 · Runtime/ViewModel inline 생성 |
+| **Domain Runtime** | 순수 계산 · Search/Recall · Transform | React 의존 · Presentation 참조 |
+| **System** | profile/logic/anchors/meta · systemIdentity | App.jsx 의존 |
+| **Dataset** | Published/Working corpus · loader/cache | Presentation 직접 merge |
+
+의존 방향은 위에서 아래로만 허용한다 (Constitution 17).
+
+---
+
+## 13. Runtime SSOT File Map
+
+**Batch 4 확정 — 코드 구조와 1:1 대응**
+
+| Layer | SSOT Path | 역할 |
+|-------|-----------|------|
+| **Calculation Runtime** | `frontend/src/domain/calculator/systemValueCalculator.ts` | SYS Render·Recall·Overlay 계산 SSOT |
+| **Render ViewModel** | `frontend/src/domain/system/slotSysViewModel.ts` | resolvedSlotSys 등 Render ViewModel SSOT |
+| **Application Flow** | `frontend/src/application/flows/` | 업무 흐름 orchestration (8 files) |
+| **Presentation** | `frontend/src/components/` · `App.jsx` | UI 표시 · Orchestrator |
+| **System** | `frontend/src/data/systems/*` · `frontend/src/domain/system/` | System SSOT · identity |
+| **Dataset** | `frontend/src/domain/dataset/` · `dataset/` (Published) | Working/Published corpus |
+
+> **주의:** Trajectory Runtime SSOT는 Batch 5 대상이다. 본 Constitution v2.1에서는 선반영하지 않는다.
+
+---
+
+## 14. Migration Debt Governance
+
+**Batch 운영 규칙 (Batch 3~4 확정)**
+
+Migration Debt는 **Batch 단위**로 관리한다.
+
+### Batch 종료 시 필수
+
+각 Batch Closure 시 **Debt Report**를 작성한다.
+
+| 항목 | 필수 내용 |
+|------|----------|
+| Debt ID | D-xxx |
+| 상태 | Closed / Open |
+| 해소 Batch | Batch 목표와 연결 |
+| 발생 위치 | 파일·Layer |
+| 신규 Debt | Batch 중 추가 생성 여부 |
+
+### 현재 Debt Ledger (Batch 4 Closure 기준)
+
+| ID | 항목 | 상태 | 해소 Batch |
+|----|------|------|-----------|
+| D-006 | `SYSTEM_PROFILES` 직접 접근 | Open | Batch 6 |
+| D-007 | `getAnchorsForSystem` 직접 접근 | Open | Batch 6 |
+| D-008 | `calculateByProfileExpr` Flow/App bypass | **Closed** | Batch 4 |
+
+신규 Architecture Debt 없음 (Batch 4 Closure 확인).
+
+---
+
+## Appendix A. Batch 4 Architecture Achievement
+
+**Baseline:** Batch 4 Code `02dd47f` · Closure `540a275` (2026-07-07)
+
+| Migration ID | Achievement |
+|-------------|-------------|
+| **CAL-002** | `buildEffectiveRenderSysValues()` → Domain Runtime 이전 |
+| **CAL-005** | `computeSysOverlayValues()` · `evaluateSysOverlayHasAllInputs()` → Domain Runtime 이전 · SysOverlay inline calc 제거 |
+| **CAL-003** | `buildSlotSysSnapshot()` → Domain Runtime 이전 · `recallHydrateFlow` 계산 제거 |
+| **MISC-004** | `resolveSlotSys()` → Render ViewModel SSOT 이전 |
+| **D-008** | Closed — Flow/App `calculateByProfileExpr` bypass 해소 |
+| **SSOT** | Calculation Runtime SSOT (`systemValueCalculator.ts`) 구축 |
+
+### Architecture Decision
+
+| ID | 결정 |
+|----|------|
+| AD-B4-01 | Option A — calc helper Domain co-location (`sysOverlayCalcHelpers.ts`) |
+
+### App.jsx 변화
+
+```
+Batch 3: 5,807 lines
+Batch 4: 5,640 lines (−167)
+```
+
+---
+
+## Revision History
+
+| Version | Date | Summary |
+|---------|------|---------|
+| **2.0** | 2026-07-03 | Architecture Constitution 초판 — Layer Rule · App.jsx Authority · System/Dataset SSOT |
+| **2.1** | 2026-07-07 | Post Batch 4 Runtime Migration 동기화 — Calculation Runtime SSOT · Render ViewModel SSOT · Application Flow Rule · Runtime Ownership · SSOT File Map · Migration Debt Governance · Batch 4 Achievement Appendix |
+
+### v2.1 변경 요약
+
+- §2.6 Application Flow Layer 신규
+- §3.1 App.jsx Orchestrator 허용/금지 구체화
+- §10 Calculation Runtime SSOT 신규
+- §11 Render ViewModel SSOT 신규
+- §12 Runtime Ownership 신규
+- §13 Runtime SSOT File Map 신규
+- §14 Migration Debt Governance 신규
+- Appendix A Batch 4 Architecture Achievement 신규
+- Constitution 5/6/17 보강 (기존 Rule 유지 · 참조 추가)
