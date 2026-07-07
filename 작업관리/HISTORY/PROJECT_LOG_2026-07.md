@@ -1,8 +1,88 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.3  
+Version : v1.4  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-07 (Batch 4 Complete — Closure)
+
+## 제목
+
+AAS Runtime Migration Batch 4 완료 — Calculation Runtime Domain 이전 · Batch 5 Ready
+
+## Summary
+
+Batch 4 STEP 4-1 ~ 4-4 전체 구현을 완료하고, Closure 절차(Regression · Acceptance Criteria · Architecture 검증 · 문서 업데이트)를 수행하여 Batch 4를 공식 종료하였다. D-008 Closed.
+
+## Major Accomplishments
+
+### 1. Batch 4 STEP 구현 완료 (4 STEP, 4 commits)
+
+| STEP | Commit | Title |
+|------|--------|-------|
+| 4-1 | `c91422e` | buildEffectiveRenderSysValues extraction (CAL-002) |
+| 4-2 | `401d153` | SysOverlay runtime consolidation (CAL-005) |
+| 4-3 | `e7623db` | recall runtime extraction (CAL-003) |
+| 4-4 | `02dd47f` | resolveSlotSys ViewModel extraction (MISC-004) |
+
+### 2. 신규 파일 (3개)
+
+- `domain/calculator/sysOverlayCalcHelpers.ts` — AD-B4-01 Option A calc helper SSOT
+- `domain/calculator/systemValueCalculator.ts` — CAL-002/003/005 Calculation Domain SSOT
+- `domain/system/slotSysViewModel.ts` — MISC-004 `resolveSlotSys()` ViewModel
+
+### 3. App.jsx 변화
+
+```
+Before (Batch 3) : 5,807 lines
+After  (Batch 4) : 5,640 lines
+Delta            : −167 lines
+```
+
+### 4. Regression 결과
+
+- 공통 Regression R-B4-C1~C6: **전체 PASS**
+- STEP Regression STEP 4-1~4-4: **전체 PASS**
+- Closure Final Build: **PASS** (229 modules)
+
+### 5. Acceptance Criteria (AC-1~AC-12)
+
+| AC | 항목 | 결과 |
+|----|------|------|
+| AC-1 | npm run build exit 0 | ✅ PASS |
+| AC-2 | Import Graph 순환/역방향 0 | ✅ PASS |
+| AC-3 | Presentation 계산 제거 (SysOverlay) | ✅ PASS |
+| AC-4 | Calculation Runtime Domain 이전 (CAL-002/003/005) | ✅ PASS |
+| AC-5 | Flow 계산 제거 (recallHydrateFlow) | ✅ PASS |
+| AC-6 | ViewModel Domain 이전 (MISC-004) | ✅ PASS |
+| AC-7 | D-008 Closed | ✅ PASS |
+| AC-8 | 신규 Architecture Debt 없음 | ✅ PASS |
+| AC-9 | Batch 4 Migration Map 목표 달성 | ✅ PASS |
+| AC-10 | STEP Lock 4 commits | ✅ PASS |
+| AC-11 | Named Export Only | ✅ PASS |
+| AC-12 | application/flows/ calculateByProfileExpr 직접 호출 0 | ✅ PASS |
+
+### 6. Architecture 결과
+
+- App = Orchestrator 유지 — Domain 계산·ViewModel 위임
+- `application/flows/` → `domain/` 단방향
+- Domain → Overlay / application 역참조 0
+- `calculateByProfileExpr` SSOT: `systemValueCalculator.ts`
+
+### 7. Migration Debt 상태
+
+| Debt | 상태 | 해소 예정 |
+|------|------|----------|
+| D-006 | Open | Batch 6 (SYSTEM_PROFILES 직접 접근) |
+| D-007 | Open | Batch 6 (getAnchorsForSystem 직접 접근) |
+| **D-008** | **Closed** | Batch 4 (calculateByProfileExpr Flow/App bypass) |
+
+### 8. Batch 4 공식 종료
+
+- Closure commit: `docs(batch4): complete Batch4 closure and prepare Batch5`
+- **Batch 5 Ready** — TRJ-001/003, RND-003, APP-009 Trajectory Runtime
 
 ---
 

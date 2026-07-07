@@ -1,9 +1,9 @@
 # SESSION_HANDOFF_CURSOR.md
 
-**Baseline:** Batch 3 Complete  
+**Baseline:** Batch 4 Complete  
 **Created:** 2026-07-06  
-**Updated:** 2026-07-07 — Batch 3 Closure 완료 · Batch 4 Ready  
-**Purpose:** 새 Cursor 세션에서 이 문서 하나만 읽고 Batch 4 Design 착수를 바로 시작한다.
+**Updated:** 2026-07-07 — Batch 4 Closure 완료 · Batch 5 Ready  
+**Purpose:** 새 Cursor 세션에서 이 문서 하나만 읽고 Batch 5 Design 착수를 바로 시작한다.
 
 ---
 
@@ -13,8 +13,8 @@
 |------|------|
 | Branch | `main` |
 | Remote | `origin/main` |
-| Working Tree | Batch 3 Closure 문서 커밋 대기 |
-| Last Batch3 Commit | `b7d7712` (STEP 3-8 ballDragFlow extraction) |
+| Working Tree | Batch 4 Closure 문서 커밋 대기 |
+| Last Batch4 Commit | `02dd47f` (STEP 4-4 resolveSlotSys ViewModel extraction) |
 
 ### Runtime Migration 진행률
 
@@ -23,8 +23,8 @@
 | **Batch 1** | Domain Layer — 순수 함수·정규화·파서 | ✅ Complete |
 | **Batch 2** | Presentation Layer — Overlay · Renderer · Router | ✅ Complete |
 | **Batch 3** | Application Flow · Search · Dataset · AI Domain | **✅ Complete (2026-07-07)** |
-| **Batch 4** | CAL-002/003/005, MISC-004 — 고위험 계산 | **⏳ Ready — Design 착수 가능** |
-| Batch 5 | TRJ-001/003, RND-003, APP-009 — 최고위험 궤적 | ⏳ Pending |
+| **Batch 4** | CAL-002/003/005, MISC-004 — Calculation Domain | **✅ Complete (2026-07-07)** |
+| **Batch 5** | TRJ-001/003, RND-003, APP-009 — Trajectory Runtime | **⏳ Ready — Design 착수 가능** |
 | Batch 6 | SYS-001~003/006, DS-006 — Runtime Contract | ⏳ Pending (Blocker) |
 
 ### Working Tree (Closure 시점)
@@ -35,7 +35,7 @@
  M 작업관리/Runtime Refactoring/SESSION_HANDOFF_CURSOR.md
 ```
 
-> Batch 3 Closure 문서 commit 후 Batch 4 Design 착수.
+> Batch 4 Closure 문서 commit 후 Batch 5 Design 착수.
 
 ---
 
@@ -479,7 +479,7 @@ PROJECT_LOG 업데이트
 
 ## 10. Next Action
 
-**Batch 3 공식 종료 완료. Batch 4 Ready.**
+**Batch 4 공식 종료 완료. Batch 5 Ready.**
 
 새 세션에서 반드시 순서대로 수행한다.
 
@@ -491,8 +491,8 @@ git -C "D:\3Cushion AI" status
 ```
 
 예상 결과:
-- HEAD = Batch 3 Closure commit (docs)
-- Batch 3 STEP commits: `252be8f` ~ `b7d7712` (9 commits)
+- HEAD = Batch 4 Closure commit (docs)
+- Batch 4 STEP commits: `c91422e` ~ `02dd47f` (4 commits)
 
 ---
 
@@ -500,19 +500,19 @@ git -C "D:\3Cushion AI" status
 
 다음 문서를 순서대로 읽는다:
 
-1. `작업관리/PROJECT_MASTER_INDEX.md` — 현재 상태 SSOT (Batch 3 Complete)
-2. `작업관리/HISTORY/PROJECT_LOG_2026-07.md` — Batch 3 Closure 로그
-3. `Application Architecture Standard (AAS) v2.0/App_Migration_Map.md` — Batch 4 대상 확인
-4. **`작업관리/Runtime Refactoring/Batch04/`** — Batch 4 Analysis/Design (착수 시 생성)
+1. `작업관리/PROJECT_MASTER_INDEX.md` — 현재 상태 SSOT (Batch 4 Complete, v1.16)
+2. `작업관리/HISTORY/PROJECT_LOG_2026-07.md` — Batch 4 Closure 로그
+3. `Application Architecture Standard (AAS) v2.0/App_Migration_Map.md` — Batch 5 대상 확인
+4. **`작업관리/Runtime Refactoring/Batch04/Batch4_Closure.md`** — Batch 4 Closure SSOT
+5. **`작업관리/Runtime Refactoring/SESSION_HANDOFF_BATCH5.md`** — Batch 5 Handoff
 
 ---
 
-### Step 3 — Batch 4 Design 착수
+### Step 3 — Batch 5 Design 착수
 
-- 대상: CAL-002/003/005, MISC-004 — 고위험 계산 Domain 분리
-- D-008 (`calculateByProfileExpr` 직접 호출) 해소 예정 Batch
-- Batch 3 Baseline: `b7d7712`
-- **절대 금지:** Batch 5/6 선행 구현, Migration Map 변경, Batch 순서 변경
+- 대상: TRJ-001/003, RND-003, APP-009 — Trajectory Runtime (최고위험)
+- Batch 4 Baseline: `02dd47f`
+- **절대 금지:** Batch 6 선행 구현, Migration Map 변경, Batch 순서 변경
 
 ---
 
@@ -530,7 +530,7 @@ git -C "D:\3Cushion AI" status
 |----|------|-----------|
 | D-006 | SYSTEM_PROFILES 직접 접근 | Batch 6 |
 | D-007 | getAnchorsForSystem 직접 접근 | Batch 6 |
-| D-008 | calculateByProfileExpr 직접 호출 | **Batch 4** |
+| D-008 | calculateByProfileExpr 직접 호출 | **✅ Closed (Batch 4)** |
 
 ---
 
@@ -540,7 +540,8 @@ git -C "D:\3Cushion AI" status
 |------|------|
 | Project SSOT | `작업관리/PROJECT_MASTER_INDEX.md` |
 | 작업 로그 | `작업관리/HISTORY/PROJECT_LOG_2026-07.md` |
-| **Batch 3 Design SSOT** | **`작업관리/Runtime Refactoring/Batch03/Batch3_Design.md`** |
+| **Batch 4 Closure SSOT** | **`작업관리/Runtime Refactoring/Batch04/Batch4_Closure.md`** |
+| **Batch 5 Handoff** | **`작업관리/Runtime Refactoring/SESSION_HANDOFF_BATCH5.md`** |
 | Migration Blueprint | `AAS v2.0/App_Migration_Map.md` |
 | Architecture Constitution | `AAS v2.0/Architecture_Constitution.md` |
 | Architecture Dictionary | `AAS v2.0/Architecture_Dictionary.md` |
@@ -550,4 +551,4 @@ git -C "D:\3Cushion AI" status
 
 ---
 
-*End of Handoff — Batch 2 Complete / Batch 3 Design Implementation Ready / STEP 3-1 착수 대기*
+*End of Handoff — Batch 4 Complete / Batch 5 Design Ready*
