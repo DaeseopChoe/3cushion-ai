@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
+import { resolveSlotSys } from "./domain/system/slotSysViewModel";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
 import {
   adminSysShallowEqual,
@@ -835,22 +836,23 @@ export default function App({
   }
 
   /** 궤적/앵커 렌더 SSOT: 활성 슬롯의 sys만 사용 (adminState.sys / view.ui.system 혼합 금지) */
-  const resolvedSlotSys = useMemo(() => {
-    if (appMode === "USER") {
-      if (!userTableDisplaySlotId) return null;
-      const slot = shotEditor.slots[userTableDisplaySlotId];
-      return resolveSlotSysForRender(slot) ?? null;
-    }
-    if (appMode === "ADMIN" && !adminTableLayersVisible) return null;
-    const slot = shotEditor.slots[shotEditor.activeSlot];
-    return resolveSlotSysForRender(slot) ?? null;
-  }, [
-    appMode,
-    userTableDisplaySlotId,
-    adminTableLayersVisible,
-    shotEditor.slots,
-    shotEditor.activeSlot,
-  ]);
+  const resolvedSlotSys = useMemo(
+    () =>
+      resolveSlotSys({
+        appMode,
+        userTableDisplaySlotId,
+        adminTableLayersVisible,
+        slots: shotEditor.slots,
+        activeSlot: shotEditor.activeSlot,
+      }),
+    [
+      appMode,
+      userTableDisplaySlotId,
+      adminTableLayersVisible,
+      shotEditor.slots,
+      shotEditor.activeSlot,
+    ]
+  );
 
   /** Render SSOT: active slot container (sync on paint; not adminState.sys mirror). */
   const slotRenderSys = useMemo(() => {
