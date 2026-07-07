@@ -111,22 +111,7 @@ import {
 import { buildUserTrajectoryCardModel } from "./domain/userTrajectoryCardViewModel";
 import UserTrajectoryInfoCard from "./components/user/UserTrajectoryInfoCard";
 import { useUserToast } from "./hooks/useUserToast";
-import { createStrategyEntry } from "./domain/adminSaveEngine";
-import {
-  MERGE_EPSILON,
-  normalizeTargetBallForKey,
-  upsertPositionRecord,
-} from "./domain/positionMergeEngine";
-import {
-  applySchemaVersionToDatasetRecord,
-  attachCanonicalFieldsToStrategyEntry,
-  getPersistableBaseSysInputs,
-  normalizeCanonicalSaveDraft,
-  toCanonicalStrategyEntry,
-} from "./domain/canonicalStrategy";
-import { logCanonicalPersistAudit } from "./domain/canonicalPersistAudit";
-import { evaluateStrategy } from "./domain/evaluateStrategy";
-import { makeSignature } from "./domain/strategySignature";
+import { normalizeTargetBallForKey } from "./domain/positionMergeEngine";
 import { computeSystemFromPositions, sysValuesToAnchors } from "./domain/systemEngine";
 import {
   getAnchorsForRendering,
@@ -166,6 +151,7 @@ import { runUserSearchReset } from "./application/flows/resetFlow";
 import { runAdminLocalDbRecall } from "./application/flows/adminLocalDbFlow";
 import { runAdminSearch } from "./application/flows/adminSearchFlow";
 import { runUserSearch } from "./application/flows/userSearchFlow";
+import { runSaveStrategy } from "./application/flows/saveFlow";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
@@ -2016,207 +2002,26 @@ export default function App({
     isAdminTargetReady,
   });
 
-  const evalForSave = (args) =>
-    evaluateStrategy({
-      balls: args.balls,
-      sysInputs: args.sysInputs,
-      signature: args.signature,
-      systemId: args.signature.systemId,
-      profile: SYSTEM_PROFILES[args.signature.systemId],
-      anchorsData: getAnchorsForSystem(args.signature.systemId),
-      hpT: { T: adminState.hpt?.T ?? "8/8" },
-      trackId: args.track ?? "B2T_L",
-    });
-
+  /** Strategy Save — SRCH-005 + DS-002 → saveFlow.runSaveStrategy */
   function handleSaveStrategy(aiOverride = null) {
-    console.log("[SAVE] START");
-
-    const slotId = shotEditor.activeSlot;
-    const slot = shotEditor.slots[slotId];
-    const applied = slot?.applied ?? null;
-    const draft = slot?.draft ?? null;
-
-    const appliedForSave = {
-      ...(applied ?? {}),
-      sys: applied?.sys ?? draft?.sys,
-      hpt: applied?.hpt ?? draft?.hpt,
-      str: applied?.str ?? draft?.str,
-      ai: applied?.ai ?? draft?.ai,
-    };
-
-    const persistBaseSysInputs = getPersistableBaseSysInputs(
-      adminState?.sys,
-      appliedForSave?.sys ?? undefined
-    );
-
-    const sys = appliedForSave.sys;
-
-    console.log("[SAVE] slotId:", slotId);
-    console.log("[SAVE] adminState:", adminState);
-    console.log("[SAVE] slot:", slot);
-    console.log("[SAVE] sys:", sys);
-    console.log("[SAVE] persistBaseSysInputs:", persistBaseSysInputs);
-    console.log("[SAVE] dataset length:", dataset?.length);
-
-    if (!ballsState?.cue) {
-      console.log("[SAVE] EARLY RETURN: missing-balls-state-cue");
-      return { ok: false, reason: "missing-balls-state-cue" };
-    }
-
-    if (Object.keys(persistBaseSysInputs).length === 0) {
-      console.log("[SAVE] EARLY RETURN: missing-persistable-base-sys-inputs");
-      return { ok: false, reason: "missing-persistable-base-sys-inputs" };
-    }
-
-    const systemId =
-      sys?.systemId ??
-      sys?.system_id ??
-      adminState?.sys?.systemId ??
-      adminState?.sys?.system_id ??
-      adminState?.sys?.system ??
-      "5_half_system";
-    const profile = SYSTEM_PROFILES[systemId];
-    const formulaHash = (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
-    const shotType =
-      normalizePublishedShotTypeHint(adminState?.sys?.shotType) ??
-      normalizePublishedShotTypeHint(
-        extractSlotRuntimeMeta(shotEditor.slots[slotId]).shotType
-      ) ??
-      "default";
-    const signature = makeSignature({ systemId, formulaHash, shotType });
-    console.log("[SAVE] signature:", signature);
-
-    const safe = (obj) => {
-      if (obj === undefined || obj === null) return obj;
-      try {
-        return JSON.parse(JSON.stringify(obj));
-      } catch (e) {
-        console.warn("[SAVE] safe clone failed:", e);
-        return undefined;
-      }
-    };
-
-    const ball3ForDataset = normalizeBallsToBall3(ballsState);
-    const cleanBall3 = safe(ball3ForDataset) ?? ball3ForDataset;
-    console.log("[SAVE] ball3ForDataset (ballsState SSOT):", ball3ForDataset);
-    const datasetTargetBall =
-      targetColor === "red" || targetColor === "yellow" ? targetColor : undefined;
-
-    const canonicalDraft = normalizeCanonicalSaveDraft(
-      toCanonicalStrategyEntry({
-        slotId,
-        signature,
-        applied: appliedForSave,
-        adminSys: adminState?.sys,
-      })
-    );
-    console.log("[CANONICAL_SAVE]", canonicalDraft);
-
-    const cleanHpt = safe(canonicalDraft.hpT);
-    const cleanStr = safe(canonicalDraft.str);
-    const cleanAi = safe(aiOverride ?? canonicalDraft.ai);
-
-    console.log("[SAVE] Creating StrategyEntry");
-    let strategy;
-    try {
-      const baseEntry = createStrategyEntry({
-        slot: slotId,
-        signature: canonicalDraft.signature,
-        sysInputs: canonicalDraft.sysInputs,
-        hpT: cleanHpt,
-        str: cleanStr,
-        ai: cleanAi,
-        balls: cleanBall3,
-        track: canonicalDraft.track,
-        evaluateStrategy: evalForSave,
-      });
-      strategy = attachCanonicalFieldsToStrategyEntry(baseEntry, canonicalDraft);
-      console.log("[SAVE] strategy JSON check:", JSON.stringify(strategy));
-    } catch (e) {
-      console.error("[SAVE] createStrategyEntry 에러:", e);
-      throw e;
-    }
-
-    console.log("[SAVE] Running upsertPositionRecord");
-    let updated = upsertPositionRecord(
+    return runSaveStrategy({
       dataset,
-      ball3ForDataset,
-      strategy,
-      MERGE_EPSILON,
-      datasetTargetBall
-    );
-    updated = applySchemaVersionToDatasetRecord(updated, cleanBall3);
-    console.log("[SAVE] updated length:", updated?.length);
-
-    const savedRecord = updated.find((r) => {
-      const s = r.strategies?.[slotId];
-      return s != null;
+      ballsState,
+      adminState,
+      activeSlot: shotEditor.activeSlot,
+      slots: shotEditor.slots,
+      targetColor,
+      aiOverride,
+      system,
+      resolvedSlotSysValues,
+      autoSave,
+      saveWorkingDataset,
+      setDataset,
+      setUserPublishedSearchContext,
+      setAdminState,
+      patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
+      saveToFile,
     });
-    const savedStrategy = savedRecord?.strategies?.[slotId] ?? strategy;
-
-    logCanonicalPersistAudit({
-      slotId,
-      strategy: savedStrategy,
-      dataset: updated,
-      boundary: {
-        adminInputs: adminState?.sys?.inputs,
-        appliedInputs: appliedForSave?.sys?.inputs,
-        canonicalSysInputs: canonicalDraft.sysInputs,
-        adminCorrections: adminState?.sys?.corrections,
-        systemValues: adminState?.sys?.system_values,
-      },
-      effectiveRenderKeys: Object.keys(resolvedSlotSysValues || {}),
-    });
-
-    setDataset(updated);
-
-    actions.patchSlotRuntimeMeta(slotId, {
-      targetBall:
-        targetColor === "red" || targetColor === "yellow" ? targetColor : null,
-    });
-
-    console.log("[SAVE] Saving dataset to localStorage");
-    if (import.meta.env.DEV) {
-      console.log("[SAVE] persist strategy sample:", JSON.stringify(savedStrategy, null, 2));
-    }
-    try {
-      localStorage.setItem("positions_dataset", JSON.stringify(updated));
-      console.log("[SAVE] localStorage 저장 완료");
-    } catch (e) {
-      console.warn("[SAVE] Failed to save positions_dataset", e);
-    }
-
-    const persistedShotType = normalizePublishedShotTypeHint(shotType);
-    if (persistedShotType) {
-      setUserPublishedSearchContext({
-        shotType: persistedShotType,
-        systemId,
-      });
-      setAdminState((prev) => ({
-        ...prev,
-        sys: {
-          ...prev.sys,
-          shotType: persistedShotType,
-          systemId,
-          system_id: systemId,
-          system,
-        },
-      }));
-      console.log("[SAVE] published leaf context persisted", {
-        shotType: persistedShotType,
-        systemId,
-      });
-    }
-
-    if (autoSave) {
-      saveToFile({
-        version: "1.0",
-        saved_at: new Date().toISOString(),
-        dataset: updated,
-      });
-    }
-
-    return { ok: true, updated };
   }
 
   /** 우측 SAVE: strategy persistence → workspace_history append (snapshot.dataset = result.updated) */
