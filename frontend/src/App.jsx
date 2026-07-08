@@ -114,19 +114,11 @@ import {
   coStartForCushionPath,
   firstRailHitTowardTarget,
 } from "./domain/trajectory/pathNodeHelpers";
+import { resolveReflectionC2 } from "./domain/trajectory/reflectionPolicy";
 
 function ingestBaselineP043Debug(location, message, data, hypothesisId) {
   console.log(message, data);
 }
-import {
-  computeReflectionC2,
-  detectRail,
-  angleDeg,
-  resolveSignedSpinDeg,
-  chooseCandidateRail,
-  intersectRayWithRail,
-  directionFromAngleDeg,
-} from "./domain/reflectionEngine";
 import {
   loadWorkingDataset,
   saveWorkingDataset,
@@ -4020,13 +4012,14 @@ function handlePointerCancel(e) {
 
       let C2_bb = anchorsBase["C2"];
       if (!C2_bb && CO_rail_bb && C1_rail_bb && C3_snapped_bb) {
-        const refBb = computeReflectionC2({
+        const refBb = resolveReflectionC2({
           co: CO_rail_bb,
           c1: C1_rail_bb,
           c3: C3_snapped_bb,
           tip: currentTip ?? null,
           track: trackForAnchors ?? undefined,
           manualHint: c2ManualHint ?? null,
+          systemId: systemIdForGrid,
         });
         C2_bb = refBb?.c2 ?? null;
       }
@@ -4047,207 +4040,17 @@ function handlePointerCancel(e) {
       : C3_anchor);
   const C3_snapped = snapToRail(C3_point) ?? C3_point;
 
-  if (anchors["C2"]) {
-    console.log("[C2_ANALYZE] C2 from anchors (stored), reflection skip", {
-      "anchors[C2]": anchors["C2"],
-    });
-  }
-
   const reflected =
     !anchors["C2"] && CO_rail && C1_rail && C3_snapped
-      ? (() => {
-          const c1Rail = detectRail(C1_rail);
-          const c3Rail = detectRail(C3_snapped);
-          if (!c1Rail || !c3Rail) {
-            console.log("[C2_ANALYZE] input (rail detection failed)", {
-              CO_rail,
-              C1_rail,
-              C3_original: C3_point,
-              C3_snapped,
-              c1Rail,
-              c3Rail,
-            });
-            console.log("[C2_ANALYZE] failure summary", {
-              railDetection: "FAIL",
-              snapImpact: "N/A",
-              rayDirection: "N/A",
-              railOrdering: "N/A",
-              intersectionState: "N/A",
-              segmentCheck: "N/A",
-              guardBlocked: "N/A",
-              primaryCause: "Rail Detection 실패",
-            });
-            return computeReflectionC2({
-              co: CO_rail,
-              c1: C1_rail,
-              c3: C3_snapped,
-              tip: currentTip ?? null,
-              track: trackForAnchors ?? undefined,
-              manualHint: c2ManualHint ?? null,
-            });
-          }
-          const thetaInDeg = angleDeg(CO_rail, C1_rail);
-          const spinAdjustDeg = resolveSignedSpinDeg(
-            trackForAnchors,
-            currentTip ?? null,
-            c2ManualHint?.deltaAngleDeg ?? 0
-          );
-          const thetaOutDeg = thetaInDeg + spinAdjustDeg;
-          const chosen = chooseCandidateRail(
-            c1Rail,
-            trackForAnchors,
-            c2ManualHint?.preferredRail
-          );
-          const orderedRails = [
-            chosen.rail,
-            ...chosen.candidates.filter((r) => r !== chosen.rail),
-          ];
-
-          const dx_snap = C3_point && C3_snapped
-            ? Math.abs(C3_point.x - C3_snapped.x)
-            : 0;
-          const dy_snap = C3_point && C3_snapped
-            ? Math.abs(C3_point.y - C3_snapped.y)
-            : 0;
-
-          const dir_C1_to_C3 = (() => {
-            const dx = C3_snapped.x - C1_rail.x;
-            const dy = C3_snapped.y - C1_rail.y;
-            const len = Math.hypot(dx, dy);
-            if (len < 1e-9) return { x: 0, y: 0 };
-            return { x: dx / len, y: dy / len };
-          })();
-          const ray = directionFromAngleDeg(thetaOutDeg);
-          const dotDirRay = dir_C1_to_C3.x * ray.dx + dir_C1_to_C3.y * ray.dy;
-
-          const profile = SYSTEM_PROFILES?.[systemIdForGrid];
-          const m_min = profile?.safety?.m_min ?? 0.05;
-          const theta_t_max = profile?.safety?.theta_t_max ?? 68;
-
-          const B2T_R_expected = ["RIGHT", "BOTTOM", "LEFT"];
-          const railOrderingOk =
-            trackForAnchors === "B2T_R"
-              ? JSON.stringify(orderedRails) === JSON.stringify(B2T_R_expected)
-              : true;
-
-          console.log("[C2_ANALYZE] input", {
-            CO_rail,
-            C1_rail,
-            C3_original: C3_point,
-            C3_snapped,
-            dx_snap,
-            dy_snap,
-            dir_C1_to_C3,
-            ray,
-            dotDirRay,
-            rayDirectionReversed: dotDirRay < 0,
-            c1Rail,
-            c3Rail,
-            thetaInDeg,
-            spinAdjustDeg,
-            thetaOutDeg,
-            orderedRails,
-            selectedBy: chosen.selectedBy,
-            railOrderingOk,
-            B2T_R_expected: trackForAnchors === "B2T_R" ? B2T_R_expected : null,
-            m_min,
-            theta_t_max,
-          });
-
-          const RG_W = 80;
-          const RG_H = 40;
-
-          const triedRails = orderedRails.map((rail) => {
-            const p = intersectRayWithRail(C1_rail, thetaOutDeg, rail);
-            const { dx, dy } = (() => {
-              const rad = (thetaOutDeg * Math.PI) / 180;
-              return { dx: Math.cos(rad), dy: Math.sin(rad) };
-            })();
-            let rejectedReason = null;
-            let segmentOk = null;
-            if (!p) {
-              if (rail === "TOP" || rail === "BOTTOM") {
-                rejectedReason = Math.abs(dy) < 1e-9 ? "평행(ray 수평)" : "t<=0 또는 세그먼트 밖";
-              } else {
-                rejectedReason = Math.abs(dx) < 1e-9 ? "평행(ray 수직)" : "t<=0 또는 세그먼트 밖";
-              }
-            } else {
-              segmentOk =
-                p.x >= 0 && p.x <= RG_W && p.y >= 0 && p.y <= RG_H;
-            }
-            return {
-              rail,
-              candidateIntersection: p,
-              rejectedReason: p ? null : rejectedReason,
-              segmentOk: p ? segmentOk : null,
-            };
-          });
-
-          triedRails.forEach((tr) => {
-            console.log("[C2_ANALYZE] rail candidate", {
-              rail: tr.rail,
-              lineFrom: C1_rail,
-              lineTo: C3_snapped,
-              candidateIntersection: tr.candidateIntersection,
-              rejectedReason: tr.rejectedReason,
-              segmentOk: tr.segmentOk,
-            });
-          });
-
-          const result = computeReflectionC2({
-            co: CO_rail,
-            c1: C1_rail,
-            c3: C3_snapped,
-            tip: currentTip ?? null,
-            track: trackForAnchors ?? undefined,
-            manualHint: c2ManualHint ?? null,
-          });
-
-          const hasIntersection = triedRails.some((t) => t.candidateIntersection != null);
-          const anySegmentOutside =
-            triedRails.some(
-              (t) => t.candidateIntersection != null && t.segmentOk === false
-            );
-          const guardBlocked =
-            Math.abs(thetaOutDeg) > theta_t_max;
-
-          const snapImpact =
-            dy_snap <= 3 && dx_snap < 0.01 ? "NONE" : dy_snap > 5 || dx_snap > 2 ? "LARGE" : "SMALL";
-
-          if (!result) {
-            let primaryCause = "unknown";
-            if (!c1Rail || !c3Rail) primaryCause = "Rail Detection 실패";
-            else if (dotDirRay < 0) primaryCause = "Ray 방향 반대";
-            else if (!railOrderingOk) primaryCause = "Rail ordering 오류";
-            else if (!hasIntersection) primaryCause = "모든 rail 교차점 없음";
-            else if (anySegmentOutside) primaryCause = "Segment 범위 밖";
-            else if (guardBlocked) primaryCause = "Reflection guard 차단";
-            else if (snapImpact === "LARGE") primaryCause = "C3 snap 영향";
-            else primaryCause = "교차 판정 조건 문제";
-
-            console.log("[C2_ANALYZE] failure summary", {
-              railDetection: c1Rail && c3Rail ? "OK" : "FAIL",
-              snapImpact,
-              rayDirection: dotDirRay >= 0 ? "OK" : "REVERSED",
-              railOrdering: railOrderingOk ? "OK" : "WRONG",
-              intersectionState: hasIntersection ? "EXISTS" : "NONE",
-              segmentCheck: anySegmentOutside ? "OUTSIDE" : "OK",
-              guardBlocked: guardBlocked ? "YES" : "NO",
-              primaryCause,
-              c2Candidates: triedRails
-                .filter((t) => t.candidateIntersection)
-                .map((t) => ({ rail: t.rail, point: t.candidateIntersection })),
-              triedRails: triedRails.map((t) => ({
-                rail: t.rail,
-                intersection: t.candidateIntersection,
-                rejectedReason: t.rejectedReason,
-                segmentOk: t.segmentOk,
-              })),
-            });
-          }
-
-          return result;
-        })()
+      ? resolveReflectionC2({
+          co: CO_rail,
+          c1: C1_rail,
+          c3: C3_snapped,
+          tip: currentTip ?? null,
+          track: trackForAnchors ?? undefined,
+          manualHint: c2ManualHint ?? null,
+          systemId: systemIdForGrid,
+        })
       : null;
 
   const C2 = anchors["C2"] ?? reflected?.c2 ?? null;
