@@ -63,7 +63,6 @@ import {
   c1ArrivalRailForTrack,
   coDepartureRailForTrack,
   projectPointToRail,
-  snapToRail,
 } from "./utils/geometry/rail";
 import {
   normalizeAnchor,
@@ -105,15 +104,8 @@ import {
 import { getAnchorCoordFromSys } from "./domain/anchorLookupEngine";
 import { buildBaselineDraftApplyDelta } from "./domain/buildBaselineDraftApplyDelta";
 import {
-  resolveTrajectoryDisplayCap,
-  slicePathNodesToCap,
-} from "./domain/trajectoryPathDisplayPolicy";
-import {
-  anchorSemanticForPath,
   coStartForCushionPath,
-  firstRailHitTowardTarget,
 } from "./domain/trajectory/pathNodeHelpers";
-import { resolveReflectionC2 } from "./domain/trajectory/reflectionPolicy";
 import { buildTrajectory } from "./domain/trajectory/trajectoryBuilder";
 
 function ingestBaselineP043Debug(location, message, data, hypothesisId) {
@@ -3944,6 +3936,7 @@ function handlePointerCancel(e) {
 
   const trajectoryBuild = buildTrajectory({
     anchors,
+    anchorsBase,
     rawAnchors,
     resolveAnchorCtx,
     balls,
@@ -3970,6 +3963,8 @@ function handlePointerCancel(e) {
       c1Line,
       useCurveDeform,
     },
+    baseline,
+    handles,
     impact: { raw: impactRaw, contactRg: impactContactRg },
     labels: { anchorSources },
     meta: {
@@ -3988,68 +3983,6 @@ function handlePointerCancel(e) {
 
   if (reflectedDiagnostics && canEdit) {
     console.log("🔷 C2 reflection fallback:", reflectedDiagnostics);
-  }
-
-  /** Base Line 앞구간(CO→C1→C2): anchorsBase 전용 레일 교점 */
-  let CO_path0_base = null;
-  let C1_rail_base = null;
-  let C2_path_base = null;
-  if (anchorsBase) {
-    const CO_anchor_bb = normalizeAnchor(anchorsBase.CO);
-    const C1_anchor_bb = normalizeAnchor(anchorsBase["C1"]);
-    const CO_prep_bb = resolveAnchorPoint(CO_anchor_bb, resolveAnchorCtx);
-    const C1_prep_bb = resolveAnchorPoint(C1_anchor_bb, resolveAnchorCtx);
-    if (CO_prep_bb && C1_prep_bb) {
-      let CO_rail_bb = CO_prep_bb;
-      const isBottomCO_bb = Math.abs(CO_prep_bb.y + 2.25) < 0.5;
-      if (isBottomCO_bb) {
-        const ptCO = computeRailImpactPoint(CO_prep_bb, C1_prep_bb, {
-          ...resolveAnchorCtx,
-          mark: "CO",
-        });
-        if (ptCO) CO_rail_bb = ptCO;
-      }
-      const C1_rail_bb = computeRailImpactPoint(CO_prep_bb, C1_prep_bb, {
-        ...resolveAnchorCtx,
-        mark: "C1",
-      });
-      CO_path0_base = coStartForCushionPath(CO_rail_bb, CO_prep_bb, C1_prep_bb);
-      C1_rail_base = C1_rail_bb;
-
-      const C3_anchor_bb = anchorsBase["C3"];
-      const C3_prep_bb = resolveAnchorPoint(
-        normalizeAnchor(C3_anchor_bb),
-        resolveAnchorCtx
-      );
-      const C3_point_bb =
-        C3_prep_bb ??
-        (C3_anchor_bb &&
-        typeof C3_anchor_bb === "object" &&
-        "coord" in C3_anchor_bb &&
-        C3_anchor_bb.coord
-          ? C3_anchor_bb.coord
-          : C3_anchor_bb);
-      const C3_snapped_bb = snapToRail(C3_point_bb) ?? C3_point_bb;
-
-      let C2_bb = anchorsBase["C2"];
-      if (!C2_bb && CO_rail_bb && C1_rail_bb && C3_snapped_bb) {
-        const refBb = resolveReflectionC2({
-          co: CO_rail_bb,
-          c1: C1_rail_bb,
-          c3: C3_snapped_bb,
-          tip: currentTip ?? null,
-          track: trackForAnchors ?? undefined,
-          manualHint: c2ManualHint ?? null,
-          systemId: systemIdForGrid,
-        });
-        C2_bb = refBb?.c2 ?? null;
-      }
-      const c2Sem_bb = anchorSemanticForPath(C2_bb, resolveAnchorCtx);
-      C2_path_base =
-        C1_rail_base && c2Sem_bb
-          ? firstRailHitTowardTarget(C1_rail_base, c2Sem_bb)
-          : null;
-    }
   }
 
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
@@ -4097,24 +4030,8 @@ function handlePointerCancel(e) {
     "C1_rail (SSOT)": C1_rail
   });
 
-  const secondPoint =
-    (() => {
-      const yellowBall = getYellowBallCoords(balls);
-      const redBall = getRedBallCoords(balls);
-      const secondBall =
-        targetColor === "red"
-          ? yellowBall
-          : targetColor === "yellow"
-            ? redBall
-            : redBall ?? yellowBall ?? null;
-      return secondBall &&
-        Number.isFinite(secondBall.x) &&
-        Number.isFinite(secondBall.y)
-        ? { x: secondBall.x, y: secondBall.y }
-        : null;
-    })();
-
-  let capBaseline = capCorrected;
+  const capBaseline = baseline?.cap ?? capCorrected;
+  const cushionPathBaselineRg = baseline?.cushionPath ?? null;
 
   const rgSample = (arr, n) =>
     !Array.isArray(arr) || arr.length === 0
@@ -4154,85 +4071,8 @@ function handlePointerCancel(e) {
 
 
   let cushionPathAttrBase = null;
-  /** Base Line ON 시 궤적 소스 — slide/draw/curve/spin 0·Sn 유지 슬롯과 동일 레일 교점 열 */
-  let cushionPathBaselineRg = null;
-  if (anchorsBase && CO_path0_base && C1_rail_base) {
-    const C3_anchor_b = anchorsBase["C3"];
-    const C3_prep_b = resolveAnchorPoint(normalizeAnchor(C3_anchor_b), resolveAnchorCtx);
-    const C3_point_b =
-      C3_prep_b ??
-      (C3_anchor_b &&
-      typeof C3_anchor_b === "object" &&
-      "coord" in C3_anchor_b &&
-      C3_anchor_b.coord
-        ? C3_anchor_b.coord
-        : C3_anchor_b);
-    const C4_anchor_b = anchorsBase["C4"];
-    const C4_prep_b = resolveAnchorPoint(normalizeAnchor(C4_anchor_b), resolveAnchorCtx);
-    const C4_point_b =
-      C4_prep_b ??
-      (C4_anchor_b &&
-      typeof C4_anchor_b === "object" &&
-      "coord" in C4_anchor_b &&
-      C4_anchor_b.coord
-        ? C4_anchor_b.coord
-        : C4_anchor_b);
-    const C5_anchor_b = anchorsBase["C5"];
-    const C5_prep_b = resolveAnchorPoint(normalizeAnchor(C5_anchor_b), resolveAnchorCtx);
-    const C5_point_b =
-      C5_prep_b ??
-      (C5_anchor_b &&
-      typeof C5_anchor_b === "object" &&
-      "coord" in C5_anchor_b &&
-      C5_anchor_b.coord
-        ? C5_anchor_b.coord
-        : C5_anchor_b);
-    const C6_anchor_b = anchorsBase["C6"];
-    const C6_prep_b = resolveAnchorPoint(normalizeAnchor(C6_anchor_b), resolveAnchorCtx);
-    const C6_point_b =
-      C6_prep_b ??
-      (C6_anchor_b &&
-      typeof C6_anchor_b === "object" &&
-      "coord" in C6_anchor_b &&
-      C6_anchor_b.coord
-        ? C6_anchor_b.coord
-        : C6_anchor_b);
-
-    const c3Sem_b = C3_point_b ?? anchorSemanticForPath(C3_anchor_b, resolveAnchorCtx);
-    const c4Sem_b = C4_point_b ?? anchorSemanticForPath(C4_anchor_b, resolveAnchorCtx);
-    const c5Sem_b = C5_point_b ?? anchorSemanticForPath(C5_anchor_b, resolveAnchorCtx);
-    const c6Sem_b = C6_point_b ?? anchorSemanticForPath(C6_anchor_b, resolveAnchorCtx);
-
-    const C3_path_b =
-      C2_path_base && c3Sem_b
-        ? firstRailHitTowardTarget(C2_path_base, c3Sem_b)
-        : null;
-    const C4_path_b =
-      C3_path_b && c4Sem_b ? firstRailHitTowardTarget(C3_path_b, c4Sem_b) : null;
-    const C5_path_b =
-      C4_path_b && c5Sem_b ? firstRailHitTowardTarget(C4_path_b, c5Sem_b) : null;
-    const C6_path_b =
-      C5_path_b && c6Sem_b ? firstRailHitTowardTarget(C5_path_b, c6Sem_b) : null;
-
-    const pathNodesBase = [
-      CO_path0_base,
-      C1_rail_base,
-      C2_path_base,
-      C3_path_b,
-      C4_path_b,
-      C5_path_b,
-      C6_path_b,
-    ];
-
-    capBaseline = resolveTrajectoryDisplayCap(
-      pathNodesBase,
-      secondPoint,
-      HIT_TOLERANCE
-    );
-    const cushionPathBase = slicePathNodesToCap(pathNodesBase, capBaseline);
-
-    cushionPathBaselineRg = cushionPathBase;
-    cushionPathAttrBase = cushionPathBase
+  if (cushionPathBaselineRg) {
+    cushionPathAttrBase = cushionPathBaselineRg
       .map((pt) => {
         const p = toPx(pt, SCALE, TABLE_H);
         return `${p.x + PADDING},${p.y + PADDING}`;
@@ -4240,19 +4080,8 @@ function handlePointerCancel(e) {
       .join(" ");
   }
 
-  baselineCoHandleRgRef.current =
-    cushionPathBaselineRg?.[0] &&
-    Number.isFinite(cushionPathBaselineRg[0].x) &&
-    Number.isFinite(cushionPathBaselineRg[0].y)
-      ? { x: cushionPathBaselineRg[0].x, y: cushionPathBaselineRg[0].y }
-      : null;
-
-  baselineC1HandleRgRef.current =
-    cushionPathBaselineRg?.[1] &&
-    Number.isFinite(cushionPathBaselineRg[1].x) &&
-    Number.isFinite(cushionPathBaselineRg[1].y)
-      ? { x: cushionPathBaselineRg[1].x, y: cushionPathBaselineRg[1].y }
-      : null;
+  baselineCoHandleRgRef.current = handles.coRg;
+  baselineC1HandleRgRef.current = handles.c1Rg;
 
   let effectiveCushionPathBaselineRg = cushionPathBaselineRg;
   if (

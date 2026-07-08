@@ -1,9 +1,9 @@
 /**
  * trajectoryBuilder.ts
- * TRJ-001 (Batch 5 STEP 5-3) — Trajectory Runtime SSOT (corrected path).
+ * TRJ-001 (Batch 5 STEP 5-3/5-4) — Trajectory Runtime SSOT.
  *
  * Domain Runtime only. Single entry: buildTrajectory().
- * Baseline branch: STEP 5-4.
+ * Corrected + baseline branches (AD-B5-06).
  */
 
 import { calcImpactBall } from "../../data/system/calculator";
@@ -33,8 +33,15 @@ import { resolveReflectionC2 } from "./reflectionPolicy";
 
 const DEFAULT_CURVE_EPS = 1e-6;
 
+export type BaselinePathBundle = {
+  pathNodes: (PathPoint | null)[];
+  cushionPath: PathPoint[];
+  cap: TrajectoryDisplayCap;
+};
+
 export type TrajectoryBuildInput = {
   anchors: Record<string, unknown>;
+  anchorsBase?: Record<string, unknown> | null;
   rawAnchors: Record<string, unknown>;
   resolveAnchorCtx: ResolveAnchorContext;
   balls: {
@@ -85,7 +92,7 @@ export type TrajectoryBuildResult = {
     c1Line: PathPoint | null;
     useCurveDeform: boolean;
   };
-  baseline: null;
+  baseline: BaselinePathBundle | null;
   impact: {
     raw: PathPoint | null;
     contactRg: PathPoint | null;
@@ -179,6 +186,173 @@ function resolveTargetBall(
   return balls.target_center ?? balls.target ?? null;
 }
 
+function resolveAnchorPointOrCoord(
+  anchor: unknown,
+  resolveAnchorCtx: ResolveAnchorContext
+): PathPoint | null {
+  const prep = resolveAnchorPoint(normalizeAnchor(anchor), resolveAnchorCtx);
+  if (prep) return prep;
+  if (
+    anchor &&
+    typeof anchor === "object" &&
+    "coord" in anchor &&
+    (anchor as { coord?: PathPoint }).coord
+  ) {
+    return (anchor as { coord: PathPoint }).coord;
+  }
+  return (anchor as PathPoint | null) ?? null;
+}
+
+function baselineHandleFromPath(
+  pt: PathPoint | null | undefined
+): PathPoint | null {
+  if (
+    pt &&
+    Number.isFinite(pt.x) &&
+    Number.isFinite(pt.y)
+  ) {
+    return { x: pt.x, y: pt.y };
+  }
+  return null;
+}
+
+/** Baseline path branch — anchorsBase SSOT (STEP 5-4). */
+function buildBaselineBranch(
+  anchorsBase: Record<string, unknown> | null | undefined,
+  resolveAnchorCtx: ResolveAnchorContext,
+  currentTip: TipInput | null,
+  c2ManualHint: TrajectoryBuildInput["c2ManualHint"],
+  systemIdForGrid: string | undefined,
+  trackForAnchors: string | undefined,
+  secondPoint: PathPoint | null,
+  hitTolerance: number
+): BaselinePathBundle | null {
+  if (!anchorsBase) {
+    return null;
+  }
+
+  const CO_anchor_bb = normalizeAnchor(anchorsBase.CO);
+  const C1_anchor_bb = normalizeAnchor(anchorsBase["C1"]);
+  const CO_prep_bb = resolveAnchorPoint(CO_anchor_bb, resolveAnchorCtx);
+  const C1_prep_bb = resolveAnchorPoint(C1_anchor_bb, resolveAnchorCtx);
+
+  if (!CO_prep_bb || !C1_prep_bb) {
+    return null;
+  }
+
+  let CO_rail_bb: PathPoint = CO_prep_bb;
+  const isBottomCO_bb = Math.abs(CO_prep_bb.y + 2.25) < 0.5;
+  if (isBottomCO_bb) {
+    const ptCO = computeRailImpactPoint(CO_prep_bb, C1_prep_bb, {
+      ...resolveAnchorCtx,
+      mark: "CO",
+    });
+    if (ptCO) CO_rail_bb = ptCO;
+  }
+
+  const C1_rail_bb = computeRailImpactPoint(CO_prep_bb, C1_prep_bb, {
+    ...resolveAnchorCtx,
+    mark: "C1",
+  });
+  const CO_path0_base = coStartForCushionPath(
+    CO_rail_bb,
+    CO_prep_bb,
+    C1_prep_bb
+  );
+  const C1_rail_base = C1_rail_bb;
+
+  if (!CO_path0_base || !C1_rail_base) {
+    return null;
+  }
+
+  const C3_anchor_bb = anchorsBase["C3"];
+  const C3_prep_bb = resolveAnchorPoint(
+    normalizeAnchor(C3_anchor_bb),
+    resolveAnchorCtx
+  );
+  const C3_point_bb =
+    C3_prep_bb ?? resolveAnchorPointOrCoord(C3_anchor_bb, resolveAnchorCtx);
+  const C3_snapped_bb = snapToRail(C3_point_bb) ?? C3_point_bb;
+
+  let C2_bb = anchorsBase["C2"];
+  if (!C2_bb && CO_rail_bb && C1_rail_bb && C3_snapped_bb) {
+    const refBb = resolveReflectionC2({
+      co: CO_rail_bb,
+      c1: C1_rail_bb,
+      c3: C3_snapped_bb,
+      tip: currentTip ?? null,
+      track: trackForAnchors ?? undefined,
+      manualHint: c2ManualHint ?? null,
+      systemId: systemIdForGrid,
+    });
+    C2_bb = refBb?.c2 ?? null;
+  }
+
+  const c2Sem_bb = anchorSemanticForPath(C2_bb, resolveAnchorCtx);
+  const C2_path_base =
+    C1_rail_base && c2Sem_bb
+      ? firstRailHitTowardTarget(C1_rail_base, c2Sem_bb)
+      : null;
+
+  const C3_anchor_b = anchorsBase["C3"];
+  const C3_point_b = resolveAnchorPointOrCoord(C3_anchor_b, resolveAnchorCtx);
+  const C4_anchor_b = anchorsBase["C4"];
+  const C4_point_b = resolveAnchorPointOrCoord(C4_anchor_b, resolveAnchorCtx);
+  const C5_anchor_b = anchorsBase["C5"];
+  const C5_point_b = resolveAnchorPointOrCoord(C5_anchor_b, resolveAnchorCtx);
+  const C6_anchor_b = anchorsBase["C6"];
+  const C6_point_b = resolveAnchorPointOrCoord(C6_anchor_b, resolveAnchorCtx);
+
+  const c3Sem_b =
+    C3_point_b ?? anchorSemanticForPath(C3_anchor_b, resolveAnchorCtx);
+  const c4Sem_b =
+    C4_point_b ?? anchorSemanticForPath(C4_anchor_b, resolveAnchorCtx);
+  const c5Sem_b =
+    C5_point_b ?? anchorSemanticForPath(C5_anchor_b, resolveAnchorCtx);
+  const c6Sem_b =
+    C6_point_b ?? anchorSemanticForPath(C6_anchor_b, resolveAnchorCtx);
+
+  const C3_path_b =
+    C2_path_base && c3Sem_b
+      ? firstRailHitTowardTarget(C2_path_base, c3Sem_b)
+      : null;
+  const C4_path_b =
+    C3_path_b && c4Sem_b
+      ? firstRailHitTowardTarget(C3_path_b, c4Sem_b)
+      : null;
+  const C5_path_b =
+    C4_path_b && c5Sem_b
+      ? firstRailHitTowardTarget(C4_path_b, c5Sem_b)
+      : null;
+  const C6_path_b =
+    C5_path_b && c6Sem_b
+      ? firstRailHitTowardTarget(C5_path_b, c6Sem_b)
+      : null;
+
+  const pathNodes: (PathPoint | null)[] = [
+    CO_path0_base,
+    C1_rail_base,
+    C2_path_base,
+    C3_path_b,
+    C4_path_b,
+    C5_path_b,
+    C6_path_b,
+  ];
+
+  const capBaseline = resolveTrajectoryDisplayCap(
+    pathNodes,
+    secondPoint,
+    hitTolerance
+  );
+  const cushionPath = slicePathNodesToCap(pathNodes, capBaseline);
+
+  return {
+    pathNodes,
+    cushionPath,
+    cap: capBaseline,
+  };
+}
+
 function buildCurrentTipFromAdmin(
   adminState: TrajectoryBuildInput["adminState"]
 ): TipInput | null {
@@ -196,12 +370,13 @@ function buildCurrentTipFromAdmin(
   return { hp: { x: hp.x, y: hp.y }, side };
 }
 
-/** Corrected trajectory path — Domain SSOT (STEP 5-3). Baseline: STEP 5-4. */
+/** Corrected + baseline trajectory — Domain SSOT (AD-B5-06). */
 export function buildTrajectory(
   input: TrajectoryBuildInput
 ): TrajectoryBuildResult {
   const {
     anchors,
+    anchorsBase,
     rawAnchors,
     resolveAnchorCtx,
     balls,
@@ -419,6 +594,20 @@ export function buildTrajectory(
     cushionPathForRender = cushionPath;
   }
 
+  const baseline = buildBaselineBranch(
+    anchorsBase,
+    resolveAnchorCtx,
+    currentTip ?? null,
+    c2ManualHint,
+    systemIdForGrid,
+    trackForAnchors,
+    secondPoint,
+    hitTolerance
+  );
+
+  const coRg = baselineHandleFromPath(baseline?.cushionPath[0]);
+  const c1Rg = baselineHandleFromPath(baseline?.cushionPath[1]);
+
   return {
     corrected: {
       pathNodes,
@@ -429,14 +618,14 @@ export function buildTrajectory(
       c1Line: C1_rail,
       useCurveDeform,
     },
-    baseline: null,
+    baseline,
     impact: {
       raw: impactRaw,
       contactRg: impactContactRg ?? null,
     },
     handles: {
-      coRg: null,
-      c1Rg: null,
+      coRg,
+      c1Rg,
     },
     labels: {
       anchorSources: {
