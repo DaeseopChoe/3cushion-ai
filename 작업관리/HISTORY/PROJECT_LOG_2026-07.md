@@ -1,8 +1,124 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.4  
+Version : v1.5  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-08 (Batch 5 Complete — Closure)
+
+## 제목
+
+AAS Runtime Migration Batch 5 완료 — Trajectory Runtime Domain 이전 · Release Gate PASS · Batch 6 Ready
+
+## Batch5 Summary
+
+| 항목 | 내용 |
+|------|------|
+| **목적** | App.jsx trajectory inline build 제거 · Domain Builder SSOT · Reflection Policy · Renderer/Flow/Overlay 분리 · App Orchestrator only |
+| **Design SSOT** | `Batch05/Batch5_Design.md` v1.0 (Frozen) · `Batch5_Analysis.md` v1.1 (Frozen) |
+| **완료 날짜** | 2026-07-08 |
+| **Release Gate** | **PASS** — Build · Architecture · Import Graph · ADR · Invariant · Decision Freeze 유지 |
+| **판정** | **Batch 5 Closed · Release Approved** |
+
+## 완료 STEP (5-1 ~ 5-8)
+
+| STEP | 요약 |
+|------|------|
+| **5-1** | `pathNodeHelpers.ts` — cushion path node·rail hit pure helpers (TRJ-001) |
+| **5-2** | `reflectionPolicy.ts` — C2 reflection policy SSOT, Builder delegate (TRJ-003) |
+| **5-3** | `trajectoryBuilder.ts` corrected branch — single `buildTrajectory()` entry (TRJ-001) |
+| **5-4** | `trajectoryBuilder.ts` baseline branch — corrected + baseline dual path (TRJ-001) |
+| **5-5A** | `baselineDraftState.ts` — baseline draft overlay React state (APP-009-A) |
+| **5-5B** | `baselineHandleGeometry.ts` — Rg ↔ SYS handle forward/inverse geometry (APP-009-B) |
+| **5-6** | `trajectoryPathAttrModel.ts` · `baselineHandleModel.ts` — Renderer display models (RND-003) |
+| **5-7A** | `trajectoryHydrateFlow.ts` — slot → adminState + trajectory hydrate sequence (AD-B5-07) |
+| **5-7B** | `baselineDraftApplyFlow.ts` — baseline draft Apply sequence (APP-009-C) |
+| **5-8** | App.jsx integration — thin wrapper 제거 · wiring-only · Orchestrator 정리 (APP-009) |
+
+## Commit History (9 commits)
+
+| STEP | Commit | Title |
+|------|--------|-------|
+| 5-1 | `3074b47` | feat(batch5): STEP 5-1 path node helpers (TRJ-001) |
+| 5-2 | `bf67205` | feat(batch5): STEP 5-2 reflection policy (TRJ-003) |
+| 5-3 | `c91e38b` | feat(batch5): STEP 5-3 trajectory builder corrected (TRJ-001) |
+| 5-4 | `733f972` | feat(batch5): STEP 5-4 trajectory builder baseline (TRJ-001) |
+| 5-5A | `9c00f01` | feat(batch5): STEP 5-5A baseline draft state (APP-009-A) |
+| 5-5B | `b019e18` | feat(batch5): STEP 5-5B baseline handle geometry (APP-009-B) |
+| 5-6 | `a8a9f62` | feat(batch5): STEP 5-6 baseline handle model + path attr model (RND-003) |
+| 5-7A/7B | `77cb359` | feat(batch5): STEP 5-7B baseline draft apply flow (APP-009-C) * |
+| 5-8 | `04e341b` | feat(batch5): STEP 5-8 application integration (APP-009) |
+
+\* STEP 5-7A `trajectoryHydrateFlow.ts`는 `77cb359` commit에 co-included.
+
+## 신규 파일 (Batch 5)
+
+| 파일 | Migration ID |
+|------|-------------|
+| `domain/trajectory/pathNodeHelpers.ts` | TRJ-001 |
+| `domain/trajectory/reflectionPolicy.ts` | TRJ-003 |
+| `domain/trajectory/trajectoryBuilder.ts` | TRJ-001 / AD-B5-01/02/06 |
+| `domain/trajectory/baselineHandleGeometry.ts` | APP-009-B |
+| `overlay/state/baselineDraftState.ts` | APP-009-A |
+| `renderer/trajectory/trajectoryPathAttrModel.ts` | AD-B5-09 |
+| `renderer/trajectory/baselineHandleModel.ts` | AD-B5-11 |
+| `application/flows/trajectoryHydrateFlow.ts` | AD-B5-07 |
+| `application/flows/baselineDraftApplyFlow.ts` | AD-B5-08 |
+
+## App.jsx 변화
+
+```
+Before (Batch 4) : 5,640 lines
+After  (Batch 5) : ~3,903 lines
+Delta            : ~−1,737 lines (trajectory inline → Domain/Flow/Renderer)
+역할             : Orchestrator only — buildTrajectory() 단일 호출 · Flow dispatch · Renderer wiring
+```
+
+## Architecture Achievement
+
+- **Domain Runtime Ownership** — trajectory 생성·reflection·path SSOT: `domain/trajectory/`
+- **Reflection Policy Separation** — `reflectionPolicy.ts` 경유 only (INV-B5-05)
+- **Trajectory Builder SSOT** — `buildTrajectory()` single entry (AD-B5-06)
+- **Renderer Ownership** — `TrajectoryBuildResult` 소비 only (INV-B5-02/06)
+- **Application Flow** — hydrate/apply sequencing: `trajectoryHydrateFlow` · `baselineDraftApplyFlow`
+- **Overlay Runtime** — `baselineDraftState` React state only
+- **App Orchestrator** — inline trajectory calc 0 (INV-B5-03)
+- **Single Builder Entry** — App → `buildTrajectory()` 1 call site
+- **Result SSOT** — `TrajectoryBuildResult` → Renderer · Flow context
+
+## Validation (Release Gate)
+
+| 항목 | 결과 |
+|------|------|
+| Release Gate | ✅ **PASS** |
+| Build (`npm run build`) | ✅ PASS |
+| Architecture (AD-B5-01~11) | ✅ PASS |
+| Import Graph | ✅ PASS |
+| Regression | ✅ PASS (no defects discovered) |
+| ADR | ✅ PASS |
+| Invariant (INV-B5-01~07) | ✅ PASS |
+| Decision Freeze | ✅ 유지 (Analysis/Design/Constitution/ADR 변경 없음) |
+
+Manual QA (4 systems × trajectory cases × baseline ON/OFF): Release **Blocking 아님** — Post-close Follow-up 권장.
+
+## Remaining Debt
+
+| ID | 항목 | 상태 | 해소 예정 |
+|----|------|------|----------|
+| CL-006 | `trajectoryPathDisplayPolicy` rehome | Open (Optional) | Unscheduled |
+| D-005 | `labelStrategy` / `systemIdForGrid` renderer 직접 분기 | Open | Batch 6 |
+| D-006 | `SYSTEM_PROFILES` 직접 접근 | Open | Batch 6 |
+| D-009 | Reflection safety interim read | Open | Batch 6 |
+
+**Batch 5 신규 Debt:** 없음
+
+## Batch 5 공식 종료
+
+- **Batch 5 Code Baseline:** `04e341b` — `feat(batch5): STEP 5-8 application integration (APP-009)`
+- **Batch 5 Closed · Release Approved**
+- **Batch 6 Ready** — Runtime Contract / Registry · D-005/D-006/D-009 해소
 
 ---
 
