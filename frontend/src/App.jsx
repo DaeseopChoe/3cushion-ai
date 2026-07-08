@@ -60,10 +60,8 @@ import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRend
 import { buildSystemAxisLabelModel } from "./renderer/labels/systemAxisLabelModel";
 import { buildRgAnchors } from "./renderer/trajectory/anchorConversionModel";
 import {
-  computeRailPoints,
   c1ArrivalRailForTrack,
   coDepartureRailForTrack,
-  lineToRailIntersections,
   projectPointToRail,
   snapToRail,
 } from "./utils/geometry/rail";
@@ -111,6 +109,11 @@ import {
   resolveTrajectoryDisplayCap,
   slicePathNodesToCap,
 } from "./domain/trajectoryPathDisplayPolicy";
+import {
+  anchorSemanticForPath,
+  coStartForCushionPath,
+  firstRailHitTowardTarget,
+} from "./domain/trajectory/pathNodeHelpers";
 
 function ingestBaselineP043Debug(location, message, data, hypothesisId) {
   console.log(message, data);
@@ -294,36 +297,6 @@ const POINT_OFFSET_MM = 80;
 const CUSHION_RG = CUSHION_MM / RG_UNIT_MM;
 const FRAME_RG = FRAME_MM / RG_UNIT_MM;
 const POINT_OFFSET_RG = POINT_OFFSET_MM / RG_UNIT_MM;
-
-/**
- * 궤적·CO→C1 선분용 시작점만 Rg 레일로 보정.
- * CO_rail 이 Fg(-2.25 등)에 머물면 빨간 선이 프레임·라벨과 겹침.
- * 라벨(allAnchors.CO) 정책과 CO_rail(의미/교점) 변수는 그대로 두고, draw path 첫 점만 교정.
- */
-function coStartForCushionPath(coRail, coPrep, c1Prep) {
-  if (!coRail || !coPrep || !c1Prep) return coRail ?? coPrep ?? null;
-  const onRgPlayingRail =
-    Math.abs(coRail.x) <= 0.75 ||
-    Math.abs(coRail.x - 80) <= 0.75 ||
-    Math.abs(coRail.y) <= 0.75 ||
-    Math.abs(coRail.y - 40) <= 0.75;
-  if (onRgPlayingRail) return coRail;
-  const { CO_rail: snapped } = computeRailPoints(coPrep, c1Prep);
-  return snapped ?? coRail;
-}
-
-/** 이전 궤적 점 → 앵커 의미점 방향, 세그먼트 [from, toward] 기준 첫 레일 교점 (rail.ts) */
-function firstRailHitTowardTarget(from, toward) {
-  if (!from || !toward) return toward ?? null;
-  const hit = lineToRailIntersections(from, toward)?.C1_rail;
-  return hit || snapToRail(toward) || toward;
-}
-
-/** 궤적용: 앵커 원본에서 의미 좌표만 (라벨/데이터와 독립, 표시 좌표는 변경하지 않음) */
-function anchorSemanticForPath(raw, resolveCtx) {
-  const n = normalizeAnchor(raw);
-  return n ? resolveAnchorPoint(n, resolveCtx) : null;
-}
 
 /** pathNodes (C3 이후) spin decay + forward/reverse 보정 — 앵커 엔진과 무관 */
 function spinPathGetDistance(A, B) {
