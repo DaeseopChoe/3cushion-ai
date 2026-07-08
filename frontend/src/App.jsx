@@ -57,6 +57,8 @@ import { useAdminOverlayLifecycle } from "./overlay/state/overlayStateMachine";
 import { useUserOverlayRouter } from "./overlay/router/userOverlayRouter";
 import { useSysLabelScale } from "./renderer/labels/labelScalePolicy";
 import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRenderModel";
+import { buildBaselineHandleModel } from "./renderer/trajectory/baselineHandleModel";
+import { buildTrajectoryPathAttrModel } from "./renderer/trajectory/trajectoryPathAttrModel";
 import { buildSystemAxisLabelModel } from "./renderer/labels/systemAxisLabelModel";
 import { buildRgAnchors } from "./renderer/trajectory/anchorConversionModel";
 import {
@@ -3675,30 +3677,19 @@ function handlePointerCancel(e) {
   const capBaseline = baseline?.cap ?? capCorrected;
   const cushionPathBaselineRg = baseline?.cushionPath ?? null;
 
-  const rgSample = (arr, n) =>
-    !Array.isArray(arr) || arr.length === 0
-      ? []
-      : arr
-          .slice(0, n)
-          .map((p) =>
-            p && typeof p.x === "number" && typeof p.y === "number"
-              ? { x: p.x, y: p.y }
-              : p
-          );
+  const tablePxConfig = { scale: SCALE, tableH: TABLE_H, padding: PADDING };
+  const pathAttrModel = buildTrajectoryPathAttrModel(
+    trajectoryBuild,
+    tablePxConfig
+  );
+  const cushionPathAttrRaw = pathAttrModel.cushionPathAttrRaw;
+  const cushionPathAttrBase = pathAttrModel.cushionPathAttrBase;
 
-  const cushionPathAttrRaw = cushionPathForRender.map((pt) => {
-    const p = toPx(pt, SCALE, TABLE_H);
-    return `${p.x + PADDING},${p.y + PADDING}`;
-  }).join(" ");
   // 최신 파생 결과를 ref에 보관 (pointerdown에서 Freeze 캡처용)
   derivedRef.current = {
     impact: impactRaw,
     cushionPathAttr: cushionPathAttrRaw,
-    cushionPathRg: cushionPathForRender.map((p) =>
-      p && typeof p.x === "number" && typeof p.y === "number"
-        ? { x: p.x, y: p.y }
-        : p
-    ),
+    cushionPathRg: pathAttrModel.cushionPathRgSnapshot,
   };
 
   const cushionPathAttr = dragState.dragging
@@ -3711,16 +3702,6 @@ function handlePointerCancel(e) {
       ? dragState.frozenCushionPathRg
       : cushionPathForRender;
 
-
-  let cushionPathAttrBase = null;
-  if (cushionPathBaselineRg) {
-    cushionPathAttrBase = cushionPathBaselineRg
-      .map((pt) => {
-        const p = toPx(pt, SCALE, TABLE_H);
-        return `${p.x + PADDING},${p.y + PADDING}`;
-      })
-      .join(" ");
-  }
 
   baselineCoHandleRgRef.current = handles.coRg;
   baselineC1HandleRgRef.current = handles.c1Rg;
@@ -3993,62 +3974,53 @@ function handlePointerCancel(e) {
         })
       : null;
 
-  const coBaselineHandleRg =
-    baselineDraftState.coRg ?? baselineCoHandleRgRef.current;
-  const c1BaselineHandleRg =
-    baselineDraftState.c1Rg ?? baselineC1HandleRgRef.current;
+  const baselineHandleModel = buildBaselineHandleModel(
+    trajectoryBuild,
+    {
+      appMode,
+      showBaseLine,
+      draftCoRg: baselineDraftState.coRg,
+      draftC1Rg: baselineDraftState.c1Rg,
+      draggingMark: baselineDraftState.draggingMark,
+    },
+    tablePxConfig
+  );
 
-  let coBaselineHandleNode = null;
-  if (
-    appMode === "ADMIN" &&
-    showBaseLine &&
-    systemIdForGrid === "5_half_system" &&
-    trackForAnchors?.startsWith("B2T") &&
-    coBaselineHandleRg &&
-    Number.isFinite(coBaselineHandleRg.x) &&
-    Number.isFinite(coBaselineHandleRg.y)
-  ) {
-    const hp = toPx(coBaselineHandleRg, SCALE, TABLE_H);
-    coBaselineHandleNode = (
-      <g className="co-baseline-drag-handle" data-co-baseline-handle="1" pointerEvents="none">
-        <circle
-          cx={hp.x + PADDING}
-          cy={hp.y + PADDING}
-          r={7}
-          fill="#facc15"
-          stroke="#a16207"
-          strokeWidth={1.5}
-          opacity={baselineDraftState.draggingMark === "CO" ? 1 : 0.85}
-        />
-      </g>
-    );
-  }
+  const coBaselineHandleNode = baselineHandleModel.co ? (
+    <g
+      className={baselineHandleModel.co.className}
+      data-co-baseline-handle="1"
+      pointerEvents="none"
+    >
+      <circle
+        cx={baselineHandleModel.co.cx}
+        cy={baselineHandleModel.co.cy}
+        r={baselineHandleModel.co.r}
+        fill={baselineHandleModel.co.fill}
+        stroke={baselineHandleModel.co.stroke}
+        strokeWidth={baselineHandleModel.co.strokeWidth}
+        opacity={baselineHandleModel.co.opacity}
+      />
+    </g>
+  ) : null;
 
-  let c1BaselineHandleNode = null;
-  if (
-    appMode === "ADMIN" &&
-    showBaseLine &&
-    systemIdForGrid === "5_half_system" &&
-    trackForAnchors?.startsWith("B2T") &&
-    c1BaselineHandleRg &&
-    Number.isFinite(c1BaselineHandleRg.x) &&
-    Number.isFinite(c1BaselineHandleRg.y)
-  ) {
-    const hp = toPx(c1BaselineHandleRg, SCALE, TABLE_H);
-    c1BaselineHandleNode = (
-      <g className="c1-baseline-drag-handle" data-c1-baseline-handle="1" pointerEvents="none">
-        <circle
-          cx={hp.x + PADDING}
-          cy={hp.y + PADDING}
-          r={7}
-          fill="#facc15"
-          stroke="#a16207"
-          strokeWidth={1.5}
-          opacity={baselineDraftState.draggingMark === "C1" ? 1 : 0.85}
-        />
-      </g>
-    );
-  }
+  const c1BaselineHandleNode = baselineHandleModel.c1 ? (
+    <g
+      className={baselineHandleModel.c1.className}
+      data-c1-baseline-handle="1"
+      pointerEvents="none"
+    >
+      <circle
+        cx={baselineHandleModel.c1.cx}
+        cy={baselineHandleModel.c1.cy}
+        r={baselineHandleModel.c1.r}
+        fill={baselineHandleModel.c1.fill}
+        stroke={baselineHandleModel.c1.stroke}
+        strokeWidth={baselineHandleModel.c1.strokeWidth}
+        opacity={baselineHandleModel.c1.opacity}
+      />
+    </g>
+  ) : null;
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
