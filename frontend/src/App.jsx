@@ -107,6 +107,7 @@ import {
   coStartForCushionPath,
 } from "./domain/trajectory/pathNodeHelpers";
 import { buildTrajectory } from "./domain/trajectory/trajectoryBuilder";
+import { useBaselineDraft } from "./overlay/state/baselineDraftState";
 
 function ingestBaselineP043Debug(location, message, data, hypothesisId) {
   console.log(message, data);
@@ -924,79 +925,10 @@ export default function App({
 
   const [showSystemGrid, setShowSystemGrid] = useState(false);
   const [showBaseLine, setShowBaseLine] = useState(false);
-  /** P0-3a: CO·C1 기준선 끝점 draft (SYS/draft 미반영, CO·C1 동시 유지) */
-  const EMPTY_BASELINE_DRAFT = {
-    coSysValue: null,
-    coRg: null,
-    c1SysValue: null,
-    c1Rg: null,
-    activeMark: null,
-    draggingMark: null,
-  };
-  const [baselineDraftState, setBaselineDraftState] = useState(EMPTY_BASELINE_DRAFT);
   const baselineCoHandleRgRef = useRef(null);
   const baselineC1HandleRgRef = useRef(null);
   /** P0-4f: 드래그 시작 시점 슬롯 SYS — Apply 후 stale draft vs committed slot 구분 */
-  const baselineLabelSlotSnapshotRef = useRef({ CO_f: null, C1_f: null });
   const baselineLabelSsotRef = useRef(null);
-
-  useEffect(() => {
-    if (appMode !== "ADMIN" || !showBaseLine) {
-      setBaselineDraftState(EMPTY_BASELINE_DRAFT);
-    }
-  }, [appMode, showBaseLine]);
-
-  /** P0-4d: Apply 성공 mark의 draft·activeMark만 정리 (남은 draft는 유지) */
-  const clearAppliedBaselineDraftMark = useCallback((mark) => {
-    setBaselineDraftState((prev) => {
-      const next = { ...prev };
-
-      if (mark === "CO") {
-        next.coSysValue = null;
-        next.coRg = null;
-      } else if (mark === "C1") {
-        next.c1SysValue = null;
-        next.c1Rg = null;
-      }
-
-      if (next.draggingMark === mark) {
-        next.draggingMark = null;
-      }
-
-      const hasCoDraft =
-        Number.isFinite(next.coSysValue) &&
-        next.coRg != null &&
-        Number.isFinite(next.coRg.x) &&
-        Number.isFinite(next.coRg.y);
-      const hasC1Draft =
-        Number.isFinite(next.c1SysValue) &&
-        next.c1Rg != null &&
-        Number.isFinite(next.c1Rg.x) &&
-        Number.isFinite(next.c1Rg.y);
-
-      if (next.activeMark === mark) {
-        if (mark === "CO" && hasC1Draft) {
-          next.activeMark = "C1";
-        } else if (mark === "C1" && hasCoDraft) {
-          next.activeMark = "CO";
-        } else {
-          next.activeMark = null;
-        }
-      }
-
-      if (import.meta.env.DEV) {
-        console.log("[BASELINE DRAFT CLEAR]", {
-          mark,
-          activeMark: next.activeMark,
-          hasCoDraft,
-          hasC1Draft,
-        });
-      }
-
-      return next;
-    });
-  }, []);
-
   const autoSave = true;
 
   /** ADMIN Search/Recall 후 Editing Session (Reset 전까지 유지) */
@@ -1349,6 +1281,26 @@ export default function App({
   }
 
   const svgRef = useRef(null);
+  const baselineDraftDragContextRef = useRef({
+    canEndpointDraftDrag: () => false,
+    captureLabelSlotSnapshot: () => ({ CO_f: null, C1_f: null }),
+    snapCoPointerRg: () => null,
+    snapC1PointerRg: () => null,
+  });
+  const {
+    baselineDraftState,
+    baselineLabelSlotSnapshotRef,
+    clearAppliedBaselineDraftMark,
+    tryStartBaselineEndpointDraftDrag,
+    endCoBaselineDraftDrag,
+    endC1BaselineDraftDrag,
+    handleBaselineDraftPointerMove,
+  } = useBaselineDraft({
+    appMode,
+    showBaseLine,
+    svgRef,
+    dragContextRef: baselineDraftDragContextRef,
+  });
   const derivedRef = useRef({ impact: null, cushionPathAttr: null, cushionPathRg: null });
 
   // Joystick (mobile fine control)
@@ -3049,6 +3001,24 @@ function handleJoyPadPointerCancel(e) {
   const rawSystemIdForGrid = resolvedSlotSys?.systemId ?? "5_half_system";
   const systemIdForGrid = canonicalSystemIdForConfig(rawSystemIdForGrid);
 
+  baselineDraftDragContextRef.current = {
+    canEndpointDraftDrag: () =>
+      appMode === "ADMIN" &&
+      showBaseLine &&
+      systemIdForGrid === "5_half_system" &&
+      !!trackForAnchors?.startsWith("B2T"),
+    captureLabelSlotSnapshot: () =>
+      captureBaselineLabelSlotSnapshot(baselineLabelSsotRef.current),
+    snapCoPointerRg: (pointerRg) => {
+      const rail = coDepartureRailForTrack(trackForAnchors);
+      return projectPointToRail(pointerRg, rail);
+    },
+    snapC1PointerRg: (pointerRg) => {
+      const rail = c1ArrivalRailForTrack(trackForAnchors);
+      return projectPointToRail(pointerRg, rail);
+    },
+  };
+
   // USER/ADMIN 공통: slot SSOT anchors (display.anchors fallback when slot empty)
   const rawAnchors = (() => {
     if (!resolvedSlotSys) {
@@ -3195,7 +3165,6 @@ function handleJoyPadPointerCancel(e) {
   
   // 드래그 핸들러
 // 드래그/선택 핸들러
-const BASELINE_ENDPOINT_HIT_RADIUS_RG = 2.5;
 
 /** SYS → 앵커 prep (baseline handle forward 체인용) */
 function baselineAnchorPrepFromSys(mark, sysValue, track, systemId) {
@@ -3417,149 +3386,21 @@ function captureBaselineLabelSlotSnapshot(ssotValues) {
   };
 }
 
-function canBaselineEndpointDraftDrag() {
-  return (
-    appMode === "ADMIN" &&
-    showBaseLine &&
-    systemIdForGrid === "5_half_system" &&
-    !!trackForAnchors?.startsWith("B2T")
-  );
-}
-
-function tryStartCoBaselineDraftDrag(e, pointerRg, coHandleRg) {
-  if (
-    !coHandleRg ||
-    !Number.isFinite(coHandleRg.x) ||
-    !Number.isFinite(coHandleRg.y)
-  ) {
-    return false;
-  }
-  const dist = Math.hypot(pointerRg.x - coHandleRg.x, pointerRg.y - coHandleRg.y);
-  if (dist > BASELINE_ENDPOINT_HIT_RADIUS_RG) return false;
-
-  baselineLabelSlotSnapshotRef.current = captureBaselineLabelSlotSnapshot(
-    baselineLabelSsotRef.current
-  );
-  setBaselineDraftState((prev) => ({
-    ...prev,
-    activeMark: "CO",
-    draggingMark: "CO",
-    coRg: { x: coHandleRg.x, y: coHandleRg.y },
-    coSysValue: null,
-  }));
-  try {
-    svgRef.current?.setPointerCapture(e.pointerId);
-  } catch {
-    /* ignore */
-  }
-  return true;
-}
-
-function tryStartC1BaselineDraftDrag(e, pointerRg, c1HandleRg) {
-  if (
-    !c1HandleRg ||
-    !Number.isFinite(c1HandleRg.x) ||
-    !Number.isFinite(c1HandleRg.y)
-  ) {
-    return false;
-  }
-  const dist = Math.hypot(pointerRg.x - c1HandleRg.x, pointerRg.y - c1HandleRg.y);
-  if (dist > BASELINE_ENDPOINT_HIT_RADIUS_RG) return false;
-
-  baselineLabelSlotSnapshotRef.current = captureBaselineLabelSlotSnapshot(
-    baselineLabelSsotRef.current
-  );
-  setBaselineDraftState((prev) => ({
-    ...prev,
-    activeMark: "C1",
-    draggingMark: "C1",
-    c1Rg: { x: c1HandleRg.x, y: c1HandleRg.y },
-    c1SysValue: null,
-  }));
-  try {
-    svgRef.current?.setPointerCapture(e.pointerId);
-  } catch {
-    /* ignore */
-  }
-  return true;
-}
-
-function tryStartBaselineEndpointDraftDrag(e, pointerRg) {
-  if (!canBaselineEndpointDraftDrag()) return false;
-
-  const coHandleRg =
-    baselineDraftState.coRg ?? baselineCoHandleRgRef.current;
-  const c1HandleRg =
-    baselineDraftState.c1Rg ?? baselineC1HandleRgRef.current;
-
-  const dCo =
-    coHandleRg &&
-    Number.isFinite(coHandleRg.x) &&
-    Number.isFinite(coHandleRg.y)
-      ? Math.hypot(pointerRg.x - coHandleRg.x, pointerRg.y - coHandleRg.y)
-      : Infinity;
-  const dC1 =
-    c1HandleRg &&
-    Number.isFinite(c1HandleRg.x) &&
-    Number.isFinite(c1HandleRg.y)
-      ? Math.hypot(pointerRg.x - c1HandleRg.x, pointerRg.y - c1HandleRg.y)
-      : Infinity;
-
-  const R = BASELINE_ENDPOINT_HIT_RADIUS_RG;
-  if (dC1 <= R && (dCo > R || dC1 < dCo)) {
-    return tryStartC1BaselineDraftDrag(e, pointerRg, c1HandleRg);
-  }
-  if (dCo <= R) {
-    return tryStartCoBaselineDraftDrag(e, pointerRg, coHandleRg);
-  }
-  return false;
-}
-
-function endCoBaselineDraftDrag(e) {
-  if (baselineDraftState.draggingMark !== "CO") return false;
-  const coRg = baselineDraftState.coRg;
-  setBaselineDraftState((prev) => ({
-    ...prev,
-    coRg: coRg ? { x: coRg.x, y: coRg.y } : prev.coRg,
-    activeMark: "CO",
-    draggingMark: null,
-  }));
-  try {
-    if (svgRef.current && e?.pointerId != null) {
-      svgRef.current.releasePointerCapture(e.pointerId);
-    }
-  } catch {
-    /* ignore */
-  }
-  return true;
-}
-
-function endC1BaselineDraftDrag(e) {
-  if (baselineDraftState.draggingMark !== "C1") return false;
-  const c1Rg = baselineDraftState.c1Rg;
-  setBaselineDraftState((prev) => ({
-    ...prev,
-    c1Rg: c1Rg ? { x: c1Rg.x, y: c1Rg.y } : prev.c1Rg,
-    activeMark: "C1",
-    draggingMark: null,
-  }));
-  try {
-    if (svgRef.current && e?.pointerId != null) {
-      svgRef.current.releasePointerCapture(e.pointerId);
-    }
-  } catch {
-    /* ignore */
-  }
-  return true;
-}
-
 function handlePointerDown(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
 
   if (!svgRef.current) return;
   const pointerRgEarly = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
-  if (pointerRgEarly && tryStartBaselineEndpointDraftDrag(e, pointerRgEarly)) {
+  if (
+    pointerRgEarly &&
+    tryStartBaselineEndpointDraftDrag(
+      e,
+      pointerRgEarly,
+      baselineDraftState.coRg ?? baselineCoHandleRgRef.current,
+      baselineDraftState.c1Rg ?? baselineC1HandleRgRef.current
+    )
+  ) {
     console.log("[BASELINE SVG POINTERDOWN]", "baseline drag captured", {
       pointerId: e.pointerId,
       target: e.target?.nodeName,
@@ -3662,32 +3503,11 @@ function handlePointerMove(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
 
-  if (baselineDraftState.draggingMark === "CO" && svgRef.current) {
+  if (svgRef.current) {
     const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
-    if (pointerRg) {
-      const rail = coDepartureRailForTrack(trackForAnchors);
-      const snapped = projectPointToRail(pointerRg, rail);
-      if (snapped) {
-        setBaselineDraftState((prev) =>
-          prev.draggingMark === "CO" ? { ...prev, coRg: snapped } : prev
-        );
-      }
+    if (handleBaselineDraftPointerMove(pointerRg)) {
+      return;
     }
-    return;
-  }
-
-  if (baselineDraftState.draggingMark === "C1" && svgRef.current) {
-    const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
-    if (pointerRg) {
-      const rail = c1ArrivalRailForTrack(trackForAnchors);
-      const snapped = projectPointToRail(pointerRg, rail);
-      if (snapped) {
-        setBaselineDraftState((prev) =>
-          prev.draggingMark === "C1" ? { ...prev, c1Rg: snapped } : prev
-        );
-      }
-    }
-    return;
   }
 
   if (!dragState.dragging || !dragState.ballId || !svgRef.current) return;
