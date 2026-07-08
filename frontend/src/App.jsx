@@ -65,13 +65,12 @@ import {
   projectPointToRail,
   snapToRail,
 } from "./utils/geometry/rail";
-import { createCurveSegment } from "./utils/trajectory/curveTrajectory";
 import {
   normalizeAnchor,
   resolveAnchorPoint,
   computeRailImpactPoint,
 } from "./utils/geometry/anchorResolve";
-import { calculateImpact, adjustSystemLine } from "./utils/physics";
+import { adjustSystemLine } from "./utils/physics";
 import {
   computeThicknessFromImpact,
   snapImpactToOrbit,
@@ -115,6 +114,7 @@ import {
   firstRailHitTowardTarget,
 } from "./domain/trajectory/pathNodeHelpers";
 import { resolveReflectionC2 } from "./domain/trajectory/reflectionPolicy";
+import { buildTrajectory } from "./domain/trajectory/trajectoryBuilder";
 
 function ingestBaselineP043Debug(location, message, data, hypothesisId) {
   console.log(message, data);
@@ -3927,36 +3927,9 @@ function handlePointerCancel(e) {
     systemId: systemIdForGrid,
   };
 
-  const CO_anchor = normalizeAnchor(rawAnchors.CO);
-  const C1_anchor = normalizeAnchor(rawAnchors["C1"]);
-  const CO_prep = resolveAnchorPoint(CO_anchor, resolveAnchorCtx);
-  const C1_prep = resolveAnchorPoint(C1_anchor, resolveAnchorCtx);
+  const HIT_TOLERANCE = Math.max(2, BALL_RADIUS_RG * 4);
 
-  const isBottomCO =
-    CO_prep && Math.abs(CO_prep.y + 2.25) < 0.5;
-
-  let CO_rail = CO_prep;
-
-  if (isBottomCO && CO_prep && C1_prep) {
-    const pt = computeRailImpactPoint(CO_prep, C1_prep, {
-      ...resolveAnchorCtx,
-      mark: "CO",
-    });
-
-    if (pt) {
-      CO_rail = pt;
-    }
-  }
-
-  const C1_rail =
-    CO_prep && C1_prep
-      ? computeRailImpactPoint(CO_prep, C1_prep, { ...resolveAnchorCtx, mark: "C1" })
-      : null;
-
-  /** 빨간 궤적·CO→C1 선 시작점 (Rg). isBottomCO 외 Fg CO_rail 보정 */
-  const CO_path0 = coStartForCushionPath(CO_rail, CO_prep, C1_prep);
-
-  // C2 fallback: anchors["C2"] 없을 때 reflection engine으로 C2 자동 생성
+  // C2 fallback: anchors["C2"] 없을 때 reflection policy (baseline branch — STEP 5-4)
   const currentTip = (() => {
     const hp = adminState?.hpt?.hit_point ?? adminState?.hpt?.hp;
     if (!hp || typeof hp.x !== "number" || typeof hp.y !== "number") return null;
@@ -3968,6 +3941,54 @@ function handlePointerCancel(e) {
     }
     return { hp: { x: hp.x, y: hp.y }, side };
   })();
+
+  const trajectoryBuild = buildTrajectory({
+    anchors,
+    rawAnchors,
+    resolveAnchorCtx,
+    balls,
+    targetColor,
+    slotRenderSys,
+    adminState,
+    currentTip,
+    c2ManualHint,
+    thicknessForCalc,
+    shotPattern: view.pattern,
+    hitTolerance: HIT_TOLERANCE,
+    ballDiameterRg: BALL_DIAMETER_RG,
+    ballRadiusRg: BALL_RADIUS_RG,
+    curveEps: CURVE_EPS,
+  });
+
+  const {
+    corrected: {
+      pathNodes,
+      cushionPath,
+      cushionPathForRender,
+      cap: capCorrected,
+      coLine,
+      c1Line,
+      useCurveDeform,
+    },
+    impact: { raw: impactRaw, contactRg: impactContactRg },
+    labels: { anchorSources },
+    meta: {
+      coPrep: CO_prep,
+      c1Prep: C1_prep,
+      coRail: CO_rail,
+      c1Rail,
+      reflectedDiagnostics,
+    },
+  } = trajectoryBuild;
+
+  const CO_line = coLine;
+  const C1_line = c1Line;
+  const CO_path0 = CO_line;
+  const C1_rail = C1_line;
+
+  if (reflectedDiagnostics && canEdit) {
+    console.log("🔷 C2 reflection fallback:", reflectedDiagnostics);
+  }
 
   /** Base Line 앞구간(CO→C1→C2): anchorsBase 전용 레일 교점 */
   let CO_path0_base = null;
@@ -4031,99 +4052,9 @@ function handlePointerCancel(e) {
     }
   }
 
-  const C3_anchor = anchors["C3"];
-  const C3_prep = resolveAnchorPoint(normalizeAnchor(C3_anchor), resolveAnchorCtx);
-  const C3_point =
-    C3_prep ??
-    (C3_anchor && typeof C3_anchor === "object" && "coord" in C3_anchor && C3_anchor.coord
-      ? C3_anchor.coord
-      : C3_anchor);
-  const C3_snapped = snapToRail(C3_point) ?? C3_point;
-
-  const reflected =
-    !anchors["C2"] && CO_rail && C1_rail && C3_snapped
-      ? resolveReflectionC2({
-          co: CO_rail,
-          c1: C1_rail,
-          c3: C3_snapped,
-          tip: currentTip ?? null,
-          track: trackForAnchors ?? undefined,
-          manualHint: c2ManualHint ?? null,
-          systemId: systemIdForGrid,
-        })
-      : null;
-
-  const C2 = anchors["C2"] ?? reflected?.c2 ?? null;
-  // 라벨 표시는 원본 좌표를 유지하고, snapped는 trajectory/계산 전용으로 분리한다.
-  const C3_label = C3_point ?? C3_anchor;
-
-  if (reflected && canEdit) {
-    console.log("🔷 C2 reflection fallback:", reflected.diagnostics);
-  }
-
-  const C4_anchor = anchors["C4"];
-  const C4_prep = resolveAnchorPoint(normalizeAnchor(C4_anchor), resolveAnchorCtx);
-  const C4_point =
-    C4_prep ??
-    (C4_anchor && typeof C4_anchor === "object" && "coord" in C4_anchor && C4_anchor.coord
-      ? C4_anchor.coord
-      : C4_anchor);
-  const C4 = C4_anchor;
-
-  const C5_anchor = anchors["C5"];
-  const C5_prep = resolveAnchorPoint(normalizeAnchor(C5_anchor), resolveAnchorCtx);
-  const C5_point =
-    C5_prep ??
-    (C5_anchor && typeof C5_anchor === "object" && "coord" in C5_anchor && C5_anchor.coord
-      ? C5_anchor.coord
-      : C5_anchor);
-  const C5 = C5_anchor;
-
-  const C6_anchor = anchors["C6"];
-  const C6_prep = resolveAnchorPoint(normalizeAnchor(C6_anchor), resolveAnchorCtx);
-  const C6_point =
-    C6_prep ??
-    (C6_anchor && typeof C6_anchor === "object" && "coord" in C6_anchor && C6_anchor.coord
-      ? C6_anchor.coord
-      : C6_anchor);
-  const C6 = C6_anchor;
-
-  const cueBall = balls.cue;
-  const yellowBall = getYellowBallCoords(balls);
-  const redBall = getRedBallCoords(balls);
-  const targetBall =
-    targetColor === "red"
-      ? redBall
-      : targetColor === "yellow"
-        ? yellowBall
-        : yellowBall ?? redBall ?? null;
-  const secondBall =
-    targetColor === "red"
-      ? yellowBall
-      : targetColor === "yellow"
-        ? redBall
-        : redBall ?? yellowBall ?? null;
-
-  const impactCO = CO_prep ?? CO_rail ?? { x: cueBall?.x ?? 0, y: cueBall?.y ?? 0 };
-  const impactC1 = C1_prep ?? C1_rail ?? impactCO;
-  const impactTargetBall =
-    targetBall && Number.isFinite(targetBall.x) && Number.isFinite(targetBall.y)
-      ? targetBall
-      : balls.target_center ?? balls.target ?? null;
-  const impactRaw = calculateImpact(
-    cueBall ?? balls.cue,
-    impactTargetBall,
-    impactCO,
-    impactC1,
-    thicknessForCalc || "1/2",
-    view.pattern || "뒤돌리기",
-    BALL_DIAMETER_RG,
-    BALL_RADIUS_RG
-  );
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
 
   // CO→C1 선은 레일(Rg) 시작점 — Fg 의미점과 분리 (CO_line ≠ 라벨 좌표일 수 있음)
-  const C1_line = C1_rail;
 
   // CO Dual Trajectory: 보정선 (양수 unifiedSlide / curve_ratio 시 CO_corrected 표시)
   const corrections = slotRenderSys?.corrections ?? {};
@@ -4158,8 +4089,6 @@ function handlePointerCancel(e) {
     }
   }
 
-  const CO_line = CO_path0;
-
   console.log("🔷 레일 교점:", {
     "CO_prep (의미점)": CO_prep,
     "C1_prep (의미점)": C1_prep,
@@ -4168,133 +4097,24 @@ function handlePointerCancel(e) {
     "C1_rail (SSOT)": C1_rail
   });
 
-  const HIT_TOLERANCE = Math.max(2, BALL_RADIUS_RG * 4);
-
-  // 궤적: 각 구간은 이전 레일 교점 → 다음 앵커 의미점 방향의 첫 레일 교점까지만 (anchor.coord는 방향 기준, 노란점/앵커 데이터는 변경 없음)
-  const c2Sem = anchorSemanticForPath(C2, resolveAnchorCtx);
-  const c3Sem = C3_point ?? anchorSemanticForPath(C3_anchor, resolveAnchorCtx);
-  const c4Sem = C4_point ?? anchorSemanticForPath(C4_anchor, resolveAnchorCtx);
-  const c5Sem = C5_point ?? anchorSemanticForPath(C5_anchor, resolveAnchorCtx);
-  const c6Sem = C6_point ?? anchorSemanticForPath(C6_anchor, resolveAnchorCtx);
-
-  const C2_path =
-    C1_rail && c2Sem ? firstRailHitTowardTarget(C1_rail, c2Sem) : null;
-  const C3_path =
-    C2_path && c3Sem ? firstRailHitTowardTarget(C2_path, c3Sem) : null;
-  const C4_path =
-    C3_path && c4Sem ? firstRailHitTowardTarget(C3_path, c4Sem) : null;
-  const C5_path =
-    C4_path && c5Sem ? firstRailHitTowardTarget(C4_path, c5Sem) : null;
-  const C6_path =
-    C5_path && c6Sem ? firstRailHitTowardTarget(C5_path, c6Sem) : null;
-
-  const pathNodesRaw = [
-    CO_path0,
-    C1_rail,
-    C2_path,
-    C3_path,
-    C4_path,
-    C5_path,
-    C6_path,
-  ];
-  // DEBUG: spin 보정 비활성화 — pathNodesRaw(순수 교점 궤적) 그대로 사용. 아래 for 블록 주석 해제로 복구.
-  const adjustedNodes = [...pathNodesRaw];
-  /*
-  for (let i = 3; i < adjustedNodes.length - 1; i++) {
-    const A = adjustedNodes[i - 1];
-    const B = adjustedNodes[i];
-    const C = adjustedNodes[i + 1];
-    if (!A || !B || !C) continue;
-
-    const progress = spinPathComputeProgress(adjustedNodes, i);
-    const spinFactor = spinPathGetSpinFactor(progress);
-    const baseSpin = (adminState?.str?.spin ?? 1.0) * spinFactor;
-    const type = spinPathGetDirectionType(A, B, C);
-    const v = { x: C.x - B.x, y: C.y - B.y };
-    const v2 = spinPathApplySpin(v, baseSpin, type);
-    adjustedNodes[i + 1] = { x: B.x + v2.x, y: B.y + v2.y };
-
-    if (import.meta.env.DEV) {
-      console.log("[SPIN]", { index: i, progress, spinFactor, type });
-    }
-  }
-  */
-  const pathNodes = adjustedNodes;
-
   const secondPoint =
-    secondBall &&
-    Number.isFinite(secondBall.x) &&
-    Number.isFinite(secondBall.y)
-      ? { x: secondBall.x, y: secondBall.y }
-      : null;
-
-  const capCorrected = resolveTrajectoryDisplayCap(
-    pathNodes,
-    secondPoint,
-    HIT_TOLERANCE
-  );
-  const cushionPath = slicePathNodesToCap(pathNodes, capCorrected);
+    (() => {
+      const yellowBall = getYellowBallCoords(balls);
+      const redBall = getRedBallCoords(balls);
+      const secondBall =
+        targetColor === "red"
+          ? yellowBall
+          : targetColor === "yellow"
+            ? redBall
+            : redBall ?? yellowBall ?? null;
+      return secondBall &&
+        Number.isFinite(secondBall.x) &&
+        Number.isFinite(secondBall.y)
+        ? { x: secondBall.x, y: secondBall.y }
+        : null;
+    })();
 
   let capBaseline = capCorrected;
-
-  const calcImpactForContact = calcImpactBall(
-    cueBall ?? balls.cue,
-    impactTargetBall,
-    adminState?.hpt?.T ?? "8/8"
-  );
-  const impactContactRg = balls.impact ?? calcImpactForContact;
-
-  const useCurveDeform =
-    !!impactContactRg &&
-    !!pathNodes[0] &&
-    !!pathNodes[1] &&
-    Math.abs(unifiedSlideForCurve) > CURVE_EPS;
-  console.log("[FIX] useCurveDeform:", useCurveDeform);
-
-  let curvePointsLen = 0;
-  let curvePointsSampleRg = [];
-
-  /** CO → curve(P…M) → 이후 쿠션 궤적. tail은 display cap 반영된 cushionPath 사용. CO는 polyline에 넣지 않음(직선 구간 제거). */
-  let cushionPathForRender;
-  if (useCurveDeform) {
-    console.log("[H-App]", {
-      canEdit,
-      unifiedSlideForCurve,
-      corrSlotSlide: corrections?.slide,
-      corrSlotDraw: corrections?.draw,
-      corrBundleForCurve,
-    });
-    const curveSegment = createCurveSegment(
-      impactContactRg,
-      pathNodes[0],
-      pathNodes[1],
-      unifiedSlideForCurve
-    );
-    console.log("[PATH AFTER CURVE]", {
-      curveLast: curveSegment[curveSegment.length - 1],
-      nextTailFirst: cushionPath?.[1],
-      tailPreview: cushionPath?.slice(1, 4),
-    });
-    curvePointsLen = curveSegment.length;
-    curvePointsSampleRg = curveSegment
-      .slice(0, 5)
-      .map((p) => ({ x: p.x, y: p.y }));
-    /** 빨간 polyline에서 CO_eff→임팩트 접점 직선만 제외: curve는 이미 impactContactRg에서 시작 */
-    cushionPathForRender =
-      curveSegment.length > 0
-        ? [...curveSegment, ...cushionPath.slice(1)]
-        : cushionPath;
-  } else {
-    cushionPathForRender = cushionPath;
-  }
-
-  console.log("[RENDER PATH CHECK]", {
-    useCurveDeform,
-    length: cushionPathForRender.length,
-    first: cushionPathForRender[0],
-    mid: cushionPathForRender[Math.floor(cushionPathForRender.length / 2)],
-    last: cushionPathForRender[cushionPathForRender.length - 1],
-  });
 
   const rgSample = (arr, n) =>
     !Array.isArray(arr) || arr.length === 0
@@ -4530,7 +4350,7 @@ function handlePointerCancel(e) {
         : null) ??
       (fromBaselinePath && fromBaselinePath.CO) ??
       labelPayload(override.CO) ??
-      labelPayload(CO_prep),
+      anchorSources.CO,
     "C1":
       (baselineDraftState.c1Rg
         ? {
@@ -4541,14 +4361,17 @@ function handlePointerCancel(e) {
           }
         : null) ??
       (fromBaselinePath && fromBaselinePath["C1"]) ??
-      labelPayload(C1_prep),
-    "C2": (fromBaselinePath && fromBaselinePath["C2"]) ?? labelPayload(C2),
+      anchorSources.C1,
+    "C2":
+      (fromBaselinePath && fromBaselinePath["C2"]) ?? anchorSources["C2"],
     "C3":
-      (fromBaselinePath && fromBaselinePath["C3"]) ??
-      labelPayload(C3_label ?? anchors["C3"]),
-    "C4": labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C4"] : C4),
-    "C5": labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C5"] : C5),
-    "C6": labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C6"] : C6),
+      (fromBaselinePath && fromBaselinePath["C3"]) ?? anchorSources["C3"],
+    "C4":
+      labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C4"] : anchorSources["C4"]),
+    "C5":
+      labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C5"] : anchorSources["C5"]),
+    "C6":
+      labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C6"] : anchorSources["C6"]),
   };
   const trackAnchorItems =
     getAnchorsForSystem(systemIdForGrid)?.trajectories?.[trackForAnchors]?.anchors ?? [];
