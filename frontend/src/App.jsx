@@ -22,7 +22,6 @@ import {
   computeSysOverlayValues,
   evaluateSysOverlayHasAllInputs,
 } from "./domain/calculator/systemValueCalculator";
-import { unifiedSlideFromCorrections } from "./domain/calculator/sysOverlayCalcHelpers";
 import {
   loadOnePoints,
   saveOnePoints,
@@ -42,9 +41,6 @@ import { calcImpactBall } from "./data/system/calculator";
 import {
   clamp,
   toPx,
-  toRg,
-  fmt,
-  formatResultNum,
   pointerToRg,
 } from "./utils/geometry/coords";
 import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel";
@@ -65,11 +61,6 @@ import {
   coDepartureRailForTrack,
   projectPointToRail,
 } from "./utils/geometry/rail";
-import {
-  normalizeAnchor,
-  resolveAnchorPoint,
-} from "./utils/geometry/anchorResolve";
-import { adjustSystemLine } from "./utils/physics";
 import {
   computeThicknessFromImpact,
   snapImpactToOrbit,
@@ -275,54 +266,6 @@ const POINT_OFFSET_MM = 80;
 const CUSHION_RG = CUSHION_MM / RG_UNIT_MM;
 const FRAME_RG = FRAME_MM / RG_UNIT_MM;
 const POINT_OFFSET_RG = POINT_OFFSET_MM / RG_UNIT_MM;
-
-/** pathNodes (C3 이후) spin decay + forward/reverse 보정 — 앵커 엔진과 무관 */
-function spinPathGetDistance(A, B) {
-  if (!A || !B) return 0;
-  const dx = B.x - A.x;
-  const dy = B.y - A.y;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-function spinPathComputeProgress(pathNodes, index) {
-  let total = 0;
-  let current = 0;
-  for (let i = 0; i < pathNodes.length - 1; i++) {
-    const d = spinPathGetDistance(pathNodes[i], pathNodes[i + 1]);
-    total += d;
-    if (i < index) current += d;
-  }
-  if (total === 0) return 0;
-  return current / total;
-}
-
-function spinPathGetSpinFactor(progress) {
-  if (progress >= 0.85) return 0.5;
-  return 1.0;
-}
-
-function spinPathGetDirectionType(A, B, C) {
-  if (!A || !B || !C) return "forward";
-  const v1 = { x: B.x - A.x, y: B.y - A.y };
-  const v2 = { x: C.x - B.x, y: C.y - B.y };
-  const cross = v1.x * v2.y - v1.y * v2.x;
-  return cross >= 0 ? "forward" : "reverse";
-}
-
-function spinPathRotateVector(v, angle) {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  return {
-    x: v.x * cos - v.y * sin,
-    y: v.x * sin + v.y * cos,
-  };
-}
-
-function spinPathApplySpin(v, spin, type) {
-  const k = 0.015;
-  const angle = spin * k * (type === "forward" ? 1 : -1);
-  return spinPathRotateVector(v, angle);
-}
 
 // ==================================================
 // 🔵 Physics Engine Block (Phase 2 분리 대상)
@@ -729,17 +672,7 @@ export default function App({
     }
   }
 
-  /** sys/hpt/str/ai + trajectory only — never touches targetColor / isTargetSelected */
-  function syncSlotRuntimeAdminAndTrajectory(slotId) {
-    runTrajectoryHydrate({
-      slotId,
-      slots: shotEditor.slots,
-      setAdminState,
-      trajectory,
-    });
-  }
-
-  /** Slot switch only: targetBall hydrate + admin/trajectory */
+  /** Slot switch: targetBall hydrate + trajectory/admin hydrate flow */
   function hydrateSlotRuntime(slotId) {
     const slot = shotEditor.slots[slotId];
     const payload = buildSlotRuntimePayload(slot);
@@ -750,7 +683,12 @@ export default function App({
         ? adminTarget ?? payload.targetBall ?? slotExtracted
         : payload.targetBall ?? slotExtracted;
     applySlotRuntimeTargetBall(effectiveTargetBall);
-    syncSlotRuntimeAdminAndTrajectory(slotId);
+    runTrajectoryHydrate({
+      slotId,
+      slots: shotEditor.slots,
+      setAdminState,
+      trajectory,
+    });
   }
 
   /** 궤적/앵커 렌더 SSOT: 활성 슬롯의 sys만 사용 (adminState.sys / view.ui.system 혼합 금지) */
@@ -1326,14 +1264,9 @@ export default function App({
     setOverlayState,
   });
 
-  /** P0-4c-2: ✓ 버튼 → baseline draft Apply 체인 */
+  /** P0-4c-2: ✓ 버튼 → baseline draft Apply flow */
   function onBaselineDraftApplyClick(mark) {
     console.log("[BASELINE APPLY BUTTON]", mark);
-    handleBaselineDraftDoubleClick(mark);
-  }
-
-  /** P0-4a/4c: baseline draft Apply SSOT (✓ 버튼에서 호출) */
-  function handleBaselineDraftDoubleClick(mark) {
     runBaselineDraftApply({
       mark,
       appMode,
@@ -1907,11 +1840,21 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     if (appMode === "USER") {
       if (!userTableDisplaySlotId) return;
-      syncSlotRuntimeAdminAndTrajectory(userTableDisplaySlotId);
+      runTrajectoryHydrate({
+        slotId: userTableDisplaySlotId,
+        slots: shotEditor.slots,
+        setAdminState,
+        trajectory,
+      });
       return;
     }
     if (!adminTableLayersVisible) return;
-    syncSlotRuntimeAdminAndTrajectory(shotEditor.activeSlot);
+    runTrajectoryHydrate({
+      slotId: shotEditor.activeSlot,
+      slots: shotEditor.slots,
+      setAdminState,
+      trajectory,
+    });
   }, [
     shotEditor.slots,
     shotEditor.activeSlot,
@@ -3176,6 +3119,11 @@ function handlePointerCancel(e) {
   handlePointerUp(e);
 }
 
+  // ---------------------------------------------------------------------------
+  // Batch 5 Trajectory Integration (STEP 5-8)
+  // buildTrajectory → pathAttrModel → renderModel → baselineHandleModel → JSX
+  // ---------------------------------------------------------------------------
+
   // RND-004(partial): buildRgAnchors (Batch 2 STEP 2-5)
   // D-005 주의: SYSTEM_PROFILES 직접 참조 → Batch 6 Runtime Contract 해소 예정
   const override = adminState?.anchorsOverride ?? {};
@@ -3188,13 +3136,6 @@ function handlePointerCancel(e) {
     anchorsOverride: override,
   });
 
-  // ⚠️ convertCanonicalAnchors가 이미 Fg → Rg 변환을 함!
-  // 따라서 anchors.CO, anchors["C1"]는 Rg 좌표
-  // determineRotation에는 원본 Fg 좌표가 필요
-  
-  const CO_rg_converted = anchors.CO;      // 이미 Rg
-  const C1_rg_converted = anchors["C1"];   // 이미 Rg
-
   const resolveAnchorCtx = {
     track: trackForAnchors,
     systemId: systemIdForGrid,
@@ -3202,7 +3143,6 @@ function handlePointerCancel(e) {
 
   const HIT_TOLERANCE = Math.max(2, BALL_RADIUS_RG * 4);
 
-  // C2 fallback: anchors["C2"] 없을 때 reflection policy (baseline branch — STEP 5-4)
   const currentTip = (() => {
     const hp = adminState?.hpt?.hit_point ?? adminState?.hpt?.hp;
     if (!hp || typeof hp.x !== "number" || typeof hp.y !== "number") return null;
@@ -3236,7 +3176,6 @@ function handlePointerCancel(e) {
 
   const {
     corrected: {
-      pathNodes,
       cushionPath,
       cushionPathForRender,
       cap: capCorrected,
@@ -3259,8 +3198,6 @@ function handlePointerCancel(e) {
 
   const CO_line = coLine;
   const C1_line = c1Line;
-  const CO_path0 = CO_line;
-  const C1_rail = C1_line;
 
   if (reflectedDiagnostics && canEdit) {
     console.log("🔷 C2 reflection fallback:", reflectedDiagnostics);
@@ -3268,47 +3205,12 @@ function handlePointerCancel(e) {
 
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
 
-  // CO→C1 선은 레일(Rg) 시작점 — Fg 의미점과 분리 (CO_line ≠ 라벨 좌표일 수 있음)
-
-  // CO Dual Trajectory: 보정선 (양수 unifiedSlide / curve_ratio 시 CO_corrected 표시)
-  const corrections = slotRenderSys?.corrections ?? {};
-  const corrBundleForCurve = {
-    slide: corrections.slide ?? 0,
-    draw: corrections.draw ?? 0,
-  };
-  const shotTypeForCurve = slotRenderSys?.shotType || "뒤돌리기";
-  const unifiedSlideForCurve = unifiedSlideFromCorrections(
-    corrBundleForCurve,
-    shotTypeForCurve
-  );
-  const curveVal = Number(corrections.curve_ratio) || 0;
-  const slidePortionForCoLine =
-    unifiedSlideForCurve > 0 ? unifiedSlideForCurve : 0;
-  const totalCorrection = slidePortionForCoLine + curveVal;
-  const hasCorrection = slidePortionForCoLine !== 0 || curveVal !== 0;
-
-  let CO_corrected_line = null;
-  if (hasCorrection && CO_path0 && C1_rail) {
-    // 레일 방향으로 CO를 totalCorrection만큼 이동 (1 sys unit ≈ 1 grid unit)
-    const isBottomRail = Math.abs(CO_path0.y - 0) < 0.5;
-    const isTopRail = Math.abs(CO_path0.y - 40) < 0.5;
-    const isLeftRail = Math.abs(CO_path0.x - 0) < 0.5;
-    const isRightRail = Math.abs(CO_path0.x - 80) < 0.5;
-    if (isBottomRail || isTopRail) {
-      CO_corrected_line = { x: CO_path0.x + totalCorrection, y: CO_path0.y };
-    } else if (isLeftRail || isRightRail) {
-      CO_corrected_line = { x: CO_path0.x, y: CO_path0.y + totalCorrection };
-    } else {
-      CO_corrected_line = { x: CO_path0.x + totalCorrection, y: CO_path0.y };
-    }
-  }
-
   console.log("🔷 레일 교점:", {
     "CO_prep (의미점)": CO_prep,
     "C1_prep (의미점)": C1_prep,
     "CO_rail": CO_rail,
-    CO_path0,
-    "C1_rail (SSOT)": C1_rail
+    CO_path0: CO_line,
+    "C1_rail (SSOT)": C1_line,
   });
 
   const capBaseline = baseline?.cap ?? capCorrected;
@@ -3367,14 +3269,15 @@ function handlePointerCancel(e) {
     appMode === "USER"
       ? userDisplayFlags?.labelAnchorSource === "baseline"
       : showBaseLine;
-  // TRJ-002: buildTrajectoryRenderModel (Batch 2 STEP 2-5)
-  const { activeDisplayCap, visibleKeysForLabels } = buildTrajectoryRenderModel({
+  const trajectoryRenderModel = buildTrajectoryRenderModel({
     systemIdForGrid,
     useBaselineLabelAnchors,
     cushionPathBaselineRg,
     capBaseline,
     capCorrected,
   });
+  const { activeDisplayCap, visibleKeysForLabels, labelStrategy } =
+    trajectoryRenderModel;
   if (import.meta.env.DEV && userDisplayModeActive) {
     console.log("[TRAJ_DISPLAY_CAP]", {
       mode: useBaselineLabelAnchors ? "baseline" : "corrected",
@@ -3577,14 +3480,6 @@ function handlePointerCancel(e) {
     appMode === "USER"
       ? userShowBaselinePath && !userShowCorrectedPath
       : showBaseLine;
-  // TRJ-002: labelStrategy (from buildTrajectoryRenderModel — D-005: Batch 6 해소 예정)
-  const labelStrategy = buildTrajectoryRenderModel({
-    systemIdForGrid,
-    useBaselineLabelAnchors,
-    cushionPathBaselineRg,
-    capBaseline,
-    capCorrected,
-  }).labelStrategy;
 
   const cushionPathForTableImpact =
     !userShowTrajectoryOnTable
