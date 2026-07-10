@@ -1,8 +1,9 @@
 /**
  * runtime/index.ts
- * Batch 6 STEP 6-1 — Runtime layer public exports (smoke / future consumer entry).
+ * Batch 6 — Runtime layer public exports.
  *
- * STEP 6-1: scaffold only. Existing App/Flow/Domain consumers unchanged.
+ * Registry Public API (AD-B6-04): getSystemContract, listRegisteredSystemIds, isRegistered.
+ * bootstrapRegistry is runtime-internal only (AD-B6-06).
  */
 
 export type {
@@ -32,5 +33,4 @@ export {
   getSystemContract,
   listRegisteredSystemIds,
   isRegistered,
-  bootstrapRegistry,
 } from "./registry/systemRegistry";

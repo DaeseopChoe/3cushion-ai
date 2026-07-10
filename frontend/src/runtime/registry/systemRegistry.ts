@@ -34,8 +34,8 @@ function loadAndRegister(systemId: string): SystemContract | undefined {
   return contract;
 }
 
-/** Eager bootstrap — AD-B6-06. Runs once on first registry access. */
-export function bootstrapRegistry(): void {
+/** Eager bootstrap — AD-B6-06. Runtime internal only; not a Public API. */
+function bootstrapRegistry(): void {
   if (bootstrapComplete) return;
 
   for (const systemId of listDiscoverableSystemIds()) {
