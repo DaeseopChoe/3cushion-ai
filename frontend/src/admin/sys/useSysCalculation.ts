@@ -3,7 +3,7 @@
 // 좌표(anchors) 의존성 없음. 시스템값(system_values) 직접 입력만 사용.
 
 import { useMemo } from "react";
-import { SYSTEM_PROFILES } from "../../data/systems";
+import { getSystemContract } from "../../runtime";
 
 type Values = Record<string, number>;
 
@@ -26,7 +26,7 @@ export type SysCalcResult = {
   error?: string;
 };
 
-/** system_id → SYSTEM_PROFILES 키 매핑 */
+/** system_id → Contract systemId 매핑 */
 const SYSTEM_ID_TO_PROFILE_KEY: Record<string, string> = {
   "5_HALF": "5_half_system",
   "PLUS": "plus_system",
@@ -125,34 +125,40 @@ function evaluateExpr(expr: string, values: Values): Values {
 
 type ProfileBundle = {
   profileKey: string;
-  profile: (typeof SYSTEM_PROFILES)[string];
-  expr: string;
+  formulaExpr: string;
+  isFiveHalf: boolean;
 };
 
 function resolveProfileBundle(system_id: string): ProfileBundle | { error: string } {
   const profileKey =
     SYSTEM_ID_TO_PROFILE_KEY[system_id] ??
     system_id.toLowerCase().replace(/-/g, "_");
-  const profile = SYSTEM_PROFILES[profileKey];
-  if (!profile) {
+  const contract = getSystemContract(profileKey);
+  if (!contract) {
     return { error: `Unknown systemId: ${system_id}` };
   }
-  const expr: string = profile?.formula?.expr;
+  const expr = contract.profile.formulaExpr;
   if (!expr || typeof expr !== "string") {
     return { error: "profile.formula.expr not found" };
   }
-  return { profileKey, profile, expr };
+  return {
+    profileKey,
+    formulaExpr: expr,
+    isFiveHalf:
+      contract.identity.family === "5_half" ||
+      contract.identity.systemId === "5_half_system",
+  };
 }
 
 /** expr + system_values 한 번 평가 (5_half Sn/C4 체인 포함) — 기존 단일 경로와 동일 */
 function runCalculation(
   expr: string,
-  profile: (typeof SYSTEM_PROFILES)[string],
+  isFiveHalf: boolean,
   systemValues: Record<string, number>
 ): Values {
   const values = buildValuesFromInput(expr, systemValues);
   let out = evaluateExpr(expr, values);
-  if (profile?.system === "5_half_system") {
+  if (isFiveHalf) {
     const CO_f = out.CO_f ?? 0;
     const C3_r = out.C3_r ?? 0;
     const Sn = (CO_f - 50) * 0.5;
@@ -203,13 +209,13 @@ export function useSysCalculation(input: SysCalcInput | null): SysCalcResult {
     if ("error" in bundle) {
       return { expr: "", output: {}, base: {}, effective: {}, error: bundle.error };
     }
-    const { profile, expr } = bundle;
+    const { formulaExpr, isFiveHalf } = bundle;
 
     try {
-      const base = runCalculation(expr, profile, baseIn);
-      const effective = runCalculation(expr, profile, effectiveIn);
+      const base = runCalculation(formulaExpr, isFiveHalf, baseIn);
+      const effective = runCalculation(formulaExpr, isFiveHalf, effectiveIn);
       return {
-        expr,
+        expr: formulaExpr,
         output: effective,
         base,
         effective,

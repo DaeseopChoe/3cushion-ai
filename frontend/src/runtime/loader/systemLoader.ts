@@ -1,13 +1,16 @@
 /**
  * systemLoader.ts
- * Batch 6 STEP 6-1 — System package load + SystemContract assemble (SYS-002).
+ * Batch 6 — System package load + SystemContract assemble (SYS-002).
  *
  * Loader: locate · load · validate · assemble. No cache (INV-B6-05).
- * Phase-1: delegates profile/anchors to existing data/systems eager maps.
+ * STEP 6-7: JSON access only via systemPackageStore (Loader-internal).
  */
 
-import { SYSTEM_PROFILES } from "../../data/systems";
-import { anchorsRegistry } from "../../data/systems/anchorsRegistry";
+import {
+  getPackageAnchors,
+  getPackageProfile,
+  listPackageSystemIds,
+} from "./systemPackageStore";
 import {
   SYSTEM_CONTRACT_VERSION,
   type LabelStrategy,
@@ -157,7 +160,7 @@ function buildCapabilities(
 }
 
 function parseAnchors(systemId: string): SystemContract["anchors"] {
-  const raw = anchorsRegistry[systemId];
+  const raw = getPackageAnchors(systemId);
   if (!raw) {
     return { trajectories: null, meta: null };
   }
@@ -190,7 +193,7 @@ function validateAssembly(
 export function assembleSystemContract(
   systemId: string
 ): SystemContract | undefined {
-  const profileRaw = SYSTEM_PROFILES[systemId] as JsonRecord | undefined;
+  const profileRaw = getPackageProfile(systemId) as JsonRecord | undefined;
   if (!profileRaw) {
     return undefined;
   }
@@ -238,5 +241,5 @@ export function assembleSystemContract(
 
 /** Discovery list — profile.json registered system ids (eager parity). */
 export function listDiscoverableSystemIds(): string[] {
-  return Object.keys(SYSTEM_PROFILES).sort();
+  return listPackageSystemIds();
 }

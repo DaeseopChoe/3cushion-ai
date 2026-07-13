@@ -1,9 +1,9 @@
 /**
  * runtime/index.ts
- * Batch 6 — Runtime layer public exports.
+ * Batch 6 STEP 6-7 — Final Runtime Public API (AD-B6-04).
  *
- * Registry Public API (AD-B6-04): getSystemContract, listRegisteredSystemIds, isRegistered.
- * bootstrapRegistry is runtime-internal only (AD-B6-06).
+ * Sole Public Entry: getSystemContract().
+ * bootstrapRegistry / Loader / systemPackageStore are runtime-internal.
  */
 
 export type {

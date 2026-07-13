@@ -181,7 +181,7 @@ function layerDebugStroke(layer) {
 
 /**
  * @param {object} props
- * @param {import("../../data/systems/anchorsRegistry").AnchorsData} [props.anchorsData]
+ * @param {{ trajectories?: Record<string, { anchors: { id: string }[] }>, meta?: Record<string, unknown> }} [props.anchorsData]
  * @param {string} [props.track]
  * @param {boolean} [props.visible]
  * @param {boolean} [props.debugLayerBounds] 레이어별 약한 바운드(원) 표시

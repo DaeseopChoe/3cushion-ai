@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useSysCalculation, getInputTokensFromExpr } from "./useSysCalculation";
-import { SYSTEM_PROFILES } from "../../data/systems";
+import { getSystemContract } from "../../runtime";
 import { angleSpinTargetRail } from "../../domain/angleSpinCorrectionTarget";
 
 /** 정수 출력 (포맷 표준) */
@@ -252,8 +252,8 @@ export function SysOverlay({
   });
 
   const profileKey = PROFILE_KEY_MAP[sysState.systemId] ?? sysState.systemId;
-  const profile = SYSTEM_PROFILES[profileKey];
-  const formulaExpr = profile?.formula?.expr ?? "";
+  const formulaExpr =
+    getSystemContract(profileKey)?.profile?.formulaExpr ?? "";
   const inputTokens = useMemo(
     () => (formulaExpr ? getInputTokensFromExpr(formulaExpr) : []),
     [formulaExpr]
@@ -324,8 +324,8 @@ export function SysOverlay({
 
   function updateSystemId(systemId: string) {
     const nextProfileKey = PROFILE_KEY_MAP[systemId] ?? systemId;
-    const nextProfile = SYSTEM_PROFILES[nextProfileKey];
-    const nextExpr = nextProfile?.formula?.expr ?? "";
+    const nextExpr =
+      getSystemContract(nextProfileKey)?.profile?.formulaExpr ?? "";
     const nextTokens = nextExpr ? getInputTokensFromExpr(nextExpr) : [];
     const defaults = getDefaultSystemValues(nextTokens);
     setSysState((prev) => {
