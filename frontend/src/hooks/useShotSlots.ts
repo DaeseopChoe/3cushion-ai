@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { TrajectoryPhase } from './useTrajectoryState';
-import { SYSTEM_PROFILES } from '../data/systems';
+import { getSystemContract } from '../runtime';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
 import { buildTrajectorySamples } from '../utils/trajectorySampleBuilder';
 import type { PositionRecord, StrategyEntry } from '../domain/positionSearchEngine';
@@ -251,15 +251,16 @@ function buildSlotDraftWithUpdatedSys(
     }
   }
 
-  const profile = SYSTEM_PROFILES[nextSystemId];
+  const formulaExpr =
+    getSystemContract(nextSystemId)?.profile?.formulaExpr ?? null;
   const exprInputs: Record<string, number> = { ...nextInputs } as Record<string, number>;
 
   let calcResult: Record<string, number> = {};
-  if (profile?.formula?.expr) {
-    calcResult = calculateByProfileExpr(profile.formula.expr, exprInputs);
+  if (formulaExpr) {
+    calcResult = calculateByProfileExpr(formulaExpr, exprInputs);
   }
 
-  console.log("[STEP6-A]", "system:", nextSystemId, "expr:", profile?.formula?.expr, "result:", calcResult);
+  console.log("[STEP6-A]", "system:", nextSystemId, "expr:", formulaExpr, "result:", calcResult);
 
   const prevOutputs = slot.draft?.sys?.outputs || {};
   const prevResult = prevOutputs.result || {};

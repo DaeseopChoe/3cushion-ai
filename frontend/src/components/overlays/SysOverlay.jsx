@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { SYSTEM_PROFILES } from "../../data/systems";
+import { getSystemContract } from "../../runtime";
 import { formatResultNum } from "../../utils/geometry/coords";
 import {
   parseSysFormulaExpr,
@@ -185,12 +185,11 @@ export function SysOverlay({
   }, [data?.system_values]);
 
   // ==========================================
-  // 공식 로딩 및 파싱
+  // 공식 로딩 및 파싱 — Runtime Contract (STEP 6-6 / D-006)
   // ==========================================
-  const profile = SYSTEM_PROFILES?.[formData.system];
-  const expr = typeof profile?.formula === "string"
-    ? profile.formula
-    : profile?.formula?.expr || "";
+  const formulaExpr =
+    getSystemContract(formData.system)?.profile?.formulaExpr ?? "";
+  const expr = formulaExpr || "";
 
   const parsed = useMemo(() => parseSysFormulaExpr(expr), [expr]);
   const { forced, neededKeys, needsHP, needsAn } = parsed;
