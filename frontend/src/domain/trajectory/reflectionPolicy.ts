@@ -3,11 +3,9 @@
  * TRJ-003 (Batch 5 STEP 5-2) — Reflection Policy SSOT.
  *
  * Policy → reflectionEngine delegate.
- * Batch 5 interim: SYSTEM_PROFILES.safety direct read (D-006 / D-009).
- * Batch 6: Trajectory Runtime Contract replace.
+ * Batch 6 STEP 6-2: reflection safety supplied by App from TrajectoryContractView (D-009).
  */
 
-import { SYSTEM_PROFILES } from "../../data/systems";
 import {
   computeReflectionC2,
   type ReflectionInput,
@@ -26,19 +24,41 @@ export type ReflectionPolicyInput = {
   tip?: ReflectionInput["tip"];
   track?: ReflectionInput["track"];
   manualHint?: ReflectionInput["manualHint"];
-  /** D-006 interim — Batch 6 Contract replaces profile lookup */
+  /** Retained for Builder API stability; safety is not resolved from systemId. */
   systemId?: string | null;
+  /** Optional per-call override (App injection hub). */
+  safety?: ReflectionSafetyParams;
 };
 
-/** profile.safety → reflection guard params (D-009 interim SSOT). */
-export function getReflectionSafetyParams(
-  systemId: string | null | undefined
-): ReflectionSafetyParams {
-  const profile = systemId ? SYSTEM_PROFILES?.[systemId] : undefined;
-  return {
-    m_min: profile?.safety?.m_min ?? 0.05,
-    theta_t_max: profile?.safety?.theta_t_max ?? 68,
+const DEFAULT_REFLECTION_SAFETY: ReflectionSafetyParams = {
+  m_min: 0.05,
+  theta_t_max: 68,
+};
+
+let reflectionSafetySupply: ReflectionSafetyParams = DEFAULT_REFLECTION_SAFETY;
+
+/**
+ * App Orchestrator injection — TrajectoryContractView.reflectionSafety (AD-B6-04 hub).
+ * Domain does not read System JSON or Runtime Registry directly.
+ */
+export function supplyReflectionSafety(
+  safety: ReflectionSafetyParams
+): void {
+  reflectionSafetySupply = {
+    m_min:
+      typeof safety.m_min === "number"
+        ? safety.m_min
+        : DEFAULT_REFLECTION_SAFETY.m_min,
+    theta_t_max:
+      typeof safety.theta_t_max === "number"
+        ? safety.theta_t_max
+        : DEFAULT_REFLECTION_SAFETY.theta_t_max,
   };
+}
+
+/** Contract-supplied reflection guard params (D-009 SSOT). */
+export function getReflectionSafetyParams(): ReflectionSafetyParams {
+  return reflectionSafetySupply;
 }
 
 /** theta_t_max guard — diagnostic seam; does not block result (behavior invariant). */
@@ -56,13 +76,13 @@ export function isReflectionGuardBlocked(
 export function resolveReflectionC2(
   input: ReflectionPolicyInput
 ): ReflectionOutput | null {
-  const { co, c1, c3, tip, track, manualHint, systemId } = input;
+  const { co, c1, c3, tip, track, manualHint, safety } = input;
 
   if (!co || !c1 || !c3) {
     return null;
   }
 
-  const safety = getReflectionSafetyParams(systemId);
+  const resolvedSafety = safety ?? getReflectionSafetyParams();
 
   const result = computeReflectionC2({
     co,
@@ -74,7 +94,7 @@ export function resolveReflectionC2(
   });
 
   if (result) {
-    isReflectionGuardBlocked(result.thetaOutDeg, safety);
+    isReflectionGuardBlocked(result.thetaOutDeg, resolvedSafety);
   }
 
   return result;

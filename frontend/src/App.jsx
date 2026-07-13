@@ -28,6 +28,11 @@ import {
 } from "./domain/lesson/onePointLibrary";
 import { SysOverlay } from "./components/overlays/SysOverlay";
 import { SYSTEM_PROFILES } from "./data/systems";
+import {
+  getSystemContract,
+  extractTrajectoryContractView,
+} from "./runtime";
+import { supplyReflectionSafety } from "./domain/trajectory/reflectionPolicy";
 import { convertThetaToClock } from "./utils/tipClockConverter";
 import {
   hitPointToTipDisplay,
@@ -3121,18 +3126,35 @@ function handlePointerCancel(e) {
 
   // ---------------------------------------------------------------------------
   // Batch 5 Trajectory Integration (STEP 5-8)
+  // Batch 6 STEP 6-2: Contract safety supply (D-009) before buildTrajectory
   // buildTrajectory → pathAttrModel → renderModel → baselineHandleModel → JSX
   // ---------------------------------------------------------------------------
+
+  const systemRuntimeContract = getSystemContract(systemIdForGrid);
+  const trajectoryContractView = systemRuntimeContract
+    ? extractTrajectoryContractView(systemRuntimeContract)
+    : null;
+
+  if (trajectoryContractView) {
+    supplyReflectionSafety(trajectoryContractView.reflectionSafety);
+  }
 
   // RND-004(partial): buildRgAnchors (Batch 2 STEP 2-5)
   // D-005 주의: SYSTEM_PROFILES 직접 참조 → Batch 6 Runtime Contract 해소 예정
   const override = adminState?.anchorsOverride ?? {};
+  const profileForCanonical = trajectoryContractView
+    ? {
+        safety: {
+          offset_fg2rg: trajectoryContractView.anchorConversion.offset_fg2rg,
+        },
+      }
+    : SYSTEM_PROFILES?.[systemIdForGrid];
   const { anchors, anchorsBase } = buildRgAnchors({
     rawAnchors,
     rawAnchorsBase,
     canonical,
     systemValues: system?.values,
-    profileForCanonical: SYSTEM_PROFILES?.[systemIdForGrid],
+    profileForCanonical,
     anchorsOverride: override,
   });
 
