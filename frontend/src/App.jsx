@@ -32,6 +32,7 @@ import {
   extractTrajectoryContractView,
 } from "./runtime";
 import { supplyReflectionSafety } from "./domain/trajectory/reflectionPolicy";
+import { bindDomainContractSupply } from "./domain/runtimeContractSupply";
 import { convertThetaToClock } from "./utils/tipClockConverter";
 import {
   hitPointToTipDisplay,
@@ -161,6 +162,14 @@ function resolveAnchorsData(systemId) {
     ...(anchors.meta ? { meta: anchors.meta } : {}),
   };
 }
+
+/** Domain Contract supply — Registry → slices (STEP 6-5). Domain never imports Runtime. */
+bindDomainContractSupply({
+  getFormulaExpr: (systemId) =>
+    getSystemContract(systemId)?.profile?.formulaExpr ?? null,
+  getFormulaHash: resolveFormulaHash,
+  getAnchorsData: resolveAnchorsData,
+});
 
 // IMPORTANT:
 // Main app currently renders the LOCAL SysOverlay defined in this file.

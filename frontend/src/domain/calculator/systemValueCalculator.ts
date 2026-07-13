@@ -27,7 +27,7 @@ import {
   buildSysOverlayNumericPayload,
   unifiedSlideFromCorrections,
 } from "./sysOverlayCalcHelpers";
-import { SYSTEM_PROFILES } from "../../data/systems";
+import { resolveDomainFormulaExpr } from "../runtimeContractSupply";
 import { calculateByProfileExpr } from "../../utils/systemCalculator";
 
 type MergedInputs = Record<string, unknown>;
@@ -144,7 +144,7 @@ export function evaluateSysOverlayHasAllInputs(params: {
 
 /**
  * CAL-003: Recall entry → slot draft.sys snapshot (StrategyEntry → sys snapshot).
- * D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open — Batch 6).
+ * formulaExpr via App-bound Contract supply (D-006 Domain Closed — STEP 6-5).
  */
 export function buildSlotSysSnapshot(
   entry: StrategyEntry | null | undefined
@@ -155,8 +155,7 @@ export function buildSlotSysSnapshot(
       ? "5_half_system"
       : (entry.signature.systemId ?? "5_half_system");
   const inputs = entry.sysInputs ?? {};
-  const profile = SYSTEM_PROFILES[systemId];
-  const expr: string | undefined = profile?.formula?.expr;
+  const expr = resolveDomainFormulaExpr(systemId) ?? undefined;
   const baseThreeC =
     typeof inputs.baseThreeC === "number"
       ? inputs.baseThreeC
@@ -222,11 +221,7 @@ export function computeSysOverlayValues(
   const { systemId, inputs, spaceSel, corrections, shotType, isRestored, hasAllInputs } =
     params;
 
-  const profile = SYSTEM_PROFILES?.[systemId];
-  const expr =
-    typeof profile?.formula === "string"
-      ? profile.formula
-      : profile?.formula?.expr || "";
+  const expr = resolveDomainFormulaExpr(systemId) ?? "";
 
   if (!expr || !expr.trim()) {
     return { ...EMPTY_OVERLAY_RESULT };
@@ -408,11 +403,7 @@ export function buildEffectiveRenderSysValues(
   const systemId = canonicalSystemIdForConfig(rawSid);
   const systemMode = getSysSystemMode(systemId);
   const useSn = getSysUseSn(systemId);
-  const profile = SYSTEM_PROFILES[systemId];
-  const expr =
-    typeof profile?.formula === "string"
-      ? profile.formula
-      : profile?.formula?.expr || "";
+  const expr = resolveDomainFormulaExpr(systemId) ?? "";
   if (!expr || !expr.trim()) return {};
 
   const { forced, neededKeys, needsHP, needsAn } = parseSysFormulaExpr(expr);

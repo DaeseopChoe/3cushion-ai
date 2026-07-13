@@ -2,12 +2,19 @@
  * anchorLookupEngine.ts
  * anchors.json SSOT: sys 값 → 앵커 좌표 직접 매핑 (선형 보간).
  * `_r` 필드로 조회할 때는 Rg 좌표가 나오도록 Rg 앵커만 쓰거나, Fg 보간 결과를 fgToRg 한다.
+ *
+ * Batch 6 STEP 6-5: anchors via App-bound Contract supply (D-007 Domain Closed).
  */
 
 import { fgToRg } from "./finalCoordinateEngine";
-import { getAnchorsForSystem, type AnchorsData } from "../data/systems/anchorsRegistry";
+import {
+  resolveDomainAnchorsData,
+  type DomainAnchorsData,
+} from "./runtimeContractSupply";
 
 const FRAME_TOL = 1e-3;
+
+export type AnchorsData = DomainAnchorsData;
 
 export type AnchorLookupMark =
   | "CO"
@@ -130,7 +137,8 @@ export type GetAnchorCoordFromSysInput = {
 };
 
 /**
- * sys 값 → anchors.json 기반 좌표 + valueSpace (Fg/Rg, 좌표 기준 규칙)
+ * sys 값 → anchors 기반 좌표 + valueSpace (Fg/Rg, 좌표 기준 규칙).
+ * Anchors from App-bound Contract supply (D-007).
  */
 export function getAnchorCoordFromSys(
   input: GetAnchorCoordFromSysInput
@@ -142,7 +150,7 @@ export function getAnchorCoordFromSys(
     typeof sysFieldKey === "string" && /_r$/.test(sysFieldKey);
 
   const sid = systemId === "5_HALF" ? "5_half_system" : systemId;
-  const anchorsData = getAnchorsForSystem(sid);
+  const anchorsData = resolveDomainAnchorsData(sid);
   if (!anchorsData) return null;
 
   let points = collectPointsForMark(anchorsData, track, mark);

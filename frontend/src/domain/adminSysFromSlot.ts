@@ -1,10 +1,11 @@
 /**
  * PHASE 2 — resolved slot.sys → adminState.sys (SYS modal mirror).
  * STEP 2: corrections/shotType from SlotRuntimeMeta only (no prev-slot carry-over).
+ * Batch 6 STEP 6-5: formulaHash via Contract supply (D-006 Domain Closed).
  */
 
-import { SYSTEM_PROFILES } from "../data/systems";
 import { STRATEGY_CORRECTIONS_ZERO } from "./canonicalStrategy";
+import { resolveDomainFormulaHash } from "./runtimeContractSupply";
 import {
   hasRenderableOutputsResult,
   type SlotDraftSys,
@@ -38,8 +39,7 @@ function canonicalSystemId(systemId: string | undefined): string {
 }
 
 function formulaHashForSystemId(systemId: string): string {
-  const profile = SYSTEM_PROFILES[systemId];
-  return (profile?.formula?.expr ?? profile?.meta?.version ?? "v1").slice(0, 32);
+  return resolveDomainFormulaHash(systemId);
 }
 
 function correctionsFromMeta(meta?: SlotRuntimeMeta | null) {

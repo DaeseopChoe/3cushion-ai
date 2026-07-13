@@ -1,9 +1,10 @@
 /**
  * Single SSOT: StrategyEntry → base sys inputs / system_values / derived outputs (hydrate).
+ * Batch 6 STEP 6-5: formulaExpr via Contract supply (D-006 Domain Closed).
  */
 
-import { SYSTEM_PROFILES } from "../data/systems";
 import type { StrategyEntry } from "./positionSearchEngine";
+import { resolveDomainFormulaExpr } from "./runtimeContractSupply";
 import {
   defaultHydrateCalculate,
   hydrateSysFromStrategyEntryWithResolver,
@@ -20,7 +21,7 @@ export {
 } from "./strategyHydrateCore";
 
 const defaultResolver: HydrateSysResolver = {
-  getExpr: (systemId) => SYSTEM_PROFILES[systemId]?.formula?.expr,
+  getExpr: (systemId) => resolveDomainFormulaExpr(systemId) ?? undefined,
   calculate: defaultHydrateCalculate,
 };
 
