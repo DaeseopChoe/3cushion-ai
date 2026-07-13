@@ -2,8 +2,8 @@
  * baselineHandleModel.ts
  * RND-003 / AD-B5-11 — Baseline handle display model.
  *
- * TrajectoryBuildResult.handles + presentation context → render model.
- * JSX mount remains App/Presentation; no geometry calculation.
+ * Batch 6 STEP 6-3 (D-010): visibility from Contract flags (App-resolved).
+ * No systemId / family / track hardcode. JSX mount remains App/Presentation.
  */
 
 import type { TrajectoryBuildResult } from "../../domain/trajectory/trajectoryBuilder";
@@ -39,6 +39,15 @@ export type BaselineHandlePresentationContext = {
   draggingMark: BaselineHandleMark | null;
 };
 
+/**
+ * Contract-derived visibility flag from App injection hub.
+ * App resolves TrajectoryContractView.baselineHandle + track match;
+ * Renderer does not inspect systemId / family / track strings.
+ */
+export type BaselineHandleContractFlags = {
+  enabled: boolean;
+};
+
 const HANDLE_RADIUS = 7;
 const HANDLE_FILL = "#facc15";
 const HANDLE_STROKE = "#a16207";
@@ -46,18 +55,11 @@ const HANDLE_STROKE_WIDTH = 1.5;
 const HANDLE_OPACITY_IDLE = 0.85;
 const HANDLE_OPACITY_DRAG = 1;
 
-/** D-010 interim: 5½ + B2T guard encapsulated as visibility flag. */
 function isBaselineHandleLayerVisible(
   ctx: BaselineHandlePresentationContext,
-  systemIdForGrid: string | undefined,
-  trackForAnchors: string | undefined
+  flags: BaselineHandleContractFlags
 ): boolean {
-  return (
-    ctx.appMode === "ADMIN" &&
-    ctx.showBaseLine &&
-    systemIdForGrid === "5_half_system" &&
-    !!trackForAnchors?.startsWith("B2T")
-  );
+  return ctx.appMode === "ADMIN" && ctx.showBaseLine && flags.enabled;
 }
 
 function buildHandleCircle(
@@ -95,17 +97,14 @@ function buildHandleCircle(
   };
 }
 
-/** TrajectoryBuildResult + presentation context → handle display model. */
+/** TrajectoryBuildResult + presentation context + Contract flags → handle display model. */
 export function buildBaselineHandleModel(
   result: TrajectoryBuildResult,
   ctx: BaselineHandlePresentationContext,
-  config: TablePxConfig
+  config: TablePxConfig,
+  baselineHandleFlags: BaselineHandleContractFlags
 ): BaselineHandleModel {
-  const layerVisible = isBaselineHandleLayerVisible(
-    ctx,
-    result.meta.systemIdForGrid,
-    result.meta.trackForAnchors
-  );
+  const layerVisible = isBaselineHandleLayerVisible(ctx, baselineHandleFlags);
 
   const coEffective = ctx.draftCoRg ?? result.handles.coRg;
   const c1Effective = ctx.draftC1Rg ?? result.handles.c1Rg;

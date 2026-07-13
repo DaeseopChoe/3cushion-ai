@@ -3292,7 +3292,8 @@ function handlePointerCancel(e) {
       ? userDisplayFlags?.labelAnchorSource === "baseline"
       : showBaseLine;
   const trajectoryRenderModel = buildTrajectoryRenderModel({
-    systemIdForGrid,
+    labelStrategy:
+      trajectoryContractView?.render.labelStrategy ?? "anchor_ssot",
     useBaselineLabelAnchors,
     cushionPathBaselineRg,
     capBaseline,
@@ -3528,6 +3529,15 @@ function handlePointerCancel(e) {
         })
       : null;
 
+  const baselineHandleContract = trajectoryContractView?.baselineHandle ?? {
+    enabled: false,
+    requireTrackPrefix: null,
+  };
+  const baselineHandleTrackAllowed =
+    baselineHandleContract.requireTrackPrefix == null ||
+    baselineHandleContract.requireTrackPrefix === "" ||
+    (typeof trackForAnchors === "string" &&
+      trackForAnchors.startsWith(baselineHandleContract.requireTrackPrefix));
   const baselineHandleModel = buildBaselineHandleModel(
     trajectoryBuild,
     {
@@ -3537,7 +3547,11 @@ function handlePointerCancel(e) {
       draftC1Rg: baselineDraftState.c1Rg,
       draggingMark: baselineDraftState.draggingMark,
     },
-    tablePxConfig
+    tablePxConfig,
+    {
+      enabled:
+        baselineHandleContract.enabled && baselineHandleTrackAllowed,
+    }
   );
 
   const coBaselineHandleNode = baselineHandleModel.co ? (

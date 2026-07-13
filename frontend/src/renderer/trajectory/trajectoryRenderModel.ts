@@ -1,3 +1,10 @@
+/**
+ * trajectoryRenderModel.ts
+ * TRJ-002 / Batch 6 STEP 6-3 — display cap + labelStrategy from Contract (D-005).
+ *
+ * Renderer consumes Contract flags only — no systemId / family branching.
+ */
+
 import { PATH_NODE_MARKS } from "../../domain/trajectoryPathDisplayPolicy";
 
 interface DisplayCap {
@@ -5,8 +12,11 @@ interface DisplayCap {
   [key: string]: unknown;
 }
 
+export type LabelStrategy = "five_half_reference" | "anchor_ssot";
+
 interface TrajectoryRenderModelArgs {
-  systemIdForGrid: string;
+  /** From TrajectoryContractView.render.labelStrategy (App injection hub). */
+  labelStrategy: LabelStrategy;
   useBaselineLabelAnchors: boolean;
   cushionPathBaselineRg: unknown[] | null;
   capBaseline: DisplayCap;
@@ -16,11 +26,11 @@ interface TrajectoryRenderModelArgs {
 interface TrajectoryRenderModel {
   activeDisplayCap: DisplayCap;
   visibleKeysForLabels: string[];
-  labelStrategy: "five_half_reference" | "anchor_ssot";
+  labelStrategy: LabelStrategy;
 }
 
 export function buildTrajectoryRenderModel({
-  systemIdForGrid,
+  labelStrategy,
   useBaselineLabelAnchors,
   cushionPathBaselineRg,
   capBaseline,
@@ -35,12 +45,6 @@ export function buildTrajectoryRenderModel({
     activeDisplayCap.endIndex >= 0
       ? PATH_NODE_MARKS.slice(0, activeDisplayCap.endIndex + 1)
       : [];
-
-  // D-005: systemIdForGrid === "5_half_system" 직접 비교 → Batch 6 해소 예정
-  const labelStrategy: "five_half_reference" | "anchor_ssot" =
-    systemIdForGrid === "5_half_system"
-      ? "five_half_reference"
-      : "anchor_ssot";
 
   return { activeDisplayCap, visibleKeysForLabels, labelStrategy };
 }
