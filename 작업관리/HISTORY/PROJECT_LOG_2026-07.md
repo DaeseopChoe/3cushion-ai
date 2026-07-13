@@ -1,8 +1,118 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.5  
+Version : v1.6  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-13 (Batch 6 Complete — Final Freeze)
+
+## 제목
+
+AAS Runtime Migration Batch 6 완료 — Runtime Contract / Registry / Loader · Import Graph Gate · Public API Closure · **Final Freeze**
+
+## Batch6 Summary
+
+| 항목 | 내용 |
+|------|------|
+| **목적** | System JSON 직접 접근 제거 · Runtime Contract / Registry / Loader · Debt D-005/006/007/009/010 Closure |
+| **Design** | Batch6 Design v1.0 **Frozen** (Contract First · AD-B6-01~10 · INV-B6-01~05 · AC-21) |
+| **완료 날짜** | 2026-07-13 |
+| **판정** | **Batch 6 Completed · Final Freeze** |
+| **Final Code** | `ec71ef9` — `feat(batch6): STEP 6-7 public api closure import graph gate` |
+
+## Final Architecture
+
+```text
+data/systems/<id>/*.json
+  → runtime/loader/systemPackageStore.ts
+  → runtime/loader/systemLoader.ts          (assemble, no cache)
+  → SystemContract (immutable, frozen)
+  → runtime/registry/systemRegistry.ts      (cache; Public Entry)
+  → getSystemContract(systemId)
+  → extractTrajectoryContractView(contract) (pure projection)
+  → App / Flow / Domain / Hooks / Renderer
+```
+
+## Runtime Contract Completion
+
+| Artifact | Role |
+|----------|------|
+| `SystemContract` | Assembled SSOT · Serializable Shape · Immutable |
+| `TrajectoryContractView` | Pure projection · not cached |
+| Registry | Sole Public Entry · owns cache |
+| Loader | Sole assembler · no cache · JSON via package store |
+
+## Import Graph Gate Completion
+
+| Gate | Result |
+|------|--------|
+| Main Tree → `data/systems` | **0** |
+| Consumer → `runtime/loader` | **0** |
+| Main Tree → `SYSTEM_PROFILES` / `getAnchorsForSystem` | **0** |
+
+## Public API Closure
+
+**Public:** `getSystemContract` · `listRegisteredSystemIds` · `isRegistered` · `extractTrajectoryContractView` · `SYSTEM_CONTRACT_VERSION` · types
+
+**Not Public:** `bootstrapRegistry` · Loader · `systemPackageStore` · `assembleSystemContract`
+
+**Deprecated (removed from public export):** `SYSTEM_PROFILES` · `getAnchorsForSystem`
+
+## Commit Chain (Final)
+
+| STEP | Commit | Title |
+|------|--------|-------|
+| 6-1 | `cc6c456` | runtime scaffold (registry/loader/contract) |
+| cleanup | `55e110a` | restrict bootstrapRegistry to runtime internal API |
+| 6-2 | `48da1d5` | trajectory safety contract supply (D-009) |
+| 6-3 | `7763085` | renderer labelStrategy contract supply (D-005) |
+| 6-4 | `fe1fb1a` | app flows contract profile anchors (D-006/D-007) |
+| 6-5 | `197331e` | domain contract profile anchors (D-006/D-007) |
+| 6-6 | `ca60cfa` | hooks overlay contract supply (D-006) |
+| **6-7** | **`ec71ef9`** | **public api closure import graph gate** |
+
+## Debt Closure
+
+| ID | Status |
+|----|--------|
+| D-005 | **Closed** |
+| D-006 | **Closed (Final)** |
+| D-007 | **Closed (Final)** |
+| D-009 | **Closed** |
+| D-010 | **Closed** |
+
+**Batch 6 Remaining Debt (scope):** None
+
+## Final Validation PASS
+
+| Gate | Result |
+|------|--------|
+| Build (`npm run build`) | ✅ PASS |
+| Regression R-B6-C | ✅ PASS |
+| Import Graph Gate | ✅ PASS |
+| AC-1 ~ AC-21 | ✅ PASS |
+| Serializable Contract | ✅ PASS |
+| Batch5 parity | ✅ PASS (algorithm unchanged) |
+| Design Freeze | ✅ Maintained |
+| Code change at docs freeze | **Docs only** (no Implementation / Architecture change) |
+
+## Closure Documents
+
+| 문서 | 역할 |
+|------|------|
+| `Batch06/Batch6_Final_Freeze.md` | Final Freeze SSOT |
+| `Batch06/Batch6_Architecture_Completion_Report.md` | Architecture Completion Report |
+| `SESSION_HANDOFF_CURSOR.md` | Next session handoff |
+| `PROJECT_MASTER_INDEX.md` | Current state SSOT (v1.18) |
+
+## Batch 6 공식 종료
+
+- **Final Commit (Code):** `ec71ef9`
+- **Status:** **Completed · Final Freeze**
+- **AAS Runtime Migration Batch 1~6:** **Complete**
+- **Next:** **STEP 4 — System Inventory** (SPS)
 
 ---
 
