@@ -5,19 +5,13 @@
 // AD-B3-02: Hybrid Object Context (READ / WRITE / ACTION / HELPER 분리).
 // React import 금지. Hook 사용 금지. Named Export Only.
 //
-// Migration Debt:
-//   D-006: SYSTEM_PROFILES 직접 접근 — Batch 6에서 해소 예정
-//   D-007: getAnchorsForSystem 직접 접근 — Batch 6에서 해소 예정
+// Batch 6 STEP 6-4: profile / anchors via App-injected HELPER (D-006 / D-007 Closed).
 //
 // 핵심 불변 조건:
 //   saveWorkingDataset() 만 WORKING_DATASET_KEY 를 사용한다.
 //   localStorage 직접 접근 금지.
 //   saveWorkingDataset() → setDataset() 은 반드시 함께 호출.
 
-// D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
-import { SYSTEM_PROFILES } from "../../data/systems";
-// D-007: getAnchorsForSystem 직접 접근 (Migration Debt Open)
-import { getAnchorsForSystem } from "../../data/systems/anchorsRegistry";
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
 import { createStrategyEntry } from "../../domain/adminSaveEngine";
 import {
@@ -84,6 +78,20 @@ export type SaveFlowContext = {
     saved_at: string;
     dataset: PositionRecord[];
   }) => void;
+
+  // HELPER — App injection hub (Registry → Contract)
+  resolveFormulaHash: (systemId: string) => string;
+  resolveEvalProfile: (systemId: string) => {
+    formula?: { expr?: string };
+  };
+  resolveAnchorsData: (
+    systemId: string
+  ) =>
+    | {
+        trajectories?: Record<string, { anchors: { id: string }[] }>;
+        meta?: Record<string, unknown>;
+      }
+    | undefined;
 };
 
 // ---------------------------------------------------------------------------
@@ -154,13 +162,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     (ctx.adminState?.sys as Record<string, unknown> | undefined)?.system as string | undefined ??
     "5_half_system";
 
-  // D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
-  const profile = SYSTEM_PROFILES[systemId];
-  const formulaHash = (
-    (profile?.formula?.expr as string | undefined) ??
-    (profile?.meta?.version as string | undefined) ??
-    "v1"
-  ).slice(0, 32);
+  const formulaHash = ctx.resolveFormulaHash(systemId);
 
   const shotType =
     normalizePublishedShotTypeHint(
@@ -221,16 +223,12 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       sysInputs: args.sysInputs,
       signature: args.signature,
       systemId: (args.signature as Record<string, unknown>).systemId,
-      // D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
-      profile:
-        SYSTEM_PROFILES[
-          (args.signature as Record<string, unknown>).systemId as string
-        ],
-      // D-007: getAnchorsForSystem 직접 접근 (Migration Debt Open)
-      anchorsData: getAnchorsForSystem(
+      profile: ctx.resolveEvalProfile(
         (args.signature as Record<string, unknown>).systemId as string
       ),
-      hpT: {
+      anchorsData: ctx.resolveAnchorsData(
+        (args.signature as Record<string, unknown>).systemId as string
+      ),      hpT: {
         T:
           (ctx.adminState?.hpt as Record<string, unknown> | undefined)?.T ??
           "8/8",

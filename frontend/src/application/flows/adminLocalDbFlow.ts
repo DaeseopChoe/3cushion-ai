@@ -5,12 +5,8 @@
 // AD-B3-02: Hybrid Object Context (READ / WRITE / ACTION / HELPER 분리).
 // React import 금지. Hook 사용 금지. Named Export Only.
 //
-// Migration Debt:
-//   D-006: SYSTEM_PROFILES 직접 접근 — Batch 6에서 해소 예정
-//   D-007: getAnchorsForSystem 직접 접근 — Batch 6에서 해소 예정 (saveFlow 등)
+// Batch 6 STEP 6-4: formulaHash via App-injected HELPER (D-006 Closed).
 
-// D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
-import { SYSTEM_PROFILES } from "../../data/systems";
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
 import { runSpatialRecall } from "../../domain/recall/recallEngine";
 import { makeSignatureKey } from "../../domain/search/signatureKey";
@@ -54,6 +50,8 @@ export type AdminLocalDbFlowContext = {
   clearAdminSearchDisplayRuntime: () => void;
   beginAdminInputSession: () => boolean;
   getAdminRecallQueryTargetBall: () => string | null;
+  /** App injection — Contract formulaExpr / packageVersion → formulaHash (D-006). */
+  resolveFormulaHash: (systemId: string) => string;
 };
 
 // ---------------------------------------------------------------------------
@@ -113,13 +111,7 @@ export async function runAdminLocalDbRecall(
     (sys?.system_id as string | undefined) ??
     "5_half_system";
 
-  // D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
-  const profile = SYSTEM_PROFILES[systemId];
-  const formulaHash = (
-    (profile?.formula?.expr as string | undefined) ??
-    (profile?.meta?.version as string | undefined) ??
-    "v1"
-  ).slice(0, 32);
+  const formulaHash = ctx.resolveFormulaHash(systemId);
 
   const signatureKey = makeSignatureKey({
     systemId,
@@ -207,9 +199,16 @@ export async function runAdminLocalDbRecall(
   const recallEntry = (result.record?.strategies as Record<string, unknown> | undefined)?.[ctx.activeSlot];
   if (recallEntry) {
     ctx.setAdminState((prev) => {
+      const entry = recallEntry as Parameters<typeof adminSysFromRecallEntry>[0];
+      const sid =
+        entry?.signature?.systemId ??
+        ((prev as Record<string, unknown>)?.sys as Record<string, unknown> | undefined)
+          ?.systemId ??
+        systemId;
       const nextSys = adminSysFromRecallEntry(
-        recallEntry as Parameters<typeof adminSysFromRecallEntry>[0],
-        (prev as Record<string, unknown>)?.sys as Record<string, unknown>
+        entry,
+        (prev as Record<string, unknown>)?.sys as Record<string, unknown>,
+        ctx.resolveFormulaHash(String(sid))
       );
       if (!nextSys) return prev;
       return { ...prev, sys: nextSys };

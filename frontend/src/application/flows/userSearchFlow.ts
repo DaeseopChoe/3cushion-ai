@@ -6,7 +6,7 @@
 // React import 금지. Hook 사용 금지. Named Export Only.
 //
 // Migration Debt:
-//   D-006: SYSTEM_PROFILES 직접 접근 — recallHydrateFlow 경유 (Batch 6 해소 예정)
+//   D-006 Closed (STEP 6-4) — recall hydrate formulaHash via App injection
 //   D-008: calculateByProfileExpr 직접 호출 — recallHydrateFlow 경유 (Batch 4 해소 예정)
 //
 // NOTE: postRecallTraceLog / buildRecallTracePayload 는 App.jsx에서 no-op 함수로 정의되어 있어

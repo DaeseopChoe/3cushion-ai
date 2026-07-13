@@ -27,7 +27,6 @@ import {
   saveOnePoints,
 } from "./domain/lesson/onePointLibrary";
 import { SysOverlay } from "./components/overlays/SysOverlay";
-import { SYSTEM_PROFILES } from "./data/systems";
 import {
   getSystemContract,
   extractTrajectoryContractView,
@@ -131,13 +130,37 @@ import {
 import { makeSignatureKey } from "./domain/search/signatureKey";
 import { listStrategiesInRecord } from "./domain/positionSearchEngine";
 import { initFileHandle, saveToFile } from "./domain/fileService";
-import { getAnchorsForSystem } from "./data/systems/anchorsRegistry";
 import {
   useSettings,
   WORKSPACE_CLEANUP_CLEAR_ALL,
   WORKSPACE_CLEANUP_PRESERVE_DATASET,
   runWorkspaceLocalStorageCleanup,
 } from "./hooks/useSettings";
+
+/** Batch 6 STEP 6-4 — App Runtime Injection Hub (Registry → Contract slices). */
+function resolveFormulaHash(systemId) {
+  const contract = getSystemContract(systemId);
+  if (!contract) return "v1";
+  return (
+    contract.profile.formulaExpr ??
+    contract.version.packageVersion ??
+    "v1"
+  ).slice(0, 32);
+}
+
+function resolveEvalProfile(systemId) {
+  const expr = getSystemContract(systemId)?.profile?.formulaExpr;
+  return expr ? { formula: { expr } } : {};
+}
+
+function resolveAnchorsData(systemId) {
+  const anchors = getSystemContract(systemId)?.anchors;
+  if (!anchors?.trajectories) return undefined;
+  return {
+    trajectories: anchors.trajectories,
+    ...(anchors.meta ? { meta: anchors.meta } : {}),
+  };
+}
 
 // IMPORTANT:
 // Main app currently renders the LOCAL SysOverlay defined in this file.
@@ -1340,6 +1363,9 @@ export default function App({
       setAdminState,
       patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
       saveToFile,
+      resolveFormulaHash,
+      resolveEvalProfile,
+      resolveAnchorsData,
     });
   }
 
@@ -1364,6 +1390,9 @@ export default function App({
       saveToFile,
       canUseSystemControls,
       commitWorkspaceHistoryWithStrategyDataset,
+      resolveFormulaHash,
+      resolveEvalProfile,
+      resolveAnchorsData,
     });
   }
 
@@ -1390,6 +1419,7 @@ export default function App({
       beginAdminInputSession,
       getAdminRecallQueryTargetBall,
       rejectAdminRecallHydrateForMismatch,
+      resolveFormulaHash,
     });
   }
 
@@ -1444,6 +1474,7 @@ export default function App({
       clearAdminSearchDisplayRuntime,
       beginAdminInputSession,
       getAdminRecallQueryTargetBall,
+      resolveFormulaHash,
     });
     if (matched) {
       setUserTableDisplaySlotId(null);
@@ -2636,7 +2667,7 @@ function handleJoyPadPointerCancel(e) {
       systemId,
       track: trackForAnchors,
       sysValues,
-      anchorsData: getAnchorsForSystem(systemId),
+      anchorsData: resolveAnchorsData(systemId),
       fallback: sysValuesToAnchors(sysValues),
     });
     // [VERIFY 3] getAnchorsForRendering 호출 직후 + [VERIFY 4] fallback 분기
@@ -2690,7 +2721,7 @@ function handleJoyPadPointerCancel(e) {
             systemId,
             track: trackForAnchors,
             sysValues,
-            anchorsData: getAnchorsForSystem(systemId),
+            anchorsData: resolveAnchorsData(systemId),
             fallback: sysValuesToAnchors(sysValues),
           });
           const keys = Object.keys(ab);
@@ -3140,7 +3171,7 @@ function handlePointerCancel(e) {
   }
 
   // RND-004(partial): buildRgAnchors (Batch 2 STEP 2-5)
-  // D-005 주의: SYSTEM_PROFILES 직접 참조 → Batch 6 Runtime Contract 해소 예정
+  // Batch 6 STEP 6-4: offset_fg2rg from Contract (D-006/D-009 App supply)
   const override = adminState?.anchorsOverride ?? {};
   const profileForCanonical = trajectoryContractView
     ? {
@@ -3148,7 +3179,13 @@ function handlePointerCancel(e) {
           offset_fg2rg: trajectoryContractView.anchorConversion.offset_fg2rg,
         },
       }
-    : SYSTEM_PROFILES?.[systemIdForGrid];
+    : {
+        safety: {
+          offset_fg2rg:
+            getSystemContract(systemIdForGrid)?.profile?.safety?.offset_fg2rg ??
+            null,
+        },
+      };
   const { anchors, anchorsBase } = buildRgAnchors({
     rawAnchors,
     rawAnchorsBase,
@@ -3389,7 +3426,8 @@ function handlePointerCancel(e) {
       labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C6"] : anchorSources["C6"]),
   };
   const trackAnchorItems =
-    getAnchorsForSystem(systemIdForGrid)?.trajectories?.[trackForAnchors]?.anchors ?? [];
+    resolveAnchorsData(systemIdForGrid)?.trajectories?.[trackForAnchors]
+      ?.anchors ?? [];
   console.log("[ANCHOR_BEFORE_RENDER]", {
     stage: "App:allAnchors",
     rawAnchors,
@@ -3753,7 +3791,7 @@ function handlePointerCancel(e) {
       {canEdit && (
         <SystemGrid
           track={trackForAnchors}
-          anchorsData={getAnchorsForSystem(systemIdForGrid)}
+          anchorsData={resolveAnchorsData(systemIdForGrid)}
           visible={
             appMode === "USER"
               ? userTableDisplayMode === "systemValues"

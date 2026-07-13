@@ -5,8 +5,7 @@
 // AD-B3-03: Object Context 없음. 모든 함수는 명시적 파라미터 → Return 형태.
 // React state / dispatch / ref / hook / Context 사용 금지.
 //
-// Migration Debt:
-//   D-006: SYSTEM_PROFILES 직접 접근 (adminSysFromRecallEntry) — Batch 6에서 해소 예정
+// Batch 6 STEP 6-4: formulaHash injected by App (Registry → Contract). No SYSTEM_PROFILES.
 
 import { buildSlotSysSnapshot } from "../../domain/calculator/systemValueCalculator";
 import {
@@ -15,8 +14,6 @@ import {
   type SlotRuntimeDraftSlice,
 } from "../../domain/slotRuntimeHydrate";
 import { mergeCorrectionsForRecallHydrate } from "../../domain/canonicalStrategy";
-// D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
-import { SYSTEM_PROFILES } from "../../data/systems";
 import type { StrategyEntry } from "../../domain/positionSearchEngine";
 
 // ---------------------------------------------------------------------------
@@ -67,22 +64,17 @@ export function resolvePublishedLeafHints(
 /**
  * Recall 성공 직후 adminState.sys 1회 채움 (SYS 모달 표시/편집용).
  * trajectory SSOT는 슬롯 draft 유지.
- * D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
+ * formulaHash: App injection hub — Contract formulaExpr / packageVersion (D-006 Closed).
  */
 export function adminSysFromRecallEntry(
   entry: StrategyEntry | null | undefined,
-  prevSys: Record<string, unknown> | null | undefined
+  prevSys: Record<string, unknown> | null | undefined,
+  formulaHashSource?: string | null
 ): Record<string, unknown> | null {
   const snap = buildSlotSysSnapshot(entry);
   if (!snap) return null;
   const sid = snap.systemId;
-  // D-006: SYSTEM_PROFILES 직접 접근 (Migration Debt Open)
-  const profile = SYSTEM_PROFILES[sid];
-  const formulaHash = (
-    (profile?.formula?.expr as string | undefined) ??
-    (profile?.meta?.version as string | undefined) ??
-    "v1"
-  ).slice(0, 32);
+  const formulaHash = (formulaHashSource ?? "v1").slice(0, 32);
   const mergedInputs = {
     ...(snap.inputs ?? {}),
     ...(snap.outputs?.result ?? {}),

@@ -6,7 +6,7 @@
 // React import 금지. Hook 사용 금지. Named Export Only.
 //
 // Migration Debt:
-//   D-006: SYSTEM_PROFILES 직접 접근 — recallHydrateFlow 경유 (Batch 6 해소 예정)
+//   D-006 Closed (STEP 6-4) — formulaHash via App resolveFormulaHash
 //   D-008: calculateByProfileExpr 직접 호출 — recallHydrateFlow 경유 (Batch 4 해소 예정)
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
@@ -61,6 +61,8 @@ export type AdminSearchFlowContext = {
     record: PositionRecord,
     queryTargetBall: string | null
   ) => boolean;
+  /** App injection — Contract formulaExpr / packageVersion → formulaHash (D-006). */
+  resolveFormulaHash: (systemId: string) => string;
 };
 
 // ---------------------------------------------------------------------------
@@ -195,9 +197,19 @@ export async function runAdminSearch(
 
   if (recallEntry) {
     ctx.setAdminState((prev) => {
+      const entry = recallEntry as Parameters<typeof adminSysFromRecallEntry>[0];
+      const sid =
+        entry?.signature?.systemId ??
+        ((prev as Record<string, unknown>)?.sys as Record<string, unknown> | undefined)
+          ?.systemId ??
+        ((ctx.adminState?.sys as Record<string, unknown> | undefined)?.systemId as
+          | string
+          | undefined) ??
+        "5_half_system";
       const nextSys = adminSysFromRecallEntry(
-        recallEntry as Parameters<typeof adminSysFromRecallEntry>[0],
-        (prev as Record<string, unknown>)?.sys as Record<string, unknown>
+        entry,
+        (prev as Record<string, unknown>)?.sys as Record<string, unknown>,
+        ctx.resolveFormulaHash(String(sid))
       );
       if (!nextSys) return prev;
       return { ...prev, sys: nextSys };
