@@ -693,3 +693,24 @@ toPx
   "space": "FG"
 }
 ```
+
+---
+
+## SPS Standardization Flow (STEP4 Final 기준, 2026-07-14)
+
+계산 규칙과 별도로, System Package 표준화는 SPS 워크플로를 따른다.
+
+```text
+STEP4 Inventory (Final v1.0)  →  Frozen Assets
+        ↓
+STEP5 Architecture Audit      ←  System_Inventory.md 입력
+        ↓
+STEP6 Schema Validation
+        ↓
+STEP7 Standardization
+```
+
+- STEP4 SSOT: `System Platform Standard (SPS) v1.0/System_Inventory.md` **v1.0 Final**
+- STEP5 Entry Point: 동 문서 §19 Downstream Checklist · §20 Frozen Assets
+- STEP4는 Fact/Observation Inventory만 담당한다. Audit / Finding / Violation은 STEP5부터 시작한다.
+- Runtime Contract / Registry / Loader 구조는 Batch6 Final Freeze 이후 본 문서 범위에서 변경하지 않는다.
