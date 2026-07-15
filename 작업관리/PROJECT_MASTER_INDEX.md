@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.20  
+Version: 1.21  
 Last Updated: 2026-07-15  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
@@ -12,12 +12,20 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 ## 문서 계층 (읽는 순서)
 
-### 신규 세션 온보딩 (STEP5 Final → STEP6 Schema Validation)
+### 신규 세션 온보딩 (STEP6-3 Schema Rule Analysis)
 
 1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`System Platform Standard (SPS) v1.0/STEP5_FINAL_FREEZE.md`** — **STEP5 Final Freeze v1.0** · Next Session  
+2. **`CURSOR_SESSION_HANDOFF.md`** — STEP6-3 Entry · Lock · 금지 범위  
+3. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP6-1/2 Freeze Candidate · STEP5 Final  
+4. **`System Platform Standard (SPS) v1.0/STEP6_Schema_Validation_Framework.md`** — Framework Freeze Candidate (Locked · Consume)  
+5. **`System Platform Standard (SPS) v1.0/STEP6_Validation_Pipeline.md`** — Pipeline Freeze Candidate (Locked · Consume)
+
+### 신규 세션 온보딩 (STEP5 Final → STEP6 Schema Validation) — 이력 참조
+
+1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
+2. **`System Platform Standard (SPS) v1.0/STEP5_FINAL_FREEZE.md`** — **STEP5 Final Freeze v1.0**  
 3. **`System Platform Standard (SPS) v1.0/STEP5_STEP6_Handoff.md`** — STEP6 Entry · Manifest · Owner  
-4. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP5 Completed (2026-07-15) · STEP4 Final (2026-07-14) · Batch 6 Final Freeze  
+4. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP5 Completed · STEP6-1/2 Freeze Candidate  
 
 ### 신규 세션 온보딩 (STEP4 / Inventory 참조)
 
@@ -37,7 +45,10 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | 문서 | 역할 |
 |------|------|
 | **본 문서 (`PROJECT_MASTER_INDEX.md`)** | 현재 기능·UI·완료/예정 SSOT |
-| `System Platform Standard (SPS) v1.0/STEP5_FINAL_FREEZE.md` | **STEP5 Final Freeze v1.0** · 문서 suite · Next Session |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (STEP6-3 Entry) |
+| `System Platform Standard (SPS) v1.0/STEP6_Schema_Validation_Framework.md` | **STEP6 Framework Freeze Candidate (Locked)** |
+| `System Platform Standard (SPS) v1.0/STEP6_Validation_Pipeline.md` | **STEP6 Pipeline Freeze Candidate (Locked · Framework Consume-only)** |
+| `System Platform Standard (SPS) v1.0/STEP5_FINAL_FREEZE.md` | **STEP5 Final Freeze v1.0** · 문서 suite |
 | `System Platform Standard (SPS) v1.0/STEP5_Architecture_Audit_Framework.md` | STEP5 Architecture Audit Framework SSOT (Frozen) |
 | `System Platform Standard (SPS) v1.0/STEP5_STEP6_Handoff.md` | STEP6 Handoff Manifest · Entry Conditions |
 | `System Platform Standard (SPS) v1.0/System_Inventory.md` | **STEP4 Inventory SSOT (v1.0 Final)** · Frozen Assets |
@@ -63,7 +74,8 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | **Architecture** | **Application Architecture Standard (AAS) v2.0 Complete** · **Application Runtime Constitution (SSOT) Established** — `App_Migration_Map.md` 생성 완료 · Runtime Constitution 확정 · Architecture Governance 완료 · Migration Blueprint 완료 |
 | **AAS Runtime Migration** | **Batch 1~6 Complete (2026-07-13)** — Batch 6 Final Freeze · Runtime Contract / Registry / Loader · Baseline `ec71ef9` · **Completed · Final Freeze** |
 | **SPS System Inventory (STEP 4)** | **Complete · Final v1.0 (2026-07-14)** — 38 Systems · Observation SSOT · Metadata Inventory · Registration Inventory · Inventory Assets · **Frozen Assets declared** · SSOT: `System Platform Standard (SPS) v1.0/System_Inventory.md` |
-| **SPS Architecture Audit (STEP 5)** | **Complete · Final Freeze v1.0 (2026-07-15)** — Framework · Audit Plan · Rule Catalog · Mapping/Evidence Registers · Finding/Violation/Recommendation/Decision Registers · Audit Report · STEP6 Handoff · `STEP5_FINAL_FREEZE.md` · Next: **STEP6 Schema Validation** |
+| **SPS Architecture Audit (STEP 5)** | **Complete · Final Freeze v1.0 (2026-07-15)** — Framework · Audit Plan · Rule Catalog · Registers · Audit Report · STEP6 Handoff · `STEP5_FINAL_FREEZE.md` |
+| **SPS Schema Validation (STEP 6)** | **In Progress** — **Framework Freeze Candidate (Locked)** · **Pipeline Freeze Candidate (Locked · Framework Consume-only)** · Architecture Locked · Framework Review PASS · Pipeline Review PASS · QA Patch Completed · Next: **STEP6-3 Schema Rule Analysis** |
 | ADMIN | Position Lock → SYS / HP·T / STR / AI 입력 → Dataset SAVE |
 | USER | Search(published) → 공략 선택 → **AI · 두께/타점 · 동선** 중심 실전 공략 UI |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
@@ -280,7 +292,7 @@ App.jsx를 Application Runtime Orchestrator로 전환하기 위한 Architecture 
 - Runtime Contract를 우회하지 않는다 (System JSON 직접 접근 금지).
 - 신규 Architecture 변경은 ADR + Review Checklist를 통과해야 한다.
 
-> **주의:** Architecture SSOT 확정 이후 실제 코드 이동은 Batch 단위로 진행했다. **AAS Runtime Migration Batch 1~6 Complete (2026-07-13).** **SPS STEP4 Inventory Final v1.0 Complete (2026-07-14).** **SPS STEP5 Architecture Audit Final Freeze v1.0 Complete (2026-07-15).** 다음: **STEP6 Schema Validation**.
+> **주의:** Architecture SSOT 확정 이후 실제 코드 이동은 Batch 단위로 진행했다. **AAS Runtime Migration Batch 1~6 Complete (2026-07-13).** **SPS STEP4 Inventory Final v1.0 Complete (2026-07-14).** **SPS STEP5 Architecture Audit Final Freeze v1.0 Complete (2026-07-15).** **SPS STEP6 Framework + Pipeline Freeze Candidate (Locked) Complete (2026-07-15).** 다음: **STEP6-3 Schema Rule Analysis**.
 
 ### AAS Runtime Migration 진행 상황
 
@@ -748,7 +760,14 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - ✔ STEP5-4 Observation Mapping Register · Evidence Register Frozen
   - ✔ STEP5-5 Finding · Violation · Recommendation · Architecture Decision Registers Frozen
   - ✔ STEP5-6 Architecture Audit Report Template · STEP6 Handoff Template Frozen
-  - ✔ `STEP5_FINAL_FREEZE.md` declared · Next: **STEP6 Schema Validation**
+  - ✔ `STEP5_FINAL_FREEZE.md` declared
+  - ✔ Location: `System Platform Standard (SPS) v1.0/`
+- **SPS STEP6 Schema Validation — Framework + Pipeline Freeze Candidate (2026-07-15)**:
+  - ✔ STEP6-1 Framework Draft · Review PASS · QA Patch · **Freeze Candidate (Locked)**
+  - ✔ STEP6-2 Validation Pipeline Draft · Review PASS · QA Patch · **Freeze Candidate (Locked)**
+  - ✔ Architecture Locked · Pipeline = Framework **Consume-only**
+  - ✔ SSOT: `STEP6_Schema_Validation_Framework.md` v1.0 · `STEP6_Validation_Pipeline.md` v0.6
+  - ✔ Next: **STEP6-3 Schema Rule Analysis** (Analysis only · Catalog/Register/Report 작성 금지)
   - ✔ Location: `System Platform Standard (SPS) v1.0/`
 - AI 오버레이 리팩토링 (SYS+STR SSOT, 레슨 분리)
 - 원 포인트 레슨 ADMIN/USER 표시 분리
@@ -783,7 +802,9 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 ### 예정
 
-- **Schema Validation (STEP 6)** — Handoff: `STEP5_STEP6_Handoff.md` · SCH-R · schemaComplete · `VAL-*` (**다음 권장**)
+- **Schema Rule Analysis (STEP6-3)** — Framework/Pipeline Freeze Candidate 소비 · Validation Rule Domain · Rule Type · Layer Mapping · Coverage · Rule Family · Classification **Analysis only** (**다음 권장**)
+- **Schema Rule Catalog (STEP6-4+)** — Catalog 작성은 Analysis 이후 · Rule Namespace는 Pending(U1) 유지
+- **Validation Registers / Report (STEP6-5+)** — Pipeline 절차 소비 · Shape는 후속
 - **System Standardization (STEP 7)** — Metadata Shape Matrix · Observation Catalog 입력
 - **Overlay Scale Layer 통합 (Phase 2, 보류)** — `--ai-scale` → `--overlay-scale` 통일 · MQ 블록 4→1 축소 (기능 영향 없음, 유지보수용)
 - **Dataset Architecture Phase 4** — Spatial Index (`spatialCells`, 8×4 grid)
@@ -903,16 +924,37 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 ## 다음 작업 우선순위
 
-> **Architecture 상태:** AAS v2.0 **완료**. AAS Runtime Migration Batch 1~6 **Final Freeze**. **SPS STEP4 Inventory Final v1.0 완료.** **SPS STEP5 Architecture Audit Final Freeze v1.0 완료 (2026-07-15).** 다음 우선순위는 **STEP6 Schema Validation**.
+> **Architecture 상태:** AAS v2.0 **완료**. AAS Runtime Migration Batch 1~6 **Final Freeze**. **SPS STEP4 Inventory Final v1.0 완료.** **SPS STEP5 Architecture Audit Final Freeze v1.0 완료.** **SPS STEP6 Framework + Pipeline = Freeze Candidate (Locked) · Architecture Locked (2026-07-15).** 다음 우선순위는 **STEP6-3 Schema Rule Analysis**.
 
-### 최우선 — Schema Validation (STEP 6)
+### STEP6 상태 (Freeze Candidate)
 
-- STEP5 Final Freeze complete. **STEP6 설계 착수 가능.**
-- Entry: `System Platform Standard (SPS) v1.0/STEP5_STEP6_Handoff.md` § Next Session · `STEP5_FINAL_FREEZE.md`
-- Owner: Schema Validation · Namespace: `VAL-*` · Completeness: `schemaComplete`
-- Initial tasks: STEP6 Framework · Validation Pipeline · Validation Report
-- ACTIVE handoff package requires Exit Gate PASS + OFFICIAL Report after Register population (execution)
-- STEP5 Frozen Suite **구조 수정 금지** (ADR → v1.1+ only)
+| Item | Status |
+|------|--------|
+| **Framework** | **Freeze Candidate (Locked)** — `STEP6_Schema_Validation_Framework.md` |
+| **Pipeline** | **Freeze Candidate (Locked)** — `STEP6_Validation_Pipeline.md` · Framework **Consume-only** |
+| **Architecture** | **Locked** |
+| **Framework Review** | **PASS** (QA Patch Complete) |
+| **Pipeline Review** | **PASS** (QA Patch Complete) |
+| **Next Phase** | **STEP6-3 Schema Rule Analysis** |
+
+Freeze Candidate 이후 Framework / Pipeline 비공식 수정 **금지** (ADR / Review only).
+
+### 최우선 — Schema Rule Analysis (STEP6-3)
+
+- Framework · Pipeline Freeze Candidate **Consume only**.
+- Entry: `CURSOR_SESSION_HANDOFF.md` · `STEP6_Schema_Validation_Framework.md` · `STEP6_Validation_Pipeline.md`
+- Owner: Schema Validation
+- **Analysis only:** Validation Rule Domain · Rule Type · Layer Mapping · Coverage · Rule Family · Rule Classification
+- **금지:** Rule Catalog 작성 · Register 작성 · Report 작성 · Rule Namespace 확정 · Framework/Pipeline 수정
+
+### SPS STEP6 Document Suite (Freeze Candidate)
+
+| STEP | Document | Status |
+|------|----------|--------|
+| STEP6-1 | `STEP6_Schema_Validation_Framework.md` | Freeze Candidate (Locked) |
+| STEP6-2 | `STEP6_Validation_Pipeline.md` | Freeze Candidate (Locked) |
+
+Path prefix: `System Platform Standard (SPS) v1.0/`
 
 ### SPS STEP5 Document Suite (Frozen)
 
@@ -970,13 +1012,16 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 | 문서 | 용도 |
 |------|------|
-| `System Platform Standard (SPS) v1.0/STEP5_FINAL_FREEZE.md` | **STEP5 Final Freeze v1.0** — suite list · freeze policy · Next Session |
-| `System Platform Standard (SPS) v1.0/STEP5_STEP6_Handoff.md` | **STEP6 Handoff SSOT** — Manifest · Owner · Immutability · Next Session |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — STEP6-3 Entry · Lock · 금지 범위 |
+| `System Platform Standard (SPS) v1.0/STEP6_Schema_Validation_Framework.md` | **STEP6 Framework Freeze Candidate (Locked)** |
+| `System Platform Standard (SPS) v1.0/STEP6_Validation_Pipeline.md` | **STEP6 Pipeline Freeze Candidate (Locked)** |
+| `System Platform Standard (SPS) v1.0/STEP5_FINAL_FREEZE.md` | **STEP5 Final Freeze v1.0** — suite list · freeze policy |
+| `System Platform Standard (SPS) v1.0/STEP5_STEP6_Handoff.md` | **STEP6 Handoff SSOT** — Manifest · Owner · Immutability |
 | `System Platform Standard (SPS) v1.0/STEP5_Architecture_Audit_Framework.md` | **STEP5 Audit Framework (Frozen)** |
 | `System Platform Standard (SPS) v1.0/System_Inventory.md` | **STEP4 Inventory SSOT (v1.0 Final)** — Frozen Assets · Observation SSOT · Metadata/Registration Inventory |
 | `Application Architecture Standard (AAS) v2.0/App_Migration_Map.md` | **Application Runtime Constitution (Permanent SSOT)** — Migration Blueprint · Architecture Meta · ADR · Review Checklist |
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
-| `HISTORY/PROJECT_LOG_2026-07.md` | 2026-07 AAS Batch · STEP4 Final · **STEP5 Final Freeze** |
+| `HISTORY/PROJECT_LOG_2026-07.md` | 2026-07 AAS Batch · STEP4 Final · STEP5 Final Freeze · **STEP6 Framework+Pipeline Freeze Candidate** |
 | `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) · **USER Overlay** (§19) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
 | `HISTORY/PROJECT_LOG_2026-04.md` | 이전 월 |
