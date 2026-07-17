@@ -2,13 +2,14 @@
 
 ```text
 Document  : DEVELOPMENT_WORKFLOW.md
-Version   : v0.2
+Version   : v0.3
 Status    : Active Operational SSOT (Draft)
 Date      : 2026-07-17
 Type      : Project Operational Workflow SSOT
 Owner     : Project Operations
 Location  : 작업관리/DEVELOPMENT_WORKFLOW.md
 Rule      : Document verified operating practice only · Do not invent new process theater
+Revision  : v0.3 — Add §12 Implementation Decomposition Rule
 ```
 
 ---
@@ -207,9 +208,9 @@ Freeze            ← Freeze Candidate / Final Freeze / Lock
 | **Entry** | Handoff + MASTER에 단계가 명시되어야 한다. |
 | **Analysis** | Catalog 본문 · Register · Engine · Namespace 확정 금지 (해당 STEP이 Analysis Only인 경우). |
 | **Design** | Locked 상위 SSOT Consume · Semantics 재정의 금지. |
-| **Implementation** | Design / Freeze 범위만. Architecture 우회 금지. |
+| **Implementation** | Design / Freeze 범위만. Architecture 우회 금지. 대규모 구현은 **§12**에 따라 분할. |
 | **Validation** | PASS 기준은 해당 STEP SSOT / AC / Review에 따른다. |
-| **Freeze** | 이후 비공식 수정 금지 (§12). |
+| **Freeze** | 이후 비공식 수정 금지 (§13). |
 
 ### 7.2 Mixing ban
 
@@ -301,7 +302,7 @@ CURSOR_SESSION_HANDOFF ← 다음 Entry 갱신 (단계 전환 시)
 | Allowed rewrite | Condition |
 |-----------------|-----------|
 | 동일 STEP 문서 소규모 보강 | 승인된 범위 · Version bump · LOG 기록 |
-| Frozen 문서 | **금지** — §12 |
+| Frozen 문서 | **금지** — §13 |
 | 잘못된 Entry로 만든 산출물 | 사용자 지시 하에 폐기·대체 Commit |
 
 ### 10.3 Goal
@@ -368,9 +369,67 @@ Approved items → next STEP input or ops doc update
 
 ---
 
-## 12. Freeze Rule
+## 12. Implementation Decomposition Rule
 
-### 12.1 Do not edit Frozen / Locked surfaces informally
+### 12.1 Purpose
+
+대규모 구현 요청으로 인해 AI Agent의 응답 품질이나 안정성이 저하되는 것을 방지한다.
+
+Design이 확정된 뒤 **Implementation**을 독립적인 작은 작업 단위로 나누어 진행한다.
+
+### 12.2 Background (verified practice)
+
+STEP6-7 Validation Engine 구현에서 초기 일괄 구현은 진행이 지연되었으나,  
+**STEP6-7A ~ 7G**로 분할한 이후 각 단계의 구현·테스트·검토가 안정적으로 완료되었다.
+
+이 경험을 프로젝트 **Implementation 운영 원칙**으로 채택한다.
+
+### 12.3 Operating rules
+
+| ID | Rule | Statement |
+|----|------|-----------|
+| **ID1** | **Split by unit** | 구현은 가능한 한 독립적인 작은 작업 단위(**A / B / C …**)로 분할한다. 예: `STEP6-7A` · `STEP6-7B` · `STEP6-7C` … |
+| **ID2** | **Minimal shippable** | 각 작업은 컴파일 또는 Smoke Test 가능한 **최소 구현 단위**를 목표로 한다. |
+| **ID3** | **Gate before next** | 각 작업 종료 시 간단한 완료 보고와 **다음 구현 범위**를 확인한 후 다음 단계로 진행한다. |
+| **ID4** | **Small steps default** | 대규모 일괄 구현 요청보다 **작은 구현의 연속**을 기본 전략으로 한다. |
+| **ID5** | **Design whole first** | **Design** 단계는 가능한 한 전체 구조를 먼저 확정하고, **구현 단계에서만** 작업을 분할한다. |
+| **ID6** | **Expand only if required** | 구현 결과에 따라 추가 수정이 **반드시** 필요한 경우에만 다음 작업 범위를 확장할 수 있다. |
+
+```text
+Design (structure confirmed)
+        ↓
+Implementation unit A   → smoke / compile → report → confirm next
+        ↓
+Implementation unit B   → smoke / compile → report → confirm next
+        ↓
+…
+        ↓
+Validation / Integration
+```
+
+### 12.4 Relation to other rules
+
+| Related rule | Interaction |
+|--------------|-------------|
+| **§2 P5 · §7 One Responsibility** | 분할 단위도 한 목적만 담는다. 분할이 책임을 섞는 핑계가 되지 않는다. |
+| **§7 STEP Workflow** | Design → Implementation 순서 유지. Design 미확정 상태에서 구현 분할으로 “설계 대체” 금지. |
+| **§10 Improvement** | 분할 중 발견된 개선은 가능하면 **다음 단위 입력**으로 흡수한다. |
+| **§11 Proposal Management** | 단위 진행 중 개선 제안 스팸 금지. 단위 종료 시 일괄 제안. |
+
+### 12.5 Anti-patterns
+
+| Forbidden habit | Why |
+|-----------------|-----|
+| Design 미완료인데 Implementation을 A/B/C로만 쪼개 진행 | ID5 위반 · 구조 표류 |
+| “한 번에 Engine 전부” 일괄 요청을 기본으로 둠 | ID4 위반 · 품질/안정성 저하 위험 |
+| 단위 완료 보고·다음 범위 확인 없이 연속 돌진 | ID3 위반 |
+| Smoke 불가한 중간 파편만 쌓고 다음으로 넘김 | ID2 위반 |
+
+---
+
+## 13. Freeze Rule
+
+### 13.1 Do not edit Frozen / Locked surfaces informally
 
 | Surface | Policy |
 |---------|--------|
@@ -381,7 +440,7 @@ Approved items → next STEP input or ops doc update
 | AAS Architecture Constitution / ADR (해당 Freeze) | 프로젝트 Freeze 정책 준수 |
 | Runtime Baseline (Batch6 Final Freeze) | 코드 무단 변경 금지 (별도 STEP/승인 없이) |
 
-### 12.2 Change path
+### 13.2 Change path
 
 ```text
 Need change to Frozen/Locked?
@@ -395,24 +454,24 @@ Update MASTER · LOG · Handoff
 Push
 ```
 
-### 12.3 Downstream rule
+### 13.3 Downstream rule
 
 후속 STEP은 Frozen 문서를 **Consume**한다.  
 “최신화”를 이유로 상위 SSOT를 편집하지 않는다.
 
 ---
 
-## 13. Future Expansion
+## 14. Future Expansion
 
-### 13.1 Stable core
+### 14.1 Stable core
 
-다음이 추가되어도 **§2–§12 운영 원칙은 유지**한다.
+다음이 추가되어도 **§2–§13 운영 원칙은 유지**한다.
 
 - Claude Code  
 - OpenAI Work / 기타 Coding Agents  
 - 추가 Review / CI Agents  
 
-### 13.2 Expansion slots (v1.0 candidates — not normative in v0.2)
+### 14.2 Expansion slots (v1.0 candidates — not normative in v0.3)
 
 | Slot | Intent |
 |------|--------|
@@ -422,13 +481,13 @@ Push
 | Incident / OPEN-* 운영 | Known Issue 승격·종결 규칙 |
 | Multi-repo / monorepo ops | 해당 시 |
 
-v0.2도 위 항목을 **예약만** 한다. 검증 전 세칙하지 않는다.
+v0.3도 위 항목을 **예약만** 한다. 검증 전 세칙하지 않는다.
 
 ---
 
-## 14. Quick Reference Cards
+## 15. Quick Reference Cards
 
-### 14.1 New session (minimum)
+### 15.1 New session (minimum)
 
 ```text
 [ ] DEVELOPMENT_WORKFLOW
@@ -439,7 +498,7 @@ v0.2도 위 항목을 **예약만** 한다. 검증 전 세칙하지 않는다.
 [ ] Confirm: stage · allowed · forbidden
 ```
 
-### 14.2 Stage complete (minimum)
+### 15.2 Stage complete (minimum)
 
 ```text
 [ ] Scoped Commit(s)
@@ -448,25 +507,27 @@ v0.2도 위 항목을 **예약만** 한다. 검증 전 세칙하지 않는다.
 [ ] LOG entry (decisions)
 [ ] HANDOFF → next Entry
 [ ] Proposal list (if any) — §11
+[ ] Implementation unit complete + next scope confirmed — §12 (if in Implementation)
 ```
 
-### 14.3 Hard stops
+### 15.3 Hard stops
 
 | Stop | Reason |
 |------|--------|
-| Edit Locked Framework/Pipeline without ADR | Freeze Respect |
+| Edit Locked Framework/Pipeline without ADR | Freeze Respect (§13) |
 | Catalog in Analysis Only STEP | One Responsibility / Analysis Only |
 | Re-read all SSOTs every turn | Session Context Rule |
 | Milestone Commit with temp scripts | Git hygiene |
 | Mid-work repeated improvement spam | Proposal Management (§11) |
+| One-shot mega Implementation without A/B/C split | Implementation Decomposition (§12) |
 
 ---
 
-## 15. Document Control
+## 16. Document Control
 
 | Item | Value |
 |------|-------|
-| Version | **v0.2** |
+| Version | **v0.3** |
 | Status | Active Operational SSOT (Draft) |
 | Next | v1.0 — Expansion slots after verified practice |
 | Location | `작업관리/DEVELOPMENT_WORKFLOW.md` |
@@ -477,7 +538,8 @@ v0.2도 위 항목을 **예약만** 한다. 검증 전 세칙하지 않는다.
 |---------|------|--------|
 | **v0.1** | 2026-07-17 | Initial Operational SSOT — verified STEP6 / session / Freeze / Git practice |
 | **v0.2** | 2026-07-17 | Add **§11 Proposal Management Rule** · renumber Freeze+ |
+| **v0.3** | 2026-07-17 | Add **§12 Implementation Decomposition Rule** · renumber Freeze+ · STEP6-7A–G practice |
 
 ---
 
-*End of DEVELOPMENT_WORKFLOW.md v0.2*
+*End of DEVELOPMENT_WORKFLOW.md v0.3*

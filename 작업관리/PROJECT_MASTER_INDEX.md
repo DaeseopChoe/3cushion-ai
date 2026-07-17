@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.23  
+Version: 1.24  
 Last Updated: 2026-07-17  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
@@ -12,14 +12,24 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 ## 문서 계층 (읽는 순서)
 
-### 신규 세션 온보딩 (STEP6-6 Validation Engine Design)
+### 신규 세션 온보딩 (STEP7 Entry · post STEP6 Final Freeze)
+
+1. **`DEVELOPMENT_WORKFLOW.md`** — Ops v0.3 (Implementation Decomposition §12)  
+2. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
+3. **`CURSOR_SESSION_HANDOFF.md`** — **STEP7 Entry** · Lock · Consume · Pending  
+4. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP6 Final Freeze  
+5. **`System Platform Standard (SPS) v1.0/STEP6_FINAL_FREEZE.md`** — **STEP6 Final Freeze v1.0**  
+6. **`System Platform Standard (SPS) v1.0/STEP6-10_Validation_Report.md`** — Validation Report · KI  
+7. Framework · Pipeline Freeze Candidate (Locked · Consume)
+
+### 신규 세션 온보딩 (STEP6-6 Validation Engine Design) — 이력 참조
 
 1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`CURSOR_SESSION_HANDOFF.md`** — STEP6-6 Entry · Lock · Consume · Pending  
-3. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP6-5 Complete · STEP6-3/4  
-4. **`System Platform Standard (SPS) v1.0/STEP6-5_Validation_Register_Suite.md`** — **STEP6-5 Complete (v0.2)** · Register State  
-5. **`System Platform Standard (SPS) v1.0/STEP6-4_Rule_Catalog_Design.md`** — Catalog Design v0.2 (Consume)  
-6. **`System Platform Standard (SPS) v1.0/STEP6-3_Schema_Rule_Analysis.md`** — Analysis v1.1 (Consume)  
+2. **`CURSOR_SESSION_HANDOFF.md`** — (현행은 STEP7 Entry; 이력은 LOG 참고)  
+3. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP6-5…STEP6-11  
+4. **`System Platform Standard (SPS) v1.0/STEP6-5_Validation_Register_Suite.md`** — Register Suite v0.2  
+5. **`System Platform Standard (SPS) v1.0/STEP6-4_Rule_Catalog_Design.md`** — Catalog Design v0.2  
+6. **`System Platform Standard (SPS) v1.0/STEP6-3_Schema_Rule_Analysis.md`** — Analysis v1.1  
 7. Framework · Pipeline Freeze Candidate (Locked · Consume)
 
 ### 신규 세션 온보딩 (STEP6-4 / STEP6-5) — 이력 참조
@@ -55,7 +65,12 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | 문서 | 역할 |
 |------|------|
 | **본 문서 (`PROJECT_MASTER_INDEX.md`)** | 현재 기능·UI·완료/예정 SSOT |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (STEP6-6 Entry) |
+| `작업관리/DEVELOPMENT_WORKFLOW.md` | **Operational Workflow SSOT v0.3** |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**STEP7 Entry**) |
+| `System Platform Standard (SPS) v1.0/STEP6_FINAL_FREEZE.md` | **STEP6 Final Freeze v1.0** · Final Summary |
+| `System Platform Standard (SPS) v1.0/STEP6-10_Validation_Report.md` | **STEP6-10 Validation Report v1.0** |
+| `System Platform Standard (SPS) v1.0/STEP6-6_Validation_Engine_Design.md` | **STEP6-6 Engine Design Complete (v0.2)** |
+| `frontend/src/validation/engine/` | **STEP6-7…9 Validation Engine baseline** |
 | `System Platform Standard (SPS) v1.0/STEP6-5_Validation_Register_Suite.md` | **STEP6-5 Validation Register Suite Complete (v0.2)** · Register State |
 | `System Platform Standard (SPS) v1.0/STEP6-4_Rule_Catalog_Design.md` | **STEP6-4 Rule Catalog Design Complete (v0.2)** |
 | `System Platform Standard (SPS) v1.0/STEP6-3_Schema_Rule_Analysis.md` | **STEP6-3 Schema Rule Analysis Complete (v1.1)** · Catalog Design Input |
@@ -88,7 +103,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | **AAS Runtime Migration** | **Batch 1~6 Complete (2026-07-13)** — Batch 6 Final Freeze · Runtime Contract / Registry / Loader · Baseline `ec71ef9` · **Completed · Final Freeze** |
 | **SPS System Inventory (STEP 4)** | **Complete · Final v1.0 (2026-07-14)** — 38 Systems · Observation SSOT · Metadata Inventory · Registration Inventory · Inventory Assets · **Frozen Assets declared** · SSOT: `System Platform Standard (SPS) v1.0/System_Inventory.md` |
 | **SPS Architecture Audit (STEP 5)** | **Complete · Final Freeze v1.0 (2026-07-15)** — Framework · Audit Plan · Rule Catalog · Registers · Audit Report · STEP6 Handoff · `STEP5_FINAL_FREEZE.md` |
-| **SPS Schema Validation (STEP 6)** | **In Progress** — Framework · Pipeline **Locked** · STEP6-3 **Complete (v1.1)** · STEP6-4 Catalog Design **Complete (v0.2)** · STEP6-5 Register Suite **Complete (v0.2)** · Register State defined · Next: **STEP6-6 Validation Engine Design** |
+| **SPS Schema Validation (STEP 6)** | **Complete · Final Freeze v1.0 (2026-07-17)** — Framework · Pipeline **Locked** · Catalog/Register Design · Engine (7A–7G) · Pilot · Production Validation · Report · `STEP6_FINAL_FREEZE.md` · Next: **STEP7** |
 | ADMIN | Position Lock → SYS / HP·T / STR / AI 입력 → Dataset SAVE |
 | USER | Search(published) → 공략 선택 → **AI · 두께/타점 · 동선** 중심 실전 공략 UI |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
@@ -305,7 +320,7 @@ App.jsx를 Application Runtime Orchestrator로 전환하기 위한 Architecture 
 - Runtime Contract를 우회하지 않는다 (System JSON 직접 접근 금지).
 - 신규 Architecture 변경은 ADR + Review Checklist를 통과해야 한다.
 
-> **주의:** Architecture SSOT 확정 이후 실제 코드 이동은 Batch 단위로 진행했다. **AAS Runtime Migration Batch 1~6 Complete (2026-07-13).** **SPS STEP4 Inventory Final v1.0 Complete (2026-07-14).** **SPS STEP5 Architecture Audit Final Freeze v1.0 Complete (2026-07-15).** **SPS STEP6 Framework + Pipeline Freeze Candidate (Locked) Complete (2026-07-15).** **STEP6-3 Analysis Complete (v1.1).** **STEP6-4 Catalog Design Complete (v0.2).** **STEP6-5 Register Suite Complete (v0.2, 2026-07-17).** 다음: **STEP6-6 Validation Engine Design**.
+> **주의:** Architecture SSOT 확정 이후 실제 코드 이동은 Batch 단위로 진행했다. **AAS Runtime Migration Batch 1~6 Complete (2026-07-13).** **SPS STEP4 Inventory Final v1.0 Complete (2026-07-14).** **SPS STEP5 Architecture Audit Final Freeze v1.0 Complete (2026-07-15).** **SPS STEP6 Schema Validation Final Freeze v1.0 Complete (2026-07-17).** 다음: **STEP7**.
 
 ### AAS Runtime Migration 진행 상황
 
@@ -797,7 +812,14 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - ✔ **Register State / Lifecycle** — Draft · Proposed · Approved · Active · Deprecated · Archived
   - ✔ State ≠ Execution Status
   - ✔ SSOT: `STEP6-5_Validation_Register_Suite.md` v0.2
-  - ✔ Next: **STEP6-6 Validation Engine Design**
+- **SPS STEP6-6…STEP6-11 Schema Validation Complete · Final Freeze (2026-07-17)**:
+  - ✔ STEP6-6 Engine Design v0.2
+  - ✔ STEP6-7 Engine Implementation (7A–7G) — `frontend/src/validation/engine/`
+  - ✔ STEP6-8 Pilot Validation · STEP6-9 Full Validation (Production)
+  - ✔ STEP6-10 Validation Report v1.0 · Known Issues KI-01…04
+  - ✔ STEP6-11 **Final Freeze v1.0** — `STEP6_FINAL_FREEZE.md`
+  - ✔ Ops: `DEVELOPMENT_WORKFLOW.md` v0.3 (Implementation Decomposition)
+  - ✔ Next: **STEP7**
 - AI 오버레이 리팩토링 (SYS+STR SSOT, 레슨 분리)
 - 원 포인트 레슨 ADMIN/USER 표시 분리
 - USER AI 패널 가독성·크기·공간 최적화
