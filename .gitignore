@@ -42,3 +42,8 @@ stage_diff.txt
 # Binary archives (not source)
 # =========================
 Application Architecture Standard (AAS) v2.0/Chapter/Chapter.zip
+
+# Local agent temp files
+_commit_msg*.txt
+_update_*.py
+_update_*.txt
