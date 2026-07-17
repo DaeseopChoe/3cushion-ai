@@ -1,8 +1,70 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.10  
+Version : v1.11  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-17 (STEP6-5 Validation Register Suite Complete · v0.2)
+
+## 제목
+
+SPS STEP6-5 Validation Register Suite **Complete (v0.2)** — Register State/Lifecycle · Next Session STEP6-6 Validation Engine Design
+
+## Summary
+
+STEP6-5 Validation Register Suite Design을 완료하고 Register State(Lifecycle)를 보강·승인하였다.  
+Framework / Pipeline / STEP6-3 / STEP6-4는 Consume Only로 유지하였다. Validation Engine · Runtime · Schema JSON은 설계·구현하지 않았다.
+
+## STEP6 Progress Summary
+
+| 항목 | 상태 |
+|------|------|
+| **STEP6-1 Framework** | Freeze Candidate (Locked) |
+| **STEP6-2 Validation Pipeline** | Freeze Candidate (Locked) |
+| **STEP6-3 Schema Rule Analysis** | Complete (v1.1) |
+| **STEP6-4 Rule Catalog Design** | Complete (v0.2) |
+| **STEP6-5 Validation Register Suite** | **Complete (v0.2)** |
+| **Architecture** | **Locked** |
+| **SSOT** | `STEP6-5_Validation_Register_Suite.md` v0.2 |
+| **Next** | **STEP6-6 Validation Engine Design** |
+
+## Completed Tracks (this session)
+
+- Register Suite Design (Pin · Rule · Dependency · Run · Execution · Result · VAL · Deferred · Summary)
+- Rule Record 구조 · Catalog Header cite-only
+- Rule ID 체계 (대량 발급 없음) · Namespace 후보만
+- **Register State / Lifecycle** 보강: Draft · Proposed · Approved · Active · Deprecated · Archived
+- State ≠ Execution Status · Coverage Deferred와 직교
+- PROJECT_MASTER_INDEX / LOG / HANDOFF → STEP6-6 Entry
+
+## Decision Log
+
+| Decision | Statement |
+|----------|-----------|
+| **D-STEP6-5-01** | Registers cite Catalog Header Metadata; do not redefine |
+| **D-STEP6-5-02** | Register State = inventory lifecycle; not Engine execution status |
+| **D-STEP6-5-03** | State set: Draft → Proposed → Approved → Active → Deprecated → Archived |
+| **D-STEP6-5-04** | Supersession via ruleId graph; not a separate State |
+| **D-STEP6-5-05** | Namespace final lock deferred to STEP6-6+ |
+| **D-STEP6-5-06** | Engine / Runtime / Schema JSON out of STEP6-5 scope |
+
+## Related Project Docs Synced
+
+- `PROJECT_MASTER_INDEX.md` v1.23 — Current Stage → STEP6-6
+- `PROJECT_LOG_2026-07.md` v1.11 — 본 항목
+- `CURSOR_SESSION_HANDOFF.md` — STEP6-6 Entry
+- `STEP6-5_Validation_Register_Suite.md` v0.2
+
+## Status
+
+**STEP6-5 Complete (v0.2) · Ready for STEP6-6**
+
+## Next Session
+
+**STEP6-6 Validation Engine Design**  
+Consume: Framework · Pipeline · STEP6-3 · STEP6-4 · STEP6-5 (incl. Register State)
 
 ---
 
