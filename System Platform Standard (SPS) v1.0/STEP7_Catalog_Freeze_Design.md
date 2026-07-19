@@ -2,23 +2,22 @@
 
 ```text
 Document  : STEP7_Catalog_Freeze_Design.md
-Version   : v0.6
-Status    : Design Draft — IU-2-03B Complete · Not Frozen
+Version   : v0.7
+Status    : Design Draft — IU-2-04A Complete · Not Frozen
 Date      : 2026-07-19
 STEP      : STEP7 / Phase P2 Catalog
-Session   : S7-P2-IU-2-03B
-IU        : IU-2-03B
-WP        : WP-2-03
+Session   : S7-P2-IU-2-04A
+IU        : IU-2-04A
+WP        : WP-2-04
 Milestone : M2.2
 Owner     : System Standardization / Catalog Ops
-Type      : Catalog Freeze Design (Namespace U1 Decision Record)
-Baseline  : STEP7_SCOPE Approved · STEP7_WORK_BREAKDOWN Approved ·
-            STEP7_IMPLEMENTATION_DECOMPOSITION v1.0 Approved ·
+Type      : Catalog Freeze Design (Classification Decision)
+Baseline  : STEP7_SCOPE Approved · Namespace NS-U1-001 Option (C) Locked ·
             STEP6 Final Freeze v1.0 · Framework/Pipeline Locked (Consume)
-Rule      : Namespace Decision Record only · No Framework / Appendix C edit ·
-            No Classification / Coverage · No Catalog/Register JSON · No Pin ·
+Rule      : Classification Decision only · No Coverage formulas · No Namespace edit ·
+            No Framework / Appendix C edit · No Catalog/Register JSON · No Pin ·
             No Freeze Candidate · No Runtime / Pipeline / System JSON mutation
-Next IU   : IU-2-04A
+Next IU   : IU-2-04B
 ```
 
 ---
@@ -27,11 +26,12 @@ Next IU   : IU-2-04A
 
 | Item | Value |
 |------|-------|
-| **Session ID** | `S7-P2-IU-2-03B` |
-| **Mode** | **Decision Record** (§12.1.8 Namespace U1) |
-| **Namespace Decision** | **Option (C) Locked** (Catalog Decision SSOT — not Framework edit) |
-| **Framework / Appendix C** | **Unmodified** (RO Consume) |
-| **Classification / Coverage** | **Not in this IU** |
+| **Session ID** | `S7-P2-IU-2-04A` |
+| **Mode** | **Decision Record** (§12.2 Classification) |
+| **Namespace Decision** | **Option (C) Locked** — unmodified this Session |
+| **Classification Decision** | **Locked** (§12.2) |
+| **Coverage formulas** | **Not in this IU** (IU-2-04B) |
+| **Framework / Appendix C** | **Unmodified** |
 | **Freeze Candidate / JSON / Pin** | **None** |
 | **Runtime / Pipeline** | Unmodified · Consume |
 
@@ -799,13 +799,124 @@ Candidates are **cited from** Framework Appendix C **U1** (not edited there):
 - [x] IU-2-06* binding stated  
 - [x] No Framework / Appendix C / Classification / Coverage / JSON / Pin / Freeze  
 
-### 12.2 Classification
+### 12.2 Classification Decision (IU-2-04A)
 
-**TBD — IU-2-04*** (out of IU-2-03B)
+| Item | Value |
+|------|-------|
+| **Decision ID** | **CL-001** |
+| **Session** | `S7-P2-IU-2-04A` |
+| **Status** | **Locked** (Catalog Decision SSOT) |
+| **Depends on** | **NS-U1-001 Option (C)** — STEP6 Catalog Rules use Catalog-owned IDs (`SV-R-*` lean); `SCH-R-*` RO Trace only |
+| **Does not include** | Coverage formulas / `schemaComplete` numeric policy (**IU-2-04B**) |
+
+#### 12.2.1 Purpose
+
+Classification은 Catalog Rule을 **구조·결과 중력·cascade 거동**으로 태깅하는 축 집합이다.
+
+| SHALL | SHALL NOT |
+|-------|-----------|
+| Bind each STEP6 Catalog Rule to Domain · Family · Type · Layer (+ severity/blocking defaults) | Redefine Framework Severity / Layer / `schemaComplete` **meanings** |
+| Keep Finding classification separate from Rule classification | Allocate Finding codes as Rule IDs (NS-U1-001 / CP6) |
+| Guide Catalog JSON RuleRecord fields (IU-2-06*) | Author Coverage percentage formulas (IU-2-04B) |
+| Lock axes for Freeze body authoring | Edit Framework Appendix C |
+
+#### 12.2.2 Classification 계층 (분류 체계)
+
+```text
+Rule Identity (NS-U1-001)
+  ruleId ∈ STEP6 Catalog Namespace (SV-R-* lean)
+  optional schRTrace → STEP5 SCH-R-* (RO)
+        ↓
+Structural Classification (required on every Catalog Rule)
+  Domain (WHAT) × Family (HOW) × Rule Type × primaryLayer (L1–L7)
+        ↓
+Outcome Classification (defaults on Rule; Framework meanings RO)
+  Severity default ∈ {BLOCKER, ERROR, WARNING, INFO}
+  Blocking default ∈ {blocks-deeper, does-not, inherit}
+        ↓
+Deferral / Warning tags (Rule-side policy tags — not Finding records)
+  deferredCandidate · warningHandlingLean
+        ↓
+CoverageClass field presence (Required|Optional|Deferred)
+  — field allowed on RuleRecord
+  — numeric / completeness formulas → IU-2-04B only
+```
+
+| Tier | Axes | Lock in CL-001? |
+|------|------|-----------------|
+| **Identity** | `ruleId` namespace per NS-U1-001 | Yes (cite NS-U1-001) |
+| **Structural** | Domain · Family · Type · `primaryLayer` | **Yes — required** |
+| **Outcome** | Severity default · Blocking default | **Yes — required defaults** |
+| **Policy tags** | deferredCandidate · warningHandlingLean | **Yes — optional fields, allowed values locked** |
+| **CoverageClass** | Required \| Optional \| Deferred | **Field allowed**; formula/impact = **IU-2-04B** |
+
+#### 12.2.3 Classification 기준
+
+| ID | Criterion | Statement |
+|----|-----------|-----------|
+| **CC-1** | Domain ≠ Family | Domain = WHAT · Family = HOW — independent axes (STEP6-3/4 Consume) |
+| **CC-2** | Layer bind | Rules bind to Framework **Layers L1–L7**, not Pipeline Stage names |
+| **CC-3** | Type bind | Rule Type ∈ Framework Rule Type set (cite-only) |
+| **CC-4** | Severity meanings RO | BLOCKER/ERROR/WARNING/INFO meanings stay Framework-owned |
+| **CC-5** | Blocking ≠ Deferred | Blocking drives cascade skip; Deferred is item/coverage posture — do not conflate |
+| **CC-6** | Option C consistency | Structural axes apply to **STEP6 Catalog Rules** only; SCH-R Trace is not re-classified as execution Rule |
+| **CC-7** | No Finding bleed | Classification fields on Rules are not Finding Severity records |
+
+#### 12.2.4 Classification Lock 규칙
+
+| Rule | Statement |
+|------|-----------|
+| **CL-L1** | After CL-001, Catalog body authoring **SHALL** populate Structural + Outcome defaults on every RuleRecord |
+| **CL-L2** | New axis invention after CL-001 requires Design Version bump + Review — not silent add in JSON |
+| **CL-L3** | Removing a required Structural axis after Official Pin exists is **forbidden** without new Catalog Version + new Pin |
+| **CL-L4** | Framework Severity/Layer **semantics** remain RO even when Catalog locks **which default** a Rule carries |
+| **CL-L5** | Coverage formulas remain unlocked until **IU-2-04B** |
+
+#### 12.2.5 Rule Classification vs Finding Classification 분리
+
+| | Rule Classification | Finding Classification |
+|--|---------------------|------------------------|
+| **Object** | Catalog Rule (`SV-R-*`) | Finding (`VAL-*`) |
+| **Owner** | Schema Rule Catalog | Finding Register |
+| **Typical fields** | Domain · Family · Type · Layer · Severity **default** · Blocking | Severity **observed** · VAL identity · evidence |
+| **Namespace** | NS-U1-001 Option (C) | `VAL-*` only |
+
+| Separation rule | Statement |
+|-----------------|-----------|
+| **RC-1** | Rule Severity default ≠ automatic Finding emission |
+| **RC-2** | Finding Severity is assigned at Finding creation policy (Registers) — not by rewriting Rule Domain/Family |
+| **RC-3** | WARNING-class Rule tags may **lean** VAL emission (U5/U9 cite) but do not allocate Finding IDs |
+
+#### 12.2.6 Binding for Catalog JSON (IU-2-06*)
+
+| Rule | Statement |
+|------|-----------|
+| **CB-1** | Each RuleRecord **SHALL** include: `ruleId` (NS-U1-001) · `domain` · `family` · `type` · `primaryLayer` · `severityDefault` · `blockingDefault` |
+| **CB-2** | Optional: `schRTrace` · `deferredCandidate` · `warningHandlingLean` · `coverageClass` (field only) |
+| **CB-3** | **SHALL NOT** embed Coverage percentage / `schemaComplete` formula constants in Classification fields — those belong to **IU-2-04B** / Coverage policy |
+| **CB-4** | This Decision does **not** author Catalog JSON |
+
+#### 12.2.7 Classification 변경 정책 (Freeze 이후)
+
+| Event | Policy |
+|-------|--------|
+| Pre-Freeze Candidate body draft | May adjust Rule defaults under Review; bump Catalog Revision |
+| After Freeze Candidate / Official Pin | Structural axis change → **new Catalog Version** + **new Pin** (§8 immutability) |
+| Severity/Blocking default change on Active Rule | Version/Revision + Pin bump; no in-place silent edit |
+| Framework Severity meaning change | **ADR / Framework Review only** — out of Catalog silent edit |
+| Coverage formula change | **IU-2-04B / later Coverage revision** — not Classification reopen by default |
+
+#### 12.2.8 IU-2-04A PASS
+
+- [x] Purpose · hierarchy · criteria · lock rules stated  
+- [x] Rule vs Finding Classification separation stated  
+- [x] IU-2-06* binding stated · post-Freeze change policy stated  
+- [x] Namespace Decision untouched · Coverage formulas not authored  
+- [x] No Framework / JSON / Pin / Freeze  
 
 ### 12.3 Coverage formulas
 
-**TBD — IU-2-04*** (out of IU-2-03B)
+**TBD — IU-2-04B**
 
 ---
 
@@ -825,11 +936,11 @@ Candidates are **cited from** Framework Appendix C **U1** (not edited there):
 
 | Item | Value |
 |------|-------|
-| Version | **v0.6** |
+| Version | **v0.7** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-03B** |
-| IU-2-03B | **PASS** (§12.1.8 Namespace Decision Record · Option **C**) |
-| Next | **S7-P2-IU-2-04A** |
+| Session | **S7-P2-IU-2-04A** |
+| IU-2-04A | **PASS** (§12.2 Classification Decision · **CL-001**) |
+| Next | **S7-P2-IU-2-04B** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -840,9 +951,10 @@ Candidates are **cited from** Framework Appendix C **U1** (not edited there):
 | v0.2 | 2026-07-19 | S7-P2-IU-2-01B — §8 Pin & Provenance · §9 Seed → Freeze Path |
 | v0.3 | 2026-07-19 | S7-P2-IU-2-02A — §10 Artifact Paths & Naming |
 | v0.4 | 2026-07-19 | S7-P2-IU-2-02B — §11 Pin Field Table (U12) |
-| v0.5 | 2026-07-19 | S7-P2-IU-2-03A — §12.1 Namespace (U1) Decision Framework |
-| **v0.6** | 2026-07-19 | **S7-P2-IU-2-03B** — §12.1.8 Namespace Decision Record · Option **(C)** Locked |
+| v0.5 | 2026-07-19 | S7-P2-IU-2-03A — §12.1 Namespace Decision Framework |
+| v0.6 | 2026-07-19 | S7-P2-IU-2-03B — §12.1.8 Namespace Decision Record · Option (C) |
+| **v0.7** | 2026-07-19 | **S7-P2-IU-2-04A** — §12.2 Classification Decision · CL-001 |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.6*
+*End of STEP7_Catalog_Freeze_Design.md v0.7*
