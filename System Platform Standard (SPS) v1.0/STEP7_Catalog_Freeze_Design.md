@@ -1136,11 +1136,18 @@ IU-2-08*  Freeze Candidate + Pin packaging (issues catalogPinId; binds paths)
 
 ---
 
-## 14. Freeze Candidate Gate (IU-2-08A)
+## 14. Freeze Candidate Gate & Declaration (IU-2-08A → IU-2-08B)
 
-> **Gate definition only.** Defines entry conditions · Required Artifacts · Review checklist for Freeze Candidate.  
-> Does **not** declare Freeze Candidate · does **not** create Catalog/Register JSON · does **not** issue `catalogPinId` · does **not** edit NS-U1-001 / CL-001 / CV-001.  
-> §15 · §16 — **unmodified** (Consume / cite only). Expands §9.5 gate preview into normative Gate shape.
+### 14.0 Session note
+
+| IU | Contribution |
+|----|----------------|
+| **IU-2-08A** | Freeze Candidate **Gate** (prerequisites · artifacts · FCG-* · Review checklist) |
+| **IU-2-08B** | Freeze Candidate **Declaration procedure** · Evidence · document format · MASTER/LOG cite items · Pin ID issuance **timing** |
+
+> **IU-2-08A (Gate):** Defines entry conditions only — does **not** declare.  
+> **IU-2-08B (Declaration procedure):** Defines how a declaration **would** be performed and recorded — does **not** perform the declaration · does **not** create JSON · does **not** issue `catalogPinId` values.  
+> §15 · §16 — **unmodified**. NS-U1-001 / CL-001 / CV-001 — **unmodified**.
 
 ### 14.1 Purpose
 
@@ -1152,7 +1159,7 @@ IU-2-08*  Freeze Candidate + Pin packaging (issues catalogPinId; binds paths)
 | Keep Official Pin mint after Gate + declaration packaging | Modify §15 · §16 · NS / CL / CV decision texts |
 
 **Freeze Candidate** (concept, §5 / §8): Review-passed · Official Pin-eligible state.  
-**This Session** defines the **Gate** that must be satisfied before a later Session may declare that state — it does **not** make the declaration.
+**IU-2-08A** defines the **Gate** that must be satisfied before a later Session may declare that state — it does **not** make the declaration.
 
 ### 14.2 Prerequisites (선행 조건)
 
@@ -1245,8 +1252,8 @@ Reviewers **SHALL** complete the following before any Freeze Candidate declarati
 #### 14.5.4 Gate / packaging readiness
 
 - [ ] FCG-1…FCG-9 evaluated and recorded
-- [ ] Official Pin packaging plan cites §11.3 / RPP-8 (ID mint **after** declaration packaging Session)
-- [ ] Explicit statement prepared for declaration Session (separate from this Gate doc)
+- [ ] Official Pin packaging plan cites §11.3 / RPP-8 (ID mint per §14.13 timing)
+- [ ] Explicit Declaration Statement prepared per §14.11 (separate execution Session)
 
 ### 14.6 Explicit non-outputs (IU-2-08A)
 
@@ -1261,17 +1268,20 @@ Reviewers **SHALL** complete the following before any Freeze Candidate declarati
 ### 14.7 Sequence (policy)
 
 ```text
-IU-2-06* / IU-2-07*   Structure defined (cite)     ← done as Design
+IU-2-06* / IU-2-07*   Structure defined (cite)              ← Design PASS
         ↓
-IU-2-08A              Freeze Candidate Gate defined ← this IU (no declaration)
+IU-2-08A              Freeze Candidate Gate defined        ← Design PASS (no declaration)
         ↓
-Body authoring        A-4 / A-5 on-disk             ← later (not this IU)
+IU-2-08B              Declaration procedure · Evidence ·
+                      MASTER/LOG cite · Pin ID timing      ← Design PASS (no declaration · no mint)
         ↓
-Review                §14.5 checklist PASS          ← later
+Body authoring        A-4 / A-5 on-disk                      ← later (not this IU)
         ↓
-Declaration Session   Freeze Candidate declared     ← later (not this IU)
+Review                §14.5 checklist PASS                   ← later
         ↓
-Official packaging    catalogPinId mint · path bind ← IU-2-08* packaging / follow-on
+Declaration execution Explicit Freeze Candidate declare    ← later Session (not IU-2-08B Design)
+        ↓
+Official packaging    catalogPinId mint · path bind        ← timing = §14.13 (IU-2-08B policy)
 ```
 
 ### 14.8 IU-2-08A PASS
@@ -1280,6 +1290,168 @@ Official packaging    catalogPinId mint · path bind ← IU-2-08* packaging / fo
 - [x] Gate Pass Conditions FCG-1…FCG-9 · Review checklist defined  
 - [x] IU-2-06 / IU-2-07 cited only · §15 / §16 unmodified  
 - [x] No Freeze Candidate declaration · no JSON · no Pin ID · no NS/CL/CV edit  
+
+### 14.9 Freeze Candidate Declaration procedure (IU-2-08B)
+
+> **Procedure & format only.** Documents how Declaration **SHALL** be executed when eligible.  
+> **This Session does not declare** Freeze Candidate and does **not** write MASTER/LOG rows.
+
+#### 14.9.1 Purpose (IU-2-08B)
+
+| SHALL | SHALL NOT |
+|-------|-----------|
+| Define Declaration steps · Evidence · document format | Execute Declaration / mark Candidate active |
+| Define MASTER / LOG recording **items** | Edit `PROJECT_MASTER_INDEX` / `PROJECT_LOG` in this Session |
+| Fix `catalogPinId` **issuance timing** (policy) | Mint any `catalogPinId` / `registerPinId` value |
+| Keep §15 / §16 / NS / CL / CV untouched | Create Catalog / Register JSON |
+
+#### 14.9.2 Declaration steps (ordered)
+
+| Step | Action | Evidence (§14.10) | Notes |
+|------|--------|-------------------|-------|
+| **D-1** | Confirm Gate eligibility | E-1 | All FCG-1…FCG-9 true |
+| **D-2** | Confirm Required Artifacts present | E-2 | A-4 · A-5 · A-7 minimum |
+| **D-3** | Complete §14.5 Review checklist | E-3 | All required boxes PASS |
+| **D-4** | Author Declaration Statement (§14.11) | E-4 | Design SSOT or dedicated cite block |
+| **D-5** | Record MASTER / LOG items (§14.12) | E-5 | Cite-only fields; no silent Scope change |
+| **D-6** | Authorize Official Pin packaging | E-6 | Enables §14.13 mint · does not mint by itself |
+| **D-7** | Issue `catalogPinId` at packaging | E-7 | **Timing = IU-2-08B policy (§14.13)** · values not issued in Design Session |
+
+| Rule | Statement |
+|------|-----------|
+| **DEC-1** | Steps D-1…D-5 **SHALL** precede any claim that Freeze Candidate is **declared** |
+| **DEC-2** | IU-2-08B Design Session **SHALL NOT** execute D-4…D-7 as live project state |
+| **DEC-3** | Declaration **SHALL NOT** mutate NS-U1-001 / CL-001 / CV-001 |
+
+### 14.10 Declaration Evidence
+
+| ID | Evidence | Minimum content |
+|----|----------|-----------------|
+| **E-1** | Gate evaluation record | FCG-1…FCG-9 each PASS/FAIL + date + reviewer |
+| **E-2** | Artifact inventory | Paths for A-4 · A-5 · Review ref for A-7 · Design Version cite for A-1 |
+| **E-3** | Review checklist snapshot | §14.5 items checked · signer · date |
+| **E-4** | Declaration Statement | §14.11 filled fields (no empty required slots) |
+| **E-5** | MASTER / LOG cite proof | Commit or dated rows matching §14.12 field list |
+| **E-6** | Packaging authorization | Explicit “Official packaging authorized” line + Catalog Version/Revision |
+| **E-7** | Pin issuance record | `catalogPinId` value + U12 Required set (§11.3) — **only after mint** |
+
+| Rule | Statement |
+|------|-----------|
+| **EV-1** | Missing E-1…E-5 ⇒ Declaration **incomplete** |
+| **EV-2** | E-7 **SHALL NOT** exist before §14.13 mint step |
+| **EV-3** | This Design Session produces **templates only** — Evidence rows above are **not** filled as project truth |
+
+### 14.11 Catalog Freeze Candidate Declaration document format
+
+Declaration Statement **SHALL** use the following field layout (markdown or equivalent cite block). Values remain **unfilled** in IU-2-08B Design.
+
+```text
+CATALOG_FREEZE_CANDIDATE_DECLARATION
+────────────────────────────────────
+declarationId          : <TODO — not issued this Session>
+declarationStatus      : Draft | Declared | Superseded
+                         // IU-2-08B Design leaves this unset / not Declared
+declaredAt             : <ISO-8601 datetime TODO>
+declaredBy             : <Reviewer / Owner TODO>
+designSsot             : STEP7_Catalog_Freeze_Design.md
+designVersion          : <cite Document Control Version at declaration>
+gateSpec               : §14.1–14.8 (IU-2-08A)
+procedureSpec          : §14.9–14.13 (IU-2-08B)
+catalogVersion         : <TODO — from A-4 Header>
+catalogRevision        : <TODO>
+catalogBodyPath        : <TODO — §10 relative path>
+registerBodyPath       : <TODO — §10 relative path>
+namespaceDecision      : NS-U1-001 Option (C)   // locked · do not edit
+classificationDecision : CL-001                // locked · do not edit
+coverageDecision       : CV-001                // locked · do not edit
+fcgResult              : PASS | FAIL           // must be PASS to declare
+reviewChecklistRef     : §14.5 + E-3
+catalogPinId           : null | <issued value>
+                         // null until §14.13 Official packaging mint
+registerPinId          : null | <optional>
+masterCiteRef          : <PROJECT_MASTER_INDEX row / section TODO>
+logCiteRef             : <PROJECT_LOG Decision / Event id TODO>
+notes                  : <optional>
+explicitStatement      : "Freeze Candidate is DECLARED for catalogVersion/Revision …"
+                         // MUST appear only in a live declaration Session — NOT in IU-2-08B Design
+```
+
+| Rule | Statement |
+|------|-----------|
+| **FMT-1** | Required fields above **SHALL** be present in any live Declaration Statement |
+| **FMT-2** | `declarationStatus: Declared` **SHALL NOT** be set by IU-2-08B Design |
+| **FMT-3** | Locked decision cites **SHALL** remain NS-U1-001 Option (C) · CL-001 · CV-001 |
+
+### 14.12 MASTER / LOG recording items
+
+When a live Declaration Session runs, it **SHALL** record at least the following. **IU-2-08B defines the item list only** — does not write the files.
+
+#### 14.12.1 PROJECT_MASTER_INDEX items
+
+| Field / Item | Purpose |
+|--------------|---------|
+| Catalog Freeze Design path + Version | Cite this SSOT |
+| Freeze Candidate Gate / Declaration spec | Cite §14 |
+| Catalog Version / Revision (candidate) | Identity of candidate surface |
+| Catalog / Register body paths | §10 relative cites (when A-4/A-5 exist) |
+| Declaration status | `NotDeclared` \| `Declared` \| `Superseded` |
+| `catalogPinId` | `null` until mint · then opaque id |
+| Next Phase / Session after P2 | Continuation queue (e.g. P3) |
+| Notes | Non-normative |
+
+#### 14.12.2 PROJECT_LOG items
+
+| Field / Item | Purpose |
+|--------------|---------|
+| Decision / Event id | e.g. `D-STEP7-CFC-01` (assigned at live declare) |
+| Date | Declaration date |
+| Session id | Live declaration Session id |
+| Summary | “Catalog Freeze Candidate declared for …” **or** Design-only note |
+| Design Version cite | Document Control Version |
+| Gate result | FCG PASS cite |
+| Pin mint status | `NOT_ISSUED` \| issued id |
+| Related commits | Design / body / declaration commits |
+
+| Rule | Statement |
+|------|-----------|
+| **ML-1** | MASTER/LOG updates are **declaration-execution** outputs — not IU-2-08B Design outputs |
+| **ML-2** | Logging a Design PASS for IU-2-08B **SHALL NOT** be phrased as Freeze Candidate declared |
+
+### 14.13 Pin ID issuance timing (IU-2-08B policy)
+
+| ID | Statement |
+|----|-----------|
+| **PID-1** | `catalogPinId` **issuance timing** is fixed to **Official Pin packaging authorized by the IU-2-08B Declaration procedure** (step D-6 → D-7) |
+| **PID-2** | Issuance **SHALL** occur only after D-1…D-6 Evidence (E-1…E-6) is complete |
+| **PID-3** | Issuance **SHALL** populate §11.3 Official Pin packaging Required fields (including `catalogPinId` · `catalogBodyPath` · Header compatibility set) |
+| **PID-4** | Optional `registerPinId` **MAY** be issued in the same packaging step; **SHALL NOT** substitute for `catalogPinId` |
+| **PID-5** | **IU-2-08B Design Session issues zero Pin ID values** — timing policy only |
+| **PID-6** | Pre-mint Design / dry-run sketches **SHALL** keep `catalogPinId: null` |
+
+```text
+Gate PASS (IU-2-08A)
+  → Declaration procedure complete (D-1…D-5)
+  → Packaging authorized (D-6)
+  → catalogPinId minted (D-7)     ← IU-2-08B timing locus
+```
+
+### 14.14 Explicit non-outputs (IU-2-08B)
+
+| Forbidden | Status |
+|-----------|--------|
+| Actual Freeze Candidate declaration | **Not declared** |
+| Catalog / Register `.json` | **Not created** |
+| Actual `catalogPinId` / `registerPinId` values | **Not issued** |
+| Live MASTER / LOG declaration rows | **Not written** |
+| NS-U1-001 / CL-001 / CV-001 edits | **None** |
+| §15 / §16 edits | **None** |
+
+### 14.15 IU-2-08B PASS
+
+- [x] Declaration procedure D-1…D-7 · Evidence E-1…E-7 defined  
+- [x] Declaration document format · MASTER/LOG recording items defined  
+- [x] Pin ID issuance timing fixed to IU-2-08B packaging policy (PID-*) · **no values issued**  
+- [x] No Freeze declaration · no JSON · no NS/CL/CV · §15/§16 untouched  
 
 ---
 
@@ -1820,13 +1992,14 @@ registers.catalogPinRegister: { entries: [] }
 
 | Item | Value |
 |------|-------|
-| Version | **v0.14** |
-| Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-08A** |
-| IU-2-07A | **PASS** (§16 Register JSON Body Structure) |
-| IU-2-07B | **PASS** (§16.10 Register Pin Packaging) |
-| IU-2-08A | **PASS** (§14 Freeze Candidate Gate · **not declared**) |
-| Next Session | **S7-P2-IU-2-08B** |
+| Version | **v0.15** |
+| Status | Design Draft · **Not Frozen** · Freeze Candidate **Not Declared** |
+| Session | **S7-P2-IU-2-08B** |
+| IU-2-08A | **PASS** (§14 Gate · not declared) |
+| IU-2-08B | **PASS** (§14.9–14.15 Declaration procedure · not declared · no Pin mint) |
+| P2 Catalog Design queue | **COMPLETE** (S7-P2-IU-2-01A … S7-P2-IU-2-08B) |
+| Catalog Freeze delivery | **NOT COMPLETE** (no JSON bodies · no declaration · no `catalogPinId`) |
+| Next Session | **S7-P3-IU-3-01A** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -1846,8 +2019,9 @@ registers.catalogPinRegister: { entries: [] }
 | v0.11 | 2026-07-19 | S7-P2-IU-2-06B — §15 Catalog JSON Body Structure |
 | v0.12 | 2026-07-19 | S7-P2-IU-2-07A — §16 Register JSON Body Structure |
 | v0.13 | 2026-07-19 | S7-P2-IU-2-07B — §16.10 Register Pin Packaging |
-| **v0.14** | 2026-07-19 | **S7-P2-IU-2-08A** — §14 Freeze Candidate Gate (definition only · not declared) |
+| v0.14 | 2026-07-19 | S7-P2-IU-2-08A — §14 Freeze Candidate Gate (definition only · not declared) |
+| **v0.15** | 2026-07-19 | **S7-P2-IU-2-08B** — §14.9–14.15 Declaration procedure · Evidence · MASTER/LOG items · Pin ID timing (not declared · no mint) |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.14*
+*End of STEP7_Catalog_Freeze_Design.md v0.15*
