@@ -2,24 +2,24 @@
 
 ```text
 Document  : STEP7_Catalog_Freeze_Design.md
-Version   : v0.3
-Status    : Design Draft — IU-2-02A Complete · Not Frozen
+Version   : v0.4
+Status    : Design Draft — IU-2-02B Complete · Not Frozen
 Date      : 2026-07-19
 STEP      : STEP7 / Phase P2 Catalog
-Session   : S7-P2-IU-2-02A
-IU        : IU-2-02A
+Session   : S7-P2-IU-2-02B
+IU        : IU-2-02B
 WP        : WP-2-02
 Milestone : M2.2
 Owner     : System Standardization / Catalog Ops
-Type      : Catalog Freeze Design (Artifact Paths & Naming Policy)
+Type      : Catalog Freeze Design (Pin Field Table U12)
 Baseline  : STEP7_SCOPE Approved · STEP7_WORK_BREAKDOWN Approved ·
             STEP7_IMPLEMENTATION_DECOMPOSITION v1.0 Approved ·
             STEP6 Final Freeze v1.0 · Framework/Pipeline Locked (Consume)
-Rule      : Path/Naming policy only · No Artifact creation · No Path finalize declaration ·
-            No Catalog/Register JSON · No Freeze Candidate · No Pin ID · No U12 table ·
-            No Namespace/Classification/Coverage lock · No Runtime / Framework /
-            Pipeline / System JSON mutation
-Next IU   : IU-2-02B (Pin Field Table U12)
+Rule      : U12 field layout only · No Pin ID mint · No catalogPinId issue ·
+            No Catalog/Register JSON · No Freeze Candidate · No Namespace /
+            Classification / Coverage lock · No Runtime / Framework / Pipeline /
+            System JSON mutation
+Next IU   : IU-2-03A (Namespace Decision)
 ```
 
 ---
@@ -28,13 +28,12 @@ Next IU   : IU-2-02B (Pin Field Table U12)
 
 | Item | Value |
 |------|-------|
-| **Session ID** | `S7-P2-IU-2-02A` |
-| **Mode** | **Design Policy** (§10 Artifact Paths & Naming) |
-| **Prior IUs** | IU-2-01A Skeleton · IU-2-01B §8/§9 — retained |
+| **Session ID** | `S7-P2-IU-2-02B` |
+| **Mode** | **Design Policy** (§11 Pin Field Table U12) |
+| **Prior IUs** | IU-2-01A…IU-2-02A — retained |
 | **Freeze Candidate** | **Not declared** |
+| **catalogPinId values** | **Not issued** (field defined · values later) |
 | **Catalog / Register JSON** | **Not authored** |
-| **Artifacts on disk** | **Not created** |
-| **Path finalize declaration** | **Not issued** (policy + examples only) |
 | **Framework / Pipeline / Runtime** | Unmodified · Consume |
 
 ---
@@ -140,6 +139,7 @@ THIS SESSION (IU-2-02A)
 | Pin & Provenance policy (§8) | IU-2-01B | **Complete** |
 | Seed → Freeze Path procedure (§9) | IU-2-01B | **Complete** |
 | Artifact Paths & Naming policy (§10) | IU-2-02A | **Complete** |
+| Pin Field Table U12 (§11) | IU-2-02B | **Complete** |
 
 ### 4.2 Phase 2 eventual Outputs (not this IU)
 
@@ -196,7 +196,7 @@ STEP7_Catalog_Freeze_Design.md
 ├── 8. Pin & Provenance          ← filled (IU-2-01B)
 ├── 9. Seed → Freeze Path        ← filled (IU-2-01B)
 ├── 10. Artifact Paths & Naming  ← filled (IU-2-02A)
-├── 11. Pin Field Table (U12)    ← TBD (IU-2-02B)
+├── 11. Pin Field Table (U12)    ← filled (IU-2-02B)
 ├── 12. Decision Hooks           ← TBD (cite IU-2-03/04 outputs)
 │     ├── Namespace (U1)
 │     ├── Classification
@@ -215,8 +215,9 @@ STEP7_Catalog_Freeze_Design.md
 | Design Structure outline | Present |
 | §8 Pin & Provenance | Filled (IU-2-01B) |
 | §9 Seed → Freeze Path | Filled (IU-2-01B) |
-| §10 Artifact Paths & Naming | **Filled (IU-2-02A)** |
-| §§11–14 | Reserved / TBD |
+| §10 Artifact Paths & Naming | Filled (IU-2-02A) |
+| §11 Pin Field Table (U12) | **Filled (IU-2-02B)** |
+| §§12–14 | Reserved / TBD |
 | Freeze declaration | **Absent by design** |
 
 ---
@@ -229,7 +230,7 @@ STEP7_Catalog_Freeze_Design.md
 | **R-02** | No Freeze Candidate language as declared | IU-2-01A |
 | **R-03** | No Catalog/Register JSON in this doc | IU-2-01A |
 | **R-04** | Pin / provenance / Seed→Freeze rules | **IU-2-01B PASS** |
-| **R-05** | Path · naming · Pin fields (U12) | **IU-2-02A PASS** (paths/naming) · IU-2-02B (U12) |
+| **R-05** | Path · naming · Pin fields (U12) | IU-2-02A PASS · **IU-2-02B PASS** |
 | **R-06** | Namespace decision recorded outside Framework edit | IU-2-03* |
 | **R-07** | Classification / Coverage lock | IU-2-04* |
 | **R-08** | Register Freeze Design linked | IU-2-05A |
@@ -529,7 +530,94 @@ System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md
 
 ## 11. Pin Field Table (U12)
 
-**TBD — IU-2-02B**
+> **U12 Field Structure Design only.**  
+> Defines Pin Manifest **layout**. Does **not** mint Pin IDs · does **not** issue `catalogPinId` values · does **not** author JSON · does **not** declare Freeze Candidate.
+
+### 11.1 Purpose
+
+Framework Appendix C **U12** defers exact Catalog / Validator Pin table detail.  
+This section supplies the STEP7 **Pin Manifest field layout** so later packaging (IU-2-08*) and Official Runs can record a deterministic Pin citation (STEP6-5 RP5 · §6.3).
+
+| SHALL | SHALL NOT |
+|-------|-----------|
+| Define field name · purpose · requiredness · type · source | Issue concrete `catalogPinId` strings |
+| Align with STEP6-4 §9.5 Header Metadata (cite-only meanings) | Redefine Header / Framework / Pipeline semantics |
+| Support Catalog Pin + optional Register body cite | Create Catalog / Register JSON bodies |
+| Leave value assignment to Freeze packaging / Runs | Declare Freeze Candidate |
+
+### 11.2 Pin Manifest field layout (U12)
+
+| Field Name | Purpose | Req / Opt | Type | Source | Notes |
+|------------|---------|-------------|------|--------|-------|
+| `catalogPinId` | Stable Pin identity for Official Run evidence | **Required** (at Official Pin packaging) | `string` | Pin packaging (IU-2-08*) | **Field defined · values NOT issued in this IU** |
+| `catalogVersion` | Catalog SSOT logical version | **Required** | `string` | Catalog Header (STEP6-4 §9.5) | Cite-only meaning |
+| `catalogRevision` | Revision within Version | **Required** | `string` | Catalog Header | Cite-only meaning |
+| `compatibleSpsVersion` | Compatible SPS plate | **Required** | `string` | Catalog Header | e.g. SPS v1.0 cite |
+| `compatibleFrameworkVersion` | Compatible Framework plate | **Required** | `string` | Catalog Header | Locked Framework Consume identity |
+| `compatiblePipelineVersion` | Compatible Pipeline plate | **Required** | `string` | Catalog Header | Locked Pipeline Consume identity |
+| `generatedFrom` | Provenance of Catalog body / Seed lineage | **Required** | `string` \| `string[]` | Catalog Header · §9 Seed path | Seed cite + Design doc ids |
+| `lastUpdated` | Header / snapshot timestamp | **Required** | `date` (ISO-8601 date preferred) | Catalog Header | Audit |
+| `catalogBodyPath` | Repo-relative path to Catalog body artifact | **Required** (when body exists) | `string` (path) | §10 path policy | Absolute paths forbidden (§10.4) |
+| `registerBodyPath` | Repo-relative path to Register body artifact | **Optional** | `string` (path) | §10 · Register Freeze | May be omitted until IU-2-07* |
+| `registerPinId` | Optional Register-side pin key | **Optional** | `string` | Register packaging | **Not issued here**; layout only |
+| `pinStatus` | Manifest lifecycle label | **Optional** | enum lean: `Draft` \| `FreezeCandidate` \| `Frozen` | Packaging | **Values not set** in this IU; enum shape only |
+| `compatibleStep6Freeze` | STEP6 Final Freeze cite | **Optional** | `string` | `STEP6_FINAL_FREEZE` | Provenance convenience |
+| `notes` | Free-form packaging note | **Optional** | `string` | Operator / Review | Non-normative |
+
+### 11.3 Requiredness rules (lean)
+
+| Context | Minimum Required fields |
+|---------|-------------------------|
+| **Design / dry-run Pin sketch** | `catalogVersion` · `catalogRevision` · `compatibleFrameworkVersion` · `compatiblePipelineVersion` · `generatedFrom` |
+| **Official Pin packaging** | All **Required** rows above including `catalogPinId` · `catalogBodyPath` · Header compatibility set |
+| **This IU** | Layout only — **no row values populated** |
+
+### 11.4 Type & cite rules
+
+| Rule | Statement |
+|------|-----------|
+| **U12-1** | Field meanings for Header-derived columns **SHALL** match STEP6-4 §9.5 / STEP6-5 RP2 (cite-only) |
+| **U12-2** | `catalogPinId` is an **opaque string** identity; format scheme deferred to IU-2-08* (no mint now) |
+| **U12-3** | Path fields **SHALL** obey §10 relative-path policy |
+| **U12-4** | `pinStatus` enum is a **shape**; assigning `FreezeCandidate` / `Frozen` is **not** a Freeze declaration by this Design Session |
+| **U12-5** | Adding columns later requires Design Version bump; removing Required columns after Official Pins exist is forbidden without migration |
+
+### 11.5 Shape sketch (non-normative · not a JSON artifact)
+
+```text
+PinManifest {
+  catalogPinId: string                 // REQUIRED at Official packaging — NOT issued now
+  catalogVersion: string
+  catalogRevision: string
+  compatibleSpsVersion: string
+  compatibleFrameworkVersion: string
+  compatiblePipelineVersion: string
+  generatedFrom: string | string[]
+  lastUpdated: date
+  catalogBodyPath: string              // repo-relative
+  registerBodyPath?: string
+  registerPinId?: string               // NOT issued now
+  pinStatus?: Draft | FreezeCandidate | Frozen
+  compatibleStep6Freeze?: string
+  notes?: string
+}
+```
+
+### 11.6 Explicit non-outputs (this IU)
+
+| Forbidden output | Status |
+|------------------|--------|
+| Concrete `catalogPinId` / Pin ID list | **None** |
+| Catalog JSON / Register JSON | **None** |
+| Freeze Candidate declaration | **None** |
+| Namespace / Classification / Coverage lock | **None** |
+
+### 11.7 IU-2-02B PASS (Pin Field Table U12)
+
+- [x] U12 Pin Manifest field table defined  
+- [x] Required / Optional · Type · Source · Notes stated  
+- [x] No Pin ID / `catalogPinId` values issued  
+- [x] No JSON · no Freeze declaration · no axis locks  
 
 ---
 
@@ -555,11 +643,11 @@ System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md
 
 | Item | Value |
 |------|-------|
-| Version | **v0.3** |
+| Version | **v0.4** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-02A** |
-| IU-2-02A | **PASS** (§10 complete) |
-| Next | **S7-P2-IU-2-02B** — Pin Field Table (U12) |
+| Session | **S7-P2-IU-2-02B** |
+| IU-2-02B | **PASS** (§11 complete) |
+| Next | **S7-P2-IU-2-03A** — Namespace Decision |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -568,8 +656,9 @@ System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md
 |---------|------|--------|
 | v0.1 | 2026-07-19 | Skeleton created (S7-P2-IU-2-01A) |
 | v0.2 | 2026-07-19 | S7-P2-IU-2-01B — §8 Pin & Provenance · §9 Seed → Freeze Path |
-| **v0.3** | 2026-07-19 | **S7-P2-IU-2-02A** — §10 Artifact Paths & Naming · IU-2-02A PASS |
+| v0.3 | 2026-07-19 | S7-P2-IU-2-02A — §10 Artifact Paths & Naming |
+| **v0.4** | 2026-07-19 | **S7-P2-IU-2-02B** — §11 Pin Field Table (U12) · IU-2-02B PASS |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.3*
+*End of STEP7_Catalog_Freeze_Design.md v0.4*
