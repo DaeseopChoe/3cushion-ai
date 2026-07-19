@@ -1356,11 +1356,18 @@ metadata: {
 
 ---
 
-## 16. Register JSON Body Structure (IU-2-07A)
+## 16. Register JSON Body Structure (IU-2-07A → IU-2-07B Packaging)
 
-> **Documentation only.** Defines Register JSON **structure**.  
+> **Documentation only.** Defines Register JSON **structure** and Register Pin **packaging**.  
 > Does **not** create an on-disk Register `.json` file · does **not** populate registerEntries · does **not** issue `catalogPinId` · does **not** declare Freeze Candidate.  
-> §15 Catalog JSON Structure — **unmodified**. §14 — **unmodified**.
+> §15 Catalog JSON Structure — **unmodified**. §14 · §13 — **unmodified**.
+
+### 16.0 Session note
+
+| IU | Contribution |
+|----|----------------|
+| **IU-2-07A** | RegisterDocument top-level · registerHeader · registerEntries skeleton · metadata |
+| **IU-2-07B** | Register Pin Packaging structure · Packaging Rules (RPP-*) |
 
 ### 16.1 Purpose
 
@@ -1535,17 +1542,149 @@ metadata: {
 - [x] Catalog reference-only rules stated  
 - [x] No file · no entries · no Pin · no Freeze · §15 untouched  
 
+### 16.10 Register Pin Packaging (IU-2-07B)
+
+> **Documentation only.** Defines how the Register body **packages** U12 Pin Manifest citations.  
+> Does **not** create Register JSON · does **not** populate `registerEntries[]` / suite entries · does **not** issue `catalogPinId` / `registerPinId` · does **not** declare Freeze Candidate.  
+> §15 · §14 · §13 — **unmodified**. §11 U12 layout — **Consume only**.
+
+#### 16.10.1 Purpose
+
+| SHALL | SHALL NOT |
+|-------|-----------|
+| Define Register Pin Package **structure** (shape) | Author Catalog Pin Register rows |
+| Define Packaging Rules (RPP-*) binding Register ↔ U12 ↔ §13 RL-* | Issue `catalogPinId` or `registerPinId` |
+| Keep Official ID mint / path bind at IU-2-08* | Modify §15 Catalog Structure · §13 · §14 |
+| Leave all package instance fields empty / null | Create on-disk Register `.json` |
+
+#### 16.10.2 Packaging model
+
+```text
+Catalog Header + §11 U12 PinManifest (layout)
+        │  cite-only (RL-1 · RL-2 · RL-5)
+        ▼
+RegisterPinPackage          ← design shape (this IU)
+        │  packages into
+        ▼
+registers.catalogPinRegister.entries[]   ← empty now
+catalogReference.catalogPinId            ← null now
+registerHeader path / version cites      ← TODO / null
+```
+
+| Concept | Owner | This Session |
+|---------|-------|--------------|
+| **PinManifest** (§11 U12) | Catalog Freeze Design layout | Consume |
+| **RegisterPinPackage** | Register body packaging envelope | **Structure defined · no instances** |
+| **Official Pin packaging** | IU-2-08* Freeze Candidate + ID mint | Deferred |
+
+#### 16.10.3 Register Pin Package structure
+
+| Field | Req at Official packaging | Req now | Type / Notes |
+|-------|---------------------------|---------|--------------|
+| `packageKind` | Required | Shape only | `"RegisterPinPackage"` |
+| `catalogPinId` | **Required** | **null** | U12 · **not issued** (IU-2-08*) |
+| `registerPinId` | Optional | **null** | U12 optional · **not issued** |
+| `catalogVersion` | Required | Shape / TODO | Cite Catalog Header · RL-1 |
+| `catalogRevision` | Required | Shape / TODO | Cite Catalog Header · RL-1 |
+| `compatibleSpsVersion` | Required | Shape | Lean `"SPS v1.0"` |
+| `compatibleFrameworkVersion` | Required | Shape / TODO | U12 |
+| `compatiblePipelineVersion` | Required | Shape / TODO | U12 |
+| `generatedFrom` | Required | Shape / TODO | Provenance cite |
+| `lastUpdated` | Required | Shape / TODO | ISO-8601 date preferred |
+| `catalogBodyPath` | Required when body exists | **null** | §10 · RL-5 |
+| `registerBodyPath` | Optional | **null** | §10 · RL-5 |
+| `pinStatus` | Optional | Shape only | `Draft` \| `FreezeCandidate` \| `Frozen` — **Draft intent; not declared** |
+| `compatibleStep6Freeze` | Optional | Shape / TODO | STEP6 Final Freeze cite |
+| `linkSpec` | Required | Fixed cite | `"§13 RL-1…RL-8"` · `"§11 U12"` |
+| `notes` | Optional | empty | Non-normative |
+
+```text
+RegisterPinPackage: {
+  packageKind: "RegisterPinPackage"
+  catalogPinId: null
+  registerPinId: null
+  catalogVersion: "<TODO>"
+  catalogRevision: "<TODO>"
+  compatibleSpsVersion: "SPS v1.0"
+  compatibleFrameworkVersion: "<TODO>"
+  compatiblePipelineVersion: "<TODO>"
+  generatedFrom: [ "STEP7_Catalog_Freeze_Design.md §11/§13/§16.10" ]
+  lastUpdated: "<TODO>"
+  catalogBodyPath: null
+  registerBodyPath: null
+  pinStatus: "Draft"
+  compatibleStep6Freeze: "<TODO>"
+  linkSpec: "§13 RL-1…RL-8 · §11 U12"
+  notes: ""
+}
+```
+
+#### 16.10.4 catalogPinRegister packaging slot (empty)
+
+How a future Catalog Pin Register row **receives** a RegisterPinPackage (no rows written now):
+
+| Field | Req when entry exists | Notes |
+|-------|------------------------|-------|
+| `entryType` | Required | `"CatalogPin"` |
+| `entryId` | Required | **not issued this Session** |
+| `pinPackage` | Required | RegisterPinPackage shape (§16.10.3) |
+| `payload` | Required | type-specific — **empty until later** |
+
+```text
+registers.catalogPinRegister: { entries: [] }
+// future entry sketch (NOT authored):
+// {
+//   entryType: "CatalogPin"
+//   entryId: "<NOT_ISSUED>"
+//   pinPackage: <RegisterPinPackage>
+//   payload: {}
+// }
+```
+
+#### 16.10.5 Packaging Rules (RPP-*)
+
+| ID | Statement |
+|----|-----------|
+| **RPP-1** | Register Pin Packaging **SHALL** cite §11 U12 field meanings; **SHALL NOT** invent alternate Pin column semantics |
+| **RPP-2** | `catalogPinId` **SHALL** remain unset / null until Official packaging (IU-2-08*); this Session issues **zero** Pin IDs |
+| **RPP-3** | Optional `registerPinId` **SHALL NOT** be issued in this Session |
+| **RPP-4** | Packaging structure **SHALL NOT** populate `registerEntries[]` or any `registers.*.entries[]` in this Session |
+| **RPP-5** | Path fields **SHALL** obey §10 relative-path policy (absolute paths forbidden) |
+| **RPP-6** | Package `catalogVersion` / `catalogRevision` **SHALL** align with `catalogReference` and Catalog Header cites (RR-1 · RL-1) when later populated |
+| **RPP-7** | `pinStatus` is a **shape**; assigning `FreezeCandidate` / `Frozen` in Design docs is **not** a Freeze Candidate declaration |
+| **RPP-8** | Official Pin packaging (IU-2-08*) **SHALL** satisfy §11.3 Official minimum including `catalogPinId` · `catalogBodyPath` · Header compatibility set |
+| **RPP-9** | Register Pin Package **SHALL NOT** duplicate Catalog Rule statements / Domain bodies (RR-1) |
+| **RPP-10** | Finding IDs remain `VAL-*` only; Packaging **SHALL NOT** mint Rule or Finding IDs |
+
+#### 16.10.6 Explicit non-outputs (IU-2-07B)
+
+| Forbidden | Status |
+|-----------|--------|
+| On-disk Register `.json` | **Not created** |
+| `registerEntries[]` / suite entry rows | **None** |
+| `catalogPinId` / `registerPinId` issuance | **None** |
+| Freeze Candidate declaration | **Not declared** |
+| §15 · §14 · §13 edits | **None** |
+
+#### 16.10.7 IU-2-07B PASS
+
+- [x] Register Pin Package structure defined  
+- [x] Packaging Rules RPP-1…RPP-10 defined  
+- [x] catalogPinRegister packaging slot sketched · entries remain empty  
+- [x] No file · no entries · no Pin ID · no Freeze · §15/§14/§13 untouched  
+
 ---
 
 ## 17. Document Control
 
 | Item | Value |
 |------|-------|
-| Version | **v0.12** |
+| Version | **v0.13** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-07A** |
+| Session | **S7-P2-IU-2-07B** |
 | IU-2-07A | **PASS** (§16 Register JSON Body Structure) |
-| Next Session | **S7-P2-IU-2-07B** |
+| IU-2-07B | **PASS** (§16.10 Register Pin Packaging) |
+| Next Session | **S7-P2-IU-2-08A** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -1563,8 +1702,9 @@ metadata: {
 | v0.9 | 2026-07-19 | S7-P2-IU-2-05A — §13 Register Freeze Link |
 | v0.10 | 2026-07-19 | S7-P2-IU-2-06A — §15 Catalog JSON Body Skeleton |
 | v0.11 | 2026-07-19 | S7-P2-IU-2-06B — §15 Catalog JSON Body Structure |
-| **v0.12** | 2026-07-19 | **S7-P2-IU-2-07A** — §16 Register JSON Body Structure |
+| v0.12 | 2026-07-19 | S7-P2-IU-2-07A — §16 Register JSON Body Structure |
+| **v0.13** | 2026-07-19 | **S7-P2-IU-2-07B** — §16.10 Register Pin Packaging |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.12*
+*End of STEP7_Catalog_Freeze_Design.md v0.13*
