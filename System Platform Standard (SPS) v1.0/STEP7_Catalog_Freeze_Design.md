@@ -2,24 +2,24 @@
 
 ```text
 Document  : STEP7_Catalog_Freeze_Design.md
-Version   : v0.4
-Status    : Design Draft — IU-2-02B Complete · Not Frozen
+Version   : v0.5
+Status    : Design Draft — IU-2-03A Complete · Not Frozen
 Date      : 2026-07-19
 STEP      : STEP7 / Phase P2 Catalog
-Session   : S7-P2-IU-2-02B
-IU        : IU-2-02B
-WP        : WP-2-02
+Session   : S7-P2-IU-2-03A
+IU        : IU-2-03A
+WP        : WP-2-03
 Milestone : M2.2
 Owner     : System Standardization / Catalog Ops
-Type      : Catalog Freeze Design (Pin Field Table U12)
+Type      : Catalog Freeze Design (Namespace U1 Decision Framework)
 Baseline  : STEP7_SCOPE Approved · STEP7_WORK_BREAKDOWN Approved ·
             STEP7_IMPLEMENTATION_DECOMPOSITION v1.0 Approved ·
             STEP6 Final Freeze v1.0 · Framework/Pipeline Locked (Consume)
-Rule      : U12 field layout only · No Pin ID mint · No catalogPinId issue ·
-            No Catalog/Register JSON · No Freeze Candidate · No Namespace /
-            Classification / Coverage lock · No Runtime / Framework / Pipeline /
-            System JSON mutation
-Next IU   : IU-2-03A (Namespace Decision)
+Rule      : Namespace Decision Framework only · No final Namespace lock ·
+            No Framework / Appendix C edit · No Classification / Coverage ·
+            No Catalog/Register JSON · No Pin · No Freeze Candidate ·
+            No Runtime / Pipeline / System JSON mutation
+Next IU   : IU-2-03B
 ```
 
 ---
@@ -28,13 +28,14 @@ Next IU   : IU-2-03A (Namespace Decision)
 
 | Item | Value |
 |------|-------|
-| **Session ID** | `S7-P2-IU-2-02B` |
-| **Mode** | **Design Policy** (§11 Pin Field Table U12) |
-| **Prior IUs** | IU-2-01A…IU-2-02A — retained |
-| **Freeze Candidate** | **Not declared** |
-| **catalogPinId values** | **Not issued** (field defined · values later) |
-| **Catalog / Register JSON** | **Not authored** |
-| **Framework / Pipeline / Runtime** | Unmodified · Consume |
+| **Session ID** | `S7-P2-IU-2-03A` |
+| **Mode** | **Design Policy** (§12.1 Namespace U1 Decision Framework) |
+| **Prior IUs** | IU-2-01A…IU-2-02B — retained |
+| **Namespace final decision** | **Not made** (framework only) |
+| **Framework / Appendix C** | **Unmodified** |
+| **Classification / Coverage** | **Not in this IU** |
+| **Freeze Candidate / JSON / Pin** | **None** |
+| **Runtime / Pipeline** | Unmodified · Consume |
 
 ---
 
@@ -140,6 +141,7 @@ THIS SESSION (IU-2-02A)
 | Seed → Freeze Path procedure (§9) | IU-2-01B | **Complete** |
 | Artifact Paths & Naming policy (§10) | IU-2-02A | **Complete** |
 | Pin Field Table U12 (§11) | IU-2-02B | **Complete** |
+| Namespace Decision Framework (§12.1) | IU-2-03A | **Complete** (lock = IU-2-03B) |
 
 ### 4.2 Phase 2 eventual Outputs (not this IU)
 
@@ -197,10 +199,10 @@ STEP7_Catalog_Freeze_Design.md
 ├── 9. Seed → Freeze Path        ← filled (IU-2-01B)
 ├── 10. Artifact Paths & Naming  ← filled (IU-2-02A)
 ├── 11. Pin Field Table (U12)    ← filled (IU-2-02B)
-├── 12. Decision Hooks           ← TBD (cite IU-2-03/04 outputs)
-│     ├── Namespace (U1)
-│     ├── Classification
-│     └── Coverage formulas
+├── 12. Decision Hooks
+│     ├── 12.1 Namespace (U1)    ← filled framework (IU-2-03A) · lock = IU-2-03B
+│     ├── Classification         ← TBD (IU-2-04*)
+│     └── Coverage formulas      ← TBD (IU-2-04*)
 ├── 13. Register Freeze Link     ← TBD (IU-2-05A cite)
 ├── 14. Freeze Candidate Gate    ← TBD (IU-2-08*)
 └── 15. Document Control
@@ -216,8 +218,10 @@ STEP7_Catalog_Freeze_Design.md
 | §8 Pin & Provenance | Filled (IU-2-01B) |
 | §9 Seed → Freeze Path | Filled (IU-2-01B) |
 | §10 Artifact Paths & Naming | Filled (IU-2-02A) |
-| §11 Pin Field Table (U12) | **Filled (IU-2-02B)** |
-| §§12–14 | Reserved / TBD |
+| §11 Pin Field Table (U12) | Filled (IU-2-02B) |
+| §12.1 Namespace Decision Framework | **Filled (IU-2-03A)** · lock pending IU-2-03B |
+| §12.2–12.3 Classification / Coverage | Reserved / TBD |
+| §§13–14 | Reserved / TBD |
 | Freeze declaration | **Absent by design** |
 
 ---
@@ -231,7 +235,7 @@ STEP7_Catalog_Freeze_Design.md
 | **R-03** | No Catalog/Register JSON in this doc | IU-2-01A |
 | **R-04** | Pin / provenance / Seed→Freeze rules | **IU-2-01B PASS** |
 | **R-05** | Path · naming · Pin fields (U12) | IU-2-02A PASS · **IU-2-02B PASS** |
-| **R-06** | Namespace decision recorded outside Framework edit | IU-2-03* |
+| **R-06** | Namespace decision recorded outside Framework edit | **IU-2-03A PASS** (framework) · IU-2-03B (lock) |
 | **R-07** | Classification / Coverage lock | IU-2-04* |
 | **R-08** | Register Freeze Design linked | IU-2-05A |
 | **R-09** | Frozen bodies + Freeze Candidate | IU-2-06*…IU-2-08* |
@@ -623,7 +627,106 @@ PinManifest {
 
 ## 12. Decision Hooks
 
-**TBD — IU-2-03 / IU-2-04 outputs (cite only; no Framework rewrite)**
+> Decision Hooks record **how** Catalog Freeze decisions are made.  
+> They **SHALL NOT** edit Framework / Pipeline / Appendix C. Outcomes are Catalog Decision records (later IUs).
+
+### 12.1 Namespace (U1) — Decision Framework
+
+> **IU-2-03A:** Framework only. **Final Namespace choice = IU-2-03B** (not this Session).
+
+#### 12.1.1 Purpose
+
+Rule Namespace는 Catalog Rule ID의 **prefix / identity space**이다 (Framework: Rule Namespace ≠ Finding `VAL-*`).
+
+본 Hook의 목적:
+
+| SHALL | SHALL NOT |
+|-------|-----------|
+| U1 결정을 Catalog Freeze 전에 **절차화** | Framework Appendix C를 편집하여 “해결” |
+| STEP5 `SCH-R-*` Trace와 STEP6 실행 Rule ID의 관계 명확화 | Finding namespace(`VAL-*`)와 Rule Namespace 혼동 |
+| Freeze body / Pin 전에 선택 기준 제공 | 본 Session에서 Namespace **최종 lock** |
+
+KI-04 cite: Namespace lock remains Pending until Decision Session completes — this IU prepares the decision, does not close it.
+
+#### 12.1.2 결정 대상 (Decision Object)
+
+| Object | In scope for U1 Decision | Out of scope |
+|--------|--------------------------|--------------|
+| Catalog **Rule ID namespace** prefix / mapping policy | Yes | — |
+| Relationship to STEP5 `SCH-R-*` (RO Trace) | Yes | Rewriting STEP5 Catalog |
+| Finding IDs `VAL-*` | No (Framework-owned Finding namespace) | — |
+| Pipeline Stage names | No | — |
+| System JSON `systemId` / package paths | No | — |
+
+#### 12.1.3 Decision Criteria
+
+| ID | Criterion | Lean |
+|----|-----------|------|
+| **NC-1** | Does not redefine Framework Layer / Severity / `schemaComplete` | Mandatory |
+| **NC-2** | Preserves STEP5 `SCH-R-*` as **RO Trace** when needed (no Audit ownership takeover) | Mandatory |
+| **NC-3** | Finding namespace remains `VAL-*` only (STEP6-4 CP6) | Mandatory |
+| **NC-4** | Compatible with Seed → Freeze promotion (§9) without silent Framework edit | Mandatory |
+| **NC-5** | Minimizes Engine/Register rename churn for Official Pins | Prefer |
+| **NC-6** | Clear Operator readability (Rule ID ≠ Finding ID) | Prefer |
+
+#### 12.1.4 Allowed Namespace 후보 (Framework U1 — Consume)
+
+Candidates are **cited from** Framework Appendix C **U1** (not edited there):
+
+| Option | Summary (Framework cite) |
+|--------|--------------------------|
+| **(A)** | Execute under `SCH-R-*` IDs directly |
+| **(B)** | New `SV-R-*` / `VAL-R-*` mapped to SCH-R |
+| **(C)** | Dual catalogs: STEP5 SCH-R RO + STEP6 Catalog |
+
+| Note | Statement |
+|------|-----------|
+| Option labels | **A / B / C only** — no additional invented namespaces in this IU |
+| Option (B) wording | Framework text mentions `VAL-R-*` as a **Rule** namespace candidate; this **SHALL NOT** be read as Finding `VAL-*` |
+| Selection | **Deferred to IU-2-03B** |
+
+#### 12.1.5 Consume 대상
+
+| Document | Use |
+|----------|-----|
+| Framework Appendix C **U1** | Candidate set (RO) |
+| STEP6-3 Analysis · STEP6-4 Catalog Design | Domain≠Family · CP6 Finding≠Rule · U1 Pending cite |
+| STEP6-5 Register Suite | Rule ID / Catalog Pin cite patterns |
+| STEP5 Rule Catalog (Frozen) | `SCH-R-*` Trace source (RO) |
+| STEP6 Final Freeze · KI-04 | Namespace lock backlog cite |
+| This Design §§8–11 | Pin / path constraints on decision packaging |
+
+#### 12.1.6 결정 절차 (Procedure)
+
+```text
+1. Confirm Consume list (§12.1.5)
+2. Score Options A/B/C against NC-1…NC-6 (worksheet · no lock yet)
+3. Record recommendation + rationale in IU-2-03B Decision Record
+4. Explicitly state: Framework Appendix C remains RO (decision lives in Catalog Decision SSOT)
+5. Only after IU-2-03B lock → allow Catalog body ID scheme (IU-2-06*) to follow chosen option
+```
+
+| Gate | Rule |
+|------|------|
+| **Before IU-2-03B** | No Namespace lock claim · no Catalog JSON Rule IDs final |
+| **Framework edit** | **Forbidden** — ADR / Framework Review only if normative Framework text must change |
+| **This IU PASS** | Framework + criteria + candidates + procedure present · **choice absent** |
+
+#### 12.1.7 IU-2-03A PASS (Namespace Decision Framework)
+
+- [x] Purpose · Decision Object · Criteria stated  
+- [x] Allowed candidates A/B/C cited from Framework U1  
+- [x] Consume list · Procedure stated  
+- [x] **No final Namespace decision**  
+- [x] No Framework / Appendix C / Classification / Coverage / JSON / Pin / Freeze  
+
+### 12.2 Classification
+
+**TBD — IU-2-04*** (out of IU-2-03A)
+
+### 12.3 Coverage formulas
+
+**TBD — IU-2-04*** (out of IU-2-03A)
 
 ---
 
@@ -643,11 +746,11 @@ PinManifest {
 
 | Item | Value |
 |------|-------|
-| Version | **v0.4** |
+| Version | **v0.5** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-02B** |
-| IU-2-02B | **PASS** (§11 complete) |
-| Next | **S7-P2-IU-2-03A** — Namespace Decision |
+| Session | **S7-P2-IU-2-03A** |
+| IU-2-03A | **PASS** (§12.1 Namespace Decision Framework) |
+| Next | **S7-P2-IU-2-03B** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -657,8 +760,9 @@ PinManifest {
 | v0.1 | 2026-07-19 | Skeleton created (S7-P2-IU-2-01A) |
 | v0.2 | 2026-07-19 | S7-P2-IU-2-01B — §8 Pin & Provenance · §9 Seed → Freeze Path |
 | v0.3 | 2026-07-19 | S7-P2-IU-2-02A — §10 Artifact Paths & Naming |
-| **v0.4** | 2026-07-19 | **S7-P2-IU-2-02B** — §11 Pin Field Table (U12) · IU-2-02B PASS |
+| v0.4 | 2026-07-19 | S7-P2-IU-2-02B — §11 Pin Field Table (U12) |
+| **v0.5** | 2026-07-19 | **S7-P2-IU-2-03A** — §12.1 Namespace (U1) Decision Framework |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.4*
+*End of STEP7_Catalog_Freeze_Design.md v0.5*
