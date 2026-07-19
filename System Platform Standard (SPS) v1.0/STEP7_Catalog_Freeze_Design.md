@@ -2,22 +2,23 @@
 
 ```text
 Document  : STEP7_Catalog_Freeze_Design.md
-Version   : v0.7
-Status    : Design Draft — IU-2-04A Complete · Not Frozen
+Version   : v0.8
+Status    : Design Draft — IU-2-04B Complete · Not Frozen
 Date      : 2026-07-19
 STEP      : STEP7 / Phase P2 Catalog
-Session   : S7-P2-IU-2-04A
-IU        : IU-2-04A
+Session   : S7-P2-IU-2-04B
+IU        : IU-2-04B
 WP        : WP-2-04
 Milestone : M2.2
 Owner     : System Standardization / Catalog Ops
-Type      : Catalog Freeze Design (Classification Decision)
-Baseline  : STEP7_SCOPE Approved · Namespace NS-U1-001 Option (C) Locked ·
-            STEP6 Final Freeze v1.0 · Framework/Pipeline Locked (Consume)
-Rule      : Classification Decision only · No Coverage formulas · No Namespace edit ·
+Type      : Catalog Freeze Design (Coverage Formulas / Policy)
+Baseline  : CL-001 Locked · NS-U1-001 Option (C) Locked · Framework schemaComplete RO ·
+            STEP6 Final Freeze v1.0
+Rule      : Coverage policy only · No schemaComplete meaning change · No CL-001 / NS edit ·
             No Framework / Appendix C edit · No Catalog/Register JSON · No Pin ·
-            No Freeze Candidate · No Runtime / Pipeline / System JSON mutation
-Next IU   : IU-2-04B
+            No Freeze Candidate · No Register Freeze Link · No Runtime / Pipeline /
+            System JSON mutation
+Next IU   : IU-2-05A
 ```
 
 ---
@@ -26,12 +27,13 @@ Next IU   : IU-2-04B
 
 | Item | Value |
 |------|-------|
-| **Session ID** | `S7-P2-IU-2-04A` |
-| **Mode** | **Decision Record** (§12.2 Classification) |
-| **Namespace Decision** | **Option (C) Locked** — unmodified this Session |
-| **Classification Decision** | **Locked** (§12.2) |
-| **Coverage formulas** | **Not in this IU** (IU-2-04B) |
-| **Framework / Appendix C** | **Unmodified** |
+| **Session ID** | `S7-P2-IU-2-04B` |
+| **Mode** | **Decision Record** (§12.3 Coverage Formulas) |
+| **Coverage Decision** | **Locked** (§12.3 · **CV-001**) |
+| **Classification CL-001** | **Unmodified** |
+| **Namespace NS-U1-001** | **Unmodified** |
+| **schemaComplete meaning** | **Framework RO — unchanged** |
+| **Register Freeze Link** | **Not in this IU** |
 | **Freeze Candidate / JSON / Pin** | **None** |
 | **Runtime / Pipeline** | Unmodified · Consume |
 
@@ -914,9 +916,117 @@ CoverageClass field presence (Required|Optional|Deferred)
 - [x] Namespace Decision untouched · Coverage formulas not authored  
 - [x] No Framework / JSON / Pin / Freeze  
 
-### 12.3 Coverage formulas
+### 12.3 Coverage Formulas (IU-2-04B)
 
-**TBD — IU-2-04B**
+| Item | Value |
+|------|-------|
+| **Decision ID** | **CV-001** |
+| **Session** | `S7-P2-IU-2-04B` |
+| **Status** | **Locked** (Catalog Coverage policy SSOT) |
+| **Depends on** | **CL-001** (Classification) · **NS-U1-001** Option (C) |
+| **schemaComplete** | **Consume Framework §10 meanings only** — STEP7 does **not** redefine |
+
+#### 12.3.1 Coverage 목적
+
+Coverage는 Catalog Rule이 Official Run에서 **어느 범위로 참여하는지**, 그리고 그 결과가 Framework `schemaComplete` rollup에 **어떻게 기여하는지**를 Catalog 측에서 표현한다.
+
+| SHALL | SHALL NOT |
+|-------|-----------|
+| Assign `CoverageClass` + completeness-impact lean per Rule | Change Framework `schemaComplete` YES/NO/NOT_RUN/UNDECIDED **definitions** |
+| Align Required / Optional / Deferred with CL-001 fields | Own `schemaComplete` (STEP6 Framework Owner) |
+| Guide Catalog JSON RuleCoverage fields (IU-2-06*) | Invent percentage thresholds that override Framework Severity→completeness rules |
+| Separate CoverageClass from Finding emission | Conflate Blocking cascade with Deferred coverage |
+
+#### 12.3.2 Coverage 계층
+
+```text
+Target Set (Run scope — Pipeline / U2 cite)
+        ↓
+RuleCoverage (per Catalog Rule · this Decision)
+  coverageClass: Required | Optional | Deferred
+  completenessImpact: Affects schemaComplete | Does not
+  inRunDefault: In-Run | Deferred | NOT_RUN   (mode-sensitive lean)
+        ↓
+Rule Execution Outcomes (Engine — Framework Severity RO)
+        ↓
+schemaComplete rollup (Framework §10 Owner — Consume only)
+```
+
+| Layer | Owner | This IU |
+|-------|-------|---------|
+| Target Set | Pipeline / Run options | Cite only |
+| RuleCoverage fields | Catalog (CV-001) | **Lock policy** |
+| Outcome Severity meanings | Framework | RO |
+| `schemaComplete` state machine | Framework §10 | RO Consume |
+
+#### 12.3.3 Coverage 계산 원칙 (Formulas — Catalog lean)
+
+> “Formula” here = **deterministic Catalog mapping rules**, not a redefinition of Framework completeness.
+
+| ID | Formula / Mapping | Statement |
+|----|-------------------|-----------|
+| **CF-1** | `InScopeRequired(R)` | Rule R is In-Scope Required iff `coverageClass=Required` ∧ selected by Target Set ∧ `inRunDefault≠Deferred` for Official mode |
+| **CF-2** | `RequiredFail(R)` | True iff In-Scope Required R ends with Severity ∈ {BLOCKER, ERROR} (Framework meanings RO) |
+| **CF-3** | `RequiredCoverageMet(unit)` | True iff every In-Scope Required Rule for unit has Execution Status allowing completeness (not FAILED with RequiredFail; not improperly NOT_RUN when required In-Run) — **evaluate under Framework §10** |
+| **CF-4** | `OptionalFail` | Optional Rule FAIL **SHALL NOT** alone force `schemaComplete=NO` (completenessImpact = Does not, lean) |
+| **CF-5** | `DeferredNonForce` | Deferred Rules contribute Deferred Items; they **SHALL NOT** alone force YES; they also **SHALL NOT** be treated as RequiredFail |
+| **CF-6** | Catalog claim | Catalog **SHALL NOT** assert `schemaComplete` values; Engine/Summary **SHALL** compute using Framework §10 + these membership mappings |
+
+**Explicit non-override:** Numeric “% of rules passed” thresholds are **not** introduced as a substitute for Framework Severity→completeness policy (STEP6-4 §7.4 cite; U5/U7 remain Framework Pending leans — Catalog follows Framework default lean until ADR).
+
+#### 12.3.4 schemaComplete와의 관계 (의미 변경 금지)
+
+| Rule | Statement |
+|------|-----------|
+| **SC-1** | `schemaComplete` **Owner = STEP6 Framework** |
+| **SC-2** | STEP7 / Catalog Coverage **SHALL NOT** rewrite YES / NO / NOT_RUN / UNDECIDED meanings |
+| **SC-3** | Catalog supplies **which Rules are Required/Optional/Deferred** and whether they **Affect** completeness |
+| **SC-4** | Production STEP6-10 example (ERROR → NO) remains consistent with Framework lean — Catalog Required Domain-check FAIL → contributes to NO via Framework, not via a new Catalog formula |
+| **SC-5** | `packageComplete` remains STEP5-owned — not interchangeable |
+
+#### 12.3.5 Required / Optional / Deferred Coverage 정책
+
+| CoverageClass | In Official Run (lean) | completenessImpact | Notes |
+|---------------|------------------------|--------------------|-------|
+| **Required** | In-Run (must execute when Target selects Rule) | **Affects schemaComplete** | Package→Reference + core Cross-file lean (STEP6-4 §7.3) |
+| **Optional** | In-Run allowed; soft | **Does not** (alone) | Soft domain-check / style lean |
+| **Deferred** | Deferred Item; not forced In-Run | **Does not** force YES/NO by absence alone | Semantic L7 lean (U3) until promoted |
+
+| Policy ID | Statement |
+|-----------|-----------|
+| **CP-R1** | Every Catalog Rule **SHALL** carry exactly one `coverageClass` |
+| **CP-R2** | Required + Blocking BLOCKER cascade remains Framework cascade — Coverage does not redefine SKIPPED semantics |
+| **CP-R3** | Promoting Deferred → Required/Optional is a Catalog Revision event (see §12.3.6) |
+| **CP-R4** | `CoverageClass` ≠ Classification Domain/Family (CL-001); both required on RuleRecord |
+
+#### 12.3.6 Coverage 변경 정책
+
+| Event | Policy |
+|-------|--------|
+| Pre-Freeze Candidate | Adjust `coverageClass` / impact under Review; bump Catalog Revision |
+| After Official Pin | Change to Required membership or completenessImpact → **new Catalog Version** + **new Pin** |
+| Deferred promotion (e.g. L7) | Explicit Catalog Revision + Decision note; may need Re-validation |
+| Framework `schemaComplete` wording change | **ADR / Framework Review only** — Catalog does not patch meanings |
+| CL-001 structural change | Separate Classification track — does not silently alter CoverageClass |
+
+#### 12.3.7 Binding for Catalog JSON (IU-2-06*)
+
+| Rule | Statement |
+|------|-----------|
+| **CJ-1** | Each RuleRecord **SHALL** include `coverageClass` ∈ {Required, Optional, Deferred} |
+| **CJ-2** | Each RuleRecord **SHALL** include `completenessImpact` ∈ {Affects schemaComplete, Does not} consistent with §12.3.5 |
+| **CJ-3** | Optional: `inRunDefault` for Design vs Official mode lean |
+| **CJ-4** | **SHALL NOT** embed alternate `schemaComplete` state enums or percentage gates that contradict Framework §10 |
+| **CJ-5** | Rule IDs remain NS-U1-001; Classification fields remain CL-001 — Coverage fields are additive |
+| **CJ-6** | This Decision does **not** author Catalog JSON |
+
+#### 12.3.8 IU-2-04B PASS
+
+- [x] Purpose · hierarchy · calculation principles stated  
+- [x] schemaComplete relationship = Consume-only (no meaning change)  
+- [x] Required / Optional / Deferred policy locked  
+- [x] Change policy · IU-2-06* binding stated  
+- [x] NS / CL-001 / Framework / JSON / Pin / Freeze / Register Link untouched  
 
 ---
 
@@ -936,11 +1046,11 @@ CoverageClass field presence (Required|Optional|Deferred)
 
 | Item | Value |
 |------|-------|
-| Version | **v0.7** |
+| Version | **v0.8** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-04A** |
-| IU-2-04A | **PASS** (§12.2 Classification Decision · **CL-001**) |
-| Next | **S7-P2-IU-2-04B** |
+| Session | **S7-P2-IU-2-04B** |
+| IU-2-04B | **PASS** (§12.3 Coverage Formulas · **CV-001**) |
+| Next | **S7-P2-IU-2-05A** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -953,8 +1063,9 @@ CoverageClass field presence (Required|Optional|Deferred)
 | v0.4 | 2026-07-19 | S7-P2-IU-2-02B — §11 Pin Field Table (U12) |
 | v0.5 | 2026-07-19 | S7-P2-IU-2-03A — §12.1 Namespace Decision Framework |
 | v0.6 | 2026-07-19 | S7-P2-IU-2-03B — §12.1.8 Namespace Decision Record · Option (C) |
-| **v0.7** | 2026-07-19 | **S7-P2-IU-2-04A** — §12.2 Classification Decision · CL-001 |
+| v0.7 | 2026-07-19 | S7-P2-IU-2-04A — §12.2 Classification Decision · CL-001 |
+| **v0.8** | 2026-07-19 | **S7-P2-IU-2-04B** — §12.3 Coverage Formulas · CV-001 |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.7*
+*End of STEP7_Catalog_Freeze_Design.md v0.8*
