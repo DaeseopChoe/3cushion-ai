@@ -2,24 +2,24 @@
 
 ```text
 Document  : STEP7_Catalog_Freeze_Design.md
-Version   : v0.2
-Status    : Design Draft — IU-2-01B Complete · Not Frozen
+Version   : v0.3
+Status    : Design Draft — IU-2-02A Complete · Not Frozen
 Date      : 2026-07-19
 STEP      : STEP7 / Phase P2 Catalog
-Session   : S7-P2-IU-2-01B
-IU        : IU-2-01B
-WP        : WP-2-01
-Milestone : M2.1
+Session   : S7-P2-IU-2-02A
+IU        : IU-2-02A
+WP        : WP-2-02
+Milestone : M2.2
 Owner     : System Standardization / Catalog Ops
-Type      : Catalog Freeze Design (Pin · Provenance · Seed→Freeze Rules)
+Type      : Catalog Freeze Design (Artifact Paths & Naming Policy)
 Baseline  : STEP7_SCOPE Approved · STEP7_WORK_BREAKDOWN Approved ·
             STEP7_IMPLEMENTATION_DECOMPOSITION v1.0 Approved ·
             STEP6 Final Freeze v1.0 · Framework/Pipeline Locked (Consume)
-Rule      : Design policy only · No Catalog/Register JSON · No Freeze Candidate
-            declaration · No Pin ID mint · No Namespace/Classification/Coverage lock ·
-            No Artifact Path finalize · No U12 table · No Runtime / Framework /
+Rule      : Path/Naming policy only · No Artifact creation · No Path finalize declaration ·
+            No Catalog/Register JSON · No Freeze Candidate · No Pin ID · No U12 table ·
+            No Namespace/Classification/Coverage lock · No Runtime / Framework /
             Pipeline / System JSON mutation
-Next IU   : IU-2-02A (Artifact Paths & Naming)
+Next IU   : IU-2-02B (Pin Field Table U12)
 ```
 
 ---
@@ -28,12 +28,13 @@ Next IU   : IU-2-02A (Artifact Paths & Naming)
 
 | Item | Value |
 |------|-------|
-| **Session ID** | `S7-P2-IU-2-01B` |
-| **Mode** | **Design Policy** (§8 · §9) |
-| **Prior IU** | IU-2-01A Skeleton — retained |
+| **Session ID** | `S7-P2-IU-2-02A` |
+| **Mode** | **Design Policy** (§10 Artifact Paths & Naming) |
+| **Prior IUs** | IU-2-01A Skeleton · IU-2-01B §8/§9 — retained |
 | **Freeze Candidate** | **Not declared** |
 | **Catalog / Register JSON** | **Not authored** |
-| **Pin IDs** | **Not minted** (policy only) |
+| **Artifacts on disk** | **Not created** |
+| **Path finalize declaration** | **Not issued** (policy + examples only) |
 | **Framework / Pipeline / Runtime** | Unmodified · Consume |
 
 ---
@@ -97,18 +98,18 @@ Official Re-validation (Phase 7)
 | Framework / Pipeline redesign | Locked |
 | Runtime / System JSON mutation | Forbidden |
 
-### 2.3 IU-2-01B boundary (this Session only)
+### 2.3 IU-2-02A boundary (this Session only)
 
 ```text
-THIS SESSION (IU-2-01B)
-  = §8 Pin & Provenance policy
-  = §9 Seed → Freeze Path procedure
-  ≠ Freeze Candidate declared
+THIS SESSION (IU-2-02A)
+  = §10 Artifact Paths & Naming policy
+  ≠ Path finalize / lock declaration
+  ≠ Artifact files created
   ≠ Catalog / Register JSON authored
+  ≠ U12 Pin Field Table
   ≠ Pin ID minted
   ≠ Namespace / Classification / Coverage locked
-  ≠ Artifact paths finalized
-  ≠ U12 Pin Field Table authored
+  ≠ Freeze Candidate declared
 ```
 
 ---
@@ -138,6 +139,7 @@ THIS SESSION (IU-2-01B)
 | Catalog Freeze Design Skeleton | IU-2-01A | **Complete** |
 | Pin & Provenance policy (§8) | IU-2-01B | **Complete** |
 | Seed → Freeze Path procedure (§9) | IU-2-01B | **Complete** |
+| Artifact Paths & Naming policy (§10) | IU-2-02A | **Complete** |
 
 ### 4.2 Phase 2 eventual Outputs (not this IU)
 
@@ -193,7 +195,7 @@ STEP7_Catalog_Freeze_Design.md
 ├── 7. Review Items
 ├── 8. Pin & Provenance          ← filled (IU-2-01B)
 ├── 9. Seed → Freeze Path        ← filled (IU-2-01B)
-├── 10. Artifact Paths & Naming  ← TBD (IU-2-02A)
+├── 10. Artifact Paths & Naming  ← filled (IU-2-02A)
 ├── 11. Pin Field Table (U12)    ← TBD (IU-2-02B)
 ├── 12. Decision Hooks           ← TBD (cite IU-2-03/04 outputs)
 │     ├── Namespace (U1)
@@ -211,9 +213,10 @@ STEP7_Catalog_Freeze_Design.md
 | Purpose · Scope · Consume · Output | Filled (lean) |
 | Freeze Concept | Intent only (§5) |
 | Design Structure outline | Present |
-| §8 Pin & Provenance | **Filled (IU-2-01B)** |
-| §9 Seed → Freeze Path | **Filled (IU-2-01B)** |
-| §§10–14 | Reserved / TBD |
+| §8 Pin & Provenance | Filled (IU-2-01B) |
+| §9 Seed → Freeze Path | Filled (IU-2-01B) |
+| §10 Artifact Paths & Naming | **Filled (IU-2-02A)** |
+| §§11–14 | Reserved / TBD |
 | Freeze declaration | **Absent by design** |
 
 ---
@@ -226,7 +229,7 @@ STEP7_Catalog_Freeze_Design.md
 | **R-02** | No Freeze Candidate language as declared | IU-2-01A |
 | **R-03** | No Catalog/Register JSON in this doc | IU-2-01A |
 | **R-04** | Pin / provenance / Seed→Freeze rules | **IU-2-01B PASS** |
-| **R-05** | Path · naming · Pin fields (U12) | IU-2-02A/B |
+| **R-05** | Path · naming · Pin fields (U12) | **IU-2-02A PASS** (paths/naming) · IU-2-02B (U12) |
 | **R-06** | Namespace decision recorded outside Framework edit | IU-2-03* |
 | **R-07** | Classification / Coverage lock | IU-2-04* |
 | **R-08** | Register Freeze Design linked | IU-2-05A |
@@ -263,7 +266,7 @@ Provenance answers: **what was pinned, from what lineage, under which baselines*
 | **Compatible Pipeline Version** | Locked Pipeline cite | Consume only |
 | **Compatible SPS / STEP6 Freeze** | `STEP6_FINAL_FREEZE` cite | Consume only |
 | **Pin identity (`catalogPinId`)** | Run-recordable Pin key | **Not minted here** (layout = IU-2-02B / U12) |
-| **Artifact path** | In-repo body location | **Not finalized** (IU-2-02A) |
+| **Artifact path** | In-repo body location | **Policy defined (§10)** · binding selection at body/Freeze packaging |
 
 ### 8.3 Pin lifecycle (policy)
 
@@ -298,7 +301,7 @@ Active Pin citation on Runs
 | Deferred item | Owner IU |
 |---------------|----------|
 | Exact Pin field table (U12) | IU-2-02B |
-| Artifact paths & naming | IU-2-02A |
+| Artifact paths & naming **policy** | **IU-2-02A PASS** (binding path selection at body/Freeze packaging) |
 | Concrete `catalogPinId` values | IU-2-06* / IU-2-08* packaging |
 | Freeze Candidate declaration | IU-2-08* |
 | Register Pin packaging | IU-2-07* · IU-2-05A link |
@@ -391,7 +394,136 @@ This section **does not** declare that gate passed.
 
 ## 10. Artifact Paths & Naming
 
-**TBD — IU-2-02A**
+> **Design policy only.** Defines *how* artifacts SHALL be placed and named.  
+> Does **not** create files · does **not** declare a finalized/locked path set · examples are illustrative.
+
+### 10.1 Artifact kinds
+
+| Kind | Role | Typical form (later) |
+|------|------|----------------------|
+| **Design Seed cite** | Historical Seed used by STEP6 Full Run (KI-02) | Code/module snapshot cite or Design appendix — not Official Frozen body |
+| **Catalog Body** | Rule Catalog SSOT JSON (promoted from Seed) | `.json` body under validation catalog tree |
+| **Register Body** | Validation Register SSOT JSON | `.json` body under validation register tree |
+| **Pin Manifest** | Pin packaging metadata (Version/Revision/baselines) | Manifest / pin record — field layout = IU-2-02B |
+| **Design SSOT (this doc)** | Freeze Design narrative | Markdown under SPS v1.0 |
+
+Catalog body ≠ Register body ≠ Pin manifest ≠ Design markdown.
+
+### 10.2 Repository placement principles
+
+| Principle | Statement |
+|-----------|-----------|
+| **AP-1 Validation home** | Catalog / Register **bodies** live under the Validation domain tree (`frontend/src/validation/…`), not under Runtime Contract / `data/systems` |
+| **AP-2 SPS docs home** | STEP7 Catalog Freeze **Design** markdown remains under `System Platform Standard (SPS) v1.0/` |
+| **AP-3 No Runtime mix** | Validation artifacts **SHALL NOT** be placed under `frontend/src/runtime/` |
+| **AP-4 No System package mix** | Validation Catalog/Register **SHALL NOT** be embedded inside `frontend/src/data/systems/<id>/` |
+| **AP-5 Separate Catalog vs Register** | Catalog and Register use **sibling** directories (or clearly separated subtrees) — never one file for both |
+| **AP-6 Seed vs Frozen separation** | Design Seed provenance and Frozen body artifacts **SHALL** be distinguishable by path segment and/or filename token |
+
+### 10.3 Directory structure principles
+
+```text
+frontend/src/validation/
+  catalog/          ← Catalog bodies (+ optional seed/ reference subtree)
+  register/         ← Register bodies (+ optional seed/ reference subtree)
+  …                 ← Engine / pilot / full (existing STEP6) unchanged by this policy
+```
+
+| Rule | Statement |
+|------|-----------|
+| **D-1** | Prefer stable top-level `catalog/` · `register/` under `validation/` |
+| **D-2** | Optional `seed/` or `frozen/` (or filename tokens) to separate Seed cite material vs Frozen bodies |
+| **D-3** | Do not relocate STEP6 Engine paths in this Design Session |
+| **D-4** | Exact leaf directory names may be refined at body authoring — **policy binds the tree, not a freeze lock** |
+
+### 10.4 Relative path policy
+
+| Rule | Statement |
+|------|-----------|
+| **RP-1** | Pins, Registers, Reports, and Engine config **SHALL** cite artifacts with **repo-relative** paths from repository root (or module-relative paths resolved consistently by Engine) |
+| **RP-2** | Absolute machine paths (`D:\…`, `/Users/…`) are **forbidden** in Pin / Official evidence |
+| **RP-3** | Path strings in Pins are part of provenance; changing them requires a **new** Pin (see §8.4 · §10.9) |
+| **RP-4** | Forward slashes `/` in stored path strings (portable cite) |
+
+### 10.5 Naming Convention
+
+| Element | Convention |
+|---------|------------|
+| **Case** | `kebab-case` or `snake_case` — pick one family per subtree and stay consistent (lean: `kebab-case` filenames) |
+| **Catalog body** | Include token `catalog` · avoid bare `rules.json` without qualifier |
+| **Register body** | Include token `register` · never reuse Catalog filename |
+| **Seed-related** | Include token `seed` when storing Seed-derived reference material |
+| **Frozen-related** | Include token `frozen` (or versioned frozen name) for Official body candidates |
+| **No Pin ID in filename required** | Pin identity lives in Pin fields (U12) — filename **MAY** include version, **SHALL NOT** invent Pin IDs here |
+| **No spaces** | Spaces forbidden in artifact filenames |
+
+### 10.6 Version expression rules
+
+| Rule | Statement |
+|------|-----------|
+| **V-1** | Logical Catalog Version/Revision is **Header/Pin authority** (STEP6-4/5 cite) — not Framework version |
+| **V-2** | Filename **MAY** embed version (`…-v1.0.0…`) for human browsing; Pin **SHALL** still carry Version/Revision fields |
+| **V-3** | Filename version and Header version **SHOULD** match when both present; conflict → Header/Pin wins |
+| **V-4** | Do not encode Namespace / Classification decisions into filenames as a substitute for Decision SSOT |
+
+### 10.7 Catalog / Register artifact distinction
+
+| Catalog | Register |
+|---------|----------|
+| Rule set / Catalog Header / Rule membership | Evidence shapes · Pin cite · Run/Result/Finding persistence shapes |
+| Path under `validation/catalog/` | Path under `validation/register/` |
+| Promotion from Catalog Seed | Promotion from Register Seed |
+| Owned by Catalog Freeze track | Owned by Register Freeze track (IU-2-05/07) linked from §13 later |
+
+### 10.8 Design Seed / Frozen Body distinction
+
+| | Design Seed | Frozen Body |
+|--|-------------|-------------|
+| **Authority** | Historical / Design provenance (KI-02) | Official Pin-eligible body (after Freeze Candidate) |
+| **Path/name** | `seed` token or seed subtree | `frozen` token or frozen subtree / versioned frozen name |
+| **Mutation** | Not silently rewritten (§9) | Immutable under Pin once Official (§8 · §10.10) |
+| **This Session** | Cite only | Not authored |
+
+### 10.9 Path change policy
+
+| Event | Policy |
+|-------|--------|
+| Policy refinement before any body exists | Allowed in Design doc revision (this track) |
+| Body already authored, path change | Treat as **new artifact** + provenance update; old path retained as cite if Runs exist |
+| Official Pin already recorded | Path change **requires new Pin** — no silent rewrite of cited path |
+| Move for cleanup only | Forbidden without Version/Pin bump once Pinned |
+
+### 10.10 Artifact immutability principles
+
+| Rule | Statement |
+|------|-----------|
+| **IM-1** | Frozen body bytes cited by an Official Pin **SHALL NOT** be overwritten in place |
+| **IM-2** | Corrections ship as **new Version/Revision** (+ new Pin when Official) |
+| **IM-3** | Design markdown (this file) may evolve by Version bump; it is not a Catalog Pin surface |
+| **IM-4** | Engine baseline paths remain Consume — this policy does not relocate Engine code |
+
+### 10.11 Path examples (illustrative only — not created · not finalized)
+
+```text
+# Illustrative — DO NOT treat as Freeze lock or as files created by this Session
+
+frontend/src/validation/catalog/seed/catalog-seed-step6-full.json
+frontend/src/validation/catalog/frozen/catalog-frozen-v1.0.0.json
+frontend/src/validation/register/seed/register-seed-step6-full.json
+frontend/src/validation/register/frozen/register-frozen-v1.0.0.json
+
+System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md
+```
+
+### 10.12 IU-2-02A PASS (Artifact Paths & Naming)
+
+- [x] Artifact kinds defined  
+- [x] Repository · directory · relative path principles stated  
+- [x] Naming · version expression rules stated  
+- [x] Catalog vs Register · Seed vs Frozen distinction stated  
+- [x] Path change · immutability principles stated  
+- [x] Examples marked illustrative only  
+- [x] No artifact creation · no path finalize declaration · no JSON/Pin/U12/Freeze  
 
 ---
 
@@ -423,20 +555,21 @@ This section **does not** declare that gate passed.
 
 | Item | Value |
 |------|-------|
-| Version | **v0.2** |
+| Version | **v0.3** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-01B** |
-| IU-2-01B | **PASS** (§8 · §9 complete) |
-| Next | **S7-P2-IU-2-02A** — Artifact Paths & Naming |
+| Session | **S7-P2-IU-2-02A** |
+| IU-2-02A | **PASS** (§10 complete) |
+| Next | **S7-P2-IU-2-02B** — Pin Field Table (U12) |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
 
 | Version | Date | Change |
 |---------|------|--------|
-| v0.1 | 2026-07-19 | Skeleton created (S7-P2-IU-2-01A) — Purpose · Scope · Consume · Output · Freeze Concept · Design Structure · Review Items |
-| **v0.2** | 2026-07-19 | **S7-P2-IU-2-01B** — §8 Pin & Provenance · §9 Seed → Freeze Path · IU-2-01B PASS |
+| v0.1 | 2026-07-19 | Skeleton created (S7-P2-IU-2-01A) |
+| v0.2 | 2026-07-19 | S7-P2-IU-2-01B — §8 Pin & Provenance · §9 Seed → Freeze Path |
+| **v0.3** | 2026-07-19 | **S7-P2-IU-2-02A** — §10 Artifact Paths & Naming · IU-2-02A PASS |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.2*
+*End of STEP7_Catalog_Freeze_Design.md v0.3*
