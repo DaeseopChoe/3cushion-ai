@@ -1356,15 +1356,196 @@ metadata: {
 
 ---
 
-## 16. Document Control
+## 16. Register JSON Body Structure (IU-2-07A)
+
+> **Documentation only.** Defines Register JSON **structure**.  
+> Does **not** create an on-disk Register `.json` file · does **not** populate registerEntries · does **not** issue `catalogPinId` · does **not** declare Freeze Candidate.  
+> §15 Catalog JSON Structure — **unmodified**. §14 — **unmodified**.
+
+### 16.1 Purpose
+
+| SHALL | SHALL NOT |
+|-------|-----------|
+| Define RegisterDocument top-level · registerHeader · registerEntries[] skeleton · metadata | Author real Register Entry rows |
+| Cite Catalog JSON via §13 RL-* (reference only) | Duplicate Catalog Rule statements / Domain bodies |
+| Align with STEP6-5 Register Suite inventory (Consume) | Mint Pins / Freeze Candidate |
+| Leave entry arrays empty | Create `frontend/src/validation/register/**/*.json` now |
+
+### 16.2 Top-level hierarchy
+
+```text
+RegisterDocument
+├── registerHeader
+├── catalogReference
+├── registers
+│   ├── catalogPinRegister
+│   ├── ruleRegister
+│   ├── ruleDependencyIndex
+│   ├── validationRunRegister
+│   ├── ruleExecutionRegister
+│   ├── validationResultRegister
+│   ├── findingRegister
+│   ├── deferredItemRegister
+│   └── summaryRegister
+├── registerEntries[]
+└── metadata
+```
+
+### 16.3 registerHeader structure
+
+| Field | Req | Type | Notes |
+|-------|-----|------|-------|
+| `registerSuiteVersion` | **Required** | string | TODO at file authoring |
+| `registerSuiteRevision` | **Required** | string | TODO |
+| `compatibleSpsVersion` | **Required** | string | Lean `"SPS v1.0"` |
+| `compatibleFrameworkVersion` | **Required** | string | TODO cite |
+| `compatiblePipelineVersion` | **Required** | string | TODO cite |
+| `compatibleCatalogVersion` | **Required** | string | Cite Catalog `header.catalogVersion` |
+| `compatibleCatalogRevision` | **Required** | string | Cite Catalog revision |
+| `generatedFrom` | **Required** | string \| string[] | STEP6-5 · STEP7 Design cites |
+| `lastUpdated` | **Required** | date | TODO |
+| `status` | **Required** | enum | Draft \| FreezeCandidate \| Frozen — **Draft intent; FreezeCandidate not declared** |
+| `registerBodyPath` | Optional until file | string \| null | null now |
+| `catalogBodyPath` | Optional | string \| null | §13 RL-5 reference |
+
+```text
+registerHeader: {
+  registerSuiteVersion: "<TODO>"
+  registerSuiteRevision: "<TODO>"
+  compatibleSpsVersion: "SPS v1.0"
+  compatibleFrameworkVersion: "<TODO>"
+  compatiblePipelineVersion: "<TODO>"
+  compatibleCatalogVersion: "<TODO>"
+  compatibleCatalogRevision: "<TODO>"
+  generatedFrom: [ "STEP6-5_Validation_Register_Suite.md", "STEP7_Catalog_Freeze_Design.md §13/§16" ]
+  lastUpdated: "<TODO>"
+  status: "Draft"
+  registerBodyPath: null
+  catalogBodyPath: null
+}
+```
+
+### 16.4 catalogReference (reference only)
+
+| Field | Req | Notes |
+|-------|-----|-------|
+| `catalogVersion` | Required | Cite Catalog Header |
+| `catalogRevision` | Required | Cite Catalog Header |
+| `catalogPinId` | Optional | **null / not issued** (IU-2-08*) |
+| `namespaceDecision` | Required | `"NS-U1-001 Option (C)"` |
+| `classificationDecision` | Required | `"CL-001"` |
+| `coverageDecision` | Required | `"CV-001"` |
+| `linkSpec` | Required | `"§13 RL-1…RL-8"` |
+
+```text
+catalogReference: {
+  catalogVersion: "<TODO>"
+  catalogRevision: "<TODO>"
+  catalogPinId: null
+  namespaceDecision: "NS-U1-001 Option (C)"
+  classificationDecision: "CL-001"
+  coverageDecision: "CV-001"
+  linkSpec: "STEP7_Catalog_Freeze_Design.md §13 RL-1…RL-8"
+}
+```
+
+| ID | Statement |
+|----|-----------|
+| **RR-1** | Register **SHALL NOT** redefine Catalog Header / Rule statement meanings |
+| **RR-2** | Register `ruleId` cites **SHALL** equal Catalog `rules[].ruleId` when both populated |
+| **RR-3** | Finding IDs remain `VAL-*` only |
+| **RR-4** | Register State ≠ Execution Status (STEP6-5) |
+
+### 16.5 registers suite skeletons (empty)
+
+```text
+registers: {
+  catalogPinRegister:       { entries: [] }
+  ruleRegister:             { entries: [] }
+  ruleDependencyIndex:      { entries: [] }
+  validationRunRegister:    { entries: [] }
+  ruleExecutionRegister:    { entries: [] }
+  validationResultRegister: { entries: [] }
+  findingRegister:          { entries: [] }
+  deferredItemRegister:     { entries: [] }
+  summaryRegister:          { entries: [] }
+}
+```
+
+### 16.6 registerEntries[] Skeleton (no instances)
+
+| Field | Req when entry exists | Notes |
+|-------|------------------------|-------|
+| `entryType` | Required | register kind discriminator |
+| `entryId` | Required | **not issued this Session** |
+| `catalogVersion` / `catalogRevision` | Required | cite |
+| `ruleId` | Optional | NS-U1-001 when Rule-scoped |
+| `payload` | Required | type-specific — empty until later |
+
+```text
+registerEntries: []
+```
+
+### 16.7 metadata structure
+
+| Field | Req | Notes |
+|-------|-----|-------|
+| `documentKind` | Required | `"RegisterBody"` |
+| `structureSession` | Required | `"S7-P2-IU-2-07A"` |
+| `catalogStructureSession` | Required | `"S7-P2-IU-2-06B"` |
+| `registerFreezeLink` | Required | §13 |
+| `entriesPopulated` | Required | `false` |
+| `registerJsonFile` | Required | `"NOT_CREATED"` |
+| `catalogJsonFile` | Required | cite later |
+| `freezeCandidate` | Required | `"NOT_DECLARED"` |
+| `todos` | Required | checklist |
+
+```text
+metadata: {
+  documentKind: "RegisterBody"
+  structureSession: "S7-P2-IU-2-07A"
+  catalogStructureSession: "S7-P2-IU-2-06B"
+  registerFreezeLink: "STEP7_Catalog_Freeze_Design.md §13 RL-1…RL-8"
+  entriesPopulated: false
+  registerJsonFile: "NOT_CREATED"
+  catalogJsonFile: "NOT_CREATED_OR_CITE_LATER"
+  freezeCandidate: "NOT_DECLARED"
+  todos: [
+    "Create on-disk Register JSON under §10 (later)",
+    "Populate register suite entries (IU-2-07B+)",
+    "Bind catalogPinId only when issued (IU-2-08*)",
+    "Keep Catalog Version/Revision sync with Catalog Body"
+  ]
+}
+```
+
+### 16.8 Explicit non-outputs
+
+| Forbidden | Status |
+|-----------|--------|
+| On-disk Register `.json` | **Not created** |
+| Register Entry rows | **None** |
+| `catalogPinId` issuance | **None** |
+| Freeze Candidate | **Not declared** |
+| §15 Catalog Structure edit | **None** |
+
+### 16.9 IU-2-07A PASS
+
+- [x] Register top-level · registerHeader · registerEntries skeleton · metadata defined  
+- [x] Catalog reference-only rules stated  
+- [x] No file · no entries · no Pin · no Freeze · §15 untouched  
+
+---
+
+## 17. Document Control
 
 | Item | Value |
 |------|-------|
-| Version | **v0.11** |
+| Version | **v0.12** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-06B** |
-| IU-2-06B | **PASS** (§15 Catalog JSON Body Structure) |
-| Next Session | **S7-P2-IU-2-07A** |
+| Session | **S7-P2-IU-2-07A** |
+| IU-2-07A | **PASS** (§16 Register JSON Body Structure) |
+| Next Session | **S7-P2-IU-2-07B** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -1381,8 +1562,9 @@ metadata: {
 | v0.8 | 2026-07-19 | S7-P2-IU-2-04B — §12.3 Coverage Formulas · CV-001 |
 | v0.9 | 2026-07-19 | S7-P2-IU-2-05A — §13 Register Freeze Link |
 | v0.10 | 2026-07-19 | S7-P2-IU-2-06A — §15 Catalog JSON Body Skeleton |
-| **v0.11** | 2026-07-19 | **S7-P2-IU-2-06B** — §15 Catalog JSON Body Structure |
+| v0.11 | 2026-07-19 | S7-P2-IU-2-06B — §15 Catalog JSON Body Structure |
+| **v0.12** | 2026-07-19 | **S7-P2-IU-2-07A** — §16 Register JSON Body Structure |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.11*
+*End of STEP7_Catalog_Freeze_Design.md v0.12*
