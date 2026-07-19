@@ -1,4 +1,4 @@
-# STEP7_Catalog_Freeze_Design.md
+﻿# STEP7_Catalog_Freeze_Design.md
 
 ```text
 Document  : STEP7_Catalog_Freeze_Design.md
@@ -1142,148 +1142,217 @@ IU-2-08*  Freeze Candidate + Pin packaging (issues catalogPinId; binds paths)
 
 ---
 
-## 15. Catalog JSON Body Skeleton (IU-2-06A)
+## 15. Catalog JSON Body Structure (IU-2-06A Skeleton → IU-2-06B Structure)
 
-> **Skeleton only.** Defines Catalog JSON **structure**.  
-> Does **not** create an on-disk `.json` file · does **not** populate Rule bodies · does **not** issue `catalogPinId` · does **not** declare Freeze Candidate.
+> **Documentation only.** Expands Catalog JSON **structure**.  
+> Does **not** create an on-disk `.json` file · does **not** add Rule instances · does **not** issue Rule IDs or `catalogPinId` · does **not** declare Freeze Candidate.  
+> §14 Freeze Candidate Gate — **unmodified**.
 
-### 16.1 Purpose
+### 15.0 Session note
 
-IU-2-06A produces the **Catalog JSON Body Skeleton** that IU-2-06B+ will fill and that Register Freeze (IU-2-07*) will cite via §13 RL-* links.
+| IU | Contribution |
+|----|----------------|
+| **IU-2-06A** | Initial Skeleton hierarchy |
+| **IU-2-06B** | Concrete field requiredness · RuleRecord / Header / Metadata / indexes structure |
+
+### 15.1 Purpose (IU-2-06B)
 
 | SHALL | SHALL NOT |
 |-------|-----------|
-| Define top-level sections · Header · RuleRecord · Metadata shapes | Author real Rule statements / Domain instances |
-| Align with NS-U1-001 · CL-001 · CV-001 · §10 · §11 · §13 | Mint Pins or Freeze Candidate |
-| Mark TODOs for body authoring | Create `frontend/src/validation/catalog/**/*.json` in this Session |
+| Lock RuleRecord **required vs optional** fields | Populate `rules[]` with real Rules |
+| Concrete Header · Metadata · indexes shapes | Issue `SV-R-*` / any Rule ID values |
+| Bind Rule ID **policy** to NS-U1-001 Option (C) | Create Catalog/Register JSON files |
+| Keep Finding `VAL-*` off RuleRecord | Modify §14 or NS/CL/CV decision texts |
 
-### 16.2 Top-level hierarchy
+### 15.2 Top-level hierarchy (locked shape)
 
 ```text
-CatalogDocument (JSON shape — not authored as file here)
-├── header                 ← Catalog Header Metadata (+ Pin placeholders)
-├── indexes                ← Domain / Family / Type×Layer indexes (placeholders)
-├── rules[]                ← RuleRecord skeletons only (empty or TODO stubs)
-├── coveragePolicy         ← CV-001 cite / defaults (no alternate schemaComplete)
-├── decisions              ← NS-U1-001 · CL-001 · CV-001 cites
-└── metadata               ← provenance · generatedFrom · paths · TODOs
+CatalogDocument
+├── header
+├── decisions
+├── coveragePolicy
+├── indexes
+├── rules[]
+└── metadata
 ```
 
-### 16.3 Header structure (skeleton)
+### 15.3 Header structure (concrete)
+
+| Field | Req | Type | Notes |
+|-------|-----|------|-------|
+| `catalogVersion` | **Required** | string | TODO value at file authoring |
+| `catalogRevision` | **Required** | string | TODO |
+| `compatibleSpsVersion` | **Required** | string | Lean `"SPS v1.0"` |
+| `compatibleFrameworkVersion` | **Required** | string | TODO Framework Consume identity |
+| `compatiblePipelineVersion` | **Required** | string | TODO Pipeline Consume identity |
+| `generatedFrom` | **Required** | string \| string[] | Seed + Design cites |
+| `lastUpdated` | **Required** | date | ISO-8601 TODO |
+| `status` | **Required** | enum | Shape: Draft \| FreezeCandidate \| Frozen — **intent remains Draft; FreezeCandidate not declared** |
+| `catalogPinId` | Optional until packaging | string \| null | **null / not issued** (IU-2-08*) |
+| `catalogBodyPath` | Required when file exists | string \| null | §10 · **null until file** |
+| `registerBodyPath` | Optional | string \| null | §13 RL-5 |
 
 ```text
 header: {
-  catalogVersion:            "<TODO: assign at body authoring>"
-  catalogRevision:           "<TODO>"
-  compatibleSpsVersion:      "SPS v1.0"          // cite lean
-  compatibleFrameworkVersion:"<TODO: Framework Consume identity>"
-  compatiblePipelineVersion: "<TODO: Pipeline Consume identity>"
-  generatedFrom:             [
-    "STEP6-4_Rule_Catalog_Design.md",
-    "STEP7_Catalog_Freeze_Design.md",
-    "Design Seed FULL_CATALOG cite (KI-02)"
-  ]
-  lastUpdated:               "<TODO: ISO date>"
-  status:                    "Draft"             // NOT FreezeCandidate · NOT Frozen
-  catalogPinId:              null                // NOT issued (U12 field exists; value later IU-2-08*)
-  catalogBodyPath:           "<TODO: §10 policy path — not finalized file>"
+  catalogVersion: "<TODO>"
+  catalogRevision: "<TODO>"
+  compatibleSpsVersion: "SPS v1.0"
+  compatibleFrameworkVersion: "<TODO>"
+  compatiblePipelineVersion: "<TODO>"
+  generatedFrom: [ "STEP6-4_Rule_Catalog_Design.md", "STEP7_Catalog_Freeze_Design.md", "Seed FULL_CATALOG cite" ]
+  lastUpdated: "<TODO>"
+  status: "Draft"
+  catalogPinId: null
+  catalogBodyPath: null
+  registerBodyPath: null
 }
 ```
 
-### 16.4 RuleRecord Skeleton (no real Rules)
+### 15.4 RuleRecord structure (concrete — no instances)
 
-```text
-rules: [
-  // TODO IU-2-06B+: populate RuleRecords — zero real rules in IU-2-06A
-  {
-    ruleId:              "<TODO: SV-R-* per NS-U1-001>"
-    schRTrace:           null                    // optional RO Trace
-    statement:           null                    // TODO — no statement text now
-    domain:              null                    // TODO — CL-001 required when filled
-    family:              null                    // TODO
-    type:                null                    // TODO
-    primaryLayer:        null                    // TODO L1..L7
-    severityDefault:     null                    // TODO CL-001
-    blockingDefault:     null                    // TODO CL-001
-    deferredCandidate:   null                    // optional
-    warningHandlingLean: null                    // optional
-    coverageClass:       null                    // TODO CV-001 Required|Optional|Deferred
-    completenessImpact:  null                    // TODO Affects schemaComplete | Does not
-    inRunDefault:        null                    // optional
-    // NO Finding VAL-* fields on RuleRecord
-  }
-]
-```
+#### 15.4.1 Rule ID policy (NS-U1-001 Option C)
 
 | Rule | Statement |
 |------|-----------|
-| **SK-1** | IU-2-06A **MAY** keep `rules` as `[]` empty array |
-| **SK-2** | Placeholder object above is **documentation only** — not a committed Rule |
-| **SK-3** | Filling Rule content = **IU-2-06B+** |
+| **RID-1** | Catalog execution Rules **SHALL** use STEP6 Catalog Rule Namespace lean **`SV-R-*`** |
+| **RID-2** | Primary `ruleId` **SHALL NOT** be STEP5 `SCH-R-*` (optional Trace only) |
+| **RID-3** | `ruleId` **SHALL NOT** use `VAL-*` / `VAL-R-*` |
+| **RID-4** | **This Session issues zero Rule IDs** |
 
-### 16.5 Indexes Skeleton (placeholders)
+#### 15.4.2 Required fields (when a RuleRecord is later authored)
+
+| Field | Type | Source |
+|-------|------|--------|
+| `ruleId` | string (`SV-R-*`) | NS-U1-001 |
+| `domain` | string | CL-001 |
+| `family` | string | CL-001 |
+| `type` | string | CL-001 |
+| `primaryLayer` | L1…L7 | CL-001 |
+| `severityDefault` | BLOCKER \| ERROR \| WARNING \| INFO | CL-001 · Framework RO |
+| `blockingDefault` | blocks-deeper \| does-not \| inherit | CL-001 |
+| `coverageClass` | Required \| Optional \| Deferred | CV-001 |
+| `completenessImpact` | Affects schemaComplete \| Does not | CV-001 |
+| `statement` | string | Body text — empty until content Session |
+
+#### 15.4.3 Optional fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `schRTrace` | string \| null | STEP5 `SCH-R-*` RO Trace |
+| `deferredCandidate` | boolean \| tag | CL-001 |
+| `warningHandlingLean` | string \| enum lean | CL-001 |
+| `inRunDefault` | In-Run \| Deferred \| NOT_RUN | CV-001 |
+| `fileAffinity` | string \| null | optional |
+| `ruleVersion` / `ruleRevision` | string | optional |
+| `notes` | string | non-normative |
+
+#### 15.4.4 Forbidden on RuleRecord
+
+| Forbidden | Reason |
+|-----------|--------|
+| Finding / `valId` fields | Finding Register only |
+| Pipeline Stage as Layer | Layer ≠ Stage |
+| `schemaComplete` override enums | Framework Owner |
+| Live Rule instances in IU-2-06B | Later Sessions |
+
+```text
+rules: []
+```
+
+### 15.5 indexes structure (concrete)
+
+| Index | Entry shape | Purpose |
+|-------|-------------|---------|
+| `domainIndex` | `{ domainId, ruleIds: [] }` | Domain → rules |
+| `familyIndex` | `{ familyId, ruleIds: [] }` | Family → rules |
+| `typeLayerIndex` | `{ type, primaryLayer, ruleIds: [] }` | Type×Layer → rules |
+| `coverageIndex` | `{ coverageClass, ruleIds: [] }` | CoverageClass → rules |
+| `deferredSet` | `ruleIds: []` | Deferred convenience |
+| `layerIndex` | `{ primaryLayer, ruleIds: [] }` | L1–L7 → rules |
 
 ```text
 indexes: {
-  domainIndex:      []    // TODO
-  familyIndex:      []    // TODO
-  typeLayerIndex:   []    // TODO
-  deferredSet:      []    // TODO Semantic / Deferred ruleIds
+  domainIndex: []
+  familyIndex: []
+  typeLayerIndex: []
+  coverageIndex: []
+  deferredSet: []
+  layerIndex: []
 }
 ```
 
-### 16.6 Metadata Skeleton
+### 15.6 decisions + coveragePolicy
+
+```text
+decisions: {
+  namespace:       { id: "NS-U1-001", option: "C" }
+  classification: { id: "CL-001" }
+  coverage:       { id: "CV-001" }
+}
+
+coveragePolicy: {
+  decisionId: "CV-001"
+  classes: ["Required", "Optional", "Deferred"]
+  completenessImpactValues: ["Affects schemaComplete", "Does not"]
+  schemaCompleteOwner: "Framework §10 (RO)"
+}
+```
+
+### 15.7 Metadata structure (concrete)
+
+| Field | Req | Notes |
+|-------|-----|-------|
+| `documentKind` | Required | `"CatalogBody"` |
+| `skeletonSession` | Required | `"S7-P2-IU-2-06A"` |
+| `structureSession` | Required | `"S7-P2-IU-2-06B"` |
+| `decisions` | Required | NS/CL/CV cite |
+| `registerFreezeLink` | Required | §13 RL-1…RL-8 |
+| `seedProvenance` | Required | KI-02 |
+| `rulesPopulated` | Required | `false` |
+| `catalogJsonFile` | Required | `"NOT_CREATED"` |
+| `registerJson` | Required | `"NOT_IN_THIS_IU"` |
+| `freezeCandidate` | Required | `"NOT_DECLARED"` |
+| `todos` | Required | checklist |
 
 ```text
 metadata: {
-  documentKind:          "CatalogBody"
-  skeletonSession:       "S7-P2-IU-2-06A"
-  decisions: {
-    namespace:       "NS-U1-001 Option (C)"
-    classification: "CL-001"
-    coverage:       "CV-001"
-  }
-  registerFreezeLink:    "STEP7_Catalog_Freeze_Design.md §13 RL-1…RL-8"
-  seedProvenance:        "STEP6 Full Run Design Seed (KI-02) — promote later"
-  registerJson:          "NOT_IN_THIS_IU"       // IU-2-07*
-  freezeCandidate:       "NOT_DECLARED"         // IU-2-08*
+  documentKind: "CatalogBody"
+  skeletonSession: "S7-P2-IU-2-06A"
+  structureSession: "S7-P2-IU-2-06B"
+  decisions: { namespace: "NS-U1-001 Option (C)", classification: "CL-001", coverage: "CV-001" }
+  registerFreezeLink: "STEP7_Catalog_Freeze_Design.md §13 RL-1…RL-8"
+  seedProvenance: "STEP6 Full Run Design Seed (KI-02)"
+  rulesPopulated: false
+  catalogJsonFile: "NOT_CREATED"
+  registerJson: "NOT_IN_THIS_IU"
+  freezeCandidate: "NOT_DECLARED"
   todos: [
+    "Create on-disk Catalog JSON under §10 (later)",
+    "Populate rules[] (later)",
+    "Build indexes from rules[]",
     "Assign catalogVersion/Revision",
-    "Populate rules[] under NS/CL/CV",
-    "Set catalogBodyPath under §10",
     "Issue catalogPinId only at IU-2-08*"
   ]
 }
 ```
 
-### 16.7 coveragePolicy Skeleton (cite-only)
-
-```text
-coveragePolicy: {
-  decisionId: "CV-001"
-  note: "schemaComplete meanings = Framework RO — Catalog supplies CoverageClass membership only"
-  classes: ["Required", "Optional", "Deferred"]
-  // NO percentage thresholds that override Framework §10
-}
-```
-
-### 16.8 Explicit non-outputs
+### 15.8 Explicit non-outputs (IU-2-06B)
 
 | Forbidden | Status |
 |-----------|--------|
-| On-disk Catalog `.json` file | **Not created** |
-| Real Rule statements / IDs | **None** |
+| On-disk Catalog `.json` | **Not created** |
+| Rule list / content / ID issuance | **None** |
+| `catalogPinId` issuance | **None** |
 | Register JSON | **None** |
-| `catalogPinId` value | **null / not issued** |
 | Freeze Candidate | **Not declared** |
-| §14 Gate text change | **Unmodified** |
+| §14 modification | **None** |
 
-### 16.9 IU-2-06A PASS
+### 15.9 IU-2-06B PASS
 
-- [x] Catalog JSON Body Skeleton hierarchy defined  
-- [x] Header · RuleRecord · Metadata · coveragePolicy placeholders defined  
-- [x] No file · no Rules · no Pin · no Freeze · §14 untouched  
-- [x] Section id: **§15** Catalog JSON Body Skeleton  
+- [x] RuleRecord required/optional fields locked  
+- [x] Header · Metadata · indexes concretized  
+- [x] Rule ID policy = NS-U1-001 Option (C) cite only  
+- [x] `rules: []` · no file · no Freeze · §14 untouched  
 
 ---
 
@@ -1291,11 +1360,11 @@ coveragePolicy: {
 
 | Item | Value |
 |------|-------|
-| Version | **v0.10** |
+| Version | **v0.11** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-06A** |
-| IU-2-06A | **PASS** (§15 Catalog JSON Body Skeleton) |
-| Next Session | **S7-P2-IU-2-06B** |
+| Session | **S7-P2-IU-2-06B** |
+| IU-2-06B | **PASS** (§15 Catalog JSON Body Structure) |
+| Next Session | **S7-P2-IU-2-07A** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -1311,8 +1380,9 @@ coveragePolicy: {
 | v0.7 | 2026-07-19 | S7-P2-IU-2-04A — §12.2 Classification Decision · CL-001 |
 | v0.8 | 2026-07-19 | S7-P2-IU-2-04B — §12.3 Coverage Formulas · CV-001 |
 | v0.9 | 2026-07-19 | S7-P2-IU-2-05A — §13 Register Freeze Link |
-| **v0.10** | 2026-07-19 | **S7-P2-IU-2-06A** — §15 Catalog JSON Body Skeleton |
+| v0.10 | 2026-07-19 | S7-P2-IU-2-06A — §15 Catalog JSON Body Skeleton |
+| **v0.11** | 2026-07-19 | **S7-P2-IU-2-06B** — §15 Catalog JSON Body Structure |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.10*
+*End of STEP7_Catalog_Freeze_Design.md v0.11*
