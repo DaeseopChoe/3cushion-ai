@@ -1032,7 +1032,107 @@ schemaComplete rollup (Framework §10 Owner — Consume only)
 
 ## 13. Register Freeze Link
 
-**TBD — IU-2-05A**
+> **IU-2-05A:** Link structure only.  
+> Does **not** author Register JSON · does **not** mint Pins · does **not** declare Freeze Candidate.
+
+### 13.1 Purpose
+
+Register Freeze Link는 **Catalog Freeze Design** (본 문서)과 **Register Freeze** (STEP6-5 Suite → IU-2-07* body) 사이의 **책임·참조·연결 지점**을 고정한다.
+
+| SHALL | SHALL NOT |
+|-------|-----------|
+| Define Catalog ↔ Register ownership and cite edges | Redefine Register field shapes (STEP6-5 Consume) |
+| Name connection points for IU-2-07 Register JSON | Author Catalog JSON (IU-2-06*) or Register JSON (IU-2-07*) now |
+| Preserve NS-U1-001 · CL-001 · CV-001 · U12 Pin layout as cite inputs | Issue `catalogPinId` / declare Freeze Candidate |
+| Keep Runtime Registry distinct from Validation Registers | Edit Framework / Pipeline / System JSON |
+
+### 13.2 Consume
+
+| Source | Role in Link |
+|--------|--------------|
+| `STEP6-5_Validation_Register_Suite.md` v0.2 | Register inventory · Pin-first · Header cite-only · State≠Execution |
+| `STEP6_FINAL_FREEZE.md` v1.0 | Baseline · KI-02 Register/Catalog body gap cite |
+| This Design §§8–12 | Pin/Provenance · Paths · U12 · NS/CL/CV Decisions |
+| Framework / Pipeline | Locked RO — Register does not redefine semantics |
+
+### 13.3 Responsibility split
+
+| Concern | Catalog Freeze (this Design → IU-2-06*) | Register Freeze (IU-2-07*) |
+|---------|------------------------------------------|----------------------------|
+| Rule statements · Domain/Family/Type/Layer | **Owner** | Cite `ruleId` + Catalog Version/Revision |
+| NS-U1-001 · CL-001 · CV-001 | **Owner** | Consume on RuleRecord cites |
+| Catalog Header Metadata meanings | **Owner** (STEP6-4 cite) | **Cite-only** on Pin / RuleRecord (STEP6-5 RP2) |
+| Catalog Pin Manifest fields (U12) | Layout owner (§11) | Persist Pin citations in Catalog Pin Register |
+| Run / Execution / Result / Finding / Deferred / Summary | Out | **Owner** |
+| `schemaComplete` **meaning** | Out (Framework) | Summary cites rollup — no meaning rewrite |
+| Runtime `getSystemContract` Registry | Out | Out (different Registry) |
+
+### 13.4 Reference graph (Link structure)
+
+```text
+Catalog Freeze Design (THIS)
+  NS-U1-001 · CL-001 · CV-001 · §10 paths · §11 U12
+        ↓ author (later)
+Catalog Body JSON (IU-2-06*)
+        ↓ Header + ruleId set
+        ↓ pin cite (later packaging IU-2-08*)
+Catalog Pin Register  ←── Register Freeze body (IU-2-07*)
+        ↓
+Rule Register · Dependency Index
+        ↓
+Validation Run Register
+  ├── Rule Execution Register
+  ├── Validation Result Register
+  ├── Finding Register (VAL-*)
+  ├── Deferred Item Register
+  └── Summary Register (schemaComplete cite)
+```
+
+Direction: **Catalog norms → Pin cite → Register evidence**. Registers **SHALL NOT** invent alternate Catalog Version semantics (STEP6-5).
+
+### 13.5 Connection points for IU-2-07 (Register JSON)
+
+| Link ID | Catalog side | Register side | Contract |
+|---------|--------------|---------------|----------|
+| **RL-1** | `catalogVersion` · `catalogRevision` | Catalog Pin Register · RuleRecord catalog refs | Required cite on Official evidence |
+| **RL-2** | U12 `catalogPinId` field (layout only until issued) | Catalog Pin Register primary key | Issued at packaging — **not this IU** |
+| **RL-3** | Catalog `ruleId` (NS-U1-001 / `SV-R-*` lean) | Rule Register · Execution · Dependency | Rule ID equality |
+| **RL-4** | Optional `schRTrace` → `SCH-R-*` | Trace fields only (RO) | No Audit ownership transfer |
+| **RL-5** | §10 `catalogBodyPath` / `registerBodyPath` | PinManifest path fields | Repo-relative paths |
+| **RL-6** | CV-001 CoverageClass / completenessImpact | Execution/Deferred/Summary consumption | Membership mapping; no schemaComplete redefine |
+| **RL-7** | Finding namespace `VAL-*` (not Rule) | Finding Register | CP6 / NS separation |
+| **RL-8** | Register State lifecycle (Draft…Archived) | Rule Register State | State ≠ Execution Status (STEP6-5) |
+
+### 13.6 Dual Freeze sequence (policy)
+
+```text
+IU-2-06*  Catalog JSON body
+    ↓
+IU-2-07*  Register JSON body (consumes Catalog Version/Revision + ruleId set + U12 layout)
+    ↓
+IU-2-08*  Freeze Candidate + Pin packaging (issues catalogPinId; binds paths)
+```
+
+| Rule | Statement |
+|------|-----------|
+| **RF-1** | Register Freeze body **SHALL** cite an existing Catalog Version/Revision intent (even if Pin not yet issued) |
+| **RF-2** | Register Freeze **SHALL NOT** proceed as Official Pin-active without Catalog body path policy (§10) |
+| **RF-3** | This Link does **not** create either JSON artifact |
+
+### 13.7 Explicit non-outputs (this IU)
+
+| Forbidden | Status |
+|-----------|--------|
+| Register JSON / Catalog JSON | **None** |
+| Pin ID issuance | **None** |
+| Freeze Candidate declaration | **None** |
+| NS / CL / CV edits | **None** |
+
+### 13.8 IU-2-05A PASS
+
+- [x] Catalog ↔ Register responsibility split defined  
+- [x] Reference graph · RL-1…RL-8 connection points defined  
+- [x] IU-2-07 link targets named · no JSON / Pin / Freeze  
 
 ---
 
@@ -1046,11 +1146,11 @@ schemaComplete rollup (Framework §10 Owner — Consume only)
 
 | Item | Value |
 |------|-------|
-| Version | **v0.8** |
+| Version | **v0.9** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-04B** |
-| IU-2-04B | **PASS** (§12.3 Coverage Formulas · **CV-001**) |
-| Next | **S7-P2-IU-2-05A** |
+| Session | **S7-P2-IU-2-05A** |
+| IU-2-05A | **PASS** (§13 Register Freeze Link) |
+| Next IU | **S7-P2-IU-2-06A** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -1064,8 +1164,9 @@ schemaComplete rollup (Framework §10 Owner — Consume only)
 | v0.5 | 2026-07-19 | S7-P2-IU-2-03A — §12.1 Namespace Decision Framework |
 | v0.6 | 2026-07-19 | S7-P2-IU-2-03B — §12.1.8 Namespace Decision Record · Option (C) |
 | v0.7 | 2026-07-19 | S7-P2-IU-2-04A — §12.2 Classification Decision · CL-001 |
-| **v0.8** | 2026-07-19 | **S7-P2-IU-2-04B** — §12.3 Coverage Formulas · CV-001 |
+| v0.8 | 2026-07-19 | S7-P2-IU-2-04B — §12.3 Coverage Formulas · CV-001 |
+| **v0.9** | 2026-07-19 | **S7-P2-IU-2-05A** — §13 Register Freeze Link |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.8*
+*End of STEP7_Catalog_Freeze_Design.md v0.9*
