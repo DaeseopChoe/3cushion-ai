@@ -3,9 +3,9 @@
 ```
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
-Date      : 2026-07-17
-Scope     : STEP6 Final Freeze (STEP6-11) → STEP7 Entry
-Rule      : Fact only · Consume STEP6 Freeze · No Framework/Pipeline/Architecture rewrite at Entry
+Date      : 2026-07-19
+Scope     : STEP7 Agent Implementation (post Implementation Decomposition Approved)
+Rule      : Fact only · Consume STEP6 Freeze · Execute Session Queue · No Framework/Pipeline redesign
 ```
 
 ---
@@ -13,12 +13,12 @@ Rule      : Fact only · Consume STEP6 Freeze · No Framework/Pipeline/Architect
 ## 0. 새 세션 — 필수 읽기 순서
 
 ```text
-1. DEVELOPMENT_WORKFLOW.md                    (v0.3 · Ops)
+1. DEVELOPMENT_WORKFLOW.md                    (v0.3 · Ops · §12)
 2. PROJECT_MASTER_INDEX.md
 3. PROJECT_LOG_2026-07.md
-4. CURSOR_SESSION_HANDOFF.md                  (본 문서 · STEP7 Entry)
-5. STEP6_FINAL_FREEZE.md                      (Final Freeze v1.0 · Consume)
-6. STEP6-10_Validation_Report.md              (Report · KI cite)
+4. CURSOR_SESSION_HANDOFF.md                  (본 문서 · Agent Implementation)
+5. STEP7_IMPLEMENTATION_DECOMPOSITION.md      (v1.0 Approved · Session Execution SSOT)
+6. STEP6_FINAL_FREEZE.md                      (Final Freeze v1.0 · Consume)
 7. STEP6 Framework + Pipeline                 (Locked · Consume)
 ```
 
@@ -28,8 +28,8 @@ Rule      : Fact only · Consume STEP6 Freeze · No Framework/Pipeline/Architect
 | 2 | PROJECT_MASTER_INDEX | `작업관리/PROJECT_MASTER_INDEX.md` |
 | 3 | PROJECT_LOG | `작업관리/HISTORY/PROJECT_LOG_2026-07.md` |
 | 4 | CURSOR_SESSION_HANDOFF | `작업관리/CURSOR_SESSION_HANDOFF.md` |
-| 5 | STEP6 Final Freeze | `System Platform Standard (SPS) v1.0/STEP6_FINAL_FREEZE.md` |
-| 6 | STEP6-10 Report | `System Platform Standard (SPS) v1.0/STEP6-10_Validation_Report.md` |
+| 5 | Implementation Decomposition | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` |
+| 6 | STEP6 Final Freeze | `System Platform Standard (SPS) v1.0/STEP6_FINAL_FREEZE.md` |
 | 7 | Framework | `System Platform Standard (SPS) v1.0/STEP6_Schema_Validation_Framework.md` |
 | 8 | Pipeline | `System Platform Standard (SPS) v1.0/STEP6_Validation_Pipeline.md` |
 
@@ -38,37 +38,53 @@ Rule      : Fact only · Consume STEP6 Freeze · No Framework/Pipeline/Architect
 ## 1. 현재 프로젝트 단계
 
 ```text
-Current Step : STEP7 Entry (post STEP6 Final Freeze)
+Current Stage : Agent Implementation
 ```
 
 | Item | Value |
 |------|-------|
 | **Project** | 3Cushion AI |
-| **SPS Stage** | **STEP6 Complete · Final Freeze v1.0** → **STEP7** |
+| **SPS Stage** | **STEP7 System Standardization** |
+| **Current Stage** | **Agent Implementation** |
+| **Current Session** | **`S7-P2-IU-2-01A`** |
+| **Current Queue** | **Catalog Design** |
+| **Current IU** | **IU-2-01A** |
+| **Current WP** | **WP-2-01** |
+| **Phase** | **P2 Catalog** |
+| **Next Session** | **`S7-P2-IU-2-01B`** |
 | **Architecture** | Locked |
 | **Runtime Baseline** | `ec71ef9` (unchanged) |
-| **STEP4 / STEP5** | Final / Frozen — RO |
+| **STEP4 / STEP5 / STEP6** | Final / Frozen / Final Freeze — Consume |
 | **Ops SSOT** | DEVELOPMENT_WORKFLOW **v0.3** |
+| **Session Execution SSOT** | `STEP7_IMPLEMENTATION_DECOMPOSITION.md` **v1.0 Approved** |
+
+### STEP7 Gate Chain
+
+```text
+STEP7 Scope
+Approved
+        ↓
+STEP7 Work Breakdown
+Approved
+        ↓
+STEP7 Implementation Decomposition
+Approved
+        ↓
+Current Stage
+Agent Implementation
+```
 
 ---
 
-## 2. 완료된 작업 (STEP6)
+## 2. 완료된 작업 (최근)
 
 | Track | Result |
 |-------|--------|
-| STEP6-1 Framework | Freeze Candidate (Locked) |
-| STEP6-2 Pipeline | Freeze Candidate (Locked) |
-| STEP6-3 Analysis | Complete v1.1 |
-| STEP6-4 Catalog Design | Complete v0.2 |
-| STEP6-5 Register Suite | Complete v0.2 |
-| STEP6-6 Engine Design | Complete v0.2 |
-| STEP6-7 Engine Implementation | Complete (7A–7G) |
-| STEP6-8 Pilot Validation | Complete |
-| STEP6-9 Full Validation | Complete (Production) |
-| STEP6-10 Validation Report | Complete v1.0 |
-| STEP6-11 Final Freeze | **Declared** |
-
-Engine path: `frontend/src/validation/engine/`
+| STEP6 Final Freeze | Declared v1.0 |
+| STEP7 Scope | **Approved** |
+| STEP7 Work Breakdown | **Approved** |
+| STEP7 Implementation Decomposition | **Approved** (v1.0) |
+| Ops sync (MASTER · LOG · HANDOFF) | **This handoff** |
 
 ---
 
@@ -77,21 +93,14 @@ Engine path: `frontend/src/validation/engine/`
 | Artifact | Status |
 |----------|--------|
 | Framework / Pipeline | Locked · Consume |
-| STEP6-3…STEP6-10 · Final Freeze | Completed · Consume |
-| Validation Engine baseline | Freeze · Consume |
-| Architecture / Runtime / System JSON | Locked / RO — no silent mutation |
-
-```text
-STEP5 Frozen
-   ↓
-STEP6 Framework · Pipeline · Catalog · Register · Engine · Validation · Report
-   ↓ Final Freeze
-STEP7 (next Owner track — Consume STEP6)
-```
+| STEP6 Final Freeze · Engine baseline | Completed · Consume |
+| STEP7 Scope / WBS / Decomposition | Approved · Execute per Session Template |
+| Architecture / Runtime | Locked / RO — no silent mutation |
+| System JSON | RO until scoped Change Design (Pilot+) |
 
 ---
 
-## 4. 수정 금지 (STEP7 Entry 시점)
+## 4. 수정 금지
 
 | Forbidden |
 |-----------|
@@ -100,42 +109,25 @@ STEP7 (next Owner track — Consume STEP6)
 | STEP4 / STEP5 Frozen |
 | Runtime / Registry / Loader / Contract (승인 없는 변경) |
 | System JSON silent mutation |
-| Catalog/Register semantics redefine without scoped STEP |
+| Scope / WBS / IU·WP 번호 변경 |
+| Session Queue skip without VG-IU PASS |
 
 ---
 
-## 5. 다음 작업 — STEP7
+## 5. Current Session Card
 
 ```text
-Next Task : STEP7 (Schema Validation Follow-up / Catalog Freeze & Operations)
+Session ID     : S7-P2-IU-2-01A
+IU             : IU-2-01A
+WP             : WP-2-01
+Phase          : P2 Catalog
+Milestone      : M2.1
+Queue          : Catalog Design
+Agent Task     : Catalog Freeze Design Skeleton only
+Next Session   : S7-P2-IU-2-01B
 ```
 
-### 5.1 STEP7 입력 (필요 최소)
-
-| Input | Notes |
-|-------|-------|
-| STEP6 Final Freeze | Baseline pin |
-| STEP6-10 Report · KI-01…04 | Backlog cite |
-| Engine package | Extend only under STEP7 scope |
-| DEVELOPMENT_WORKFLOW v0.3 | Ops · §12 Decomposition |
-
-### 5.2 Allowed (Entry)
-
-| Allowed |
-|---------|--------|
-| Plan STEP7 scope from KI / IC backlog |
-| Catalog Freeze JSON / Namespace path (Design/Review) |
-| Target package / schema family alignment Change (scoped) |
-| Report Export / Ops docs (if STEP7 owns them) |
-
-### 5.3 Forbidden / Pending at Entry
-
-| Item | Notes |
-|------|-------|
-| Redesign Framework / Pipeline | Locked |
-| Re-open STEP6 Implementation as default | Prefer new STEP units (§12) |
-| Namespace silent lock | Needs Review |
-| Bulk System JSON rewrite | Needs scoped Change |
+Session Template · Validation · Commit: `STEP7_IMPLEMENTATION_DECOMPOSITION.md` §4–§8.
 
 ---
 
@@ -154,20 +146,20 @@ Next Task : STEP7 (Schema Validation Follow-up / Catalog Freeze & Operations)
 
 ## 7. Next Session Checklist
 
-- [ ] DEVELOPMENT_WORKFLOW v0.3  
-- [ ] MASTER · LOG · HANDOFF (STEP7 Entry)  
-- [ ] STEP6_FINAL_FREEZE.md Consume  
-- [ ] STEP6-10 Report · Known Issues  
-- [ ] Framework · Pipeline Consume  
-- [ ] Confirm STEP7 single purpose (§12 if Implementation)  
+- [ ] DEVELOPMENT_WORKFLOW v0.3 §12  
+- [ ] MASTER · LOG · HANDOFF (Agent Implementation)  
+- [ ] STEP7_IMPLEMENTATION_DECOMPOSITION v1.0 Approved  
+- [ ] STEP6_FINAL_FREEZE Consume  
+- [ ] Execute **S7-P2-IU-2-01A** only (single IU)  
+- [ ] Exit PASS → **S7-P2-IU-2-01B**  
 
 ```text
-READY FOR STEP7
-Start at: STEP7 scope planning from STEP6 Final Freeze + KI backlog
+READY FOR AGENT IMPLEMENTATION
+Start at: S7-P2-IU-2-01A — Catalog Freeze Design Skeleton
 Do not modify Framework / Pipeline / STEP6 Freeze surfaces informally
-Do not mutate System JSON / Runtime without scoped approval
+Do not mutate System JSON / Runtime without scoped Change Design
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — STEP7 Entry*
+*End of CURSOR_SESSION_HANDOFF.md — Agent Implementation*
