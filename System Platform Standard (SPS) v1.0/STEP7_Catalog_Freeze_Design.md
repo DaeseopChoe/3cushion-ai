@@ -2,24 +2,23 @@
 
 ```text
 Document  : STEP7_Catalog_Freeze_Design.md
-Version   : v0.5
-Status    : Design Draft — IU-2-03A Complete · Not Frozen
+Version   : v0.6
+Status    : Design Draft — IU-2-03B Complete · Not Frozen
 Date      : 2026-07-19
 STEP      : STEP7 / Phase P2 Catalog
-Session   : S7-P2-IU-2-03A
-IU        : IU-2-03A
+Session   : S7-P2-IU-2-03B
+IU        : IU-2-03B
 WP        : WP-2-03
 Milestone : M2.2
 Owner     : System Standardization / Catalog Ops
-Type      : Catalog Freeze Design (Namespace U1 Decision Framework)
+Type      : Catalog Freeze Design (Namespace U1 Decision Record)
 Baseline  : STEP7_SCOPE Approved · STEP7_WORK_BREAKDOWN Approved ·
             STEP7_IMPLEMENTATION_DECOMPOSITION v1.0 Approved ·
             STEP6 Final Freeze v1.0 · Framework/Pipeline Locked (Consume)
-Rule      : Namespace Decision Framework only · No final Namespace lock ·
-            No Framework / Appendix C edit · No Classification / Coverage ·
-            No Catalog/Register JSON · No Pin · No Freeze Candidate ·
-            No Runtime / Pipeline / System JSON mutation
-Next IU   : IU-2-03B
+Rule      : Namespace Decision Record only · No Framework / Appendix C edit ·
+            No Classification / Coverage · No Catalog/Register JSON · No Pin ·
+            No Freeze Candidate · No Runtime / Pipeline / System JSON mutation
+Next IU   : IU-2-04A
 ```
 
 ---
@@ -28,11 +27,10 @@ Next IU   : IU-2-03B
 
 | Item | Value |
 |------|-------|
-| **Session ID** | `S7-P2-IU-2-03A` |
-| **Mode** | **Design Policy** (§12.1 Namespace U1 Decision Framework) |
-| **Prior IUs** | IU-2-01A…IU-2-02B — retained |
-| **Namespace final decision** | **Not made** (framework only) |
-| **Framework / Appendix C** | **Unmodified** |
+| **Session ID** | `S7-P2-IU-2-03B` |
+| **Mode** | **Decision Record** (§12.1.8 Namespace U1) |
+| **Namespace Decision** | **Option (C) Locked** (Catalog Decision SSOT — not Framework edit) |
+| **Framework / Appendix C** | **Unmodified** (RO Consume) |
 | **Classification / Coverage** | **Not in this IU** |
 | **Freeze Candidate / JSON / Pin** | **None** |
 | **Runtime / Pipeline** | Unmodified · Consume |
@@ -630,9 +628,10 @@ PinManifest {
 > Decision Hooks record **how** Catalog Freeze decisions are made.  
 > They **SHALL NOT** edit Framework / Pipeline / Appendix C. Outcomes are Catalog Decision records (later IUs).
 
-### 12.1 Namespace (U1) — Decision Framework
+### 12.1 Namespace (U1) — Decision Framework + Record
 
-> **IU-2-03A:** Framework only. **Final Namespace choice = IU-2-03B** (not this Session).
+> **IU-2-03A:** Decision Framework (§12.1.1–12.1.7).  
+> **IU-2-03B:** Decision Record (§12.1.8) — **Option (C) Locked**.
 
 #### 12.1.1 Purpose
 
@@ -683,7 +682,7 @@ Candidates are **cited from** Framework Appendix C **U1** (not edited there):
 |------|-----------|
 | Option labels | **A / B / C only** — no additional invented namespaces in this IU |
 | Option (B) wording | Framework text mentions `VAL-R-*` as a **Rule** namespace candidate; this **SHALL NOT** be read as Finding `VAL-*` |
-| Selection | **Deferred to IU-2-03B** |
+| Selection | **Locked in §12.1.8 — Option (C)** |
 
 #### 12.1.5 Consume 대상
 
@@ -717,16 +716,96 @@ Candidates are **cited from** Framework Appendix C **U1** (not edited there):
 - [x] Purpose · Decision Object · Criteria stated  
 - [x] Allowed candidates A/B/C cited from Framework U1  
 - [x] Consume list · Procedure stated  
-- [x] **No final Namespace decision**  
+- [x] **No final Namespace decision** (at IU-2-03A close)  
+- [x] No Framework / Appendix C / Classification / Coverage / JSON / Pin / Freeze  
+
+#### 12.1.8 Namespace Decision Record (IU-2-03B)
+
+| Item | Value |
+|------|-------|
+| **Decision ID** | **NS-U1-001** |
+| **Session** | `S7-P2-IU-2-03B` |
+| **Selected Option** | **(C) Dual catalogs: STEP5 `SCH-R-*` RO + STEP6 Catalog** |
+| **Status** | **Locked** (Catalog Decision SSOT in this document) |
+| **Framework Appendix C** | **Unmodified** — U1 remains historical Pending cite; operative choice is **this Record** |
+
+##### Selected Option — (C)
+
+**Choice:** Dual catalogs.
+
+| Track | Role |
+|-------|------|
+| **STEP5 `SCH-R-*`** | **RO Trace only** — Architecture Audit Rule identity · not STEP6 execution ownership |
+| **STEP6 Catalog Rule IDs** | **Separate Catalog-owned Rule Namespace** for Schema Validation execution Rules |
+
+**STEP6 Catalog Rule Namespace lean (binding for body authoring):** use a dedicated Rule prefix in the **`SV-R-*` family** (Schema Validation Rule).  
+**Forbidden for Rule IDs:** `VAL-*` and `VAL-R-*` — reserved collision risk with Finding namespace `VAL-*` (NC-3 / CP6).
+
+##### Selection rationale (NC scoring)
+
+| Criterion | Option (C) |
+|-----------|------------|
+| **NC-1** | PASS — no Framework semantics rewrite |
+| **NC-2** | PASS — `SCH-R-*` stays RO Trace; no Audit takeover |
+| **NC-3** | PASS — Findings remain `VAL-*` only; Rules ≠ Findings |
+| **NC-4** | PASS — Seed→Freeze can mint STEP6 Catalog IDs without editing Framework |
+| **NC-5** | PASS — Engine binds to Catalog Pin + STEP6 Rule IDs; SCH-R optional Trace |
+| **NC-6** | PASS — Operator-visible separation: Audit Trace vs Validation Rule vs Finding |
+
+##### Rejected options
+
+| Option | Reject reason |
+|--------|---------------|
+| **(A)** Execute under `SCH-R-*` directly | Violates **NC-2**: conflates STEP5 Audit ownership with STEP6 execution Rules (STEP6-3 D-STEP6-3-06 / Trace-only policy). |
+| **(B)** New `SV-R-*` / `VAL-R-*` mapped to SCH-R | Partially overlaps (C) on `SV-R-*`, but Framework pairing with **`VAL-R-*`** risks **NC-3** / CP6 (Finding `VAL-*` confusion). Dual-catalog framing in (C) is clearer for SCH-R RO Trace. |
+
+##### STEP5 `SCH-R-*` Trace 처리 원칙
+
+| Rule | Statement |
+|------|-----------|
+| **T-1** | `SCH-R-*` **SHALL** remain STEP5 Frozen Suite identities |
+| **T-2** | STEP6 Catalog **MAY** cite `SCH-R-*` as **RO Trace / mapping**, never as sole execution ownership under Option (C) |
+| **T-3** | Trace citations **SHALL NOT** rewrite STEP5 Rule Catalog texts |
+| **T-4** | Absence of a Trace mapping **SHALL NOT** block STEP6 Rule execution if Catalog Rule is Active under Pin |
+
+##### Rule Namespace vs Finding Namespace 분리 원칙
+
+| Namespace | Owner | Use |
+|-----------|-------|-----|
+| **STEP6 Catalog Rule IDs** (`SV-R-*` lean) | Schema Rule Catalog (STEP7 Freeze track) | Rule execution / Catalog body |
+| **Finding IDs** (`VAL-*`) | Validation Finding Register | Findings only |
+| **STEP5 `SCH-R-*`** | STEP5 Audit (Frozen) | RO Trace only |
+
+| Separation rule | Statement |
+|-----------------|-----------|
+| **S-1** | Rule ID ≠ Finding ID — always |
+| **S-2** | No Rule SHALL be allocated an ID in `VAL-*` / `VAL-R-*` |
+| **S-3** | Registers cite Rule IDs and Finding IDs on separate fields |
+
+##### Binding for Catalog JSON (IU-2-06*)
+
+| Rule | Statement |
+|------|-----------|
+| **B-1** | Catalog JSON body authoring (**IU-2-06***) **SHALL** follow **NS-U1-001 Option (C)** |
+| **B-2** | New execution Rule records **SHALL** use STEP6 Catalog Rule Namespace (`SV-R-*` lean), not `SCH-R-*` as primary ID |
+| **B-3** | Optional `schRTrace` / equivalent Trace field **MAY** reference STEP5 `SCH-R-*` |
+| **B-4** | This Decision does **not** author Catalog JSON and does **not** declare Freeze Candidate |
+
+##### IU-2-03B PASS
+
+- [x] Option **(C)** selected with rationale  
+- [x] Rejected **(A)** / **(B)** with reasons  
+- [x] SCH-R Trace principles · Rule vs Finding separation stated  
+- [x] IU-2-06* binding stated  
 - [x] No Framework / Appendix C / Classification / Coverage / JSON / Pin / Freeze  
 
 ### 12.2 Classification
 
-**TBD — IU-2-04*** (out of IU-2-03A)
+**TBD — IU-2-04*** (out of IU-2-03B)
 
 ### 12.3 Coverage formulas
 
-**TBD — IU-2-04*** (out of IU-2-03A)
+**TBD — IU-2-04*** (out of IU-2-03B)
 
 ---
 
@@ -746,11 +825,11 @@ Candidates are **cited from** Framework Appendix C **U1** (not edited there):
 
 | Item | Value |
 |------|-------|
-| Version | **v0.5** |
+| Version | **v0.6** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-03A** |
-| IU-2-03A | **PASS** (§12.1 Namespace Decision Framework) |
-| Next | **S7-P2-IU-2-03B** |
+| Session | **S7-P2-IU-2-03B** |
+| IU-2-03B | **PASS** (§12.1.8 Namespace Decision Record · Option **C**) |
+| Next | **S7-P2-IU-2-04A** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -761,8 +840,9 @@ Candidates are **cited from** Framework Appendix C **U1** (not edited there):
 | v0.2 | 2026-07-19 | S7-P2-IU-2-01B — §8 Pin & Provenance · §9 Seed → Freeze Path |
 | v0.3 | 2026-07-19 | S7-P2-IU-2-02A — §10 Artifact Paths & Naming |
 | v0.4 | 2026-07-19 | S7-P2-IU-2-02B — §11 Pin Field Table (U12) |
-| **v0.5** | 2026-07-19 | **S7-P2-IU-2-03A** — §12.1 Namespace (U1) Decision Framework |
+| v0.5 | 2026-07-19 | S7-P2-IU-2-03A — §12.1 Namespace (U1) Decision Framework |
+| **v0.6** | 2026-07-19 | **S7-P2-IU-2-03B** — §12.1.8 Namespace Decision Record · Option **(C)** Locked |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.5*
+*End of STEP7_Catalog_Freeze_Design.md v0.6*
