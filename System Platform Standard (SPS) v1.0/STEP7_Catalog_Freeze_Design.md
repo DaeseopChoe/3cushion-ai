@@ -1136,9 +1136,150 @@ IU-2-08*  Freeze Candidate + Pin packaging (issues catalogPinId; binds paths)
 
 ---
 
-## 14. Freeze Candidate Gate
+## 14. Freeze Candidate Gate (IU-2-08A)
 
-**TBD — IU-2-08* · Not declared in IU-2-01A**
+> **Gate definition only.** Defines entry conditions · Required Artifacts · Review checklist for Freeze Candidate.  
+> Does **not** declare Freeze Candidate · does **not** create Catalog/Register JSON · does **not** issue `catalogPinId` · does **not** edit NS-U1-001 / CL-001 / CV-001.  
+> §15 · §16 — **unmodified** (Consume / cite only). Expands §9.5 gate preview into normative Gate shape.
+
+### 14.1 Purpose
+
+| SHALL | SHALL NOT |
+|-------|-----------|
+| Define Freeze Candidate **entry Gate** (FCG-*) | Declare that Freeze Candidate is active / passed |
+| Name prerequisites · Required Artifacts · Review items | Author on-disk Catalog / Register `.json` |
+| Cite IU-2-06* · IU-2-07* Design results (reference only) | Issue `catalogPinId` / `registerPinId` |
+| Keep Official Pin mint after Gate + declaration packaging | Modify §15 · §16 · NS / CL / CV decision texts |
+
+**Freeze Candidate** (concept, §5 / §8): Review-passed · Official Pin-eligible state.  
+**This Session** defines the **Gate** that must be satisfied before a later Session may declare that state — it does **not** make the declaration.
+
+### 14.2 Prerequisites (선행 조건)
+
+Freeze Candidate declaration **MAY** be considered only when all rows below are satisfied (Design cite). Satisfaction of this table is **evaluated at declaration time** — not claimed by IU-2-08A.
+
+| ID | Prerequisite | Source (cite) | Status as of IU-2-08A |
+|----|--------------|---------------|------------------------|
+| **PR-1** | Artifact paths & naming policy defined | §10 · IU-2-02A | Design PASS (policy) |
+| **PR-2** | Pin Manifest field layout (U12) defined | §11 · IU-2-02B | Design PASS (layout) |
+| **PR-3** | Namespace Decision locked | §12.1 · **NS-U1-001 Option (C)** · IU-2-03B | Locked · **do not reopen here** |
+| **PR-4** | Classification Decision locked | §12.2 · **CL-001** · IU-2-04A | Locked · **do not reopen here** |
+| **PR-5** | Coverage Formulas / Policy locked | §12.3 · **CV-001** · IU-2-04B | Locked · **do not reopen here** |
+| **PR-6** | Register Freeze Link defined | §13 · RL-1…RL-8 · IU-2-05A | Design PASS |
+| **PR-7** | Catalog JSON Body **structure** defined | §15 · IU-2-06A / IU-2-06B | Design PASS · **cite only** |
+| **PR-8** | Register JSON Body **structure** + Pin Packaging defined | §16 · IU-2-07A / IU-2-07B · RPP-* | Design PASS · **cite only** |
+| **PR-9** | Catalog + Register **on-disk bodies** authored under §10 | Body authoring Sessions (post-structure) | **Not completed by this Gate doc** |
+| **PR-10** | Review PASS on bodies + Gate checklist (§14.5) | WP-2-08 / Reviewer | **Not claimed by this IU** |
+
+| Rule | Statement |
+|------|-----------|
+| **PR-X1** | PR-1…PR-8 are **Design prerequisites**; PR-9…PR-10 are **declaration-time** prerequisites |
+| **PR-X2** | IU-2-08A **SHALL NOT** mark PR-9 / PR-10 as PASS |
+
+### 14.3 Required Artifacts
+
+Artifacts that **MUST** exist (or be cite-complete) before Freeze Candidate **declaration** (later Session). This IU lists them only.
+
+| Artifact | Form | Gate role | This Session |
+|----------|------|-----------|--------------|
+| **A-1** Catalog Freeze Design SSOT | This document (§§8–14 + decisions) | Normative Gate + Decision cites | Updated Gate only |
+| **A-2** Catalog Body structure | §15 Design shape | Structure cite (IU-2-06*) | **Unmodified** |
+| **A-3** Register Body structure + packaging | §16 Design shape · RPP-* | Structure cite (IU-2-07*) | **Unmodified** |
+| **A-4** Catalog Body file | On-disk `.json` under §10 | Required at declaration | **Not created** |
+| **A-5** Register Body file | On-disk `.json` under §10 | Required at declaration | **Not created** |
+| **A-6** Pin Manifest values | U12 fields populated · Official packaging | Required at Official Pin (post-declaration packaging) | **Not issued** |
+| **A-7** Review record | Checklist §14.5 signed / logged | Required at declaration | **Not produced** |
+
+| Rule | Statement |
+|------|-----------|
+| **RA-1** | Design shapes (A-2 · A-3) **SHALL NOT** substitute for on-disk bodies (A-4 · A-5) at declaration |
+| **RA-2** | `catalogPinId` (A-6) **SHALL NOT** be minted by the Gate definition Session |
+
+### 14.4 Gate Pass Conditions (FCG-*)
+
+A later Session **MAY** declare Freeze Candidate only if **all** FCG conditions hold. IU-2-08A defines the conditions; it does **not** assert they all hold for declaration.
+
+| ID | Condition |
+|----|-----------|
+| **FCG-1** | PR-1…PR-8 Design prerequisites remain intact (NS / CL / CV **unmodified** since lock) |
+| **FCG-2** | A-4 Catalog Body and A-5 Register Body exist under §10 relative paths |
+| **FCG-3** | Catalog Header Version/Revision · Register `catalogReference` cites are consistent (RL-1 · RR-1 · RPP-6) |
+| **FCG-4** | Rule ID policy on Catalog body matches NS-U1-001 Option (C) (`SV-R-*` lean; Findings `VAL-*` only) |
+| **FCG-5** | Classification / Coverage fields on Catalog body cite CL-001 / CV-001 (no Framework `schemaComplete` redefine) |
+| **FCG-6** | Register Pin Packaging shape available (§16.10); IDs may still be null until Official packaging |
+| **FCG-7** | §14.5 Review checklist all required items PASS |
+| **FCG-8** | No open BLOCKER against Catalog/Register Freeze surfaces for the candidate Version/Revision |
+| **FCG-9** | Gate definition Version of this Design is citeable (Document Control) |
+
+| Rule | Statement |
+|------|-----------|
+| **FCG-X1** | Passing FCG-* is a **declaration eligibility** claim — made only by an explicit Freeze Candidate **declaration** Session |
+| **FCG-X2** | This IU (IU-2-08A) records **Gate definition PASS** only — **not** Freeze Candidate declaration |
+
+### 14.5 Review checklist
+
+Reviewers **SHALL** complete the following before any Freeze Candidate declaration Session. Items are **unchecked** here (checklist template only).
+
+#### 14.5.1 Design / Decision
+
+- [ ] NS-U1-001 Option (C) still authoritative · no conflicting Namespace edit
+- [ ] CL-001 still authoritative · structural axes unchanged without Version bump policy
+- [ ] CV-001 still authoritative · `schemaComplete` meaning untouched (Framework RO)
+- [ ] §13 RL-1…RL-8 connection points still apply
+- [ ] §10 path policy obeyed for intended body paths
+
+#### 14.5.2 Catalog body (cite §15; requires A-4 at declaration)
+
+- [ ] Header required fields populated per §15.3
+- [ ] RuleRecord required fields present for every authored Rule (when Rules exist)
+- [ ] No `VAL-*` used as Rule IDs; `SCH-R-*` Trace-only if present
+- [ ] `catalogPinId` null or deferred until Official packaging (not silently invented)
+
+#### 14.5.3 Register body (cite §16; requires A-5 at declaration)
+
+- [ ] `registerHeader` / `catalogReference` consistent with Catalog Version/Revision
+- [ ] Register Pin Package shape respected (§16.10 · RPP-*)
+- [ ] Suite entries do not redefine Catalog Rule statement meanings (RR-1)
+- [ ] Finding Register namespace remains `VAL-*` only (RR-3)
+
+#### 14.5.4 Gate / packaging readiness
+
+- [ ] FCG-1…FCG-9 evaluated and recorded
+- [ ] Official Pin packaging plan cites §11.3 / RPP-8 (ID mint **after** declaration packaging Session)
+- [ ] Explicit statement prepared for declaration Session (separate from this Gate doc)
+
+### 14.6 Explicit non-outputs (IU-2-08A)
+
+| Forbidden | Status |
+|-----------|--------|
+| Freeze Candidate **declaration** | **Not declared** |
+| Catalog / Register `.json` files | **Not created** |
+| `catalogPinId` / `registerPinId` issuance | **None** |
+| NS-U1-001 / CL-001 / CV-001 edits | **None** |
+| §15 / §16 edits | **None** |
+
+### 14.7 Sequence (policy)
+
+```text
+IU-2-06* / IU-2-07*   Structure defined (cite)     ← done as Design
+        ↓
+IU-2-08A              Freeze Candidate Gate defined ← this IU (no declaration)
+        ↓
+Body authoring        A-4 / A-5 on-disk             ← later (not this IU)
+        ↓
+Review                §14.5 checklist PASS          ← later
+        ↓
+Declaration Session   Freeze Candidate declared     ← later (not this IU)
+        ↓
+Official packaging    catalogPinId mint · path bind ← IU-2-08* packaging / follow-on
+```
+
+### 14.8 IU-2-08A PASS
+
+- [x] Freeze Candidate Gate purpose · prerequisites · Required Artifacts defined  
+- [x] Gate Pass Conditions FCG-1…FCG-9 · Review checklist defined  
+- [x] IU-2-06 / IU-2-07 cited only · §15 / §16 unmodified  
+- [x] No Freeze Candidate declaration · no JSON · no Pin ID · no NS/CL/CV edit  
 
 ---
 
@@ -1679,12 +1820,13 @@ registers.catalogPinRegister: { entries: [] }
 
 | Item | Value |
 |------|-------|
-| Version | **v0.13** |
+| Version | **v0.14** |
 | Status | Design Draft · **Not Frozen** |
-| Session | **S7-P2-IU-2-07B** |
+| Session | **S7-P2-IU-2-08A** |
 | IU-2-07A | **PASS** (§16 Register JSON Body Structure) |
 | IU-2-07B | **PASS** (§16.10 Register Pin Packaging) |
-| Next Session | **S7-P2-IU-2-08A** |
+| IU-2-08A | **PASS** (§14 Freeze Candidate Gate · **not declared**) |
+| Next Session | **S7-P2-IU-2-08B** |
 | Location | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` |
 
 ### Revision History
@@ -1703,8 +1845,9 @@ registers.catalogPinRegister: { entries: [] }
 | v0.10 | 2026-07-19 | S7-P2-IU-2-06A — §15 Catalog JSON Body Skeleton |
 | v0.11 | 2026-07-19 | S7-P2-IU-2-06B — §15 Catalog JSON Body Structure |
 | v0.12 | 2026-07-19 | S7-P2-IU-2-07A — §16 Register JSON Body Structure |
-| **v0.13** | 2026-07-19 | **S7-P2-IU-2-07B** — §16.10 Register Pin Packaging |
+| v0.13 | 2026-07-19 | S7-P2-IU-2-07B — §16.10 Register Pin Packaging |
+| **v0.14** | 2026-07-19 | **S7-P2-IU-2-08A** — §14 Freeze Candidate Gate (definition only · not declared) |
 
 ---
 
-*End of STEP7_Catalog_Freeze_Design.md v0.13*
+*End of STEP7_Catalog_Freeze_Design.md v0.14*
