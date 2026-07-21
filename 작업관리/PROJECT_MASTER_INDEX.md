@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.31  
+Version: 1.32  
 Last Updated: 2026-07-21  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
@@ -112,7 +112,8 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | **SPS System Inventory (STEP 4)** | **Complete · Final v1.0 (2026-07-14)** — 38 Systems · Observation SSOT · Metadata Inventory · Registration Inventory · Inventory Assets · **Frozen Assets declared** · SSOT: `System Platform Standard (SPS) v1.0/System_Inventory.md` |
 | **SPS Architecture Audit (STEP 5)** | **Complete · Final Freeze v1.0 (2026-07-15)** — Framework · Audit Plan · Rule Catalog · Registers · Audit Report · STEP6 Handoff · `STEP5_FINAL_FREEZE.md` |
 | **SPS Schema Validation (STEP 6)** | **Complete · Final Freeze v1.0 (2026-07-17)** — Framework · Pipeline **Locked** · Catalog/Register Design · Engine (7A–7G) · Pilot · Production Validation · Report · `STEP6_FINAL_FREEZE.md` |
-| **SPS System Standardization (STEP 7)** | **P6 Complete (2026-07-21)** — P5 IU-5-01A…05A PASS · P6 IU-6-01A…06A Complete (Design-only) · WG-AI-001 PASS · Architecture Workflow PASS · **P6 Fleet Ready** · Next: **`STEP7_P6_FLEET_BATCH1_01A`** |
+| **SPS System Standardization (STEP 7)** | **P6 Complete (2026-07-21)** — P5 IU-5-01A…05A PASS · P6 IU-6-01A…06A Complete (Design-only) · WG-AI-001 PASS · Architecture Workflow PASS · Fleet design chain (01A–01F) authored |
+| **SPS Fleet Apply (STEP 8)** | **In Progress (2026-07-21)** — Fleet Contract Book v1.0 Ratified Review **PASS (Conditional)** (design-level) · Apply Batches **B0·B1·B2·B2.5 PASS** · **B3 Metadata HALTED (Safe Stop)** · Next **B4 Anchor Apply** |
 | ADMIN | Position Lock → SYS / HP·T / STR / AI 입력 → Dataset SAVE |
 | USER | Search(published) → 공략 선택 → **AI · 두께/타점 · 동선** 중심 실전 공략 UI |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
@@ -1015,7 +1016,7 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 ## 다음 작업 우선순위
 
-> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. Current: **STEP7 P6 Complete (Design-only) · P6 Fleet Ready**.
+> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply In Progress** — B0·B1·B2·B2.5 **PASS** · B3 **HALTED (Safe Stop)** · Next **B4**. Current: **STEP8 Fleet Apply (B4 pending)**.
 
 ### STEP7 상태
 
@@ -1074,11 +1075,40 @@ STEP7 P6 Fleet · STEP7_P6_FLEET_BATCH1_01A
 | **Freeze Candidate (Catalog)** | **Not Declared** |
 | **Catalog / Register JSON** | **Not created** |
 | **catalogPinId** | **Not issued** |
-| **Current Stage** | **STEP7 P6 Complete** (Design-only) · P6 Fleet Ready |
-| **Prerequisite** | **WG-AI-001 PASS · P6 IU-6-01A…06A Complete · Verification Entry Complete** |
-| **Next Session** | **`STEP7_P6_FLEET_BATCH1_01A`** (P6 Fleet Batch 1) |
-| **Current Queue** | **P6 Fleet** |
+| **Current Stage** | **STEP8 Fleet Apply — In Progress** · B0·B1·B2·B2.5 PASS · B3 HALTED (Safe Stop) |
+| **Prerequisite** | **WG-AI-001 PASS · Fleet Contract Book Ratified Review PASS (Conditional)** |
+| **Next Session** | **STEP8 Batch B4 (L4 Anchor Apply)** |
+| **Current Queue** | **STEP8 Fleet Apply (B4 → B8)** |
 | **Ops AI Guide** | **`OPS_AI_MODEL_GUIDE.md` v0.1** |
+
+### STEP8 상태 (Fleet Apply — In Progress)
+
+```text
+STEP8 Fleet Apply Plan (Execution)
+        ↓
+B0  Compatibility Alias        PASS   (82cb371, atomic w/ B1)
+B1  Identity Rename            PASS   (Plus_5_system → plus_5_system)
+B2  Schema Normalize           PASS   (a32bed9)
+B2.5 File-format Normalize     PASS   (0tip_plus JSONC · double_rail Python → JSON)
+B3  Metadata Normalize         HALTED (Safe Stop · meaning-preservation)
+B4  Anchor Apply               Pending
+B5  Logic                      Pending
+B6  Runtime                    Pending  (loader glob exclusion 해제 포함)
+B7  Presentation               Pending
+B8  Validation                 Pending
+```
+
+| Item | Status |
+|------|--------|
+| **Fleet Contract Book v1.0** | **Ratified Review PASS (Conditional)** · design-level (chapters not yet persisted as on-disk SSOT) |
+| **Ratified Review** | **PASS** · Blocker 0 · non-blocking DIV-01…04 · external QG-10 |
+| **B0 Compatibility Alias** | **PASS** (`82cb371`, atomic with B1) |
+| **B1 Identity Rename** | **PASS** (`Plus_5_system` → `plus_5_system`) |
+| **B2 Schema Normalize** | **PASS** (`a32bed9`) — 9× `logic.system` → `system_id` |
+| **B2.5 File-format** | **PASS** — 0tip_plus JSONC / double_rail Python → strict JSON |
+| **B3 Metadata Normalize** | **HALTED (Safe Stop)** — Book Ch.7 canonical mapping not ratified on-disk · no semantic-change rename · **NOT a failure** |
+| **Next** | **B4 (L4 Anchor Apply)** |
+| **Commit** | B0+B1 `82cb371` · B2+B2.5 `a32bed9` · **Push not performed** |
 
 ### STEP6 상태 (Consume)
 

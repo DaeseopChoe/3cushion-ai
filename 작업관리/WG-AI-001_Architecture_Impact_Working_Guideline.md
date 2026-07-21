@@ -526,3 +526,25 @@ Architecture Impact 분석 기준만 정의한다.
 
 본 Guideline은 Standard가 아니며,
 실제 IMP Record 생성 및 Apply/Verification은 수행하지 않는다.
+
+---
+
+## Appendix — STEP8 Execution Rule (Fleet Apply)
+
+STEP8 Fleet Apply 실행 중 아래 Execution Rule을 적용한다.
+본 규칙은 Architecture 보호를 위한 Apply-time 안전장치이며, 기존 Impact 평가 절차를 대체하지 않는다.
+
+1. **Metadata rename 제약**
+   - Metadata(키) rename은 **Fleet Contract Book Ch.7의 Ratified mapping이 on-disk SSOT로 존재할 때에만** 수행한다.
+   - Ratified mapping이 없는 상태의 임의 rename은 **금지**한다 (새 Rule 생성 = 금지).
+
+2. **의미 변경 시 즉시 중단 (Semantic Guard)**
+   - Apply 중 의미(semantic) 변경 가능성이 확인되면 **즉시 중단(Safe Stop)** 하고 근거를 보고한다.
+   - Runtime 소비 필드(예: `profile.meta.version`)를 파손할 수 있는 변경은 해당 Layer 단독으로 수행하지 않는다.
+
+3. **Safe Stop ≠ FAIL**
+   - **HALTED(Safe Stop)** 는 실패가 아니라 Architecture·의미 보존을 위한 **정상 종료**이다.
+   - HALTED 배치는 근거 SSOT가 확보될 때까지 **재시도하지 않는다**.
+
+4. **적용 이력 (참조)**
+   - B0/B1 (`82cb371`), B2/B2.5 (`a32bed9`) = PASS · B3 (Metadata) = HALTED (Safe Stop) — 근거: Ch.7 Metadata canonical mapping SSOT 미Ratify.

@@ -1,8 +1,43 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.19  
+Version : v1.20  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-21 (STEP8 Fleet Apply — B0…B2.5 PASS · B3 HALTED · Next = B4)
+
+## 제목
+
+**D-STEP8-01** — STEP8 Fleet Apply 실행 개시 · B0/B1/B2/B2.5 PASS · B3 Metadata HALTED (Safe Stop) · Next = B4 (L4 Anchor Apply)
+
+## Summary
+
+Fleet Contract Book v1.0 Ratified Review **PASS (Conditional)** 이후, STEP8 Fleet Apply(실제 Repository 적용)를 개시하였다.
+Apply Plan → PEND-03(Storage Key Impact) → B0 Compatibility Alias Design(설계, Ask)을 거쳐 실제 적용을 수행하였다.
+
+- **B0+B1 (atomic, `82cb371`)** — `Plus_5_system` → `plus_5_system` Identity Rename + registry 단일 정규화 alias(`canonicalRegistryKey`). 디렉토리/`system_meta.system_id`/`profile.system`/SysOverlay id/라벨맵 동기. Build PASS · test 회귀 0.
+- **B2+B2.5 (atomic, `a32bed9`)** — 9× `logic.system`→`system_id` 스키마 키 정규화(값 불변, sunrise_sunset 객체형 제외) + 파일포맷 정상화(0tip_plus JSONC 주석 제거, double_rail Python heredoc → strict JSON, 데이터 동일). JSON 149/149 parse · Build PASS.
+- **B3 (Metadata)** — **HALTED (Safe Stop)**. Book Ch.7 Metadata canonical mapping이 on-disk SSOT로 Ratify되지 않았고(`system_meta`는 이미 균일, `profile/logic/anchors.meta`는 이질적), 임의 rename이 의미 변경 위험 + Loader `profile.meta.version` 파손 위험이 있어 안전 중단. 코드/JSON/Runtime 변경 없음.
+
+**Push 미수행.** Runtime baseline `ec71ef9` → Apply commits `82cb371`·`a32bed9` (local only).
+
+## Decision Log
+
+| Decision | Statement |
+|----------|-----------|
+| **D-STEP8-01** | STEP8 Fleet Apply 개시 · B0/B1/B2/B2.5 PASS · B3 HALTED · Next = B4 |
+| **D-STEP8-02** | B0+B1 원자 적용(alias+rename 동시) · commit `82cb371` |
+| **D-STEP8-03** | B2+B2.5 원자 적용 · commit `a32bed9` · Formula/Value/Anchor 좌표/Logic 의미 무변경 |
+| **D-STEP8-04** | B3 = HALTED(Safe Stop) — Ch.7 metadata mapping SSOT 부재 · 의미 변경 없음 · **FAIL 아님** · 재시도 금지 |
+| **D-STEP8-05** | B3 재개 조건 = Ch.7 canonical metadata mapping을 on-disk SSOT로 Ratify |
+
+## Notes
+
+- No semantic change · No runtime change · No push.
+- Fleet Contract Book 챕터(Ch.1–14, Appendix A–E)는 현재 **설계 산출물로만 존재(파일 미영속)** — 후속 배치(B3 등)의 근거 SSOT로 삼으려면 디스크 Ratify 필요.
+- Next = **STEP8 B4 (L4 Anchor Apply)**.
 
 ---
 

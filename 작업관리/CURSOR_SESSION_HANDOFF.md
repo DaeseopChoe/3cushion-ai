@@ -4,8 +4,8 @@
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
 Date      : 2026-07-21
-Scope     : STEP7 P6 Complete · Design-only · Next = P6 Fleet
-Rule      : Fact only · Consume WG-AI-001 + P6 IU suite · No WG/P5/P6 edit unless Issue · No Framework/Pipeline redesign
+Scope     : STEP8 Fleet Apply In Progress · B0/B1/B2/B2.5 PASS · B3 HALTED · Next = B4
+Rule      : Fact only · Consume Fleet Contract Book + WG-AI-001 · No semantic-change metadata rename without ratified Ch.7 · Safe Stop ≠ FAIL
 ```
 
 ---
@@ -43,24 +43,26 @@ Rule      : Fact only · Consume WG-AI-001 + P6 IU suite · No WG/P5/P6 edit unl
 ## 1. Current Status
 
 ```text
-STEP7 P5        : Complete
-STEP7 P6        : Complete (Design-only)
-Architecture WF : PASS
-Next Stage      : STEP7 P6 Fleet
-Next Session    : STEP7_P6_FLEET_BATCH1_01A
+STEP7           : Complete (P2–P6 · Design-only)
+STEP8 Fleet     : In Progress
+  B0/B1         : PASS (82cb371)
+  B2/B2.5       : PASS (a32bed9)
+  B3 Metadata   : HALTED (Safe Stop · meaning-preservation)
+Next Stage      : STEP8 Batch B4 (L4 Anchor Apply)
+Next Session    : STEP8 B4 — do NOT retry B3
 ```
 
 | Item | Value |
 |------|-------|
 | **Project** | 3Cushion AI |
-| **SPS Stage** | **STEP7 System Standardization** |
-| **Current Stage** | **STEP7 P6 Complete** (Design-only) |
-| **Next Stage** | **STEP7 P6 Fleet** |
-| **Next Session** | **`STEP7_P6_FLEET_BATCH1_01A`** |
-| **Prerequisite** | **WG-AI-001 PASS · P6 IU-6-01A…06A Complete · Verification Entry Complete** |
-| **Current Queue** | **P6 Fleet** |
+| **SPS Stage** | **STEP8 Fleet Apply (Execution)** |
+| **Current Stage** | **STEP8 In Progress** · B0/B1/B2/B2.5 PASS · B3 HALTED |
+| **Next Stage** | **STEP8 Batch B4 (L4 Anchor Apply)** |
+| **Next Session** | **STEP8 B4** — do not retry B3 |
+| **Prerequisite** | **Fleet Contract Book Ratified Review PASS (Conditional) · WG-AI-001 PASS** |
+| **Current Queue** | **STEP8 Fleet Apply (B4 → B8)** |
 | **Architecture** | Locked |
-| **Runtime Baseline** | `ec71ef9` (unchanged) |
+| **Runtime Baseline** | `ec71ef9` → Apply commits `82cb371` (B0+B1) · `a32bed9` (B2+B2.5) · not pushed |
 
 ### Current Deliverables
 
@@ -120,6 +122,41 @@ P6 Fleet · STEP7_P6_FLEET_BATCH1_01A
 
 ---
 
+## 1-S8. STEP8 Fleet Apply — 현재 상태 (New Session Entry)
+
+```text
+STEP8 Fleet Apply (Execution) — In Progress
+Completed : B0 · B1 · B2 · B2.5   (PASS)
+Halted    : B3 (Metadata Normalize)  — Safe Stop
+Next      : B4 (L4 Anchor Apply)
+```
+
+| Batch | 내용 | 상태 | Commit |
+|-------|------|------|--------|
+| B0 | Compatibility Alias (`Plus_5_system`→`plus_5_system`) | **PASS** | `82cb371` (atomic w/ B1) |
+| B1 | Identity Rename | **PASS** | `82cb371` |
+| B2 | Schema Normalize (9× `logic.system`→`system_id`) | **PASS** | `a32bed9` |
+| B2.5 | File-format (0tip_plus JSONC · double_rail Python → JSON) | **PASS** | `a32bed9` |
+| **B3** | **Metadata Normalize** | **HALTED (Safe Stop)** | — |
+| B4 | Anchor Apply | Pending | — |
+| B5…B8 | Logic / Runtime / Presentation / Validation | Pending | — |
+
+### B3 HALTED — 사유 (재시도 금지)
+
+- Fleet Contract Book **Ch.7 (L3 Metadata Contract)** 의 **Canonical Metadata Mapping이 아직 on-disk SSOT로 Ratify되지 않음** (Book 챕터는 설계 산출물로만 존재, 파일 미영속).
+- `system_meta.json`은 이미 38/38 균일 → 정규화 대상 없음.
+- `profile.meta`/`logic.meta`/`anchors.meta`는 이질적(키 19/15/14종)이며 `version`/`spec_version`/`rule_version`/`last_updated`/`created_at` 등 **의미가 다를 수 있는 키**를 임의 rename 시 **의미 변경 위험**.
+- Loader가 `profile.meta.version`을 소비 → 임의 rename 시 Runtime 파손.
+- 따라서 **"의미 변경 시 즉시 중단"** 규칙에 따라 안전 중단. **Safe Stop ≠ FAIL.**
+
+### 절대 금지 / 권장
+
+- ❌ **B3를 그대로 재시도 금지** (근거 SSOT 부재).
+- ✅ **새 세션은 B4(L4 Anchor Apply)부터** 진행 권장.
+- ✅ B3는 **Ch.7 매핑 테이블을 디스크에 Ratify한 뒤**에만 재개.
+
+---
+
 ## 2. 완료된 작업 (최근)
 
 | Track | Result |
@@ -174,12 +211,12 @@ P6 Fleet · STEP7_P6_FLEET_BATCH1_01A
 ## 5. Current Session Card
 
 ```text
-Session ID     : (P6 close / SSOT sync — complete)
-Prior          : STEP7 P6 Complete · IU-6-01A…06A · Design-only
-Next Session   : STEP7_P6_FLEET_BATCH1_01A
-Queue          : P6 Fleet
-Agent Task     : Start P6 Fleet Batch 1 · Consume WG-AI-001 + P6 IU-6-01A…06A (Verification Package)
-Repo           : Docs synced · Commit/Push pending (separate session)
+Session ID     : (STEP8 B0…B2.5 apply + B3 safe-stop + SSOT sync — complete)
+Prior          : STEP8 B0/B1 (82cb371) · B2/B2.5 (a32bed9) PASS · B3 HALTED
+Next Session   : STEP8 Batch B4 (L4 Anchor Apply)
+Queue          : STEP8 Fleet Apply (B4 → B8)
+Agent Task     : Start B4 · Consume Fleet Contract Book + WG-AI-001 · do NOT retry B3
+Repo           : Source applied (B0…B2.5 committed, not pushed) · Docs synced this session (not committed)
 ```
 
 ---
@@ -209,18 +246,16 @@ Repo           : Docs synced · Commit/Push pending (separate session)
 - [ ] (Optional separate) Commit/Push docs  
 
 ```text
-STEP7 P6 COMPLETE (Design-only)
-IU-6-01A…06A Complete · Verification Entry Complete
-Architecture Workflow PASS
-WG-AI-001 PASS · Freeze Candidate
-Runtime / System JSON / WG / P5 unchanged
-Next Stage: STEP7 P6 Fleet
-Next: STEP7_P6_FLEET_BATCH1_01A
-Consume WG-AI-001 + P6 IU-6-01A…06A · do not edit WG/P5/P6 unless Issue
-Do not mutate Runtime / System JSON without scoped Apply
-Commit/Push = separate session
+STEP8 FLEET APPLY — IN PROGRESS
+B0 · B1 (82cb371) · B2 · B2.5 (a32bed9) = PASS
+B3 Metadata = HALTED (Safe Stop · meaning-preservation) · do NOT retry
+Fleet Contract Book Ratified Review PASS (Conditional)
+Next Stage: STEP8 Batch B4 (L4 Anchor Apply)
+Consume Fleet Contract Book + WG-AI-001
+B3 재개 조건: Ch.7 Metadata canonical mapping을 on-disk SSOT로 Ratify
+Apply commits not pushed · Docs synced this session
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — STEP7 P6 Complete · Fleet Ready*
+*End of CURSOR_SESSION_HANDOFF.md — STEP8 Fleet Apply In Progress · B0…B2.5 PASS · B3 HALTED · Next B4*
