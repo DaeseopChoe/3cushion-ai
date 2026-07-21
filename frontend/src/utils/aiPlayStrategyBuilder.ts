@@ -105,7 +105,7 @@ const SYSTEM_NAME_KO: Record<string, string> = {
   "1byhalf": "반팁 시스템",
   "3and4_system": "3과4 시스템",
   "3tip_across": "3팁 횡단",
-  Plus_5_system: "플러스 5",
+  plus_5_system: "플러스 5",
   minus_5_system: "마이너스 5",
   n_across: "N자 횡단",
   n_across_short: "짧은 N자 횡단",

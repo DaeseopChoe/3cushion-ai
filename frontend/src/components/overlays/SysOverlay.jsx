@@ -106,7 +106,7 @@ export function SysOverlay({
     { id: "1byhalf", label: "반팁 시스템" },
     { id: "3and4_system", label: "3과4 시스템" },
     { id: "3tip_across", label: "3팁 횡단" },
-    { id: "Plus_5_system", label: "플러스 5" },
+    { id: "plus_5_system", label: "플러스 5" },
     { id: "minus_5_system", label: "마이너스 5" },
     { id: "n_across", label: "N자 횡단" },
     { id: "n_across_short", label: "짧은 N자 횡단" },

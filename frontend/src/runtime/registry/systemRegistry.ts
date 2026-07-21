@@ -16,7 +16,9 @@ function canonicalRegistryKey(
   systemId: string | null | undefined
 ): string | null {
   if (systemId == null || systemId === "") return "5_half_system";
-  return systemId === "5_HALF" ? "5_half_system" : systemId;
+  if (systemId === "5_HALF") return "5_half_system";
+  if (systemId === "Plus_5_system") return "plus_5_system";
+  return systemId;
 }
 
 const contractCache = new Map<string, SystemContract>();

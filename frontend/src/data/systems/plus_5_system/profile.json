@@ -1,5 +1,5 @@
 {
-  "system": "Plus_5_system",
+  "system": "plus_5_system",
   "formula": { "expr": "C3_r = CO_f + 5 + (C1_f * An)" },
   "value_domains": {
     "CO_sys": [0, 5, 10, 15],
