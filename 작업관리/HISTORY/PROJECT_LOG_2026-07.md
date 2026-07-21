@@ -1,8 +1,133 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.16  
+Version : v1.18  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-21 (STEP7 P5 Complete · Architecture Change Design · P6 Ready)
+
+## 제목
+
+**D-STEP7-P5-01** — STEP7 P5 Change Design Complete · Architecture Workflow PASS · Next = P6 Apply Decision
+
+## Summary
+
+STEP7 Phase **P5 (Change Design)** 를 완료한다.  
+P5 IU queue (`IU-5-01A` … `IU-5-05A`) 전체와 **WG-AI-001** (Architecture Impact Working Guideline)이  
+Cursor Self Review **PASS**를 기록하였다.  
+P5에서 **Working Guideline → IU Consume** 패턴을 최초 적용하였고,  
+Architecture Impact Analysis → Architecture Review Workflow 검증을 완료하였다.  
+**P6 Apply Decision 준비 완료** · Next Session = **`STEP7_P6_IU-6-01A`**.  
+본 기록은 운영 SSOT(MASTER · LOG · HANDOFF) 반영용이다 (**Commit / Push는 별도 Session**).
+
+## Decision Log
+
+| Decision | Statement |
+|----------|-----------|
+| **D-STEP7-P5-01** | STEP7 P5 **Complete** · IU-5-01A … IU-5-05A PASS · WG-AI-001 PASS · Next = **`STEP7_P6_IU-6-01A`** |
+| **D-STEP7-P5-02** | Working Guideline(WG-AI-001) → IU Consume 패턴 P5 최초 적용 |
+| **D-STEP7-P5-03** | WG-AI-001 = Primary Rule Source · Freeze Candidate · Issue-only change |
+| **D-STEP7-P5-04** | P5 = Design-only · Apply / Verification / Runtime / System JSON 변경 없음 |
+
+## P5 Complete Record
+
+| Item | Status |
+|------|--------|
+| STEP7_P5_IU-5-01A (Change Design Scope) | **PASS** |
+| STEP7_P5_IU-5-02A (Resolution Mapping) | **PASS** |
+| STEP7_P5_IU-5-03A (Change Package Design) | **PASS** |
+| WG-AI-001 (Architecture Impact Working Guideline) | **PASS** |
+| STEP7_P5_IU-5-04A (Architecture Impact Analysis) | **PASS** |
+| STEP7_P5_IU-5-05A (Architecture Review) | **PASS** |
+| P5 Architecture Workflow 검증 | **완료** |
+| Working Guideline → IU Consume 패턴 | **P5 최초 적용** |
+| P5 전체 Self Review | **완료** |
+| P6 Apply Decision | **준비 완료** |
+
+## Explicit Non-Outputs (P5)
+
+| Item | Status |
+|------|--------|
+| WG-AI-001 Standard 승격 | **Not declared** (Freeze Candidate 유지) |
+| 실제 IMP Record 생성 · Apply · Verification | **Not performed** |
+| Runtime / System JSON / D-GAP mutation | **None** |
+| Git Commit / Push | **Deferred** (separate session) |
+
+## Related Project Docs Synced
+
+- `CURSOR_SESSION_HANDOFF.md` — P5 Complete · P6 Ready · Next `STEP7_P6_IU-6-01A`
+- `PROJECT_MASTER_INDEX.md` v1.30 — STEP7 P5 Complete · P6 Ready
+- `PROJECT_LOG_2026-07.md` v1.18 — 본 항목
+
+## Status
+
+**STEP7 P5 Complete · Architecture Workflow PASS · P6 Ready**
+
+## Next Session
+
+**STEP7_P6_IU-6-01A** — Apply Decision
+
+---
+
+# 2026-07-20 (WG-AI-001 Architecture Impact Working Guideline PASS · P5-IU-5-04A Ready)
+
+## 제목
+
+**D-STEP7-P5-WG-01** — WG-AI-001 PASS · Consume Ready · Next = STEP7_P5_IU-5-04A
+
+## Summary
+
+**WG-AI-001** (`Architecture Impact Working Guideline`) 작성을 완료하고  
+Cursor Self Review **Overall PASS**를 기록한다.  
+WG-AI-001을 **P5-IU-5-04A**의 Consume 대상 Working Guideline으로 확정한다.  
+STEP7 P5에서 **Rule(Working Guideline) → IU Consume** Workflow를 최초 적용한다.  
+WG-AI-001은 **Freeze Candidate**로 관리하며, 이후 변경은 Issue 발생 시에만 검토한다.  
+Next Session = **`STEP7_P5_IU-5-04A`** (Architecture Impact Analysis).  
+본 기록은 운영 SSOT(MASTER · LOG · HANDOFF) 반영용이다 (**Commit / Push는 별도 Session**).
+
+## Decision Log
+
+| Decision | Statement |
+|----------|-----------|
+| **D-STEP7-P5-WG-01** | WG-AI-001 **PASS** · Consume Ready · Freeze Candidate |
+| **D-STEP7-P5-WG-02** | WG-AI-001 = P5-IU-5-04A **Consume-only** input · WG 본문 수정은 Issue 시에만 |
+| **D-STEP7-P5-WG-03** | P5 Rule / IU 분리 Workflow 최초 적용 (Working Guideline → IU Consume) |
+| **D-STEP7-P5-WG-04** | Next Session = **`STEP7_P5_IU-5-04A`** (Architecture Impact Analysis) |
+
+## Complete Record
+
+| Item | Status |
+|------|--------|
+| WG-AI-001 | **PASS** · `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` |
+| Cursor Self Review | **Overall PASS** |
+| Consume target for IU-5-04A | **Confirmed** |
+| WG Freeze posture | **Freeze Candidate** (Issue-only change) |
+| P5-IU-5-04A Entry | **Ready** |
+
+## Explicit Non-Outputs
+
+| Item | Status |
+|------|--------|
+| WG-AI-001 Standard 승격 | **Not declared** (P5 이후 검토) |
+| 실제 IMP Record 생성 | **Not performed** |
+| Runtime / System JSON / D-GAP mutation | **None** |
+| Git Commit / Push | **Deferred** (separate session) |
+
+## Related Project Docs Synced
+
+- `CURSOR_SESSION_HANDOFF.md` — WG-AI-001 PASS · Consume Ready · Next `STEP7_P5_IU-5-04A`
+- `PROJECT_MASTER_INDEX.md` v1.29 — P5 Architecture Impact WG PASS · IU-5-04A Ready
+- `PROJECT_LOG_2026-07.md` v1.17 — 본 항목
+
+## Status
+
+**WG-AI-001 PASS · Consume Ready · Freeze Candidate · P5-IU-5-04A Ready**
+
+## Next Session
+
+**STEP7_P5_IU-5-04A** — Architecture Impact Analysis
 
 ---
 
