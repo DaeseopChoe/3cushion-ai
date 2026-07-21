@@ -1,5 +1,5 @@
 {
-  "system": "plus_system",
+  "system_id": "plus_system",
 
   "track_selection": {
     "strategy": "ruleset",

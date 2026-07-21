@@ -3,10 +3,6 @@
   "canonical": "B2T_L",
 
   "anchors": [
-    /* =========================
-       RIGHT_TOP path
-       ========================= */
-
     { "id": "RT_COrg5_y20", "space": "Rg", "rail": "TOP", "axis": "long", "value": 5.0, "path": "RIGHT_TOP", "COrg": 5, "y1": 20 },
     { "id": "RT_COrg5_y25", "space": "Rg", "rail": "TOP", "axis": "long", "value": 35.0, "path": "RIGHT_TOP", "COrg": 5, "y1": 25 },
     { "id": "RT_COrg5_y30", "space": "Rg", "rail": "TOP", "axis": "long", "value": 55.0, "path": "RIGHT_TOP", "COrg": 5, "y1": 30 },
@@ -18,10 +14,6 @@
     { "id": "RT_COrg10_y30", "space": "Rg", "rail": "TOP", "axis": "long", "value": 56.666667, "path": "RIGHT_TOP", "COrg": 10, "y1": 30 },
     { "id": "RT_COrg10_y35", "space": "Rg", "rail": "TOP", "axis": "long", "value": 70.0, "path": "RIGHT_TOP", "COrg": 10, "y1": 35 },
     { "id": "RT_COrg10_y40", "space": "Rg", "rail": "TOP", "axis": "long", "value": 80.0, "path": "RIGHT_TOP", "COrg": 10, "y1": 40 },
-
-    /* =========================
-       LEFT_TOP path
-       ========================= */
 
     { "id": "LT_COrg5_y20", "space": "Rg", "rail": "TOP", "axis": "long", "value": 5.0, "path": "LEFT_TOP", "COrg": 5, "y1": 20 },
     { "id": "LT_COrg5_y25", "space": "Rg", "rail": "TOP", "axis": "long", "value": 3.0, "path": "LEFT_TOP", "COrg": 5, "y1": 25 },

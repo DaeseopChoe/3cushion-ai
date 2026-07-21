@@ -1,5 +1,5 @@
 {
-  "system": "99_to_1_system",
+  "system_id": "99_to_1_system",
 
   "applicability": {
     "required_marks": ["CO", "C4"],

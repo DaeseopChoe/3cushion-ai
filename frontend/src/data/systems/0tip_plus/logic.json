@@ -1,5 +1,5 @@
 {
-  "system": "otip_plus",
+  "system_id": "otip_plus",
 
   "applicability": {
     "required_marks": ["CO"],

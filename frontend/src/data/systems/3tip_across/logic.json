@@ -1,5 +1,5 @@
 {
-  "system": "3tip_across",
+  "system_id": "3tip_across",
 
   "logic_type": "spin_parallel_decision",
 

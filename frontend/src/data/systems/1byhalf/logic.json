@@ -1,5 +1,5 @@
 {
-  "system": "1byhalf",
+  "system_id": "1byhalf",
 
   "applicability": {
     "required_marks": ["CO", "C3"],

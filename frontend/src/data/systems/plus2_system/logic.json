@@ -1,5 +1,5 @@
 {
-  "system": "plus2_system",
+  "system_id": "plus2_system",
 
   "applicability": {
     "condition": "CO_sys < 20",

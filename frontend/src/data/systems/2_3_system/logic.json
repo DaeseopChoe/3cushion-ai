@@ -1,5 +1,5 @@
 {
-  "system": "2_3_system",
+  "system_id": "2_3_system",
 
   "applicability": {
     "required_marks": ["CO", "C3"],

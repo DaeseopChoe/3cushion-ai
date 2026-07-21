@@ -1,5 +1,5 @@
 {
-  "system": "ball_system",
+  "system_id": "ball_system",
 
   "track_selection": {
     "strategy": "ruleset",
