@@ -4,8 +4,8 @@
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
 Date      : 2026-07-21
-Scope     : STEP7 P5 Complete · Architecture Workflow PASS · P6 Ready
-Rule      : Fact only · Consume WG-AI-001 · No WG/P5 edit unless Issue · No Framework/Pipeline redesign
+Scope     : STEP7 P6 Complete · Design-only · Next = P6 Fleet
+Rule      : Fact only · Consume WG-AI-001 + P6 IU suite · No WG/P5/P6 edit unless Issue · No Framework/Pipeline redesign
 ```
 
 ---
@@ -17,11 +17,12 @@ Rule      : Fact only · Consume WG-AI-001 · No WG/P5 edit unless Issue · No F
 2. OPS_AI_MODEL_GUIDE.md                      (v0.1 · Ops · model recommendation)
 3. PROJECT_MASTER_INDEX.md
 4. PROJECT_LOG_2026-07.md
-5. CURSOR_SESSION_HANDOFF.md                  (본 문서 · P5 Complete · P6 Ready)
+5. CURSOR_SESSION_HANDOFF.md                  (본 문서 · P6 Complete · Fleet Ready)
 6. WG-AI-001_Architecture_Impact_Working_Guideline.md  (PASS · Consume · Freeze Candidate)
-7. STEP7_P5_IU-5-01A … IU-5-05A               (P5 Change Design suite · Consume)
-8. STEP7_IMPLEMENTATION_DECOMPOSITION.md      (v1.0 Approved · Session Execution SSOT)
-9. P4 Plan suite / Catalog Design / STEP6 Freeze  (Consume)
+7. STEP7_P6_IU-6-01A … IU-6-06A               (P6 Apply Decision suite · Consume)
+8. STEP7_P5_IU-5-01A … IU-5-05A               (P5 Change Design suite · Consume)
+9. STEP7_IMPLEMENTATION_DECOMPOSITION.md      (v1.0 Approved · Session Execution SSOT)
+10. P4 Plan suite / Catalog Design / STEP6 Freeze  (Consume)
 ```
 
 | # | Document | Path |
@@ -32,9 +33,10 @@ Rule      : Fact only · Consume WG-AI-001 · No WG/P5 edit unless Issue · No F
 | 4 | PROJECT_LOG | `작업관리/HISTORY/PROJECT_LOG_2026-07.md` |
 | 5 | CURSOR_SESSION_HANDOFF | `작업관리/CURSOR_SESSION_HANDOFF.md` |
 | 6 | **WG-AI-001** | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` **PASS** |
-| 7 | P5 Change Design suite | `System Platform Standard (SPS) v1.0/STEP7_P5_IU-5-0*.md` |
-| 8 | Implementation Decomposition | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` |
-| 9 | P4 / P2 / STEP6 | SPS v1.0 (Consume) |
+| 7 | **P6 Apply Decision suite** | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` |
+| 8 | P5 Change Design suite | `System Platform Standard (SPS) v1.0/STEP7_P5_IU-5-0*.md` |
+| 9 | Implementation Decomposition | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` |
+| 10 | P4 / P2 / STEP6 | SPS v1.0 (Consume) |
 
 ---
 
@@ -42,20 +44,21 @@ Rule      : Fact only · Consume WG-AI-001 · No WG/P5 edit unless Issue · No F
 
 ```text
 STEP7 P5        : Complete
+STEP7 P6        : Complete (Design-only)
 Architecture WF : PASS
-P6 Entry        : Ready
-Next Session    : STEP7_P6_IU-6-01A (Apply Decision)
+Next Stage      : STEP7 P6 Fleet
+Next Session    : STEP7_P6_FLEET_BATCH1_01A
 ```
 
 | Item | Value |
 |------|-------|
 | **Project** | 3Cushion AI |
 | **SPS Stage** | **STEP7 System Standardization** |
-| **Current Stage** | **STEP7 P5 Complete** · P6 Ready |
-| **Next Stage** | **STEP7 P6** · Apply Decision |
-| **Next Session** | **`STEP7_P6_IU-6-01A`** — Apply Decision |
-| **Prerequisite** | **WG-AI-001 PASS · Architecture Workflow PASS · P5 Deliverables PASS** |
-| **Current Queue** | **P6** |
+| **Current Stage** | **STEP7 P6 Complete** (Design-only) |
+| **Next Stage** | **STEP7 P6 Fleet** |
+| **Next Session** | **`STEP7_P6_FLEET_BATCH1_01A`** |
+| **Prerequisite** | **WG-AI-001 PASS · P6 IU-6-01A…06A Complete · Verification Entry Complete** |
+| **Current Queue** | **P6 Fleet** |
 | **Architecture** | Locked |
 | **Runtime Baseline** | `ec71ef9` (unchanged) |
 
@@ -64,32 +67,39 @@ Next Session    : STEP7_P6_IU-6-01A (Apply Decision)
 | Deliverable | Status |
 |-------------|--------|
 | WG-AI-001 (Architecture Impact Working Guideline) | **PASS** · Freeze Candidate |
-| STEP7_P5_IU-5-01A (Change Design Scope) | **PASS** |
-| STEP7_P5_IU-5-02A (Resolution Mapping) | **PASS** |
-| STEP7_P5_IU-5-03A (Change Package Design) | **PASS** |
-| STEP7_P5_IU-5-04A (Architecture Impact Analysis) | **PASS** |
-| STEP7_P5_IU-5-05A (Architecture Review) | **PASS** |
+| STEP7_P6_IU-6-01A (Apply Decision Scope) | **Complete** |
+| STEP7_P6_IU-6-02A (Apply Candidate) | **Complete** |
+| STEP7_P6_IU-6-03A (Decision Criteria) | **Complete** |
+| STEP7_P6_IU-6-04A (Apply Readiness Review) | **Complete** |
+| STEP7_P6_IU-6-05A (Apply Decision Outcome) | **Complete** |
+| STEP7_P6_IU-6-06A (Verification Entry) | **Complete** |
+| STEP7_P5_IU-5-01A … IU-5-05A (Change Design suite) | **PASS** |
 
-### Current Workflow
+### P6 Workflow
 
 ```text
-WG-AI-001
+Apply Decision Scope (IU-6-01A)
         ↓
-Impact Analysis (IU-5-04A)
+Apply Candidate (IU-6-02A)
         ↓
-Architecture Review (IU-5-05A)
+Decision Criteria (IU-6-03A)
         ↓
-P6 Apply Decision (IU-6-01A)
+Apply Readiness (IU-6-04A)
+        ↓
+Apply Decision Outcome (IU-6-05A)
+        ↓
+Verification Entry (IU-6-06A)
 ```
 
 ### Repository status (working tree · no commit this session)
 
 | Item | Status |
 |------|--------|
+| P6 IU-6-01A…06A suite | **Present** · Complete |
 | P5 IU suite · WG-AI-001 | **Present** · PASS |
 | MASTER / LOG / HANDOFF | **Updated** (this close session) |
 | Git Commit / Push | **Not performed** (separate session) |
-| Runtime / System JSON / D-GAP | **Unchanged** |
+| Runtime / System JSON / WG / P5 | **Unchanged** |
 
 ### STEP7 Gate Chain
 
@@ -102,8 +112,10 @@ P4 Standardization Plan COMPLETE · VG-P4 PASS
         ↓
 P5 Change Design COMPLETE · IU-5-01A…05A PASS · WG-AI-001 PASS
         ↓
+P6 Apply Decision COMPLETE · IU-6-01A…06A · Design-only
+        ↓
 Next
-P6 · STEP7_P6_IU-6-01A (Apply Decision)
+P6 Fleet · STEP7_P6_FLEET_BATCH1_01A
 ```
 
 ---
@@ -112,10 +124,12 @@ P6 · STEP7_P6_IU-6-01A (Apply Decision)
 
 | Track | Result |
 |-------|--------|
+| **STEP7 P6 Apply Decision** | **COMPLETE** (`IU-6-01A` … `IU-6-06A`) · Design-only |
+| **P6 Verification Entry** | **Complete** (P7 Handoff Package 정의) |
 | **STEP7 P5 Change Design** | **COMPLETE** (`IU-5-01A` … `IU-5-05A`) |
 | **WG-AI-001** | **PASS** · Freeze Candidate |
 | **Architecture Workflow** | Impact Analysis → Architecture Review 검증 완료 |
-| **Working Guideline → IU Consume 패턴** | P5 최초 적용 |
+| **Working Guideline → IU Consume 패턴** | P5 적용 · P6 계속 유지 |
 | P4 Standardization Plan | COMPLETE · VG-P4 PASS |
 | P3 Gap Analysis | COMPLETE · VG-P3 PASS |
 | P2 Catalog Design | COMPLETE v0.15 |
@@ -126,8 +140,9 @@ P6 · STEP7_P6_IU-6-01A (Apply Decision)
 
 | Artifact | Status |
 |----------|--------|
-| **WG-AI-001** | **PASS · Consume · Freeze Candidate** · P6 계속 Consume · Issue 없이 수정 금지 |
-| **P5 IU-5-01A … IU-5-05A** | **Complete · Consume** for P6 |
+| **WG-AI-001** | **PASS · Consume · Freeze Candidate** · Fleet 계속 Consume · Issue 없이 수정 금지 |
+| **P6 IU-6-01A … IU-6-06A** | **Complete · Consume** for Fleet · Issue 없이 수정 금지 |
+| **P5 IU-5-01A … IU-5-05A** | **Complete · Consume** |
 | Framework / Pipeline | Locked · Consume |
 | STEP6 Final Freeze | Completed · Consume |
 | P2 Catalog Design (v0.15) | Complete · Consume |
@@ -135,7 +150,7 @@ P6 · STEP7_P6_IU-6-01A (Apply Decision)
 | P4 Plan suite | Complete · Official · Consume |
 | OPS_AI_MODEL_GUIDE | Active Ops · Recommendation only |
 | Architecture / Runtime | Locked / RO |
-| System JSON | RO until scoped Change Design (Apply+) |
+| System JSON | RO until scoped Apply (Fleet+) |
 
 ---
 
@@ -145,6 +160,7 @@ P6 · STEP7_P6_IU-6-01A (Apply Decision)
 |-----------|
 | WG-AI-001 informal edit (Issue 없이 수정 금지) |
 | P5 IU-5-01A … IU-5-05A informal edit (Issue 없이 수정 금지) |
+| P6 IU-6-01A … IU-6-06A informal edit (Issue 없이 수정 금지) |
 | STEP6 Framework / Pipeline informal edit |
 | STEP4 / STEP5 Frozen · STEP6 Freeze surface rewrite |
 | Runtime / Registry / Loader / Contract (승인 없는 변경) |
@@ -158,11 +174,11 @@ P6 · STEP7_P6_IU-6-01A (Apply Decision)
 ## 5. Current Session Card
 
 ```text
-Session ID     : (P5 close / SSOT sync — complete)
-Prior          : STEP7 P5 Complete · IU-5-01A…05A PASS · WG-AI-001 PASS
-Next Session   : STEP7_P6_IU-6-01A
-Queue          : P6
-Agent Task     : Start P6 Apply Decision · Consume WG-AI-001 + P5-IU-5-05A results
+Session ID     : (P6 close / SSOT sync — complete)
+Prior          : STEP7 P6 Complete · IU-6-01A…06A · Design-only
+Next Session   : STEP7_P6_FLEET_BATCH1_01A
+Queue          : P6 Fleet
+Agent Task     : Start P6 Fleet Batch 1 · Consume WG-AI-001 + P6 IU-6-01A…06A (Verification Package)
 Repo           : Docs synced · Commit/Push pending (separate session)
 ```
 
@@ -172,8 +188,8 @@ Repo           : Docs synced · Commit/Push pending (separate session)
 
 | Pending | Notes |
 |---------|-------|
-| **Git Commit / Push** | Persist P5 + WG + Ops docs (separate session) |
-| **KI-01…04 / DGR-001…013** | Disposition via P6 Apply Decision path |
+| **Git Commit / Push** | Persist P5 + P6 + WG + Ops docs (separate session) |
+| **KI-01…04 / DGR-001…013** | Disposition via Fleet Apply path |
 | Severity Lock | Deferred |
 | Catalog / Register JSON · Pin · Catalog Freeze declare | Still open |
 | WG-AI-001 Standard 승격 | 검토 보류 · 현재 Freeze Candidate only |
@@ -184,24 +200,27 @@ Repo           : Docs synced · Commit/Push pending (separate session)
 
 - [ ] OPS_AI_MODEL_GUIDE — emit Instant/Thinking recommendation at Entry  
 - [ ] DEVELOPMENT_WORKFLOW v0.3 §12  
-- [ ] MASTER · LOG · HANDOFF (P5 Complete · P6 Ready)  
+- [ ] MASTER · LOG · HANDOFF (P6 Complete · Fleet Ready)  
 - [ ] **Consume WG-AI-001** (do not modify WG)  
-- [ ] Consume P5-IU-5-05A Review 결과 · P5 suite · P4 · D-GAP · STEP6 Freeze  
-- [ ] Start **STEP7_P6_IU-6-01A** (Apply Decision)  
-- [ ] WG / P5 개선은 **Issue 발견 시에만** 재검토  
+- [ ] **Consume P6 IU-6-01A…06A** (Verification Package · do not modify P6)  
+- [ ] Consume P5 suite · P4 · D-GAP · STEP6 Freeze  
+- [ ] Start **STEP7_P6_FLEET_BATCH1_01A**  
+- [ ] WG / P5 / P6 개선은 **Issue 발견 시에만** 재검토  
 - [ ] (Optional separate) Commit/Push docs  
 
 ```text
-STEP7 P5 COMPLETE
+STEP7 P6 COMPLETE (Design-only)
+IU-6-01A…06A Complete · Verification Entry Complete
 Architecture Workflow PASS
 WG-AI-001 PASS · Freeze Candidate
-P6 Ready
-Next: STEP7_P6_IU-6-01A (Apply Decision)
-Consume WG-AI-001 · do not edit WG/P5 unless Issue
-Do not mutate Runtime / System JSON / D-GAP without scoped Change Design
+Runtime / System JSON / WG / P5 unchanged
+Next Stage: STEP7 P6 Fleet
+Next: STEP7_P6_FLEET_BATCH1_01A
+Consume WG-AI-001 + P6 IU-6-01A…06A · do not edit WG/P5/P6 unless Issue
+Do not mutate Runtime / System JSON without scoped Apply
 Commit/Push = separate session
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — STEP7 P5 Complete · P6 Ready*
+*End of CURSOR_SESSION_HANDOFF.md — STEP7 P6 Complete · Fleet Ready*

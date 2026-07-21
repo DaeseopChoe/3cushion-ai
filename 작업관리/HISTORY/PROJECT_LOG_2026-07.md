@@ -1,8 +1,92 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.18  
+Version : v1.19  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-21 (STEP7 P6 Apply Decision Complete · Design-only · Next = P6 Fleet)
+
+## 제목
+
+**D-STEP7-P6-01** — STEP7 P6 Apply Decision Complete · IU-6-01A…06A · Design-only · Next = STEP7_P6_FLEET_BATCH1_01A
+
+## Summary
+
+STEP7 Phase **P6 (Apply Decision)** 를 완료한다.  
+P6 IU queue (`IU-6-01A` … `IU-6-06A`) 전체를 Design-only 범위로 작성하였다.  
+P6는 Apply Decision의 **Scope → Apply Candidate → Decision Criteria → Apply Readiness → Apply Decision Outcome → Verification Entry**를  
+정의하는 Design 단계이며, 실제 Apply / Verification / Runtime / System JSON 변경은 수행하지 않았다.  
+P6는 **WG-AI-001** 및 **P5 IU-5-01A…05A** 를 Consume Only로 사용하였고, Working Guideline → IU Consume 패턴을 P6에서 계속 유지하였다.  
+최종 IU(IU-6-06A)에서 **Verification Entry**(P7 Handoff Package)를 정의하였다.  
+**Next Stage = STEP7 P6 Fleet** · Next Session = **`STEP7_P6_FLEET_BATCH1_01A`**.  
+본 기록은 운영 SSOT(MASTER · LOG · HANDOFF) 반영용이다 (**Commit / Push는 별도 Session**).
+
+## Decision Log
+
+| Decision | Statement |
+|----------|-----------|
+| **D-STEP7-P6-01** | STEP7 P6 Apply Decision **Complete** · IU-6-01A … IU-6-06A · Design-only · Next Stage = **P6 Fleet** · Next Session = **`STEP7_P6_FLEET_BATCH1_01A`** |
+| **D-STEP7-P6-02** | P6 = Design-only · Apply / Verification / Runtime / System JSON 변경 없음 |
+| **D-STEP7-P6-03** | P6는 WG-AI-001 및 P5 IU-5-01A…05A 를 Consume Only로 사용 · Rule 재정의 없음 |
+| **D-STEP7-P6-04** | IU-6-06A Verification Entry = P6 → P7 Handoff Package 정의 · Validation은 P7 범위 |
+
+## P6 Complete Record
+
+| Item | Status |
+|------|--------|
+| STEP7_P6_IU-6-01A (Apply Decision Scope) | **Complete** |
+| STEP7_P6_IU-6-02A (Apply Candidate) | **Complete** |
+| STEP7_P6_IU-6-03A (Decision Criteria) | **Complete** |
+| STEP7_P6_IU-6-04A (Apply Readiness Review) | **Complete** |
+| STEP7_P6_IU-6-05A (Apply Decision Outcome) | **Complete** |
+| STEP7_P6_IU-6-06A (Verification Entry) | **Complete** |
+| P6 Workflow (Scope → Candidate → Criteria → Readiness → Outcome → Verification Entry) | **정의 완료** |
+| Working Guideline → IU Consume 패턴 | **P6 유지** |
+| Verification Entry (P7 Handoff Package) | **정의 완료** |
+| P6 Completion (Design-only) | **Complete** |
+
+## P6 Workflow
+
+```text
+Apply Decision Scope (IU-6-01A)
+        ↓
+Apply Candidate (IU-6-02A)
+        ↓
+Decision Criteria (IU-6-03A)
+        ↓
+Apply Readiness (IU-6-04A)
+        ↓
+Apply Decision Outcome (IU-6-05A)
+        ↓
+Verification Entry (IU-6-06A)
+```
+
+## Explicit Non-Outputs (P6)
+
+| Item | Status |
+|------|--------|
+| Apply Decision Algorithm / Apply Procedure / Apply Execution | **Not authored / Not performed** |
+| Verification (Validation Rule / Procedure / Execution) | **Not performed** (P7 범위) |
+| Fleet 문서 | **Not authored** |
+| Runtime / System JSON 변경 | **None** (unchanged) |
+| WG-AI-001 / P5 문서 변경 | **None** (unchanged) |
+| Git Commit / Push | **Deferred** (separate session) |
+
+## Related Project Docs Synced
+
+- `CURSOR_SESSION_HANDOFF.md` — P6 Complete · Fleet Ready · Next `STEP7_P6_FLEET_BATCH1_01A`
+- `PROJECT_MASTER_INDEX.md` v1.31 — STEP7 P6 Complete · Next P6 Fleet
+- `PROJECT_LOG_2026-07.md` v1.19 — 본 항목
+
+## Status
+
+**STEP7 P6 Apply Decision Complete · Design-only · Runtime unchanged · P6 Fleet Ready**
+
+## Next Session
+
+**STEP7_P6_FLEET_BATCH1_01A** — P6 Fleet Batch 1
 
 ---
 

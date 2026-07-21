@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.30  
+Version: 1.31  
 Last Updated: 2026-07-21  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
@@ -17,7 +17,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 1. **`DEVELOPMENT_WORKFLOW.md`** — Ops v0.3 (Implementation Decomposition §12)  
 2. **`OPS_AI_MODEL_GUIDE.md`** — Ops AI Model Recommendation **v0.1** (Recommendation only)  
 3. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-4. **`CURSOR_SESSION_HANDOFF.md`** — **STEP7 P5 Complete · P6 Ready** · Next **`STEP7_P6_IU-6-01A`**  
+4. **`CURSOR_SESSION_HANDOFF.md`** — **STEP7 P6 Complete · Fleet Ready** · Next **`STEP7_P6_FLEET_BATCH1_01A`**  
 5. **`STEP7_IMPLEMENTATION_DECOMPOSITION.md`** — Session Execution SSOT **v1.0 Approved**  
 6. **`System Platform Standard (SPS) v1.0/STEP7_P4_IU-4-0*.md`** — **P4 Plan suite** (Complete · Official · Consume)  
 7. **`System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md`** — **P2 Catalog Design v0.15** (Consume)  
@@ -70,7 +70,8 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | **본 문서 (`PROJECT_MASTER_INDEX.md`)** | 현재 기능·UI·완료/예정 SSOT |
 | `작업관리/DEVELOPMENT_WORKFLOW.md` | **Operational Workflow SSOT v0.3** |
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**STEP7 P5 Complete · P6 Ready** · Next `STEP7_P6_IU-6-01A`) |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**STEP7 P6 Complete · Fleet Ready** · Next `STEP7_P6_FLEET_BATCH1_01A`) |
+| `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** (IU-6-01A…06A Complete · Design-only · Consume) |
 | `작업관리/OPS_AI_MODEL_GUIDE.md` | **Ops AI Model Recommendation Guide v0.1** (Recommendation only · never Gate) |
 | `System Platform Standard (SPS) v1.0/STEP7_P4_IU-4-0*.md` | **STEP7 P4 Standardization Plan suite** (Complete · Official · VG-P4 PASS) |
 | `System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md` | **STEP7 P2 Catalog Freeze Design v0.15** (Design Complete · Freeze not declared) |
@@ -111,7 +112,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | **SPS System Inventory (STEP 4)** | **Complete · Final v1.0 (2026-07-14)** — 38 Systems · Observation SSOT · Metadata Inventory · Registration Inventory · Inventory Assets · **Frozen Assets declared** · SSOT: `System Platform Standard (SPS) v1.0/System_Inventory.md` |
 | **SPS Architecture Audit (STEP 5)** | **Complete · Final Freeze v1.0 (2026-07-15)** — Framework · Audit Plan · Rule Catalog · Registers · Audit Report · STEP6 Handoff · `STEP5_FINAL_FREEZE.md` |
 | **SPS Schema Validation (STEP 6)** | **Complete · Final Freeze v1.0 (2026-07-17)** — Framework · Pipeline **Locked** · Catalog/Register Design · Engine (7A–7G) · Pilot · Production Validation · Report · `STEP6_FINAL_FREEZE.md` |
-| **SPS System Standardization (STEP 7)** | **P5 Complete (2026-07-21)** — IU-5-01A…05A PASS · WG-AI-001 PASS · Architecture Workflow PASS · **P6 Ready** · Next: **`STEP7_P6_IU-6-01A`** (Apply Decision) |
+| **SPS System Standardization (STEP 7)** | **P6 Complete (2026-07-21)** — P5 IU-5-01A…05A PASS · P6 IU-6-01A…06A Complete (Design-only) · WG-AI-001 PASS · Architecture Workflow PASS · **P6 Fleet Ready** · Next: **`STEP7_P6_FLEET_BATCH1_01A`** |
 | ADMIN | Position Lock → SYS / HP·T / STR / AI 입력 → Dataset SAVE |
 | USER | Search(published) → 공략 선택 → **AI · 두께/타점 · 동선** 중심 실전 공략 UI |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
@@ -847,6 +848,18 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - ✔ **VG-P4 PASS** · P4 Freeze Candidate **Recommended** (Planning rules)
   - ✔ Ops: `OPS_AI_MODEL_GUIDE.md` v0.1 created
   - ✔ Next: **P5** · **WG-AI-001 PASS** · **`STEP7_P5_IU-5-04A` Ready**
+- **SPS STEP7 P5 Change Design Complete (2026-07-21)**:
+  - ✔ IU-5-01A…05A PASS · WG-AI-001 PASS · Architecture Workflow PASS
+  - ✔ Working Guideline → IU Consume 패턴 최초 적용
+  - ✔ Design-only · Apply / Verification / Runtime / System JSON 변경 없음
+  - ✔ Next: **P6** · **`STEP7_P6_IU-6-01A` Ready**
+- **SPS STEP7 P6 Apply Decision Complete (2026-07-21 · Design-only)**:
+  - ✔ IU-6-01A (Apply Decision Scope) · IU-6-02A (Apply Candidate) · IU-6-03A (Decision Criteria)
+  - ✔ IU-6-04A (Apply Readiness Review) · IU-6-05A (Apply Decision Outcome) · IU-6-06A (Verification Entry)
+  - ✔ Workflow: Scope → Candidate → Criteria → Readiness → Outcome → Verification Entry
+  - ✔ WG-AI-001 · P5 IU-5-01A…05A Consume Only · Rule 재정의 없음
+  - ✔ Design-only · Apply / Verification / Runtime / System JSON / WG / P5 변경 없음
+  - ✔ Next: **P6 Fleet** · **`STEP7_P6_FLEET_BATCH1_01A`**
 - AI 오버레이 리팩토링 (SYS+STR SSOT, 레슨 분리)
 - 원 포인트 레슨 ADMIN/USER 표시 분리
 - USER AI 패널 가독성·크기·공간 최적화
@@ -880,7 +893,7 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 ### 예정
 
-- **STEP7 Agent Implementation — P5 Complete** — IU-5-01A…05A PASS · WG-AI-001 PASS · Next Session **`STEP7_P6_IU-6-01A`** (Apply Decision) · Prerequisite P5 Deliverables PASS
+- **STEP7 Agent Implementation — P6 Complete** — P5 IU-5-01A…05A PASS · P6 IU-6-01A…06A Complete (Design-only) · WG-AI-001 PASS · Next Session **`STEP7_P6_FLEET_BATCH1_01A`** (P6 Fleet Batch 1) · Prerequisite P6 IU suite Complete · Verification Entry Complete
 - **STEP7 remaining Phases** — Pilot → Fleet → Re-validation → Freeze (WBS) · P2 Catalog · P3 Gap · **P4 Plan done**
 - **Catalog Freeze delivery (post-Design)** — on-disk Catalog/Register JSON · live Freeze Candidate declaration · `catalogPinId` mint (procedure in Design §14)
 - **P4 residuals** — Mapping/Taxonomy value population · Change Design after Gate Package PASS
@@ -1002,7 +1015,7 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 ## 다음 작업 우선순위
 
-> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P5 **Complete**. Current: **STEP7 P5 Complete · P6 Ready**.
+> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. Current: **STEP7 P6 Complete (Design-only) · P6 Fleet Ready**.
 
 ### STEP7 상태
 
@@ -1028,8 +1041,11 @@ COMPLETE · VG-P4 PASS
 P5 Change Design
 COMPLETE · IU-5-01A…05A PASS · WG-AI-001 PASS
         ↓
+P6 Apply Decision
+COMPLETE · IU-6-01A…06A · Design-only
+        ↓
 Next Stage
-STEP7 P6 · STEP7_P6_IU-6-01A (Apply Decision)
+STEP7 P6 Fleet · STEP7_P6_FLEET_BATCH1_01A
 ```
 
 | Item | Status |
@@ -1048,6 +1064,8 @@ STEP7 P6 · STEP7_P6_IU-6-01A (Apply Decision)
 | **VG-P4** | **PASS** |
 | **P4 Freeze Candidate** | **Recommended** (Planning rules) |
 | **P5 Change Design** | **COMPLETE** (`IU-5-01A` … `IU-5-05A` PASS) |
+| **P6 Apply Decision** | **COMPLETE** (`IU-6-01A` … `IU-6-06A` · Design-only) |
+| **P6 Verification Entry** | **Complete** (IU-6-06A · P7 Handoff Package) |
 | **WG-AI-001** | **PASS** · Consume · Freeze Candidate |
 | **Severity** | **Candidate only** · Lock **Deferred** |
 | **NS-U1-001** | **Locked** — Option (C) Dual catalogs |
@@ -1056,10 +1074,10 @@ STEP7 P6 · STEP7_P6_IU-6-01A (Apply Decision)
 | **Freeze Candidate (Catalog)** | **Not Declared** |
 | **Catalog / Register JSON** | **Not created** |
 | **catalogPinId** | **Not issued** |
-| **Current Stage** | **STEP7 P5 Complete** · P6 Ready |
-| **Prerequisite** | **WG-AI-001 PASS · Architecture Workflow PASS · P5 Deliverables PASS** |
-| **Next Session** | **`STEP7_P6_IU-6-01A`** (Apply Decision) |
-| **Current Queue** | **P6** |
+| **Current Stage** | **STEP7 P6 Complete** (Design-only) · P6 Fleet Ready |
+| **Prerequisite** | **WG-AI-001 PASS · P6 IU-6-01A…06A Complete · Verification Entry Complete** |
+| **Next Session** | **`STEP7_P6_FLEET_BATCH1_01A`** (P6 Fleet Batch 1) |
+| **Current Queue** | **P6 Fleet** |
 | **Ops AI Guide** | **`OPS_AI_MODEL_GUIDE.md` v0.1** |
 
 ### STEP6 상태 (Consume)
@@ -1074,17 +1092,18 @@ STEP7 P6 · STEP7_P6_IU-6-01A (Apply Decision)
 
 Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7은 STEP6 **Consume**.
 
-### 최우선 — Agent Implementation (P6)
+### 최우선 — Agent Implementation (P6 Fleet)
 
 - Session Execution SSOT: `STEP7_IMPLEMENTATION_DECOMPOSITION.md` v1.0 Approved
 - **P5 Change Design**: **Complete** · IU-5-01A…05A PASS · WG-AI-001 PASS · Architecture Workflow PASS
-- **WG-AI-001**: **PASS** · Consume · Freeze Candidate · P6에서 계속 Consume
-- Next Session: **`STEP7_P6_IU-6-01A`** (Apply Decision)
-- Handoff: `CURSOR_SESSION_HANDOFF.md` (STEP7 P5 Complete · P6 Ready)
+- **P6 Apply Decision**: **Complete** · IU-6-01A…06A · Design-only · Verification Entry (P7 Handoff Package) 정의
+- **WG-AI-001**: **PASS** · Consume · Freeze Candidate · Fleet에서 계속 Consume
+- Next Session: **`STEP7_P6_FLEET_BATCH1_01A`** (P6 Fleet Batch 1)
+- Handoff: `CURSOR_SESSION_HANDOFF.md` (STEP7 P6 Complete · Fleet Ready)
 - Ops: `DEVELOPMENT_WORKFLOW.md` v0.3 §12 · `OPS_AI_MODEL_GUIDE.md` v0.1
-- Backlog cite: KI-01…04 / DGR-001…013 (Severity Lock Deferred · Change Design after Gate)
-- **금지:** WG-AI-001 informal edit (Issue 없이) · Framework/Pipeline informal edit · Runtime/System JSON silent mutation · silent reopen of NS/CL/CV
-- **Pending Ops:** Git Commit/Push of P5 + WG + Ops docs (separate session)
+- Backlog cite: KI-01…04 / DGR-001…013 (Severity Lock Deferred · Disposition via Fleet Apply)
+- **금지:** WG-AI-001 informal edit (Issue 없이) · P5/P6 IU informal edit (Issue 없이) · Framework/Pipeline informal edit · Runtime/System JSON silent mutation · silent reopen of NS/CL/CV
+- **Pending Ops:** Git Commit/Push of P5 + P6 + WG + Ops docs (separate session)
 
 ### SPS STEP6 Document Suite
 
@@ -1158,8 +1177,9 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 | 문서 | 용도 |
 |------|------|
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — STEP7 P5 Complete · P6 Ready · Next `STEP7_P6_IU-6-01A` |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — STEP7 P6 Complete · Fleet Ready · Next `STEP7_P6_FLEET_BATCH1_01A` |
 | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` | **Architecture Impact Working Guideline** — PASS · Consume · Freeze Candidate |
+| `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** — IU-6-01A…06A Complete · Design-only |
 | `System Platform Standard (SPS) v1.0/STEP7_P5_IU-5-0*.md` | **STEP7 P5 Change Design suite** — IU-5-01A…05A PASS |
 | `작업관리/OPS_AI_MODEL_GUIDE.md` | **Ops AI Model Recommendation Guide v0.1** |
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
