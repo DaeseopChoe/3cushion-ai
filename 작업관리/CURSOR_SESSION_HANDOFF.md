@@ -17,28 +17,31 @@ Rule      : Fact only · Consume Fleet Book (Ch.8·Ch.9·Ch.10 Ratified) + WG-AI
 ```text
 1. DEVELOPMENT_WORKFLOW.md                    (v0.3 · Ops · §12)
 2. OPS_AI_MODEL_GUIDE.md                      (v0.1 · Ops · model recommendation)
-3. PROJECT_MASTER_INDEX.md
-4. PROJECT_LOG_2026-07.md
-5. CURSOR_SESSION_HANDOFF.md                  (본 문서 · B6 PASS · Next B7)
-6. WG-AI-001_Architecture_Impact_Working_Guideline.md  (PASS · Consume)
-7. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_v1.0.md     (Front Matter · Conditional)
-8. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md  (Ch.8 Ratified)
-9. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md  (Ch.9 Ratified)
-10. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md (Ch.10 Ratified)
-11. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B5_Target_Freeze.md         (v1.1 Amended)
-12. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_Target_Freeze.md         (v1.0)
-13. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_Target_Freeze_Amendment_v1.1.md
-14. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_ADR_Apply_Design_Review.md (Approve · EB-*)
-15. STEP7_P6 / P5 / STEP6 Freeze              (Consume)
+3. docs/APPLICATION_FLOW.md                   (Architecture Guide · First for Runtime/Presentation/Validation)
+4. PROJECT_MASTER_INDEX.md
+5. PROJECT_LOG_2026-07.md
+6. CURSOR_SESSION_HANDOFF.md                  (본 문서 · B6 PASS · Next B7)
+7. WG-AI-001_Architecture_Impact_Working_Guideline.md  (PASS · Consume)
+8. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_v1.0.md     (Front Matter · Conditional)
+9. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md  (Ch.8 Ratified)
+10. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md  (Ch.9 Ratified)
+11. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md (Ch.10 Ratified)
+12. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B5_Target_Freeze.md         (v1.1 Amended)
+13. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_Target_Freeze.md         (v1.0)
+14. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_Target_Freeze_Amendment_v1.1.md
+15. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_ADR_Apply_Design_Review.md (Approve · EB-*)
+16. STEP7_P6 / P5 / STEP6 Freeze              (Consume)
 ```
 
 | # | Document | Path |
 |---|----------|------|
-| 1–5 | Ops SSOT | `작업관리/` MASTER · LOG · HANDOFF · WORKFLOW · OPS Guide |
-| 6 | **WG-AI-001** | `작업관리/WG-AI-001_…` **PASS** |
-| 7–10 | **Fleet Book** | Front Matter · **Ch.8·Ch.9·Ch.10 Ratified** |
-| 11–14 | **B5 / B6 Freeze · ADR** | B5 v1.1 · B6 Amendment v1.1 · ADR-STEP8-B6-01 |
-| 15 | P6 / P5 / STEP6 | SPS v1.0 Consume |
+| 1–2 | Ops Workflow / Model | `작업관리/` |
+| **3** | **APPLICATION_FLOW** | `docs/APPLICATION_FLOW.md` — Architecture First Consume |
+| 4–6 | Ops SSOT | MASTER · LOG · HANDOFF |
+| 7 | **WG-AI-001** | `작업관리/WG-AI-001_…` **PASS** |
+| 8–11 | **Fleet Book** | Front Matter · **Ch.8·Ch.9·Ch.10 Ratified** |
+| 12–15 | **B5 / B6 Freeze · ADR** | B5 v1.1 · B6 Amendment v1.1 · ADR-STEP8-B6-01 |
+| 16 | P6 / P5 / STEP6 | SPS v1.0 Consume |
 
 ---
 
@@ -170,6 +173,15 @@ Agent Task     : B7 entry · do NOT retry B3
 ---
 
 ## 7. Next Session Checklist
+
+### Architecture / 구현 시작 (공식)
+
+- [ ] **`docs/APPLICATION_FLOW.md` 확인** (Architecture Guide · First Consume)  
+- [ ] **관련 Fleet Contract Book 확인** (L4 Ch.8 · L5 Ch.9 · L6 Ch.10 · L7 Ch.11 when present)  
+- [ ] **Architecture Boundary 확인** (App · Runtime · Domain · Presentation)  
+- [ ] Architecture Review 후 **구현 시작**  
+
+### STEP8 Gate
 
 - [ ] Consume Ch.10 · B6 ADR/Amendment · Front Matter (B6 Applied)  
 - [ ] Confirm B3 Hold  
