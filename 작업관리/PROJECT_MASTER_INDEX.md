@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.34  
+Version: 1.37  
 Last Updated: 2026-07-22  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
@@ -17,7 +17,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 1. **`DEVELOPMENT_WORKFLOW.md`** — Ops v0.3 (Implementation Decomposition §12)  
 2. **`OPS_AI_MODEL_GUIDE.md`** — Ops AI Model Recommendation **v0.1** (Recommendation only)  
 3. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-4. **`CURSOR_SESSION_HANDOFF.md`** — **STEP8 B5 PASS** · Next **STEP8 B6**  
+4. **`CURSOR_SESSION_HANDOFF.md`** — **STEP8 B6 PASS** · Next **B7 Presentation**  
 5. **`STEP7_IMPLEMENTATION_DECOMPOSITION.md`** — Session Execution SSOT **v1.0 Approved**  
 6. **`System Platform Standard (SPS) v1.0/STEP7_P4_IU-4-0*.md`** — **P4 Plan suite** (Complete · Official · Consume)  
 7. **`System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md`** — **P2 Catalog Design v0.15** (Consume)  
@@ -70,8 +70,8 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | **본 문서 (`PROJECT_MASTER_INDEX.md`)** | 현재 기능·UI·완료/예정 SSOT |
 | `작업관리/DEVELOPMENT_WORKFLOW.md` | **Operational Workflow SSOT v0.3** |
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**STEP8 B5 PASS** · Next **B6**) |
-| `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8 L4 Anchor Ratified** |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**STEP8 B6 PASS** · Next **B7 Presentation**) |
+| `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8·Ch.9·Ch.10 Ratified** · **B6 Amendment/ADR · Applied** |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** (IU-6-01A…06A Complete · Design-only · Consume) |
 | `작업관리/OPS_AI_MODEL_GUIDE.md` | **Ops AI Model Recommendation Guide v0.1** (Recommendation only · never Gate) |
 | `System Platform Standard (SPS) v1.0/STEP7_P4_IU-4-0*.md` | **STEP7 P4 Standardization Plan suite** (Complete · Official · VG-P4 PASS) |
@@ -114,7 +114,7 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 | **SPS Architecture Audit (STEP 5)** | **Complete · Final Freeze v1.0 (2026-07-15)** — Framework · Audit Plan · Rule Catalog · Registers · Audit Report · STEP6 Handoff · `STEP5_FINAL_FREEZE.md` |
 | **SPS Schema Validation (STEP 6)** | **Complete · Final Freeze v1.0 (2026-07-17)** — Framework · Pipeline **Locked** · Catalog/Register Design · Engine (7A–7G) · Pilot · Production Validation · Report · `STEP6_FINAL_FREEZE.md` |
 | **SPS System Standardization (STEP 7)** | **P6 Complete (2026-07-21)** — P5 IU-5-01A…05A PASS · P6 IU-6-01A…06A Complete (Design-only) · WG-AI-001 PASS · Architecture Workflow PASS · Fleet design chain (01A–01F) authored |
-| **SPS Fleet Apply (STEP 8)** | **In Progress (2026-07-22)** — Fleet Contract Book v1.0 **Ratified (Conditional)** · **Ch.8·Ch.9 Ratified** · **B0·B1·B2·B2.5·B4·B5 PASS** · **B3 HALTED (Hold)** · Next **B6** |
+| **SPS Fleet Apply (STEP 8)** | **In Progress (2026-07-22)** — Fleet Contract Book v1.0 **Ratified (Conditional)** · **Ch.8·Ch.9·Ch.10 Ratified** · **B0·B1·B2·B2.5·B4·B5·B6 PASS** · **B3 HALTED (Hold)** · Next **B7 Presentation** |
 | ADMIN | Position Lock → SYS / HP·T / STR / AI 입력 → Dataset SAVE |
 | USER | Search(published) → 공략 선택 → **AI · 두께/타점 · 동선** 중심 실전 공략 UI |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
@@ -1017,7 +1017,7 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 ## 다음 작업 우선순위
 
-> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply In Progress** — B0·B1·B2·B2.5·**B4·B5 PASS** · B3 **HALTED (Hold)** · Next **B6**. Current: **STEP8 Fleet Apply (B6 pending)**.
+> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply In Progress** — B0·B1·B2·B2.5·**B4·B5·B6 PASS** · **Ch.10 Ratified** · B3 **HALTED (Hold)** · Next **B7 Presentation**. Current: **STEP8 Fleet Apply (B7 pending)**.
 
 ### STEP7 상태
 
@@ -1076,10 +1076,10 @@ STEP7 P6 Fleet · STEP7_P6_FLEET_BATCH1_01A
 | **Freeze Candidate (Catalog)** | **Not Declared** |
 | **Catalog / Register JSON** | **Not created** |
 | **catalogPinId** | **Not issued** |
-| **Current Stage** | **STEP8 Fleet Apply — In Progress** · B0·B1·B2·B2.5·**B4·B5 PASS** · B3 HALTED (Hold) |
-| **Prerequisite** | **WG-AI-001 PASS · Fleet Contract Book (Ch.8·Ch.9 Ratified)** |
-| **Next Session** | **STEP8 Batch B6** |
-| **Current Queue** | **STEP8 Fleet Apply (B6 → B8)** |
+| **Current Stage** | **STEP8 Fleet Apply — In Progress** · B0·B1·B2·B2.5·**B4·B5·B6 PASS** · **Ch.10 Ratified** · B3 HALTED (Hold) |
+| **Prerequisite** | **WG-AI-001 PASS · Fleet Contract Book (Ch.8·Ch.9·Ch.10 Ratified) · B6 PASS** |
+| **Next Session** | **B7 Presentation Contract** |
+| **Current Queue** | **STEP8 Fleet Apply (B7 → B8)** |
 | **Ops AI Guide** | **`OPS_AI_MODEL_GUIDE.md` v0.1** |
 
 ### STEP8 상태 (Fleet Apply — In Progress)
@@ -1094,16 +1094,17 @@ B2.5 File-format Normalize     PASS   (0tip_plus JSONC · double_rail Python →
 B3  Metadata Normalize         HALTED (Hold · Safe Stop · Ch.7 Not Persisted)
 B4  Anchor Apply               PASS   (Schema Normalize · 35half · rodriguez · reverse_end_system)
 B5  Logic Apply                PASS   (Structure-only · Apply 6 · clay_shooting Defer)
-B6  Runtime                    Pending  (loader glob exclusion 해제 포함)
+B6  Runtime                    PASS   (double_rail Loader exclusion only · L6-VR PASS · 0tip_plus Defer)
 B7  Presentation               Pending
 B8  Validation                 Pending
 ```
 
 | Item | Status |
 |------|--------|
-| **Fleet Contract Book v1.0** | **Ratified (Conditional)** · Front Matter on-disk · **Ch.8·Ch.9 Ratified** · Remaining chapters **Not Persisted** |
+| **Fleet Contract Book v1.0** | **Ratified (Conditional)** · Front Matter on-disk · **Ch.8·Ch.9·Ch.10 Ratified** · Remaining chapters **Not Persisted** |
 | **Ch.8 L4 Anchor Contract** | **Ratified** · `Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md` |
 | **Ch.9 L5 Logic Contract** | **Ratified** · `Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md` |
+| **Ch.10 L6 Runtime Contract** | **Ratified** · Minor Amendment Complete · `FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md` |
 | **B0 Compatibility Alias** | **PASS** (`82cb371`, atomic with B1) |
 | **B1 Identity Rename** | **PASS** (`Plus_5_system` → `plus_5_system`) |
 | **B2 Schema Normalize** | **PASS** (`a32bed9`) — 9× `logic.system` → `system_id` |
@@ -1111,8 +1112,9 @@ B8  Validation                 Pending
 | **B3 Metadata Normalize** | **HALTED (Hold)** — Ch.7 Not Persisted · **NOT a failure** · 재시도 금지 |
 | **B4 L4 Anchor Apply** | **PASS** — Target Freeze A3/B25/C6/D4 · Apply 3 systems · id 불변 · Build PASS |
 | **B5 L5 Logic Apply** | **PASS / Completed** — Structure-only · Apply 6 · Meaning Preservation · Semantic Guard PASS · Validation PASS |
-| **Next** | **B6** |
-| **Commit** | B0+B1 `82cb371` · B2+B2.5 `a32bed9` · B4/B5 + Book/docs **Commit/Push 별도** |
+| **B6 L6 Runtime** | **PASS / Completed** — Amendment v1.1 · ADR Approve · Apply 1 (`double_rail` exclusion) · L6-VR PASS · Meaning Preservation · `0tip_plus` Defer |
+| **Next** | **B7 Presentation Contract** |
+| **Commit** | B0+B1 `82cb371` · B2+B2.5 `a32bed9` · B4/B5 prior · **B6 this close** |
 
 ### STEP6 상태 (Consume)
 
@@ -1126,15 +1128,14 @@ B8  Validation                 Pending
 
 Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7은 STEP6 **Consume**.
 
-### 최우선 — STEP8 Fleet Apply (B6)
+### 최우선 — STEP8 Fleet Apply (B7 Presentation)
 
-- Session Entry: `CURSOR_SESSION_HANDOFF.md` (STEP8 B5 PASS · Next B6)
-- **Fleet Contract Book**: Front Matter Conditional · **Ch.8·Ch.9 Ratified** · Consume
-- **B5**: **PASS / Completed** (Structure-only Logic Apply · 6 systems) · B3 **Hold**
-- Next Session: **STEP8 Batch B6**
+- Session Entry: `CURSOR_SESSION_HANDOFF.md` (B6 PASS · Next B7)
+- **Fleet Contract Book**: Front Matter Conditional · **Ch.8·Ch.9·Ch.10 Ratified** · **B6 Applied** · Consume
+- **B6**: **PASS** · L6-VR PASS · B3 **Hold**
+- Next Session: **B7 Presentation Contract**
 - Ops: `DEVELOPMENT_WORKFLOW.md` v0.3 §12 · `OPS_AI_MODEL_GUIDE.md` v0.1
-- **금지:** B3 재시도 · Ch.8/Ch.9/WG informal edit · Runtime/Loader silent mutation · Not Persisted chapter를 Apply 근거로 사용
-- **Pending Ops:** Git Commit/Push of B4/B5 Apply + Fleet Book + Ops docs (separate session)
+- **금지:** B3 재시도 · Ch.8/Ch.9/Ch.10/WG informal edit · B6 Scope Drift without ADR Amendment
 
 ### SPS STEP6 Document Suite
 
@@ -1208,8 +1209,8 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 | 문서 | 용도 |
 |------|------|
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — STEP8 B5 PASS · Next **B6** |
-| `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8 L4 Anchor **Ratified** |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — STEP8 B6 PASS · Next **B7 Presentation** |
+| `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·**Ch.10 Ratified** · B6 **Applied / PASS** |
 | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` | **Architecture Impact Working Guideline** — PASS · Consume · Freeze Candidate |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** — IU-6-01A…06A Complete · Design-only |
 | `System Platform Standard (SPS) v1.0/STEP7_P5_IU-5-0*.md` | **STEP7 P5 Change Design suite** — IU-5-01A…05A PASS |

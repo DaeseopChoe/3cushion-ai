@@ -26,7 +26,6 @@ const anchorModules = import.meta.glob<{ default: PackageAnchorsData }>(
   [
     "../../data/systems/*/anchors.json",
     "!../../data/systems/0tip_plus/anchors.json",
-    "!../../data/systems/double_rail/anchors.json",
   ],
   { eager: true }
 );

@@ -79,7 +79,7 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | Ch.7 | L3 Metadata Contract | L3 | — | **Not Persisted** |
 | **Ch.8** | **L4 Anchor Contract** | **L4** | **`FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md`** | **Ratified** |
 | **Ch.9** | **L5 Logic Contract** | **L5** | **`FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md`** | **Ratified** |
-| Ch.10 | L6 Runtime Contract | L6 | — | **Not Persisted** |
+| **Ch.10** | **L6 Runtime Contract** | **L6** | **`FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md`** | **Ratified** |
 | Ch.11 | L7 Presentation Contract | L7 | — | **Not Persisted** |
 | Ch.12–14 | Assurance | — | — | **Not Persisted** |
 | Appendix A–E | Registers / Mapping / Glossary | — | — | **Not Persisted** |
@@ -103,8 +103,10 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | B2 / B2.5 | L2 Schema / File-format | Ch.6 (Not Persisted) · executed under Conditional Review | **PASS** |
 | B3 | L3 Metadata | Ch.7 **Not Persisted** | **HALTED (Safe Stop)** · do NOT retry |
 | **B4** | **L4 Anchor** | **Ch.8 Ratified** | **Applied / PASS** |
-| **B5** | **L5 Logic** | **Ch.9 Ratified** | **Scope Frozen (Amended)** · Apply 6 / Defer 14 · Architecture Review 권고 A · Next = Apply Design Review Recheck |
-| B6…B8 | L6…Validation | Not Persisted | Pending |
+| **B5** | **L5 Logic** | **Ch.9 Ratified** | **Applied / PASS** · Structure-only · Apply 6 / Defer 14 |
+| **B6** | **L6 Runtime** | **Ch.10 Ratified** | **Applied / PASS** · Amendment v1.1 · ADR Approve · Apply 1 (`double_rail` Loader exclusion only) · L6-VR **PASS** · `0tip_plus` Defer · Meaning Preservation |
+| B7 | L7 Presentation | Ch.11 Not Persisted | Pending |
+| B8 | Validation | — | Pending |
 
 ---
 
@@ -116,17 +118,18 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 - STEP7 P5 / P6 IU suites (Design-only · Complete)
 - STEP6 Final Freeze / Framework / Pipeline (Locked · Consume)
 - Cursor Ask 검토 결과 (Ch.8 Ratify 범위 · B4 사전 검토)
+- Ch.10 L6 Runtime Contract (Ratified · Minor Amendment) · B6 Target Freeze v1.0 · Amendment v1.1 · ADR-STEP8-B6-01
 
-### Forbidden (본 Book / 본 세션)
+### Forbidden (Book-wide / Hold)
 
 | Forbidden |
 |-----------|
 | Formula / System Value / Trajectory **의미** 변경 |
-| Runtime / Loader / Registry **코드** 변경 |
-| System JSON Apply (본 Front Matter·Ch.8 Ratify 세션에서) |
+| Runtime / Loader / Registry **책임 붕괴** · Public API silent break |
 | Not Persisted 챕터를 Apply SSOT로 사용 |
 | Ch.7 부재 상태에서 B3 Metadata rename 재시도 |
 | Informal edit of Ratified chapters without Issue |
+| `0tip_plus` exclusion lift / false-complete 선언 (B6 Defer) |
 
 ---
 
@@ -137,7 +140,11 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | `FLEET_CONTRACT_BOOK_v1.0.md` | Front Matter · Status Register (본 문서) |
 | `FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md` | **Ch.8 L4 Anchor Contract — Ratified** |
 | `FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md` | **Ch.9 L5 Logic Contract — Ratified** |
+| `FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md` | **Ch.10 L6 Runtime Contract — Ratified** (Minor Amendment Complete) |
 | `FLEET_CONTRACT_BOOK_B5_Target_Freeze.md` | **STEP8 B5 Target Freeze — Apply Scope Frozen (Amended) v1.1** |
+| `FLEET_CONTRACT_BOOK_B6_Target_Freeze.md` | **STEP8 B6 Target Freeze — Apply Scope Frozen (Empty Apply) v1.0** (superseded Scope by Amendment) |
+| `FLEET_CONTRACT_BOOK_B6_Target_Freeze_Amendment_v1.1.md` | **STEP8 B6 Target Freeze Amendment v1.1** — Apply Count 1 · `double_rail` |
+| `FLEET_CONTRACT_BOOK_B6_ADR_Apply_Design_Review.md` | **ADR-STEP8-B6-01** — Approve · Execution Baseline · EB-01…07 |
 
 ---
 
@@ -149,6 +156,9 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | 2026-07-22 | Ch.9 L5 Logic Contract on-disk Ratify · Chapter Status Register / Apply Mapping / Persisted Index 갱신 |
 | 2026-07-22 | B5 Target Freeze on-disk · Status = **B5 Apply Scope Frozen** · Apply Mapping B5 = Scope Frozen · Next Gate = Apply Design Review |
 | 2026-07-22 | B5 Target Freeze **Amendment v1.1** · Status = **Scope Frozen (Amended)** · Apply 7→6 · Defer 13→14 (`clay_shooting`) · summary→explicit Not in B5 Scope · Next = Apply Design Review Recheck |
+| 2026-07-22 | B6 Target Freeze on-disk v1.0 · Apply Mapping B6 = **Review / Freeze Complete** (Empty Apply · PASS Conditional) · Ch.10 remains **Not Persisted** · ≠ Apply PASS · ≠ Verified · Persisted Index + B6 Freeze · Next Gate = **Ch.10 Ratify** |
+| 2026-07-22 | **Ch.10 L6 Runtime Contract Ratified** · Minor Amendment Complete · Chapter Status Ch.10 = **Ratified** · Persisted Index + Apply Mapping B6 Next = **Scope Reconfirm → ADR** · Remaining chapters (ex Ch.8–10) Not Persisted |
+| 2026-07-22 | **B6 Applied / PASS** · Freeze Amendment v1.1 · ADR Approve · Loader exclusion lift `double_rail` only · L6-VR PASS · Apply Mapping B6 = **Applied / PASS** · Next = **B7 Presentation** |
 
 ---
 

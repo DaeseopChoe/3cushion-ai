@@ -1,8 +1,191 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.22  
+Version : v1.25  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-22 (STEP8 B6 PASS — L6 Runtime Completeness · Next = B7 Presentation)
+
+## 제목
+
+**D-STEP8-23** — STEP8 Batch B6 (Runtime Contract) **PASS** · Apply 1 (`double_rail`) · L6-VR PASS · Next = **B7 Presentation**
+
+## Summary
+
+B6 Execution Baseline(ADR-STEP8-B6-01)에 따라 Loader exclusion만 적용하고 L6-VR Validation을 PASS한 뒤 최종 Commit/Push로 마감하였다.
+
+- **Freeze Amendment v1.1** · **ADR Approve** · Execution Governance **EB-01…07**
+- **Apply:** `frontend/src/runtime/loader/systemPackageStore.ts` — `double_rail` anchors exclusion **제거 only**
+- **Defer:** `0tip_plus` exclusion **유지**
+- **Meaning Preservation:** Formula / System Value / Logic / Trajectory **Unchanged**
+- **Validation:** L6-VR **PASS** (Loader smoke · Contract · Guard · Build · Regression)
+- **Ch.10** Ratified · Option C / Load Completeness cite
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-STEP8-23** | B6 Apply Count **1** · Target **`double_rail`** · Loader exclusion only |
+| **D-STEP8-24** | ADR-STEP8-B6-01 **Approve** · Execution Baseline Immutable (EB-01) |
+| **D-STEP8-25** | L6-VR Validation **PASS** · Commit Ready |
+| **D-STEP8-26** | B6 **PASS / Completed** · Next Gate = **B7 Presentation Contract** · B3 **Hold** |
+
+## Notes
+
+- Scope Drift 없음 · Safe Stop 없음
+- Public API / Registry ownership 불변
+- Rollback unit = git revert of B6 Apply commit
+
+## Related Project Docs Synced
+
+- `FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md` — Ratified (persist)
+- `FLEET_CONTRACT_BOOK_B6_Target_Freeze.md` · Amendment v1.1 · ADR
+- `FLEET_CONTRACT_BOOK_v1.0.md` — Apply Mapping B6 = Applied / PASS
+- `PROJECT_MASTER_INDEX.md` v1.37
+- `CURSOR_SESSION_HANDOFF.md` — B6 PASS · Next B7
+- `PROJECT_LOG_2026-07.md` v1.25 — 본 항목
+
+## Status
+
+**STEP8 B6 PASS · Next = B7 Presentation**
+
+## Next Session
+
+**STEP8 Batch B7 — Presentation Contract**
+
+---
+
+# 2026-07-22 (STEP8 Ch.10 Ratified — L6 Runtime Contract · Next = B6 Scope Reconfirm / ADR)
+
+## 제목
+
+**D-STEP8-19** — Fleet Contract Book **Ch.10 L6 Runtime Contract Ratified** · Minor Amendment Complete · Next = B6 Scope Reconfirm → ADR
+
+## Summary
+
+Ch.10 (L6 Runtime Contract) Ratify Review 결과(**Ready after Minor Amendment**)를 반영하여 Minor Amendment를 적용하고, Ch.10을 공식 **Ratified**로 승격하였다. Front Matter · MASTER · LOG · HANDOFF를 동기화하였다.
+
+### Minor Amendment (Ch.10)
+
+- Sole Lookup Entry = `getSystemContract()` · Public API Surface = Entry + Approved siblings
+- Structure Only (L6) Completeness lift = **Load Completeness 복원** (Formula/Value/Logic/Trajectory 의미 불변)
+- ID 관례: Projection `L6-J-*` · Prohibited `L6-P-*` (Ch.8/9 정렬)
+- Safe Stop: **Ch.10 Not Persisted** 상태 / B6-EN 미충족 시 code Apply 금지
+
+### Ratify
+
+- 문서: `FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md` · **Status = Ratified**
+- Front Matter: Ch.10 = **Ratified** · Persisted Index 갱신
+- Package Completeness = **Option C**
+- **Runtime / Loader / Registry code 미변경** · Apply 미수행
+
+### 최종 판정
+
+**Ch.10 Ratified** · B6는 계속 **Review / Freeze Complete (Empty Apply)** · **≠ Apply PASS**.  
+Next = **B6 Scope Reconfirm** → Freeze Amendment(필요 시) → **ADR**. B3 **Hold**.
+
+## Decision Log
+
+| Decision | Statement |
+|----------|-----------|
+| **D-STEP8-19** | Ch.10 Ratify Review = Ready after Minor Amendment → Minor Amendment **Complete** |
+| **D-STEP8-20** | Ch.10 L6 Runtime Contract **on-disk Ratified** (Front Matter 반영) |
+| **D-STEP8-21** | Completeness Option C · Structure Only(L6) = Load Completeness 복원 확정 |
+| **D-STEP8-22** | Next Gate = **B6 Scope Reconfirm** → ADR · B3 Hold · code Apply 아직 금지(Entry Criteria) |
+
+## Notes
+
+- Commit / Push는 본 로그 세션에서 수행하지 않음.
+- B6-EN Entry Criteria 중 Ch.10 Ratify·Front Matter는 충족 · Scope reconfirm / Amendment는 후속.
+
+## Related Project Docs Synced
+
+- `FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md` — Minor Amendment · Ratified
+- `FLEET_CONTRACT_BOOK_v1.0.md` — Ch.10 Ratified · Apply Mapping · Change Log
+- `PROJECT_MASTER_INDEX.md` v1.36 — Ch.10 Ratified · Next Scope Reconfirm/ADR
+- `CURSOR_SESSION_HANDOFF.md` — Ch.10 Ratified · Next Scope Reconfirm/ADR
+- `PROJECT_LOG_2026-07.md` v1.24 — 본 항목
+
+## Status
+
+**STEP8 Ch.10 Ratified · B6 Review/Freeze · Next = Scope Reconfirm / ADR**
+
+## Next Session
+
+**B6 Scope Reconfirm** → Freeze Amendment(필요 시) → **Apply Design Review (ADR)**
+
+---
+
+# 2026-07-22 (STEP8 B6 Review / Freeze — Runtime Contract · Next = Ch.10 Ratify)
+
+## 제목
+
+**D-STEP8-14** — STEP8 Batch B6 (Runtime Contract Batch) **Architecture Review / Target Freeze Complete** · Empty Apply · Next = Ch.10 Ratify
+
+## Summary
+
+STEP8 Batch B6 (L6 Runtime Contract)에 대해 Architecture Review와 Target Freeze를 수행하고, 공식 Freeze 문서를 on-disk로 영속화하였다.
+
+- **Architecture Review:** **PASS (Conditional)**
+- **Conditional 원인:** **Ch.10 (L6 Runtime Contract) Not Persisted — 이 하나뿐**
+- **Target Freeze:** **B6 Apply Scope Frozen (Empty Apply)** · Apply **0** · No-op **38**
+- **Runtime / Loader / Registry code:** **미변경**
+- **Apply / Validation 실행:** **미수행**
+- **공식 문서:** `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_Target_Freeze.md` **v1.0**
+
+### Freeze 분류
+
+| Class | Count | Note |
+|-------|------:|------|
+| **Apply** | **0** | Empty Apply |
+| **No-op** | **38** | Contract path 이미 Canonical (AAS Batch6) |
+| **Defer** | — | Loader exclusion (`0tip_plus`, `double_rail`) · Ch.10-dependent L6 rules |
+| **Out-of-Scope** | — | Formula/Value/Logic/Trajectory 의미 · B3 · B7 · B8 · Special anchors invent |
+
+### 원칙 유지
+
+- Structure Only · Meaning Preservation · Semantic Guard
+- Formula / System Value / Logic / Trajectory 의미 불변
+- Runtime / Loader / Registry **동작·의미 변경 금지** (본 Review Session)
+- Loader exclusion 해제 = **Defer** (현 Freeze에서 Apply 불가)
+
+### 최종 판정
+
+**STEP8 B6 Review / Freeze Complete** · **≠ Apply PASS · ≠ Verified**.  
+Next Gate = **Ch.10 L6 Runtime Contract on-disk Ratify**. B3는 계속 **HALTED (Hold)** · 재시도 금지.
+
+## Decision Log
+
+| Decision | Statement |
+|----------|-----------|
+| **D-STEP8-14** | B6 Architecture Review = **PASS (Conditional)** · Conditional = Ch.10 Not Persisted only |
+| **D-STEP8-15** | B6 Target Freeze Complete — **Empty Apply (0)** · No-op 38 · exclusion Defer |
+| **D-STEP8-16** | B6 Freeze SSOT on-disk — `FLEET_CONTRACT_BOOK_B6_Target_Freeze.md` v1.0 |
+| **D-STEP8-17** | Runtime / Loader / Registry **code 미변경** · Apply 미수행 · Review Session 완료 |
+| **D-STEP8-18** | Next Gate = **Ch.10 Runtime Contract Ratify** · B3 Hold 유지 · ≠ B6 Apply PASS |
+
+## Notes
+
+- Commit / Push는 본 로그 세션에서 수행하지 않음.
+- ADR (Apply Design Review)는 Ch.10 Ratify · Entry Criteria(B6-EN) 충족 전 **진입 불가**.
+
+## Related Project Docs Synced
+
+- `FLEET_CONTRACT_BOOK_v1.0.md` — Persisted Index · Apply Mapping B6 · Change Log
+- `FLEET_CONTRACT_BOOK_B6_Target_Freeze.md` — on-disk v1.0
+- `PROJECT_MASTER_INDEX.md` — B6 Review / Freeze · Next Ch.10
+- `CURSOR_SESSION_HANDOFF.md` — B6 Review / Freeze · Next Ch.10
+- `PROJECT_LOG_2026-07.md` v1.23 — 본 항목
+
+## Status
+
+**STEP8 B6 Review / Freeze Complete · Ch.10 Not Persisted · Next = Ch.10 Ratify**
+
+## Next Session
+
+**Ch.10 L6 Runtime Contract on-disk Ratify**
 
 ---
 
