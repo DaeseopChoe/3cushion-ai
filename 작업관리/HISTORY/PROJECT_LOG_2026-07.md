@@ -1,8 +1,86 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.20  
+Version : v1.21  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-22 (STEP8 B4 PASS — L4 Anchor Apply · Next = B5)
+
+## 제목
+
+**D-STEP8-06** — STEP8 Batch B4 (L4 Anchor Apply) **PASS** · Ch.8 Ratified · Target Freeze Complete · Next = B5
+
+## Summary
+
+Fleet Contract Book **Ch.8 (L4 Anchor Contract)** 를 on-disk SSOT로 Ratify한 뒤, B4 Target Freeze를 확정하고 Schema Normalize Apply를 수행하였다.
+
+### Ch.8 / Freeze
+
+- Ch.8 on-disk Ratify: `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md`
+- Front Matter: `FLEET_CONTRACT_BOOK_v1.0.md` (Conditional · Ch.8 = Ratified · Remaining = Not Persisted)
+- B4 Target Freeze: **A=3 · B(No-op)=25 · C(Defer)=6 · D(Out-of-Scope)=4**
+
+### B4 Apply 대상 (A)
+
+| system | migration |
+|--------|-----------|
+| `35half` | `labels[]` → `anchors[{id}]` |
+| `rodriguez` | `co`/`c1` (+ c2 문자열) → `anchors[{id}]` · `c2_options`/`seq3c` 유지 |
+| `reverse_end_system` | 동일 패턴 |
+
+### Freeze 분류 (요약)
+
+| Class | Count | Note |
+|-------|------:|------|
+| **Apply (A)** | 3 | 위 3시스템 |
+| **No-op (B)** | 25 | 이미 canonical `trajectories`+`anchors[{id}]` |
+| **Defer (C)** | 6 | `0tip_plus`, `1byhalf`, `spider_web`, `ball_system`, `3and4_system`, `2_3_system` |
+| **Out-of-Scope (D)** | 4 | `3tip_across`, `accordion`, `split`, `spread30` (Special N/A) |
+
+### Validation
+
+| Check | Result |
+|-------|--------|
+| Formula 변경 | **없음** |
+| System Value 변경 | **없음** |
+| Runtime / Loader / Registry 변경 | **없음** |
+| Anchor id 문자열 | **동일** (구조만 정규화) |
+| Semantic Guard | **PASS** |
+| `npm run build` | **PASS** |
+
+### 최종 판정
+
+**STEP8 B4 PASS** · Next = **STEP8 B5**. B3는 계속 **HALTED (Hold)** · 재시도 금지.
+
+## Decision Log
+
+| Decision | Statement |
+|----------|-----------|
+| **D-STEP8-06** | Ch.8 L4 Anchor Contract **on-disk Ratified** |
+| **D-STEP8-07** | B4 Target Freeze Complete (A3 / B25 / C6 / D4) |
+| **D-STEP8-08** | B4 Apply PASS — Schema Normalize only · 3 systems |
+| **D-STEP8-09** | Next = **STEP8 B5** · B3 Hold 유지 |
+
+## Notes
+
+- Commit / Push는 본 로그 세션에서 수행하지 않음 (별도 세션).
+- Defer/Out 대상 및 Loader exclusion(`0tip_plus`/`double_rail`)은 B4 성공 조건 아님 · B6 등 후속.
+
+## Related Project Docs Synced
+
+- `PROJECT_MASTER_INDEX.md` — B4 PASS · Next B5
+- `CURSOR_SESSION_HANDOFF.md` — B4 PASS · Next B5
+- `PROJECT_LOG_2026-07.md` v1.21 — 본 항목
+
+## Status
+
+**STEP8 B4 PASS · Ch.8 Ratified · Next = B5**
+
+## Next Session
+
+**STEP8 Batch B5**
 
 ---
 
