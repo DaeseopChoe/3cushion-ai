@@ -1,5 +1,6 @@
 {
   "system_id": "7_system",
+  "role": "track_selection_only",
   "track_selection": {
     "strategy": "ruleset",
     "tolerance": 0.02,
@@ -39,6 +40,10 @@
       "logic.json은 트랙 판정만 담당합니다. 계산/보간/클램프 규칙은 derivations로 이동합니다.",
       "7_system은 CO와 C3의 rail 조합으로 4트랙이 유일하게 결정됩니다."
     ]
+  },
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "note": "Track selection only. Calculation / interpolation / clamp rules are delegated to derivations."
   },
   "meta": {
     "rule_version": "v1.3",

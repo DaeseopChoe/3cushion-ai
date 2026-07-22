@@ -78,7 +78,7 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | Ch.6 | L2 Schema Contract | L2 | — | **Not Persisted** |
 | Ch.7 | L3 Metadata Contract | L3 | — | **Not Persisted** |
 | **Ch.8** | **L4 Anchor Contract** | **L4** | **`FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md`** | **Ratified** |
-| Ch.9 | L5 Logic Contract | L5 | — | **Not Persisted** |
+| **Ch.9** | **L5 Logic Contract** | **L5** | **`FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md`** | **Ratified** |
 | Ch.10 | L6 Runtime Contract | L6 | — | **Not Persisted** |
 | Ch.11 | L7 Presentation Contract | L7 | — | **Not Persisted** |
 | Ch.12–14 | Assurance | — | — | **Not Persisted** |
@@ -102,8 +102,9 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | B0 / B1 | L1 Identity | Ch.5 (Not Persisted) · executed under Conditional Review | **PASS** |
 | B2 / B2.5 | L2 Schema / File-format | Ch.6 (Not Persisted) · executed under Conditional Review | **PASS** |
 | B3 | L3 Metadata | Ch.7 **Not Persisted** | **HALTED (Safe Stop)** · do NOT retry |
-| **B4** | **L4 Anchor** | **Ch.8 Ratified** | **Pending** · Entry requires Ch.8 + Target Freeze |
-| B5…B8 | L5…Validation | Not Persisted | Pending |
+| **B4** | **L4 Anchor** | **Ch.8 Ratified** | **Applied / PASS** |
+| **B5** | **L5 Logic** | **Ch.9 Ratified** | **Scope Frozen (Amended)** · Apply 6 / Defer 14 · Architecture Review 권고 A · Next = Apply Design Review Recheck |
+| B6…B8 | L6…Validation | Not Persisted | Pending |
 
 ---
 
@@ -135,6 +136,8 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 |------|------|
 | `FLEET_CONTRACT_BOOK_v1.0.md` | Front Matter · Status Register (본 문서) |
 | `FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md` | **Ch.8 L4 Anchor Contract — Ratified** |
+| `FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md` | **Ch.9 L5 Logic Contract — Ratified** |
+| `FLEET_CONTRACT_BOOK_B5_Target_Freeze.md` | **STEP8 B5 Target Freeze — Apply Scope Frozen (Amended) v1.1** |
 
 ---
 
@@ -143,6 +146,9 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | Date | Change |
 |------|--------|
 | 2026-07-22 | Front Matter on-disk 생성 · Status = Ratified (Conditional) · Ch.8 = Ratified · Remaining Chapters = Not Persisted · Baseline `c398f3a` |
+| 2026-07-22 | Ch.9 L5 Logic Contract on-disk Ratify · Chapter Status Register / Apply Mapping / Persisted Index 갱신 |
+| 2026-07-22 | B5 Target Freeze on-disk · Status = **B5 Apply Scope Frozen** · Apply Mapping B5 = Scope Frozen · Next Gate = Apply Design Review |
+| 2026-07-22 | B5 Target Freeze **Amendment v1.1** · Status = **Scope Frozen (Amended)** · Apply 7→6 · Defer 13→14 (`clay_shooting`) · summary→explicit Not in B5 Scope · Next = Apply Design Review Recheck |
 
 ---
 

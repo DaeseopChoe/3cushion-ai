@@ -1,4 +1,6 @@
 {
+  "system_id": "3tip_plus",
+  "role": "track_selection_only",
   "track_selection": {
     "strategy": "ruleset",
     "tolerance": 0.02,
@@ -36,6 +38,11 @@
       "L": "9시",
       "R": "3시"
     }
+  },
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "note": "Track selection only. Numeric calculation is delegated outside logic.json."
   },
 
   "meta": {

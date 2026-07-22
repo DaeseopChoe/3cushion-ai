@@ -1,5 +1,6 @@
 {
   "system_id": "plus2_system",
+  "role": "track_selection_only",
 
   "applicability": {
     "condition": "CO_sys < 20",
@@ -91,6 +92,11 @@
     "C1_sys is derived from CO_sys and target SFG lines",
     "All numeric derivations are handled outside logic.json"
   ],
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "note": "Track selection only. All numeric derivations are handled outside logic.json."
+  },
 
   "meta": {
     "version": "1.0",

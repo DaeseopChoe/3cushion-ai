@@ -1,5 +1,6 @@
 {
   "system_id": "plus_system",
+  "role": "track_selection_only",
 
   "track_selection": {
     "strategy": "ruleset",
@@ -76,6 +77,11 @@
     "Tie cases are resolved by C3 side rail, then anchor existence",
     "All sys calculations are performed outside logic.json"
   ],
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "note": "Track selection only. All sys calculations are performed outside logic.json."
+  },
 
   "meta": {
     "version": "1.0",

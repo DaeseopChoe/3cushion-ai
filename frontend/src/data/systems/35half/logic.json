@@ -1,5 +1,6 @@
 {
   "system_id": "35half",
+  "role": "track_selection_only",
   "track_selection": {
     "strategy": "ruleset",
     "snap_tolerance": 0.02,
@@ -51,6 +52,10 @@
       "C3는 계산 단계에서 사용되며 트랙 선택에는 관여하지 않습니다.",
       "logic.json에는 계산/보간/공식이 포함되지 않습니다."
     ]
+  },
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "note": "Track selection only. Numeric calculation / interpolation / formula are delegated outside logic.json."
   },
   "meta": {
     "rule_version": "v1.3",

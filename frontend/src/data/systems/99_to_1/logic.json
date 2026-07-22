@@ -1,5 +1,6 @@
 {
   "system_id": "99_to_1_system",
+  "role": "track_selection_only",
 
   "applicability": {
     "required_marks": ["CO", "C4"],
@@ -64,6 +65,11 @@
     "C1 is always a derived value, never an input",
     "System identity is resolved in profile and derivations layers"
   ],
+
+  "calculation_policy": {
+    "calculation_allowed": false,
+    "note": "Track selection only. Numeric derivations are handled outside logic.json."
+  },
 
   "meta": {
     "version": "1.0",

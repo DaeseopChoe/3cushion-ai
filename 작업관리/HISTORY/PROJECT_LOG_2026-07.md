@@ -1,8 +1,97 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.21  
+Version : v1.22  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-22 (STEP8 B5 PASS — L5 Logic Apply · Next = B6)
+
+## 제목
+
+**D-STEP8-10** — STEP8 Batch B5 (L5 Logic Apply) **PASS / Completed** · Ch.9 Ratified · Structure-only Apply · Meaning Preservation · Next = B6
+
+## Summary
+
+Fleet Contract Book **Ch.9 (L5 Logic Contract)** 를 on-disk SSOT로 Ratify한 뒤, B5 Target Freeze → Design Review → Safe Stop → Freeze Amendment → Apply → Validation을 완료하였다.
+
+### Ch.9 / Freeze / Amendment
+
+- Ch.9 on-disk Ratify: `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md`
+- B5 Target Freeze v1.0 → **Amendment v1.1** (`FLEET_CONTRACT_BOOK_B5_Target_Freeze.md`)
+- Apply Scope **7 → 6** · `clay_shooting` **Apply → Defer**
+- `summary → explicit ruleset` = **Not in B5 Scope / Prohibited** (Semantic Generation)
+
+### B5 Apply 대상 (6) — Structure-only
+
+| system | additive wrap |
+|--------|---------------|
+| `35half` | `role` + `calculation_policy` · spin-in-then 유지 |
+| `3tip_plus` | `system_id` + `role` + `calculation_policy` · HP 유지 |
+| `7_system` | `role` + `calculation_policy` · CO/C3 selector 유지 |
+| `99_to_1` | `role` + `calculation_policy` · `system_id: "99_to_1_system"` 유지 |
+| `plus_system` | `role` + `calculation_policy` · tie-break 유지 |
+| `plus2_system` | `role` + `calculation_policy` · applicability / `fixed_plus:20` 유지 |
+
+### Freeze 분류 (Amended)
+
+| Class | Count | Note |
+|-------|------:|------|
+| **Apply** | 6 | 위 6시스템 |
+| **No-op** | 18 | 이미 modern / declarative canonical |
+| **Defer** | 14 | 기존 Defer + **`clay_shooting`** |
+| **Out-of-Scope** | 0 | — |
+
+### Apply 원칙
+
+- **Structure-only Apply** only (`role` / `calculation_policy` additive)
+- **Meaning Preservation** 유지 (Formula / Track / Decision / Input / Calculation Policy 의미 불변)
+- ruleset 조건·순서·marks·hp_policy·meta rename **금지**
+- Runtime / Loader / Registry / Validation **code 미변경**
+
+### Validation
+
+| Check | Result |
+|-------|--------|
+| Structure Only | **PASS** (+35 insertions · 0 deletions on Apply 6) |
+| Meaning Preservation | **PASS** |
+| Semantic Guard | **PASS** |
+| Runtime Contract | **PASS** |
+| Regression (track / marks / delegation) | **PASS** |
+| B5 Apply Approved | **Yes** |
+
+### 최종 판정
+
+**STEP8 B5 PASS / Completed** · Next = **STEP8 Batch B6**. B3는 계속 **HALTED (Hold)** · 재시도 금지.
+
+## Decision Log
+
+| Decision | Statement |
+|----------|-----------|
+| **D-STEP8-10** | Ch.9 L5 Logic Contract **on-disk Ratified** |
+| **D-STEP8-11** | B5 Target Freeze → Amendment v1.1 (Apply 6 · clay Defer) |
+| **D-STEP8-12** | B5 Apply PASS — **Structure-only** · Meaning Preservation · 6 systems |
+| **D-STEP8-13** | B5 Validation PASS · Next = **STEP8 B6** · B3 Hold 유지 |
+
+## Notes
+
+- Commit / Push는 본 로그 세션에서 수행하지 않음 (별도 세션).
+- `clay_shooting` 및 기타 Defer는 B5 성공 조건 아님 · 후속 Batch.
+
+## Related Project Docs Synced
+
+- `PROJECT_MASTER_INDEX.md` — B5 PASS · Next B6
+- `CURSOR_SESSION_HANDOFF.md` — B5 PASS · Next B6
+- `PROJECT_LOG_2026-07.md` v1.22 — 본 항목
+
+## Status
+
+**STEP8 B5 PASS · Ch.9 Ratified · Next = B6**
+
+## Next Session
+
+**STEP8 Batch B6** (Runtime Contract Batch)
 
 ---
 
