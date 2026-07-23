@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.43  
+Version: 1.44  
 Last Updated: 2026-07-23  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
@@ -40,7 +40,7 @@ Architecture Review
 2. **`OPS_AI_MODEL_GUIDE.md`** — Ops AI Model Recommendation **v0.1** (Recommendation only)  
 3. **`docs/APPLICATION_FLOW.md`** — **Runtime Orchestration Architecture Guide** (Architecture 구현 시 **최우선**)  
 4. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-5. **`CURSOR_SESSION_HANDOFF.md`** — **STEP8 Fleet Apply Completed** · Next **Post-STEP8 / STEP9 Entry**  
+5. **`CURSOR_SESSION_HANDOFF.md`** — **STEP8 Completed** · Current **Post-STEP8** · Next **STEP9 Entry**  
 6. **`STEP7_IMPLEMENTATION_DECOMPOSITION.md`** — Session Execution SSOT **v1.0 Approved**  
 7. **`System Platform Standard (SPS) v1.0/STEP7_P4_IU-4-0*.md`** — **P4 Plan suite** (Complete · Official · Consume)  
 8. **`System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md`** — **P2 Catalog Design v0.15** (Consume)  
@@ -94,7 +94,7 @@ Architecture Review
 | `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 **First Consume** |
 | `작업관리/DEVELOPMENT_WORKFLOW.md` | **Operational Workflow SSOT v1.0** (General + Fleet Apply Workflow · Sole Ops SSOT) |
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**STEP8 Fleet Apply Completed** · Next **Post-STEP8 / STEP9**) |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**STEP8 Completed** · **Post-STEP8** · Next **STEP9**) |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8–Ch.11 Ratified** · **B0–B8 Completed** · **Final Validation Gate v1.0** |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** (IU-6-01A…06A Complete · Design-only · Consume) |
 | `작업관리/OPS_AI_MODEL_GUIDE.md` | **Ops AI Model Recommendation Guide v0.1** (Recommendation only · never Gate) |
@@ -1041,7 +1041,7 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 ## 다음 작업 우선순위
 
-> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed** — B0·B1·B2·B2.5·**B4·B5·B6·B7·B8 PASS** · **Ch.8·Ch.9·Ch.10·Ch.11 Ratified** · **Final Validation Gate v1.0** · B3 **HALTED (Hold)** · Ops Workflow **v1.0**. Current: **Post-STEP8 / STEP9 Entry Ready**.
+> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed** — B0·B1·B2·B2.5·**B4·B5·B6·B7·B8 PASS** · **Final Validation Gate v1.0** · B3 **HALTED (Hold)** · Ops Workflow **v1.0**. **Current: Post-STEP8** · **Next: STEP9 Entry**.
 
 ### STEP7 상태
 
@@ -1100,10 +1100,10 @@ STEP7 P6 Fleet · STEP7_P6_FLEET_BATCH1_01A
 | **Freeze Candidate (Catalog)** | **Not Declared** |
 | **Catalog / Register JSON** | **Not created** |
 | **catalogPinId** | **Not issued** |
-| **Current Stage** | **STEP8 Fleet Apply — Completed** · B0·B1·B2·B2.5·**B4·B5·B6·B7·B8 PASS** · **Ch.8·Ch.9·Ch.10·Ch.11 Ratified** · **Final Validation Gate v1.0** · B3 HALTED (Hold) |
-| **Prerequisite** | **Final Validation Gate v1.0 · WG-AI-001 PASS · Fleet Contract Book (Ch.8–Ch.11 Ratified) · Ops Workflow v1.0** |
-| **Next Session** | **Post-STEP8 / STEP9 Entry** (Consume Final Validation Gate) |
-| **Current Queue** | **Post-STEP8 backlog · STEP9 Entry** |
+| **Current Stage** | **Post-STEP8** · STEP8 Fleet Apply **Completed** · Final Validation Gate v1.0 · B3 HALTED (Hold) |
+| **Prerequisite** | **Final Validation Gate v1.0 (= Fleet Validation Standard baseline) · Ch.8–Ch.11 Ratified · Ops Workflow v1.0** |
+| **Next Session** | **STEP9 Entry** |
+| **Current Queue** | **STEP9** |
 | **Ops AI Guide** | **`OPS_AI_MODEL_GUIDE.md` v0.1** |
 
 ### STEP8 상태 (Fleet Apply — Completed)
@@ -1145,9 +1145,9 @@ STEP8 Fleet Apply              COMPLETED
 | **B8 Fleet Validation** | **Completed / PASS** — Empty Apply (**0**) · Mode A · B8-VR PASS · XC-01…XC-12 PASS · Code ADR Not Required |
 | **Final Validation Gate** | **v1.0 · Final Acceptance** · `FLEET_CONTRACT_BOOK_STEP8_Final_Validation_Gate.md` |
 | **STEP8 Fleet Apply** | **Completed** |
-| **Next** | **Post-STEP8 / STEP9 Entry** |
+| **Next** | **STEP9 Entry** |
 | **Operational Workflow** | **`DEVELOPMENT_WORKFLOW.md` v1.0** (General + Fleet Apply Workflow · Sole Ops SSOT) |
-| **Commit** | B0+B1 `82cb371` · B2+B2.5 `a32bed9` · B4/B5/B6 prior · B7/B8 docs + Final Gate (no B8 code) |
+| **Commit** | B0+B1 `82cb371` · B2+B2.5 `a32bed9` · B4/B5/B6 prior · B7 `9befe68` · **B8 Closure `dde06d2`** (docs · no B8 code) |
 
 ### STEP6 상태 (Consume)
 
@@ -1161,15 +1161,14 @@ STEP8 Fleet Apply              COMPLETED
 
 Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7은 STEP6 **Consume**.
 
-### 최우선 — Post-STEP8 / STEP9 Entry (Fleet Baseline Consume)
+### 최우선 — STEP9 Entry (Fleet Validation Standard Consume)
 
-- Session Entry: `CURSOR_SESSION_HANDOFF.md` (**STEP8 Completed** · Next **Post-STEP8 / STEP9**)
-- **First Consume:** MASTER → LOG → `DEVELOPMENT_WORKFLOW.md` v1.0 → **`FLEET_CONTRACT_BOOK_STEP8_Final_Validation_Gate.md`**
-- **Fleet Baseline:** Final Validation Gate v1.0 · Ch.8–Ch.11 Ratified · B4–B8 Freeze/ADR · Ops Workflow v1.0
-- **B8**: **Completed / PASS** · Empty Apply **0** · Mode A · Fleet Closure **Confirmed**
-- **Carry:** B3 Hold · L7-D-001 Explicit Defer · Catalog Freeze Candidate · Ch.12–14 Defer · KI backlog
+- Session Entry: `CURSOR_SESSION_HANDOFF.md` (**Post-STEP8** · Next **STEP9**)
+- **Current baseline (Fleet Validation Standard):** `FLEET_CONTRACT_BOOK_STEP8_Final_Validation_Gate.md` v1.0 + Ch.8–Ch.11 + B4–B8 Freeze/ADR + Ops Workflow v1.0
+- **STEP8:** **Completed** · B8 Validation **PASS** · Fleet Closure **Confirmed** · Final Gate **Accepted**
+- **Carry (non-blocking):** B3 Hold · L7-D-001 · Catalog Freeze Candidate · Ch.12–14 · KI backlog
 - Ops: `DEVELOPMENT_WORKFLOW.md` **v1.0** · `OPS_AI_MODEL_GUIDE.md` v0.1
-- **금지:** B3 재시도 · Ch.8–Ch.11/WG informal edit · B6/B7/B8 Empty Apply reopen without Freeze+ADR · Runtime / JSON silent mutation
+- **금지:** B3 재시도 · Ch.8–Ch.11 informal edit · Empty Apply reopen without Freeze+ADR · Runtime / JSON silent mutation
 
 ### SPS STEP6 Document Suite
 
@@ -1244,7 +1243,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | 문서 | 용도 |
 |------|------|
 | `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 First Consume |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — STEP8 Fleet Apply Completed · Next **Post-STEP8 / STEP9 Entry** |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — STEP8 Completed · **Post-STEP8** · Next **STEP9 Entry** |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
 | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` | **Architecture Impact Working Guideline** — PASS · Consume · Freeze Candidate |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** — IU-6-01A…06A Complete · Design-only |
