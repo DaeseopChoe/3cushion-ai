@@ -1,8 +1,271 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.25  
+Version : v1.29  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-23 (Ops SSOT Sync Close — B7 Completed · Workflow v1.0 · B8 Entry Ready)
+
+## 제목
+
+**D-STEP8-39** — STEP8 B7 세션 결과 최종 동기화 · Operational Workflow SSOT **v1.0** · Next = **STEP8 Batch B8**
+
+## Summary
+
+본 세션에서 완료된 STEP8 Batch B7 결과와 Operational Workflow SSOT v1.0 개편을 운영 문서에 최종 반영하여 B8 시작 전 상태를 동기화하였다. Code / Runtime / JSON / Fleet Contract Book 본문은 변경하지 않았다.
+
+### B7 완료 체인 (본 세션)
+
+| Gate | Result |
+|------|--------|
+| **Ch.11 Ratify** | **Complete** (L7 Presentation Contract Ratified) |
+| **B7 Target Freeze** | **Complete** · Empty Apply (**0**) |
+| **B7 Validation** | **PASS** · L7-VR-01…12 |
+| **B7 Batch** | **Completed / PASS** |
+
+### Operational Workflow
+
+| Item | Value |
+|------|-------|
+| **DEVELOPMENT_WORKFLOW.md** | **v1.0** · Sole Operational Workflow SSOT |
+| **Scope** | General + **Fleet Apply Workflow** (§8–§11) |
+| **Fleet Workflow 편입** | Review→…→Validation→SSOT sync · Empty Apply = Success · Ratify ≠ Apply |
+| **병렬 SSOT** | `FLEET_STANDARD_WORKFLOW.md` **미생성** (부적합 판정 유지) |
+
+### Empty Apply / Governance
+
+- Apply Count = **0** · Code ADR **Not Required** · Code Apply **없음**
+- Structure Only · Meaning Preservation · Semantic Guard · Safe Stop · **B3 Hold** 유지
+- L7-D-001 Explicit Defer 유지
+
+### B8 준비
+
+| Item | Value |
+|------|-------|
+| **Next Session** | **STEP8 Batch B8 Validation** |
+| **Entry Ready** | MASTER · LOG · HANDOFF · Workflow v1.0 정합 |
+| **Hold** | B3 **유지** · Runtime 수정 금지 |
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-STEP8-39** | Ops SSOT final sync — B7 **Completed** · Next **B8** |
+| **D-STEP8-40** | `DEVELOPMENT_WORKFLOW.md` **v1.0** = Sole Ops SSOT (Fleet Workflow 편입 확정) |
+| **D-STEP8-41** | Empty Apply Batch PASS 유지 · B3 Hold · L7-D-001 Explicit Defer 유지 |
+| **D-STEP8-42** | Fleet Contract Book / Runtime / JSON / Code **미변경** (본 sync) |
+
+## Related Project Docs Synced
+
+- `DEVELOPMENT_WORKFLOW.md` v1.0 (Front Matter consume · B3 Hold 보완)
+- `PROJECT_MASTER_INDEX.md` v1.42
+- `CURSOR_SESSION_HANDOFF.md` — B7 Completed · B8 Entry
+- `PROJECT_LOG_2026-07.md` v1.29 — 본 항목
+
+## Status
+
+**STEP8 B7 Completed · Operational Workflow SSOT v1.0 · B8 Entry Ready**
+
+## Next Session
+
+**STEP8 Batch B8 — Validation**
+
+First Consume: MASTER → LOG → DEVELOPMENT_WORKFLOW v1.0 → Fleet Contract Book
+
+---
+
+# 2026-07-23 (STEP8 B7 PASS — L7 Presentation Contract · Empty Apply · Next = B8)
+
+## 제목
+
+**D-STEP8-35** — STEP8 Batch B7 (Presentation Contract) **PASS / Completed** · Empty Apply · L7-VR PASS · Next = **B8 Validation**
+
+## Summary
+
+Ch.11 Ratified · B7 Target Freeze Complete (Empty Apply) 상태에서 L7-VR-01…12 Validation을 수행하고 **PASS** 판정하였다. Code Apply · Runtime · JSON 변경은 없다.
+
+- **Ch.11:** **Ratified**
+- **Target Freeze:** **Complete** (`FLEET_CONTRACT_BOOK_B7_Target_Freeze.md` v1.0)
+- **Apply Count:** **0 (Empty Apply)**
+- **Code ADR:** **Not Required**
+- **Code Apply / Runtime / JSON:** **미변경**
+- **Validation:** L7-VR-01…12 **PASS** (document + vacuous checks)
+- **L7-D-001:** **Explicit Defer / Transitional Debt** 유지
+- **Commit / Push:** **미수행** (본 세션)
+
+### Validation Matrix (요약)
+
+| ID | Check | Result |
+|----|-------|--------|
+| L7-VR-01 | Ch.11 Ratified | **PASS** |
+| L7-VR-02 | Freeze 분류 정합 | **PASS** |
+| L7-VR-03 | Boundary | **PASS** |
+| L7-VR-04 | Public API Consumption | **PASS** |
+| L7-VR-05 | Invariants L7-I-* | **PASS** |
+| L7-VR-06 | Meaning Preservation | **PASS** (vacuous · Apply=0) |
+| L7-VR-07 | Apply = 0 | **PASS** |
+| L7-VR-08 | Code Apply 없음 | **PASS** |
+| L7-VR-09 | Code ADR 없음 | **PASS** |
+| L7-VR-10 | Empty Apply 정합 | **PASS** |
+| L7-VR-11 | Governance 유지 | **PASS** |
+| L7-VR-12 | L7-D-001 Explicit Defer | **PASS** |
+
+### Freeze 분류 (유지)
+
+| Class | Note |
+|-------|------|
+| **Apply** | **0** |
+| **No-op** | Canonical Presentation 소비 경로 |
+| **Defer** | L7-D-001 · profile.display · labelStrategy JSON · Metadata rename |
+| **Out-of-Scope** | Formula/Value/Logic/Trajectory · Runtime · B3 · B8 · UX 등 |
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-STEP8-35** | B7 L7-VR Validation **PASS** (Empty Apply · document/vacuous) |
+| **D-STEP8-36** | B7 **PASS / Completed** · Apply 0 · Code ADR Not Required · Code Apply 미수행 |
+| **D-STEP8-37** | L7-D-001 Explicit Defer **유지** · Option 1/2/3 미확정 |
+| **D-STEP8-38** | Next Gate = **B8 Validation** · B3 **Hold** |
+
+## Notes
+
+- Empty Apply Batch PASS ≠ Code mutation PASS · 의미 변경 없음이 핵심.
+- Structure Only · Meaning Preservation · Semantic Guard · Ratify ≠ Apply 유지.
+- Commit / Push는 본 세션에서 수행하지 않음.
+
+## Related Project Docs Synced
+
+- `FLEET_CONTRACT_BOOK_v1.0.md` — Apply Mapping B7 = **PASS / Completed**
+- `PROJECT_MASTER_INDEX.md` v1.41
+- `CURSOR_SESSION_HANDOFF.md` — B7 PASS · Next B8
+- `PROJECT_LOG_2026-07.md` v1.28 — 본 항목
+
+## Status
+
+**STEP8 B7 PASS · Next = B8 Validation**
+
+## Next Session
+
+**STEP8 Batch B8 — Validation** (Engine / catalog · B3 Hold 유지)
+
+---
+
+# 2026-07-23 (STEP8 B7 Target Freeze — Empty Apply · Next = B7 Validation)
+
+## 제목
+
+**D-STEP8-31** — STEP8 Batch B7 (Presentation Contract) **Target Freeze Complete** · Empty Apply · Next = **B7 Validation**
+
+## Summary
+
+Ch.11 Ratified · Target Freeze Design Review **PASS** 후 B7 Apply Scope를 공식 Freeze 문서로 on-disk 영속화하고 Ops SSOT를 동기화하였다.
+
+- **Architecture / Freeze Design:** **PASS**
+- **Target Freeze:** **B7 Apply Scope Frozen (Empty Apply)** · Apply **0**
+- **Code ADR:** **Not Required** (Expected Diff = none)
+- **L7-D-001:** **Explicit Defer / Transitional Debt** 유지 · Option 1/2/3 **미확정**
+- **Defer:** L7-D-001 · profile.display 통일 · labelStrategy JSON 명시 · Metadata rename
+- **Presentation / Renderer / Overlay / Runtime code:** **미변경**
+- **Code Apply / Validation 실행 / Commit / Push:** **미수행**
+- **공식 문서:** `FLEET_CONTRACT_BOOK_B7_Target_Freeze.md` **v1.0**
+
+### Freeze 분류
+
+| Class | Count | Note |
+|-------|------:|------|
+| **Apply** | **0** | Empty Apply |
+| **No-op** | — | Canonical Presentation 소비 경로 · Renderer · Presentation · Overlay(일반) · ViewModel · labelStrategy(effective) · baselineHandle · TrajectoryContractView |
+| **Defer** | — | L7-D-001 · profile.display · labelStrategy JSON · Metadata rename |
+| **Out-of-Scope** | — | Formula/Value/Logic/Trajectory 의미 · Runtime · B3 · B8 · UX/Caption/Search · STEP6 Semantic L7 |
+
+### 원칙 유지
+
+- Structure Only · Meaning Preservation · Semantic Guard
+- Ratify ≠ Apply · Empty Apply · Code ADR Not Required
+- Formula / System Value / Logic / Trajectory 의미 불변
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-STEP8-31** | B7 Target Freeze Complete — **Empty Apply (0)** · No-op Canonical · Defer L7-D-001 / display / labelStrategy / Metadata |
+| **D-STEP8-32** | B7 Freeze SSOT on-disk — `FLEET_CONTRACT_BOOK_B7_Target_Freeze.md` v1.0 |
+| **D-STEP8-33** | Code ADR **Not Required** · Code Apply / Validation exec **미수행** |
+| **D-STEP8-34** | Next Gate = **B7 Validation** · B3 **Hold** · ≠ B7 Apply PASS |
+
+## Notes
+
+- Commit / Push는 본 세션에서 수행하지 않음.
+- Empty Apply이므로 Code ADR / Code Apply 게이트 **불필요**.
+- L7-D-001 Option 확정은 후속 Issue / 별도 ADR.
+
+## Related Project Docs Synced
+
+- `FLEET_CONTRACT_BOOK_B7_Target_Freeze.md` — on-disk v1.0
+- `FLEET_CONTRACT_BOOK_v1.0.md` — Persisted Index · Apply Mapping B7 · Change Log
+- `PROJECT_MASTER_INDEX.md` v1.40
+- `CURSOR_SESSION_HANDOFF.md` — B7 Target Freeze Complete · Next B7 Validation
+- `PROJECT_LOG_2026-07.md` v1.27 — 본 항목
+
+## Status
+
+**STEP8 B7 Target Freeze Complete (Empty Apply) · Next = B7 Validation**
+
+## Next Session
+
+**STEP8 Batch B7 — Validation** (Empty Apply · L7-VR document / vacuous checks · No Code Apply)
+
+---
+
+# 2026-07-23 (STEP8 Ch.11 Ratified — L7 Presentation Contract · Next = B7 Target Freeze)
+
+## 제목
+
+**D-STEP8-27** — Fleet Contract Book **Ch.11 L7 Presentation Contract Ratified** · Ops SSOT sync · Next = **B7 Target Freeze**
+
+## Summary
+
+Ch.11 (L7 Presentation Contract) Minor Amendment(MA-01…05) 완료 후 Ratify Review 판정(**READY FOR RATIFY**)을 반영하여 Ch.11을 공식 **Ratified**로 승격하고 Front Matter · MASTER · LOG · HANDOFF를 동기화하였다.
+
+- **Ch.11** Status = **Ratified** (v1.0)
+- **L7-D-001** = **Explicit Defer / Transitional Debt** 유지 (SysOverlay `getSystemContract`)
+- Option 1/2/3 최종 선택 = **Target Freeze 또는 ADR**
+- **Code Apply / Target Freeze / ADR / Validation / Commit / Push** = **미수행**
+- **Ratify ≠ Apply**
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-STEP8-27** | Ch.11 L7 Presentation Contract **on-disk Ratified** |
+| **D-STEP8-28** | Front Matter Ch.11 = **Ratified** · Persisted Index 반영 |
+| **D-STEP8-29** | L7-D-001 **Explicit Defer / Transitional Debt** 유지 · Option = Freeze/ADR |
+| **D-STEP8-30** | Next Gate = **B7 Target Freeze** · B3 **Hold** · Code Apply 금지(본 세션) |
+
+## Notes
+
+- Structure Only · Meaning Preservation · Semantic Guard 유지
+- Fleet L7 ≠ STEP6 L7 Semantic Consistency
+- B3 재시도 금지
+
+## Related Project Docs Synced
+
+- `FLEET_CONTRACT_BOOK_Ch11_L7_Presentation_Contract.md` — Ratified v1.0
+- `FLEET_CONTRACT_BOOK_v1.0.md` — Ch.11 Ratified · Apply Mapping B7 · Persisted Index
+- `PROJECT_MASTER_INDEX.md` v1.39
+- `CURSOR_SESSION_HANDOFF.md` — Ch.11 Ratified · Next B7 Target Freeze
+- `PROJECT_LOG_2026-07.md` v1.26 — 본 항목
+
+## Status
+
+**STEP8 Ch.11 Ratified · Next = B7 Target Freeze**
+
+## Next Session
+
+**STEP8 Batch B7 — Target Freeze**
 
 ---
 

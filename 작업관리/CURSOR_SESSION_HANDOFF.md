@@ -3,45 +3,38 @@
 ```
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
-Date      : 2026-07-22
-Scope     : STEP8 Fleet Apply In Progress · B0…B2.5·B4·B5·B6 PASS · B3 HALTED ·
-             Next = B7 Presentation Contract
-Rule      : Fact only · Consume Fleet Book (Ch.8·Ch.9·Ch.10 Ratified) + WG-AI-001 ·
-             B6 = PASS (L6-VR) · do NOT retry B3 · Safe Stop ≠ FAIL
+Date      : 2026-07-23
+Scope     : STEP8 Fleet Apply In Progress · B7 Completed · Next = STEP8 Batch B8 Validation
+Rule      : Fact only · Consume Ops Workflow v1.0 + Fleet Book · B3 Hold · L7-D-001 Explicit Defer ·
+             Runtime / JSON silent mutation 금지 · Safe Stop ≠ FAIL
 ```
 
 ---
 
-## 0. 새 세션 — 필수 읽기 순서
+## 0. 새 세션 — 필수 읽기 순서 (B8 Entry)
 
 ```text
-1. DEVELOPMENT_WORKFLOW.md                    (v0.3 · Ops · §12)
-2. OPS_AI_MODEL_GUIDE.md                      (v0.1 · Ops · model recommendation)
-3. docs/APPLICATION_FLOW.md                   (Architecture Guide · First for Runtime/Presentation/Validation)
-4. PROJECT_MASTER_INDEX.md
-5. PROJECT_LOG_2026-07.md
-6. CURSOR_SESSION_HANDOFF.md                  (본 문서 · B6 PASS · Next B7)
-7. WG-AI-001_Architecture_Impact_Working_Guideline.md  (PASS · Consume)
-8. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_v1.0.md     (Front Matter · Conditional)
-9. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md  (Ch.8 Ratified)
-10. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md  (Ch.9 Ratified)
-11. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md (Ch.10 Ratified)
-12. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B5_Target_Freeze.md         (v1.1 Amended)
-13. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_Target_Freeze.md         (v1.0)
-14. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_Target_Freeze_Amendment_v1.1.md
-15. Fleet_Contract_Book/FLEET_CONTRACT_BOOK_B6_ADR_Apply_Design_Review.md (Approve · EB-*)
-16. STEP7_P6 / P5 / STEP6 Freeze              (Consume)
+1. PROJECT_MASTER_INDEX.md
+2. PROJECT_LOG_2026-07.md
+3. DEVELOPMENT_WORKFLOW.md          (v1.0 · Sole Ops SSOT · General + Fleet)
+4. Fleet Contract Book
+     - FLEET_CONTRACT_BOOK_v1.0.md          (Front Matter · Apply Mapping)
+     - Ch.8…Ch.11 (Ratified)               (필요 시)
+     - B5/B6/B7 Freeze · B6 ADR            (필요 시)
+5. CURSOR_SESSION_HANDOFF.md               (본 문서)
+6. docs/APPLICATION_FLOW.md                (Architecture / Validation 시)
+7. WG-AI-001                               (PASS · Consume)
+8. OPS_AI_MODEL_GUIDE.md                   (Recommendation only)
 ```
 
-| # | Document | Path |
-|---|----------|------|
-| 1–2 | Ops Workflow / Model | `작업관리/` |
-| **3** | **APPLICATION_FLOW** | `docs/APPLICATION_FLOW.md` — Architecture First Consume |
-| 4–6 | Ops SSOT | MASTER · LOG · HANDOFF |
-| 7 | **WG-AI-001** | `작업관리/WG-AI-001_…` **PASS** |
-| 8–11 | **Fleet Book** | Front Matter · **Ch.8·Ch.9·Ch.10 Ratified** |
-| 12–15 | **B5 / B6 Freeze · ADR** | B5 v1.1 · B6 Amendment v1.1 · ADR-STEP8-B6-01 |
-| 16 | P6 / P5 / STEP6 | SPS v1.0 Consume |
+| # | Document | Purpose |
+|---|----------|---------|
+| **1** | **MASTER** | Current stage · B7 Completed · Next B8 |
+| **2** | **LOG** | B7 Ratify/Freeze/Validation · Workflow v1.0 decisions |
+| **3** | **DEVELOPMENT_WORKFLOW v1.0** | Ops gates · Fleet Workflow · Governance |
+| **4** | **Fleet Contract Book** | B8 Validation **Consume** (Contract · Freeze · Mapping) |
+| 5 | HANDOFF | Entry · Lock · Forbidden |
+| 6–8 | APPLICATION_FLOW · WG · Model Guide | Architecture / recommendation |
 
 ---
 
@@ -50,66 +43,76 @@ Rule      : Fact only · Consume Fleet Book (Ch.8·Ch.9·Ch.10 Ratified) + WG-AI
 ```text
 STEP7           : Complete (P2–P6 · Design-only)
 STEP8 Fleet     : In Progress
-  B0…B2.5·B4·B5·B6 : PASS
-  B3            : HALTED (Hold)
-  Ch.10         : Ratified
-Next Stage      : STEP8 Batch B7 — Presentation Contract
-Next Session    : B7 Presentation — do NOT retry B3
+  B0…B2.5·B4·B5·B6·B7 : PASS / Completed
+  B3            : HALTED (Hold) — do NOT retry
+  Ch.8…Ch.11    : Ratified
+  L7 Presentation : Completed (B7)
+  Ops Workflow  : DEVELOPMENT_WORKFLOW.md v1.0
+Next Stage      : STEP8 Batch B8 — Validation
+Next Session    : STEP8 Batch B8 Validation
 ```
 
 | Item | Value |
 |------|-------|
-| **Current Stage** | **STEP8 In Progress** · B0…B2.5·B4·B5·**B6 PASS** · **Ch.10 Ratified** · B3 **Hold** |
-| **Next Stage** | **B7 Presentation Contract** |
-| **Prerequisite** | **Ch.8·Ch.9·Ch.10 Ratified · B6 PASS · WG-AI-001 PASS** |
-| **Current Queue** | **B7 → B8** |
+| **Current** | **STEP8 B7 Completed** |
+| **Next Session** | **STEP8 Batch B8** (Validation) |
+| **Prerequisite** | Ch.8–Ch.11 Ratified · B6·B7 PASS · Ops Workflow v1.0 · WG-AI-001 PASS |
+| **Current Queue** | **B8** |
 
 ### Current Deliverables
 
 | Deliverable | Status |
 |-------------|--------|
-| Ch.8 / Ch.9 / Ch.10 | **Ratified** |
-| B5 Target Freeze | **v1.1 Amended** · Apply 6 · **PASS** |
-| B6 Target Freeze | **v1.0** + **Amendment v1.1** · Apply 1 (`double_rail`) |
-| ADR-STEP8-B6-01 | **Approve** · Execution Baseline Locked · EB-01…07 |
-| B6 Runtime Apply | **PASS** · L6-VR **PASS** · Commit/Push this close |
+| Ch.8 / Ch.9 / Ch.10 / **Ch.11** | **Ratified** |
+| **L7 Presentation (B7)** | **Completed / PASS** · Empty Apply (0) |
+| B5 / B6 | **PASS** |
+| **Operational Workflow** | **`DEVELOPMENT_WORKFLOW.md` v1.0** (General + Fleet) |
+| B6 ADR / Freeze | Consume |
+| B7 Target Freeze | **v1.0** · Empty Apply |
+| B7 Validation | **PASS** · L7-VR-01…12 |
 
 ---
 
 ## 1-S8. STEP8 Fleet Apply — 현재 상태
 
 ```text
-Completed : B0 · B1 · B2 · B2.5 · B4 · B5 · B6 (PASS)
+Completed : B0 · B1 · B2 · B2.5 · B4 · B5 · B6 · B7
 Hold      : B3 — do NOT retry
-Pending   : B7 · B8
-Next      : B7 Presentation Contract
+In Progress : (none)
+Pending   : B8 Validation
+Next      : STEP8 Batch B8
 ```
 
 | Batch | 상태 | Note |
 |-------|------|------|
-| B0…B2.5 | **PASS** | `82cb371` · `a32bed9` |
-| **B3** | **HALTED (Hold)** | Ch.7 Not Persisted |
-| **B4 / B5** | **PASS** | Anchor / Logic Apply |
-| **B6** | **PASS** | `double_rail` Loader exclusion only · L6-VR PASS · `0tip_plus` Defer |
-| B7 / B8 | **Pending** | Presentation / Validation |
+| B0…B2.5 | **PASS** | Identity / Schema / File-format |
+| **B3** | **HALTED (Hold)** | Ch.7 Not Persisted · 재시도 금지 |
+| **B4 / B5** | **PASS** | Anchor / Logic |
+| **B6** | **PASS** | Runtime · `double_rail` · L6-VR PASS |
+| **B7** | **Completed / PASS** | Presentation · Empty Apply 0 · L7-D-001 Explicit Defer |
+| **B8** | **Pending** | Validation — Fleet Book **Consume** |
 
-### B6 PASS — 요약
+### B7 Completed — 요약
 
 | Item | Value |
 |------|-------|
-| **Apply Count** | **1** |
-| **Target** | **`double_rail`** |
-| **Type** | Loader exclusion only (`systemPackageStore.ts`) |
-| **Defer** | **`0tip_plus`** |
-| **Meaning** | Unchanged (Structure Only / Load Completeness) |
-| **Validation** | **L6-VR PASS** |
-| **ADR** | ADR-STEP8-B6-01 **Approve** |
+| Ch.11 Ratify | **Complete** |
+| Target Freeze | Empty Apply (**0**) |
+| Validation | L7-VR **PASS** |
+| Code Apply | **없음** |
+| Code ADR | **Not Required** |
+| L7-D-001 | **Explicit Defer** 유지 |
 
 ### 절대 금지 / 권장
 
-- ❌ B3 재시도 · `0tip_plus` lift · silent Runtime mutation outside ADR Baseline
-- ✅ Next = **B7 Presentation Contract**
-- ✅ Consume Ch.8 · Ch.9 · **Ch.10** · B5/B6 Freeze · ADR · WG-AI-001
+- ❌ B3 재시도
+- ❌ L7-D-001 Option 강제 Apply
+- ❌ Runtime / System JSON silent mutation
+- ❌ B7 Empty Apply 재개방 / 인위적 Code Apply
+- ❌ 병렬 Fleet Workflow SSOT 신설
+- ✅ Next = **STEP8 Batch B8 Validation**
+- ✅ Fleet Contract Book은 **B8 Validation Consume**
+- ✅ Ops = `DEVELOPMENT_WORKFLOW.md` **v1.0** only
 
 ---
 
@@ -117,12 +120,12 @@ Next      : B7 Presentation Contract
 
 | Track | Result |
 |-------|--------|
-| **B6 Apply + L6-VR Validation** | **PASS** |
-| **B6 ADR + Execution Governance (EB-*)** | **Complete · Approve** |
-| **B6 Freeze Amendment v1.1** | **Complete** |
-| **Ch.10 Ratify** | **Complete** |
-| B5 / B4 / B0…B2.5 | PASS |
-| STEP7 P6 / WG-AI-001 | Complete / PASS |
+| **Ops SSOT final sync (B7→B8)** | **Complete** |
+| **Operational Workflow SSOT v1.0** | **Complete** (Fleet Workflow 편입) |
+| **B7 Validation** | **PASS** |
+| **B7 Target Freeze** | **Complete (Empty Apply)** |
+| **Ch.11 Ratify** | **Complete** |
+| B6 / B5 / B4 / B0…B2.5 | PASS |
 
 ---
 
@@ -130,11 +133,13 @@ Next      : B7 Presentation Contract
 
 | Artifact | Status |
 |----------|--------|
-| **Ch.8 · Ch.9 · Ch.10** | **Ratified · Consume** |
+| **DEVELOPMENT_WORKFLOW v1.0** | **Sole Ops SSOT · Consume** |
+| **Ch.8 · Ch.9 · Ch.10 · Ch.11** | **Ratified · Consume** |
+| **B7 Freeze + Validation** | **PASS · Consume** |
 | **B5 / B6 Freeze · ADR** | Consume |
 | **WG-AI-001** | PASS · Consume |
-| B6 Execution Baseline | Immutable after Approve (EB-01) |
-| System JSON meaning | RO outside scoped Apply |
+| L7-D-001 | Explicit Defer |
+| B3 | **Hold** |
 
 ---
 
@@ -142,22 +147,24 @@ Next      : B7 Presentation Contract
 
 | Forbidden |
 |-----------|
-| Ch.8 / Ch.9 / Ch.10 informal edit (Issue 없이) |
+| B3 Metadata rename / retry without Ch.7 |
+| Runtime / JSON / Code silent mutation (B8 entry default) |
+| Ch.8–Ch.11 informal edit without Issue |
 | B6 Baseline Scope Drift without ADR Amendment |
-| B3 Metadata rename without Ch.7 |
-| `0tip_plus` false-complete |
+| B7 Code Apply reopen without Freeze Amendment + Code ADR |
+| Parallel `FLEET_STANDARD_WORKFLOW.md` creation |
 
 ---
 
 ## 5. Current Session Card
 
 ```text
-Session ID     : STEP8 B6 Final Close (Apply + L6-VR PASS + Commit/Push + Ops sync)
-Prior          : B6 ADR Approve · Apply · Validation PASS
-Next Session   : B7 Presentation Contract
-Queue          : STEP8 Fleet Apply (B7 → B8)
+Session ID     : Ops SSOT Sync Close (B7 Completed · Workflow v1.0 · B8 Ready)
+Prior          : B7 Validation PASS · Workflow v1.0 promote
+Next Session   : STEP8 Batch B8 Validation
+Queue          : STEP8 Fleet Apply (B8)
 Hold           : B3 (Ch.7 Not Persisted)
-Agent Task     : B7 entry · do NOT retry B3
+Agent Task     : B8 Validation entry · Consume Fleet Book · do NOT retry B3 · do NOT mutate Runtime
 ```
 
 ---
@@ -166,37 +173,39 @@ Agent Task     : B7 entry · do NOT retry B3
 
 | Pending | Notes |
 |---------|-------|
-| **B7 Presentation** | Ch.11 Not Persisted — Review / Freeze path |
-| **B8 Validation** | Engine / catalog |
+| **STEP8 Batch B8 Validation** | Engine / catalog · Fleet Book Consume |
+| **L7-D-001 Option** | 후속 Issue / 별도 ADR |
 | **B3 Hold** | Await Ch.7 |
 
 ---
 
-## 7. Next Session Checklist
+## 7. Next Session Checklist — STEP8 Batch B8
 
-### Architecture / 구현 시작 (공식)
+### First Consume
 
-- [ ] **`docs/APPLICATION_FLOW.md` 확인** (Architecture Guide · First Consume)  
-- [ ] **관련 Fleet Contract Book 확인** (L4 Ch.8 · L5 Ch.9 · L6 Ch.10 · L7 Ch.11 when present)  
-- [ ] **Architecture Boundary 확인** (App · Runtime · Domain · Presentation)  
-- [ ] Architecture Review 후 **구현 시작**  
+- [ ] `PROJECT_MASTER_INDEX.md`  
+- [ ] `PROJECT_LOG_2026-07.md`  
+- [ ] `DEVELOPMENT_WORKFLOW.md` **v1.0**  
+- [ ] Fleet Contract Book (Front Matter → needed chapters/Freeze)  
 
-### STEP8 Gate
+### Gates / Restrictions
 
-- [ ] Consume Ch.10 · B6 ADR/Amendment · Front Matter (B6 Applied)  
-- [ ] Confirm B3 Hold  
-- [ ] **B7 Presentation Contract** entry  
-- [ ] Do NOT reopen B6 Baseline without ADR Amendment  
+- [ ] Confirm **B7 Completed** · Next = **B8**  
+- [ ] Confirm **B3 Hold** · **L7-D-001 Explicit Defer**  
+- [ ] Fleet Book = **Validation Consume** (본문 무단 수정 금지)  
+- [ ] Runtime / JSON / Code 수정 = 세션 명시 허가 전 **금지**  
+- [ ] Follow Ops §8–§11 (Fleet Workflow / Governance / Validation / SSOT sync)  
 
 ```text
 STEP8 FLEET APPLY — IN PROGRESS
-Completed: B0 · B1 · B2 · B2.5 · B4 · B5 · B6 = PASS
+Completed: B0 · B1 · B2 · B2.5 · B4 · B5 · B6 · B7 = PASS
 Hold: B3 Metadata · do NOT retry
-Pending: B7 · B8
-Fleet Contract Book: Ch.8·Ch.9·Ch.10 Ratified
-Next Stage: B7 Presentation Contract
+Pending: B8 Validation
+Ops: DEVELOPMENT_WORKFLOW.md v1.0 (General + Fleet)
+Fleet Contract Book: Ch.8·Ch.9·Ch.10·Ch.11 Ratified · L7 Completed · B8 Consume
+Next Stage: STEP8 Batch B8 Validation
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — STEP8 B6 PASS · Next B7 Presentation*
+*End of CURSOR_SESSION_HANDOFF.md — STEP8 B7 Completed · Next STEP8 Batch B8*

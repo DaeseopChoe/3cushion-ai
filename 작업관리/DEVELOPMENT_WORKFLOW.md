@@ -2,15 +2,38 @@
 
 ```text
 Document  : DEVELOPMENT_WORKFLOW.md
-Version   : v0.3
-Status    : Active Operational SSOT (Draft)
-Date      : 2026-07-17
-Type      : Project Operational Workflow SSOT
+Version   : v1.0
+Status    : Active Operational SSOT
+Date      : 2026-07-23
+Type      : Project Operational Workflow SSOT (General + Fleet Apply Workflow)
 Owner     : Project Operations
 Location  : 작업관리/DEVELOPMENT_WORKFLOW.md
 Rule      : Document verified operating practice only · Do not invent new process theater
-Revision  : v0.3 — Add §12 Implementation Decomposition Rule
+Revision  : v1.0 — Promote to Operational Workflow SSOT · Add Fleet Apply Workflow (§8–§11)
+Authority : Sole Operational Workflow SSOT · No parallel FLEET_STANDARD_WORKFLOW.md
 ```
+
+---
+
+## Table of Contents
+
+1. Purpose  
+2. Project Operating Principles  
+3. AI Role Definition  
+4. Session Workflow  
+5. STEP Workflow  
+6. Git Workflow  
+7. SSOT Update Rule  
+8. Fleet Apply Workflow *(신규 · verified B4–B7)*  
+9. Fleet Governance Principles *(신규)*  
+10. Fleet Validation Policy *(신규)*  
+11. Fleet SSOT Synchronization *(신규)*  
+12. Proposal Management  
+13. Implementation Decomposition  
+14. Freeze Rule  
+15. Future Expansion  
+16. Quick Reference  
+17. Document Control  
 
 ---
 
@@ -18,27 +41,38 @@ Revision  : v0.3 — Add §12 Implementation Decomposition Rule
 
 ### 1.1 Document purpose
 
-본 문서는 3Cushion AI 프로젝트의 **운영(Operational Workflow) SSOT**이다.
+본 문서는 3Cushion AI 프로젝트의 **유일한 운영(Operational Workflow) SSOT**이다.  
+일반 프로젝트 운영 규칙과 **Fleet Apply Workflow**를 모두 포함한다.
 
 | 본 문서가 하는 일 | 본 문서가 하지 않는 일 |
 |-------------------|------------------------|
 | 세션 시작·이관·Freeze·Git·SSOT 갱신 규칙 정의 | 기능 개발 절차서 / API 가이드 |
 | AI 역할·컨텍스트·STEP 운영 철학 고정 | Architecture / Schema / Runtime 본문 대체 |
-| 이미 합의·검증된 운영 방식 기록 | 미검증 신규 프로세스 발명 |
+| **Fleet Apply 운영 게이트·Governance·Validation·SSOT sync** | **Fleet Layer Contract / Migration Rule 본문** (→ Fleet Contract Book) |
+| 이미 합의·검증된 운영 방식 기록 | 미검증 신규 프로세스 발명 · 병렬 Workflow 문서 신설 |
 
 ### 1.2 Role as Operational SSOT
 
 ```text
-DEVELOPMENT_WORKFLOW.md     ← HOW we operate (this document)
+DEVELOPMENT_WORKFLOW.md     ← HOW we operate (this document · Sole Ops SSOT)
 PROJECT_MASTER_INDEX.md     ← WHAT is current (feature · stage SSOT)
 PROJECT_LOG_YYYY-MM.md      ← WHEN / history
 CURSOR_SESSION_HANDOFF.md   ← WHERE to enter next session
+Fleet Contract Book         ← Fleet Layer Contracts · Freeze/ADR artifacts (WHAT/WHY for Apply)
 SPS / AAS design docs       ← Domain Architecture / Design SSOTs
 ```
 
+**역할 분리 (충돌 금지)**
+
+| Document | Owns | Does not own |
+|----------|------|--------------|
+| **본 문서** | Workflow · Gates · Governance 운영 · Validation 정책 · SSOT sync 순서 | Layer Contract 본문 · Formula/Value 의미 |
+| **Fleet Contract Book** | Layer Contracts · Chapter Ratify · Batch Freeze/ADR 산출물 · Apply Mapping | 세션/Git/일반 STEP 운영 절차 |
+| **MASTER / LOG / HANDOFF** | 현재 상태 · 이력 · Entry | 운영 규칙 재정의 |
+
 운영 충돌 시:
 
-1. **Frozen / Locked 설계 SSOT** (Framework · Pipeline · Inventory 등)의 불변 규칙  
+1. **Frozen / Locked 설계 SSOT** (Framework · Pipeline · Inventory · **Ratified Fleet chapters**)의 불변 규칙  
 2. **본 문서**의 운영 규칙  
 3. 세션 Handoff의 Entry 지시  
 
@@ -51,7 +85,8 @@ SPS / AAS design docs       ← Domain Architecture / Design SSOTs
 | **Truth over speed** | 상태·Freeze·SSOT를 속이지 않는다. |
 | **Consume before invent** | Locked 문서는 소비하고, 무단 재작성하지 않는다. |
 | **One STEP, one job** | 한 STEP에 Analysis와 Catalog와 Engine을 섞지 않는다. |
-| **Document what we already do** | 검증된 관행만 올린다. v0.1은 확장 예고만 한다. |
+| **Document what we already do** | 검증된 관행만 올린다. |
+| **One Ops SSOT** | Fleet Workflow는 별도 문서로 분리하지 않는다. 본 문서가 Sole Ops SSOT이다. |
 
 ---
 
@@ -65,10 +100,11 @@ SPS / AAS design docs       ← Domain Architecture / Design SSOTs
 | **P4** | **Analysis → Design → Implementation** | Analysis Only 단계에서 Catalog·Engine·코드를 쓰지 않는다. |
 | **P5** | **One Responsibility per STEP** | STEP 목적 밖의 산출물(Register·Report·Namespace 확정 등)을 섞지 않는다. |
 | **P6** | **Analysis Only compliance** | Analysis STEP은 Domain/Type/Layer/Family/Dependency 등 **분석만**. 본문 Catalog 금지. |
-| **P7** | **Consume Only when Locked** | Framework · Pipeline · Frozen Suite는 Consume. Semantics 재정의 금지. |
-| **P8** | **Improvement absorption** | 가능하면 현재 STEP 재작성 대신 **다음 STEP 입력**으로 흡수한다 (§10). |
+| **P7** | **Consume Only when Locked** | Framework · Pipeline · Frozen Suite · **Ratified Fleet chapters**는 Consume. Semantics 재정의 금지. |
+| **P8** | **Improvement absorption** | 가능하면 현재 STEP 재작성 대신 **다음 STEP 입력**으로 흡수한다 (§7.4). |
 | **P9** | **Working Tree hygiene** | 마일스톤 Commit에 무관 잔여물·임시 파일을 섞지 않는다. |
 | **P10** | **No silent mutation** | Validation / Audit / Inventory는 System JSON · Runtime을 몰래 고치지 않는다. |
+| **P11** | **Fleet Workflow in Ops** | Fleet Apply 운영은 §8–§11을 따른다. Contract 본문은 Fleet Contract Book을 Consume한다. |
 
 ---
 
@@ -90,12 +126,32 @@ SPS / AAS design docs       ← Domain Architecture / Design SSOTs
 | Analysis Only 문서 | Cursor Documentation (Design 지시에 따름) |
 | Catalog / Framework Design 본문 | Design + Cursor Documentation |
 | Runtime / App 구현 | Cursor Implementation |
+| Fleet Architecture Review · Ratify Review · Freeze Design | Architecture / Review |
+| Fleet Target Freeze · Validation · Ops SSOT sync | Cursor Documentation / Ops |
+| Fleet Code Apply (Apply > 0) | Cursor Implementation (Freeze + ADR 후) |
 | “46 files / dirty tree / Freeze 위반?” | Investigation / Git Audit |
 | Commit message · Push · SSOT sync | Cursor Git Operation |
 
+### 3.2 AI Model Selection Rule
+
+사용자는 기본적으로 **모델을 고르지 않는다**.  
+작업 성격에 따라 **에이전트(또는 라우터)가** 권장한다.
+
+| Work character | Recommendation |
+|----------------|----------------|
+| 문서 반영 · Handoff · 단순 이동 · Commit/Push | **기본 모델 유지** |
+| Analysis Only · Catalog Design · Architecture Review · Cascade/Dependency · Fleet Ratify/Freeze Review | **고추론 모델 권장** |
+| 대규모 코드 리팩터 · 미지 버그 조사 · Git 감사 | **고추론 또는 Investigation 역할** |
+| 기계적 일괄 rename · 형식만 맞추는 편집 | **기본 모델** |
+
+모델 선택은 **품질·위험도** 기준이다.  
+“항상 최고 모델” 또는 “항상 최저 비용”을 운영 규칙으로 두지 않는다.
+
+상세 권장(Recommendation only · never Gate): `OPS_AI_MODEL_GUIDE.md`.
+
 ---
 
-## 4. Session Start Workflow
+## 4. Session Workflow
 
 ### 4.1 New session checklist
 
@@ -103,11 +159,32 @@ SPS / AAS design docs       ← Domain Architecture / Design SSOTs
 
 | # | Document | Purpose |
 |---|----------|---------|
-| 1 | **`DEVELOPMENT_WORKFLOW.md`** (본 문서) | 운영 규칙 |
+| 1 | **`DEVELOPMENT_WORKFLOW.md`** (본 문서) | 운영 규칙 (General + Fleet) |
 | 2 | **`PROJECT_MASTER_INDEX.md`** | 현재 단계 · 완료/예정 SSOT |
 | 3 | **`HISTORY/PROJECT_LOG_YYYY-MM.md`** | 최근 이력 · Decision Log |
 | 4 | **`CURSOR_SESSION_HANDOFF.md`** | Entry · Lock · Allowed/Forbidden · Pending |
-| 5 | Handoff가 지정한 **Consume SSOT** | 예: Framework · Pipeline · STEP6-3 Analysis |
+| 5 | Handoff가 지정한 **Consume SSOT** | 예: Framework · Pipeline · Fleet chapters / Freeze / ADR |
+
+Architecture / Fleet 구현·Validation 전 Consume (권장):
+
+```text
+PROJECT_MASTER_INDEX.md          ← current stage / Next Gate
+        ↓
+PROJECT_LOG (current month)      ← recent decisions
+        ↓
+DEVELOPMENT_WORKFLOW.md          ← Ops (General + Fleet · Sole Ops SSOT)
+        ↓
+docs/APPLICATION_FLOW.md         ← Architecture First (Runtime/Presentation/Validation 시)
+        ↓
+Fleet Contract Book
+  1) Front Matter (FLEET_CONTRACT_BOOK_v1.0.md)  ← Chapter Status · Apply Mapping
+  2) 해당 Layer Chapter (Ratified only)
+  3) 해당 Batch Target Freeze / ADR (있으면)
+        ↓
+CURSOR_SESSION_HANDOFF.md        ← Entry · Lock · Forbidden
+        ↓
+Architecture Review / Gate work
+```
 
 ```text
 DEVELOPMENT_WORKFLOW
@@ -118,39 +195,34 @@ PROJECT_LOG (current month)
         ↓
 CURSOR_SESSION_HANDOFF
         ↓
-Consume Locked / Completed SSOTs (as listed)
+Consume Locked / Completed / Ratified SSOTs (as listed)
         ↓
 Confirm current stage + allowed work
         ↓
 Start work
 ```
 
+**Fleet Front Matter consume 규칙:** Apply Mapping · Chapter Status는 Front Matter를 먼저 읽고, Not Persisted chapter를 Apply 근거로 쓰지 않는다.
+
 ### 4.2 Before first edit
 
-- [ ] Current STEP / Entry 확인  
-- [ ] Locked / Frozen / Forbidden 목록 확인  
+- [ ] Current STEP / Batch / Entry 확인  
+- [ ] Locked / Frozen / Forbidden / Hold 목록 확인  
 - [ ] 이번 세션 **단일 목적** 확인 (One Responsibility)  
+- [ ] Fleet 작업이면 §8 Gate 위치 확인 (Ratify ≠ Apply)  
 - [ ] Working Tree가 목적과 무관한 잔여면 **정리 또는 분리 Commit** 방침 확인  
 
----
-
-## 5. Session Context Rule
-
-### 5.1 Do not re-read by default
+### 4.3 Session Context Rule
 
 **동일 AI 세션**에서는 이미 읽은 SSOT를 **관례적으로 다시 읽지 않는다**.  
 현재 세션 컨텍스트를 우선 소비한다.
 
-### 5.2 Re-sync triggers (only)
-
 | Trigger | Action |
 |---------|--------|
-| **새 세션** | §4 Session Start Workflow 전체 |
+| **새 세션** | §4.1 Session Start 전체 |
 | **SSOT 업데이트** (Commit/Push로 공식 반영됨) | 변경된 문서만 재읽기 |
 | **사용자 재동기화 요청** | 지정 문서 재읽기 |
-| **Entry / STAGE 전환** (예: STEP6-3 → STEP6-4) | Handoff + 새 Consume 목록 |
-
-### 5.3 Anti-patterns
+| **Entry / STAGE / Batch 전환** | Handoff + 새 Consume 목록 |
 
 | Forbidden habit | Why |
 |-----------------|-----|
@@ -160,30 +232,7 @@ Start work
 
 ---
 
-## 6. AI Model Selection Rule
-
-### 6.1 User does not pick models by default
-
-사용자는 기본적으로 **모델을 고르지 않는다**.  
-작업 성격에 따라 **에이전트(또는 라우터)가** 권장한다.
-
-### 6.2 Recommendation guide
-
-| Work character | Recommendation |
-|----------------|----------------|
-| 문서 반영 · Handoff · 단순 이동 · Commit/Push | **기본 모델 유지** |
-| Analysis Only · Catalog Design · Architecture Review · Cascade/Dependency | **고추론 모델 권장** |
-| 대규모 코드 리팩터 · 미지 버그 조사 · Git 감사 | **고추론 또는 Investigation 역할** |
-| 기계적 일괄 rename · 형식만 맞추는 편집 | **기본 모델** |
-
-### 6.3 Constraint
-
-모델 선택은 **품질·위험도** 기준이다.  
-“항상 최고 모델” 또는 “항상 최저 비용”을 운영 규칙으로 두지 않는다.
-
----
-
-## 7. STEP Workflow
+## 5. STEP Workflow
 
 검증된 SPS / AAS 운영 패턴:
 
@@ -201,27 +250,33 @@ Validation        ← Review · QA · Regression · Build gates
 Freeze            ← Freeze Candidate / Final Freeze / Lock
 ```
 
-### 7.1 STEP gates (operational)
+### 5.1 STEP gates (operational)
 
 | Gate | Rule |
 |------|------|
 | **Entry** | Handoff + MASTER에 단계가 명시되어야 한다. |
 | **Analysis** | Catalog 본문 · Register · Engine · Namespace 확정 금지 (해당 STEP이 Analysis Only인 경우). |
 | **Design** | Locked 상위 SSOT Consume · Semantics 재정의 금지. |
-| **Implementation** | Design / Freeze 범위만. Architecture 우회 금지. 대규모 구현은 **§12**에 따라 분할. |
+| **Implementation** | Design / Freeze 범위만. Architecture 우회 금지. 대규모 구현은 **§13**에 따라 분할. |
 | **Validation** | PASS 기준은 해당 STEP SSOT / AC / Review에 따른다. |
-| **Freeze** | 이후 비공식 수정 금지 (§13). |
+| **Freeze** | 이후 비공식 수정 금지 (§14). |
 
-### 7.2 Mixing ban
+### 5.2 Mixing ban
 
 한 Commit / 한 세션 목적에 **Analysis + Catalog + Engine + Runtime**을 묶지 않는다.  
 필요 시 Working Tree 정리 Commit과 Design Commit을 **분리**한다.
 
+### 5.3 Relation to Fleet Apply
+
+STEP8 Fleet Apply Batch는 일반 STEP Workflow의 **특수화**이다.  
+게이트·순서·금지 규칙은 **§8–§11**이 우선한다.  
+Contract 의미·Migration Rule은 **Fleet Contract Book**이 우선한다.
+
 ---
 
-## 8. Git Workflow
+## 6. Git Workflow
 
-### 8.1 Default sequence
+### 6.1 Default sequence
 
 ```text
 Work (scoped)
@@ -237,90 +292,314 @@ PROJECT_LOG            ← 세션/Decision 기록 (필요할 때)
 CURSOR_SESSION_HANDOFF ← 다음 Entry 갱신 (단계 전환 시)
 ```
 
-### 8.2 Commit rules (operational)
+Fleet Batch 완료 시 SSOT sync 상세는 **§11**을 따른다.  
+세션이 Commit/Push를 **명시적으로 금지**하면, 문서 SSOT만 갱신하고 Git은 후속 세션으로 미룬다.
+
+### 6.2 Commit rules (operational)
 
 | Rule | Statement |
 |------|-----------|
-| **Scope** | 한 Commit = 한 논리 목적 (예: STEP6 Freeze docs only). |
+| **Scope** | 한 Commit = 한 논리 목적 (예: STEP6 Freeze docs only · B7 Validation Ops SSOT). |
 | **No dump** | 임시 `_update_*` · 무관 handoff · 미검증 실험을 마일스톤에 섞지 않는다. |
 | **No force** | `main` force push 금지 (명시 요청 없는 한). |
 | **No amend** | 실패·거절 후 amend로 덮지 않는다. 새 Commit. |
 | **Hooks** | `--no-verify` 기본 금지. |
 
-### 8.3 Push rules
+### 6.3 Push rules
 
 - 마일스톤·SSOT 반영 후 **Push까지** 완료해야 다음 세션 Entry가 유효하다.  
-- Local only Commit은 Handoff에 “미Push”를 명시하지 않는 한 **공식 상태로 취급하지 않는다**.
+- Local only Commit은 Handoff에 “미Push”를 명시하지 않는 한 **공식 상태로 취급하지 않는다**.  
+- 사용자가 Commit/Push 금지를 명시한 세션에서는 문서 갱신만 하고 **Push를 강행하지 않는다**.
 
 ---
 
-## 9. SSOT Update Rule
+## 7. SSOT Update Rule
 
-### 9.1 When to update which document
+### 7.1 When to update which document
 
 | Document | Update when | Do not update when |
 |----------|-------------|---------------------|
-| **PROJECT_MASTER_INDEX** | 단계 전환 · 기능/STEP 완료 · 다음 우선순위 변경 · SSOT 경로 추가 | 매 중간 초안 · 임시 실험 |
-| **PROJECT_LOG_YYYY-MM** | 세션 마일스톤 · Decision Log · Freeze/Complete 기록 | 단순 typo · 무관 잡담 |
+| **PROJECT_MASTER_INDEX** | 단계 전환 · 기능/STEP/Batch 완료 · 다음 우선순위 변경 · SSOT 경로 추가 | 매 중간 초안 · 임시 실험 |
+| **PROJECT_LOG_YYYY-MM** | 세션 마일스톤 · Decision Log · Freeze/Complete/PASS 기록 | 단순 typo · 무관 잡담 |
 | **CURSOR_SESSION_HANDOFF** | **다음 세션 Entry**가 바뀔 때 · Lock/Consume/Pending 변경 | 매 Commit마다 습관적 갱신 |
 | **DEVELOPMENT_WORKFLOW** | 운영 원칙이 **실제로 바뀌어 검증**된 경우 | 일회성 취향 · 미검증 아이디어 |
+| **Fleet Contract Book** | Chapter Ratify · Freeze/ADR · Apply Mapping 변경 (해당 Batch 규칙) | Ops-only 상태 문구를 Contract로 밀어넣기 |
 
-### 9.2 Update order (stage complete)
+### 7.2 Update order (stage / batch complete)
 
-권장 순서 (검증된 STEP6 완료 패턴):
+권장 순서 (검증된 STEP6 · STEP8 B4–B7 패턴):
 
-1. 산출물 SSOT Commit (Analysis / Design / Freeze docs)  
-2. `PROJECT_MASTER_INDEX` · `PROJECT_LOG` · `CURSOR_SESSION_HANDOFF` 동기화 Commit (또는 동일 논리면 한 Commit)  
-3. Push  
-4. 다음 세션은 새 Handoff Entry로 시작  
+1. 산출물 SSOT (Analysis / Design / Freeze / Chapter / ADR / Validation 기록)  
+2. Fleet Front Matter Apply Mapping (해당 시)  
+3. `PROJECT_MASTER_INDEX` · `PROJECT_LOG` · `CURSOR_SESSION_HANDOFF` 동기화  
+4. Commit / Push (세션이 허가한 경우)  
+5. 다음 세션은 새 Handoff Entry로 시작  
 
-### 9.3 Authority
+Fleet 전용 동기화 상세: **§11**.
+
+### 7.3 Authority
 
 | Claim | Source of truth |
 |-------|-----------------|
-| “지금 어느 STEP인가?” | `PROJECT_MASTER_INDEX` + `CURSOR_SESSION_HANDOFF` |
+| “지금 어느 STEP/Batch인가?” | `PROJECT_MASTER_INDEX` + `CURSOR_SESSION_HANDOFF` |
 | “지난 세션에서 무엇을 결정했는가?” | `PROJECT_LOG` Decision Log |
-| “무엇을 Consume/금지하는가?” | Handoff + Locked Design SSOT |
-| “어떻게 운영하는가?” | **본 문서** |
+| “무엇을 Consume/금지하는가?” | Handoff + Locked Design SSOT + **Ratified Fleet chapters** |
+| “어떻게 운영하는가?” | **본 문서 (Sole Ops SSOT)** |
+| “Fleet Layer Contract / Migration은?” | **Fleet Contract Book** |
 
----
+### 7.4 Improvement Rule
 
-## 10. Improvement Rule
-
-### 10.1 Prefer absorb forward
-
-한 STEP에서 발견된 개선·모호·보강은:
+한 STEP/Batch에서 발견된 개선·모호·보강은:
 
 | Prefer | Avoid |
 |--------|-------|
-| **다음 STEP 입력**으로 흡수 (예: STEP6-3 v1.1 보강 → STEP6-4 Catalog Design) | 완료·승인된 STEP을 습관적으로 전면 재작성 |
-| Analysis 보강이 필요하면 **Analysis 문서 개정(v1.1)** + 입력 명시 | Framework/Pipeline Locked 본문 수정으로 “해결” |
-| Gap은 Gap/Pending으로 남김 | 미결정 항목을 몰래 확정 |
-
-### 10.2 When rewrite is allowed
+| **다음 STEP/Batch 입력**으로 흡수 | 완료·승인된 STEP을 습관적으로 전면 재작성 |
+| Analysis 보강이 필요하면 **Analysis 문서 개정** + 입력 명시 | Framework/Pipeline/Ratified chapter 본문 수정으로 “해결” |
+| Gap은 Gap/Pending/Defer로 남김 | 미결정 항목을 몰래 확정 |
 
 | Allowed rewrite | Condition |
 |-----------------|-----------|
 | 동일 STEP 문서 소규모 보강 | 승인된 범위 · Version bump · LOG 기록 |
-| Frozen 문서 | **금지** — §13 |
+| Frozen / Ratified 문서 | **금지** — §14 · Fleet Book Issue path |
 | 잘못된 Entry로 만든 산출물 | 사용자 지시 하에 폐기·대체 Commit |
-
-### 10.3 Goal
 
 불필요한 재작업·재동선·재Freeze를 최소화한다.
 
 ---
 
-## 11. Proposal Management Rule
+## 8. Fleet Apply Workflow
 
-### 11.1 Purpose
+> **Verified practice:** STEP8 Batch **B4 · B5 · B6 · B7**에서 동일 게이트가 반복 검증되었다.  
+> **Scope:** 운영 순서·게이트만 정의한다. Layer Contract / Migration Rule 본문은 Fleet Contract Book.
+
+### 8.1 Canonical gate sequence
+
+```text
+Architecture Review
+        ↓
+Draft (Chapter / Contract)
+        ↓
+Ratify Review
+        ↓
+Minor Amendment (필요 시)
+        ↓
+Ratify (on-disk · Front Matter)
+        ↓
+Target Freeze          ← Apply / No-op / Defer / OOS 확정
+        ↓
+ADR (Apply Count > 0 인 경우만)
+        ↓
+Apply                  ← Structure Only · Meaning Preservation
+        ↓
+Validation             ← §10
+        ↓
+Commit / Push          ← 세션 허가 시 (§6)
+        ↓
+MASTER · LOG · HANDOFF ← §11
+        ↓
+Batch Complete
+```
+
+### 8.2 Gate meanings
+
+| Gate | Meaning | Not meaning |
+|------|---------|-------------|
+| **Architecture Review** | 경계·Consume·위험 판정 | Code Apply 승인 |
+| **Draft** | Chapter/Contract 초안 on-disk 가능 | Ratified · Apply 근거 |
+| **Ratify Review** | Ratify 준비도 판정 | Apply 승인 |
+| **Minor Amendment** | Ratify 전 문서 보정 | Scope Drift · 의미 변경 |
+| **Ratify** | Chapter = Apply **계약 근거** | Code Apply 실행 / PASS |
+| **Target Freeze** | Apply Scope Frozen (Apply/No-op/Defer/OOS) | Apply PASS · Validation PASS |
+| **ADR** | Apply > 0일 때 Execution Baseline | Empty Apply에서 강제 |
+| **Apply** | Structure Only 변경 실행 | 의미 변경 · Scope 재정의 |
+| **Validation** | Freeze/Contract/Apply 정합 검증 | 새 Scope 발명 |
+| **Batch Complete** | MASTER/LOG/HANDOFF에 PASS 반영 | Hold/Defer 항목까지 완료 강요 |
+
+### 8.3 Empty Apply path
+
+```text
+Target Freeze (Apply Count = 0)
+        ↓
+Code ADR = Not Required
+        ↓
+Skip Code Apply
+        ↓
+Validation (document / vacuous · §10.3)
+        ↓
+SSOT sync · Batch Complete
+```
+
+**Empty Apply is Success** (§9). Apply = 0은 실패가 아니다.
+
+### 8.4 Session discipline (Fleet)
+
+| Rule | Statement |
+|------|-----------|
+| **One gate per session (preferred)** | 가능하면 한 세션 = 한 게이트 (예: Ratify only · Freeze only · Validation only). |
+| **Explicit restrictions** | 세션 프롬프트의 Code Apply / Commit / Push 금지를 최우선 준수한다. |
+| **Hold respect** | B3 등 Hold/HALTED Batch는 재시도하지 않는다 (Safe Stop ≠ FAIL). |
+| **No Scope Drift** | Freeze 확정 후 Apply 대상을 ADR/Amendment 없이 늘리지 않는다. |
+
+### 8.5 Relation to general STEP Workflow
+
+Fleet Apply Workflow는 §5 STEP Workflow의 **Batch specialization**이다.  
+일반 Analysis→Design→Implementation과 병행하되, Fleet Batch에서는 **§8 게이트가 Entry 기준**이다.
+
+---
+
+## 9. Fleet Governance Principles
+
+Fleet Apply에 반드시 적용한다. Contract 세부는 Fleet Contract Book chapters를 Consume한다.
+
+| Principle | Statement |
+|-----------|-----------|
+| **Review before Apply** | Architecture Review · Ratify · Freeze (및 Apply>0이면 ADR) 없이 Code Apply 금지. |
+| **Ratify ≠ Apply** | Chapter Ratified만으로 Code Apply / Batch PASS를 주장하지 않는다. |
+| **Freeze before Apply** | Target Freeze로 Apply/No-op/Defer/OOS가 확정되기 전 Apply 금지. |
+| **Structure Only** | 허용 Apply는 구조·형식·경계 정규화에 한정한다. |
+| **Meaning Preservation** | Formula / System Value / Logic / Trajectory / 관찰 가능 표시 **의미** 불변. |
+| **Semantic Guard** | 의미 변경 징후 · Scope Drift · Forbidden path → 즉시 중단. |
+| **Empty Apply is Success** | Apply Count = 0 + Freeze/Validation 정합 = Batch 성공 가능. 미완료/실패로 오해 금지. |
+| **Safe Stop** | Gate 미충족 · Hold · 의미 위험 시 중단. **Safe Stop ≠ FAIL**. |
+| **B3 Hold** | B3 Metadata Normalize = **HALTED (Hold)**. Ch.7 Not Persisted 해소 전 **재시도 금지**. Hold ≠ FAIL. |
+| **Code ADR when Apply > 0** | Apply Count > 0이면 ADR/Execution Baseline 없이 Apply 금지. Apply = 0이면 Code ADR Not Required. |
+| **Contract vs Workflow** | Contract Rule → Fleet Contract Book · Workflow Rule → **본 문서**. |
+
+### 9.1 Hard stops (Fleet)
+
+| Trigger | Action |
+|---------|--------|
+| Not Persisted chapter를 Apply SSOT로 사용 | **Safe Stop** |
+| Ratify만으로 Code Apply | **Safe Stop** |
+| Freeze 전 / Freeze Amendment 없이 Scope 확장 Apply | **Safe Stop** |
+| Meaning / Formula / Value / Trajectory 변경 시도 | **Safe Stop** |
+| **B3 Hold 재시도** | **Forbidden** (Ch.7 전) |
+| Empty Apply인데 인위적 code Diff / 가짜 ADR | **Safe Stop** |
+| Runtime / System JSON silent mutation outside Freeze+ADR | **Forbidden** |
+
+---
+
+## 10. Fleet Validation Policy
+
+### 10.1 Purpose
+
+Validation은 Apply 전후 **정합·거버넌스·의미 보존**을 확인한다.  
+새 Scope를 발명하거나 Contract를 재작성하지 않는다.
+
+### 10.2 Validation scope
+
+| Area | Checks |
+|------|--------|
+| **Contract** | 해당 Chapter Ratified · Front Matter 반영 |
+| **Freeze** | Apply / No-op / Defer / OOS 분류 정합 |
+| **Boundary** | System JSON / PackageStore / Loader bypass 금지 등 |
+| **Public API / Hub** | Sole Hub · Public API consumption 경로 유지 |
+| **Invariants** | Chapter Invariants (Lx-I-*) cite |
+| **Meaning** | Meaning Preservation · Semantic Guard |
+| **Governance** | Ratify≠Apply · Freeze before Apply · Empty Apply 정합 |
+| **Defer / Hold** | Explicit Defer · Hold 유지 (강제 Apply 없음) |
+
+### 10.3 Empty Apply Validation
+
+Apply Count = 0일 때:
+
+| Mode | Rule |
+|------|------|
+| **Document / vacuous checks** | Contract · Freeze · Governance · Defer 유지를 문서로 검증 |
+| **Meaning / Build smoke** | Code Diff 없음 → Meaning diff vacuous PASS 가능 |
+| **Code Apply absence** | Runtime / JSON / Presentation code 미변경 확인 |
+| **Code ADR absence** | Not Required · ADR로 Scope Drift 금지 |
+
+Empty Apply Validation PASS + Freeze 정합 → **Batch PASS** 가능.
+
+### 10.4 Classification checks
+
+| Class | Validation expectation |
+|-------|------------------------|
+| **Apply** | Structure Only · Meaning Preservation · Freeze/ADR Baseline 일치 |
+| **No-op** | Canonical 유지 · 변경 불필요 · 강제 Apply 없음 |
+| **Defer** | Explicit Defer / Transitional Debt 유지 · Option 강제 없음 |
+| **Out-of-Scope** | 본 Batch에 편입되지 않음 · Validation 성공 조건 아님 |
+
+### 10.5 Apply Validation (Apply > 0)
+
+| Check | Rule |
+|-------|------|
+| Scope | Freeze + ADR Baseline만 |
+| Structure Only | 의미 변경 없음 |
+| Guards | Chapter VR / AC / Build / Regression (해당 Batch 정의) |
+| Rollback | Commit unit 명확 |
+
+### 10.6 Governance Validation
+
+항상 확인:
+
+- Review before Apply  
+- Ratify ≠ Apply  
+- Freeze before Apply  
+- Empty Apply is Success (해당 시)  
+- Safe Stop / Hold 존중  
+- Fleet Book ↔ Ops SSOT 역할 충돌 없음  
+
+---
+
+## 11. Fleet SSOT Synchronization
+
+### 11.1 Documents to sync
+
+| Document | Fleet role |
+|----------|------------|
+| **Fleet Contract Book** (Front Matter · Chapter · Freeze · ADR) | Contract / Scope / Apply Mapping |
+| **PROJECT_MASTER_INDEX** | Current Batch 상태 · Next Gate |
+| **PROJECT_LOG_YYYY-MM** | Decision Log · Validation Summary |
+| **CURSOR_SESSION_HANDOFF** | Next Entry · Lock · Forbidden |
+
+본 문서(`DEVELOPMENT_WORKFLOW`)는 운영 원칙이 바뀔 때만 갱신한다.  
+매 Batch PASS마다 본 문서를 고치지 않는다.
+
+### 11.2 Sync rules
+
+| Rule | Statement |
+|------|-----------|
+| **Truthful status** | Freeze Complete ≠ Apply PASS · Ratified ≠ Applied |
+| **Empty Apply wording** | Apply 0이면 “Code Apply PASS”가 아니라 **Batch PASS (Empty Apply)** |
+| **Single Next Gate** | Handoff · MASTER · Front Matter Apply Mapping의 Next가 일치해야 한다 |
+| **No silent ops-only rewrite of Contracts** | Ops 문구를 이유로 Ratified chapter 본문을 비공식 수정하지 않는다 |
+
+### 11.3 Update order (Fleet Batch gate complete)
+
+```text
+1. Fleet artifacts (Chapter / Freeze / ADR / Validation record as applicable)
+2. Fleet Front Matter (Chapter Status · Apply Mapping · Persisted Index · Change Log)
+3. PROJECT_MASTER_INDEX
+4. PROJECT_LOG
+5. CURSOR_SESSION_HANDOFF
+6. Commit / Push (if session allows)
+```
+
+### 11.4 Minimum fields per Batch PASS
+
+| Field | Example |
+|-------|---------|
+| Batch status | PASS / Completed · Empty Apply (0) 등 |
+| Contract | Ch.N Ratified |
+| Freeze | Apply/No-op/Defer/OOS summary |
+| Validation | Lx-VR PASS |
+| Hold | B3 Hold 유지 등 |
+| Next | 다음 Batch / Gate |
+
+---
+
+## 12. Proposal Management
+
+### 12.1 Purpose
 
 작업 흐름을 끊지 않고 의사결정을 효율적으로 관리한다.
 
 프로젝트 진행 중 발생하는 개선 아이디어는 **즉시 반복 제안하지 않고**,  
 **작업 단위 종료 시 일괄 제안**하는 것을 원칙으로 한다.
 
-### 11.2 Operating rules
+### 12.2 Operating rules
 
 | Rule | Statement |
 |------|-----------|
@@ -339,56 +618,48 @@ Single proposal list
   ↓
 User review / accept / defer / reject
   ↓
-Approved items → next STEP input or ops doc update
+Approved items → next STEP/Batch input or ops doc update
 ```
 
-### 11.3 Exceptions (immediate proposal allowed)
-
-다음 사항은 **즉시 제안**할 수 있다.
+### 12.3 Exceptions (immediate proposal allowed)
 
 | Exception | Example class |
 |-----------|---------------|
 | 프로젝트 **무결성**에 영향 | Corrupt SSOT · inconsistent Entry |
-| **SSOT / Frozen Rule** 위반 가능 | Locked Framework 수정 시도 · Freeze bypass |
+| **SSOT / Frozen Rule** 위반 가능 | Locked Framework 수정 시도 · Freeze bypass · Ratify≠Apply 위반 |
 | **데이터 손실** 위험 | Destructive git · dataset wipe |
-| 현재 **STEP 결과가 잘못될** 가능 | Analysis Only 위반 · wrong Consume baseline |
+| 현재 **STEP/Batch 결과가 잘못될** 가능 | Analysis Only 위반 · wrong Consume baseline · Empty Apply를 FAIL로 오판 |
 | 지금 고치지 않으면 **다음 STEP 진행 곤란** | 구조적 blocker · missing Entry SSOT |
 
 예외가 아니면 제안은 **작업 단위 종료 후 일괄**로 한다.
 
-### 11.4 Scope
+### 12.4 Scope
 
-이 규칙은 다음을 포함한 **모든 AI 협업 과정**에 공통 적용한다.
-
-- ChatGPT  
-- Cursor  
-- Codex  
-- (향후) Claude Code · 기타 Agents  
-
+이 규칙은 ChatGPT · Cursor · Codex · (향후) 기타 Agents를 포함한 **모든 AI 협업 과정**에 공통 적용한다.  
 §3 AI Role Definition과 충돌하지 않는다. 역할과 무관하게 **제안 타이밍**만 규율한다.
 
 ---
 
-## 12. Implementation Decomposition Rule
+## 13. Implementation Decomposition
 
-### 12.1 Purpose
+### 13.1 Purpose
 
 대규모 구현 요청으로 인해 AI Agent의 응답 품질이나 안정성이 저하되는 것을 방지한다.
 
 Design이 확정된 뒤 **Implementation**을 독립적인 작은 작업 단위로 나누어 진행한다.
 
-### 12.2 Background (verified practice)
+### 13.2 Background (verified practice)
 
 STEP6-7 Validation Engine 구현에서 초기 일괄 구현은 진행이 지연되었으나,  
 **STEP6-7A ~ 7G**로 분할한 이후 각 단계의 구현·테스트·검토가 안정적으로 완료되었다.
 
 이 경험을 프로젝트 **Implementation 운영 원칙**으로 채택한다.
 
-### 12.3 Operating rules
+### 13.3 Operating rules
 
 | ID | Rule | Statement |
 |----|------|-----------|
-| **ID1** | **Split by unit** | 구현은 가능한 한 독립적인 작은 작업 단위(**A / B / C …**)로 분할한다. 예: `STEP6-7A` · `STEP6-7B` · `STEP6-7C` … |
+| **ID1** | **Split by unit** | 구현은 가능한 한 독립적인 작은 작업 단위(**A / B / C …**)로 분할한다. |
 | **ID2** | **Minimal shippable** | 각 작업은 컴파일 또는 Smoke Test 가능한 **최소 구현 단위**를 목표로 한다. |
 | **ID3** | **Gate before next** | 각 작업 종료 시 간단한 완료 보고와 **다음 구현 범위**를 확인한 후 다음 단계로 진행한다. |
 | **ID4** | **Small steps default** | 대규모 일괄 구현 요청보다 **작은 구현의 연속**을 기본 전략으로 한다. |
@@ -407,29 +678,30 @@ Implementation unit B   → smoke / compile → report → confirm next
 Validation / Integration
 ```
 
-### 12.4 Relation to other rules
+### 13.4 Relation to other rules
 
 | Related rule | Interaction |
 |--------------|-------------|
-| **§2 P5 · §7 One Responsibility** | 분할 단위도 한 목적만 담는다. 분할이 책임을 섞는 핑계가 되지 않는다. |
-| **§7 STEP Workflow** | Design → Implementation 순서 유지. Design 미확정 상태에서 구현 분할으로 “설계 대체” 금지. |
-| **§10 Improvement** | 분할 중 발견된 개선은 가능하면 **다음 단위 입력**으로 흡수한다. |
-| **§11 Proposal Management** | 단위 진행 중 개선 제안 스팸 금지. 단위 종료 시 일괄 제안. |
+| **§2 P5 · §5 One Responsibility** | 분할 단위도 한 목적만 담는다. |
+| **§5 STEP Workflow** | Design → Implementation 순서 유지. |
+| **§7.4 Improvement** | 분할 중 발견 개선은 가능하면 **다음 단위 입력**으로 흡수. |
+| **§8 Fleet Apply** | Fleet Code Apply도 Apply>0일 때 단위 분할 가능. Empty Apply는 분할 불필요. |
+| **§12 Proposal Management** | 단위 진행 중 제안 스팸 금지. |
 
-### 12.5 Anti-patterns
+### 13.5 Anti-patterns
 
 | Forbidden habit | Why |
 |-----------------|-----|
 | Design 미완료인데 Implementation을 A/B/C로만 쪼개 진행 | ID5 위반 · 구조 표류 |
-| “한 번에 Engine 전부” 일괄 요청을 기본으로 둠 | ID4 위반 · 품질/안정성 저하 위험 |
+| “한 번에 Engine 전부” 일괄 요청을 기본으로 둠 | ID4 위반 |
 | 단위 완료 보고·다음 범위 확인 없이 연속 돌진 | ID3 위반 |
 | Smoke 불가한 중간 파편만 쌓고 다음으로 넘김 | ID2 위반 |
 
 ---
 
-## 13. Freeze Rule
+## 14. Freeze Rule
 
-### 13.1 Do not edit Frozen / Locked surfaces informally
+### 14.1 Do not edit Frozen / Locked surfaces informally
 
 | Surface | Policy |
 |---------|--------|
@@ -439,39 +711,41 @@ Validation / Integration
 | STEP6 Pipeline Freeze Candidate | Locked · ADR / Pipeline Review only |
 | AAS Architecture Constitution / ADR (해당 Freeze) | 프로젝트 Freeze 정책 준수 |
 | Runtime Baseline (Batch6 Final Freeze) | 코드 무단 변경 금지 (별도 STEP/승인 없이) |
+| **Fleet Ratified chapters / Target Freeze / ADR Baseline** | Issue · Amendment · ADR path만 · informal edit 금지 |
 
-### 13.2 Change path
+### 14.2 Change path
 
 ```text
-Need change to Frozen/Locked?
+Need change to Frozen/Locked/Ratified?
         ↓
-ADR and/or Review (as required by that SSOT)
+ADR and/or Review / Issue (as required by that SSOT)
         ↓
-Version bump / explicit unfreeze path
+Version bump / explicit unfreeze or Amendment path
         ↓
-Update MASTER · LOG · Handoff
+Update MASTER · LOG · Handoff (and Fleet Front Matter if Fleet)
         ↓
-Push
+Push (if allowed)
 ```
 
-### 13.3 Downstream rule
+### 14.3 Downstream rule
 
-후속 STEP은 Frozen 문서를 **Consume**한다.  
+후속 STEP/Batch는 Frozen / Ratified 문서를 **Consume**한다.  
 “최신화”를 이유로 상위 SSOT를 편집하지 않는다.
 
 ---
 
-## 14. Future Expansion
+## 15. Future Expansion
 
-### 14.1 Stable core
+### 15.1 Stable core
 
-다음이 추가되어도 **§2–§13 운영 원칙은 유지**한다.
+다음이 추가되어도 **§2–§14 운영 원칙은 유지**한다.
 
 - Claude Code  
 - OpenAI Work / 기타 Coding Agents  
 - 추가 Review / CI Agents  
+- Fleet B8+ Validation Batch 운영 세부  
 
-### 14.2 Expansion slots (v1.0 candidates — not normative in v0.3)
+### 15.2 Expansion slots (candidates — not normative until verified)
 
 | Slot | Intent |
 |------|--------|
@@ -480,66 +754,87 @@ Push
 | CI / Import Graph / Build gate 운영 | Batch 검증 자동화 연계 |
 | Incident / OPEN-* 운영 | Known Issue 승격·종결 규칙 |
 | Multi-repo / monorepo ops | 해당 시 |
+| Fleet B8 Validation Engine ops detail | B8 검증 후 본 문서 편입 검토 |
 
-v0.3도 위 항목을 **예약만** 한다. 검증 전 세칙하지 않는다.
+**금지:** 병렬 `FLEET_STANDARD_WORKFLOW.md` 신설로 Ops SSOT를 분할하는 것.  
+Fleet 운영 확장은 **본 문서 §8–§11 개정**으로 흡수한다.
 
 ---
 
-## 15. Quick Reference Cards
+## 16. Quick Reference
 
-### 15.1 New session (minimum)
+### 16.1 New session (minimum)
 
 ```text
-[ ] DEVELOPMENT_WORKFLOW
+[ ] DEVELOPMENT_WORKFLOW (General + Fleet)
 [ ] PROJECT_MASTER_INDEX
 [ ] PROJECT_LOG (month)
 [ ] CURSOR_SESSION_HANDOFF
 [ ] Consume list from Handoff
-[ ] Confirm: stage · allowed · forbidden
+[ ] Confirm: stage · allowed · forbidden · Hold
 ```
 
-### 15.2 Stage complete (minimum)
+### 16.2 Stage / Batch complete (minimum)
 
 ```text
-[ ] Scoped Commit(s)
-[ ] Push
-[ ] MASTER updated (if stage changed)
+[ ] Scoped Commit(s) — if allowed
+[ ] Push — if allowed
+[ ] Fleet Front Matter updated (if Fleet gate)
+[ ] MASTER updated (if stage/batch changed)
 [ ] LOG entry (decisions)
 [ ] HANDOFF → next Entry
-[ ] Proposal list (if any) — §11
-[ ] Implementation unit complete + next scope confirmed — §12 (if in Implementation)
+[ ] Proposal list (if any) — §12
+[ ] Implementation unit complete + next scope confirmed — §13 (if in Implementation)
 ```
 
-### 15.3 Hard stops
+### 16.3 Fleet gate card
+
+```text
+Review → Draft → Ratify Review → Amendment → Ratify
+  → Freeze → ADR(if Apply>0) → Apply → Validation
+  → Commit/Push → MASTER/LOG/HANDOFF → Batch Complete
+
+Empty Apply: Freeze(Apply=0) → Validation → SSOT sync → PASS
+```
+
+### 16.4 Hard stops
 
 | Stop | Reason |
 |------|--------|
-| Edit Locked Framework/Pipeline without ADR | Freeze Respect (§13) |
+| Edit Locked Framework/Pipeline without ADR | Freeze Respect (§14) |
 | Catalog in Analysis Only STEP | One Responsibility / Analysis Only |
-| Re-read all SSOTs every turn | Session Context Rule |
-| Milestone Commit with temp scripts | Git hygiene |
-| Mid-work repeated improvement spam | Proposal Management (§11) |
-| One-shot mega Implementation without A/B/C split | Implementation Decomposition (§12) |
+| Re-read all SSOTs every turn | Session Context Rule (§4.3) |
+| Milestone Commit with temp scripts | Git hygiene (§6) |
+| Mid-work repeated improvement spam | Proposal Management (§12) |
+| One-shot mega Implementation without A/B/C split | Implementation Decomposition (§13) |
+| Ratify만으로 Code Apply | Ratify ≠ Apply (§9) |
+| Freeze 전 Apply / Empty Apply를 FAIL로 처리 | Fleet Governance (§9) |
+| Hold Batch 재시도 | Safe Stop / Forbidden (§9) |
+| 병렬 Fleet Workflow 문서 신설 | One Ops SSOT (§1 · §15) |
 
 ---
 
-## 16. Document Control
+## 17. Document Control
 
 | Item | Value |
 |------|-------|
-| Version | **v0.3** |
-| Status | Active Operational SSOT (Draft) |
-| Next | v1.0 — Expansion slots after verified practice |
+| Version | **v1.0** |
+| Status | **Active Operational SSOT** |
+| Scope | General Operational Workflow + Fleet Apply Workflow |
+| Authority | **Sole** Operational Workflow SSOT |
 | Location | `작업관리/DEVELOPMENT_WORKFLOW.md` |
+| Non-authority | Fleet Layer Contract 본문 (→ Fleet Contract Book) |
 
 ### Revision History
 
 | Version | Date | Change |
 |---------|------|--------|
 | **v0.1** | 2026-07-17 | Initial Operational SSOT — verified STEP6 / session / Freeze / Git practice |
-| **v0.2** | 2026-07-17 | Add **§11 Proposal Management Rule** · renumber Freeze+ |
-| **v0.3** | 2026-07-17 | Add **§12 Implementation Decomposition Rule** · renumber Freeze+ · STEP6-7A–G practice |
+| **v0.2** | 2026-07-17 | Add Proposal Management Rule · renumber Freeze+ |
+| **v0.3** | 2026-07-17 | Add Implementation Decomposition Rule · STEP6-7A–G practice |
+| **v1.0** | 2026-07-23 | **Promote to Operational Workflow SSOT v1.0** · Refactor TOC · Add **§8 Fleet Apply Workflow** · **§9 Fleet Governance** · **§10 Fleet Validation** · **§11 Fleet SSOT Sync** · Merge Session Context / Model Selection / Improvement into numbered structure · Declare Sole Ops SSOT (no parallel Fleet workflow doc) · Verified by STEP8 B4–B7 |
+| **v1.0** | 2026-07-23 | Ops close sync — Fleet Front Matter consume 순서 명문화 (§4.1) · **B3 Hold** 원칙 명문화 (§9) · B7 PASS / B8 Entry 정합 점검 (내용 변경 없음 · 보완만) |
 
 ---
 
-*End of DEVELOPMENT_WORKFLOW.md v0.3*
+*End of DEVELOPMENT_WORKFLOW.md — Operational Workflow SSOT v1.0*
