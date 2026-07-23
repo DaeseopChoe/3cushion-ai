@@ -5,11 +5,12 @@ Document   : FLEET_CONTRACT_BOOK_v1.0.md
 Type       : Fleet Contract Book — Front Matter (SSOT Index)
 Version    : v1.0
 Status     : Ratified (Conditional — chapter persistence partial)
-Date       : 2026-07-22
+Date       : 2026-07-23
 Location   : System Platform Standard (SPS) v1.0/Fleet_Contract_Book/
 Baseline   : c398f3abb4b52a11369f77bba1a5c4877155acb4
 Rule       : Book SSOT 최우선 · WG-AI-001 Consume · Formula/Value/Trajectory 의미 불변 ·
              Runtime / Loader / Registry / System JSON / Code 변경은 본 문서가 허가하지 않음
+Note       : STEP8 Fleet Apply (B0–B8) Completed · Final Validation Gate v1.0 · B3 Hold carried
 ```
 
 ---
@@ -80,7 +81,7 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | **Ch.8** | **L4 Anchor Contract** | **L4** | **`FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md`** | **Ratified** |
 | **Ch.9** | **L5 Logic Contract** | **L5** | **`FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md`** | **Ratified** |
 | **Ch.10** | **L6 Runtime Contract** | **L6** | **`FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md`** | **Ratified** |
-| Ch.11 | L7 Presentation Contract | L7 | — | **Not Persisted** |
+| **Ch.11** | **L7 Presentation Contract** | **L7** | **`FLEET_CONTRACT_BOOK_Ch11_L7_Presentation_Contract.md`** | **Ratified** |
 | Ch.12–14 | Assurance | — | — | **Not Persisted** |
 | Appendix A–E | Registers / Mapping / Glossary | — | — | **Not Persisted** |
 
@@ -105,8 +106,8 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | **B4** | **L4 Anchor** | **Ch.8 Ratified** | **Applied / PASS** |
 | **B5** | **L5 Logic** | **Ch.9 Ratified** | **Applied / PASS** · Structure-only · Apply 6 / Defer 14 |
 | **B6** | **L6 Runtime** | **Ch.10 Ratified** | **Applied / PASS** · Amendment v1.1 · ADR Approve · Apply 1 (`double_rail` Loader exclusion only) · L6-VR **PASS** · `0tip_plus` Defer · Meaning Preservation |
-| B7 | L7 Presentation | Ch.11 Not Persisted | Pending |
-| B8 | Validation | — | Pending |
+| **B7** | **L7 Presentation** | **Ch.11 Ratified** | **PASS / Completed** · Empty Apply (**0**) · L7-VR **PASS** · Code ADR **Not Required** · L7-D-001 Explicit Defer · Next = **B8 Validation** |
+| **B8** | **Validation** | — (Ch.12–14 Not Persisted · not Apply SSOT) | **PASS / Completed** · Empty Apply (**0**) · Mode A · B8-VR **PASS** · XC-01…XC-12 **PASS** · Code ADR **Not Required** · Fleet Closure **Confirmed** · Final Validation Gate v1.0 |
 
 ---
 
@@ -119,6 +120,10 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 - STEP6 Final Freeze / Framework / Pipeline (Locked · Consume)
 - Cursor Ask 검토 결과 (Ch.8 Ratify 범위 · B4 사전 검토)
 - Ch.10 L6 Runtime Contract (Ratified · Minor Amendment) · B6 Target Freeze v1.0 · Amendment v1.1 · ADR-STEP8-B6-01
+- Ch.11 L7 Presentation Contract (Ratified · L7-D-001 Explicit Defer)
+- B7 Target Freeze v1.0 (Empty Apply · Scope Frozen)
+- B8 Target Freeze v1.0 (Validation Scope Frozen · Empty Apply)
+- STEP8 Final Validation Gate v1.0 (Fleet Apply Completed · Final Acceptance)
 
 ### Forbidden (Book-wide / Hold)
 
@@ -141,10 +146,14 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | `FLEET_CONTRACT_BOOK_Ch08_L4_Anchor_Contract.md` | **Ch.8 L4 Anchor Contract — Ratified** |
 | `FLEET_CONTRACT_BOOK_Ch09_L5_Logic_Contract.md` | **Ch.9 L5 Logic Contract — Ratified** |
 | `FLEET_CONTRACT_BOOK_Ch10_L6_Runtime_Contract.md` | **Ch.10 L6 Runtime Contract — Ratified** (Minor Amendment Complete) |
+| `FLEET_CONTRACT_BOOK_Ch11_L7_Presentation_Contract.md` | **Ch.11 L7 Presentation Contract — Ratified** (v1.0 · L7-D-001 Explicit Defer) |
 | `FLEET_CONTRACT_BOOK_B5_Target_Freeze.md` | **STEP8 B5 Target Freeze — Apply Scope Frozen (Amended) v1.1** |
 | `FLEET_CONTRACT_BOOK_B6_Target_Freeze.md` | **STEP8 B6 Target Freeze — Apply Scope Frozen (Empty Apply) v1.0** (superseded Scope by Amendment) |
 | `FLEET_CONTRACT_BOOK_B6_Target_Freeze_Amendment_v1.1.md` | **STEP8 B6 Target Freeze Amendment v1.1** — Apply Count 1 · `double_rail` |
 | `FLEET_CONTRACT_BOOK_B6_ADR_Apply_Design_Review.md` | **ADR-STEP8-B6-01** — Approve · Execution Baseline · EB-01…07 |
+| `FLEET_CONTRACT_BOOK_B7_Target_Freeze.md` | **STEP8 B7 Target Freeze — Apply Scope Frozen (Empty Apply) v1.0** |
+| `FLEET_CONTRACT_BOOK_B8_Target_Freeze.md` | **STEP8 B8 Target Freeze — Validation Scope Frozen (Empty Apply) v1.0** |
+| `FLEET_CONTRACT_BOOK_STEP8_Final_Validation_Gate.md` | **STEP8 Fleet Apply Final Validation Gate — Completed · Final Acceptance v1.0** |
 
 ---
 
@@ -159,6 +168,11 @@ L1 Identity → L2 Schema → L3 Metadata → L4 Anchor → L5 Logic → L6 Runt
 | 2026-07-22 | B6 Target Freeze on-disk v1.0 · Apply Mapping B6 = **Review / Freeze Complete** (Empty Apply · PASS Conditional) · Ch.10 remains **Not Persisted** · ≠ Apply PASS · ≠ Verified · Persisted Index + B6 Freeze · Next Gate = **Ch.10 Ratify** |
 | 2026-07-22 | **Ch.10 L6 Runtime Contract Ratified** · Minor Amendment Complete · Chapter Status Ch.10 = **Ratified** · Persisted Index + Apply Mapping B6 Next = **Scope Reconfirm → ADR** · Remaining chapters (ex Ch.8–10) Not Persisted |
 | 2026-07-22 | **B6 Applied / PASS** · Freeze Amendment v1.1 · ADR Approve · Loader exclusion lift `double_rail` only · L6-VR PASS · Apply Mapping B6 = **Applied / PASS** · Next = **B7 Presentation** |
+| 2026-07-23 | **Ch.11 L7 Presentation Contract Ratified** · Chapter Status Ch.11 = **Ratified** · Persisted Index + Apply Mapping B7 = Ch.11 Ratified · Next = **B7 Target Freeze** · L7-D-001 Explicit Defer 유지 · Remaining chapters (ex Ch.8–11) Not Persisted · **No Code Apply** |
+| 2026-07-23 | **B7 Target Freeze on-disk v1.0** · Status = **B7 Apply Scope Frozen (Empty Apply)** · Apply Mapping B7 = **Scope Frozen (Empty Apply)** · Apply **0** · Code ADR **Not Required** · L7-D-001 Explicit Defer 유지 · Persisted Index + B7 Freeze · Next Gate = **B7 Validation** · **No Code Apply** · ≠ Apply PASS |
+| 2026-07-23 | **B7 PASS / Completed** · L7-VR-01…12 **PASS** (Empty Apply · document/vacuous) · Apply Mapping B7 = **PASS / Completed** · Next = **B8 Validation** · Code Apply / JSON / Runtime **미변경** · ≠ Code Apply PASS (Apply = 0) |
+| 2026-07-23 | **B8 Target Freeze on-disk v1.0** · Status = **B8 Validation Scope Frozen (Empty Apply)** · Apply Mapping B8 = **Scope Frozen (Empty Apply)** · Apply **0** · Code ADR **Not Required** · Mode A · Exit Criteria XC-01…XC-12 · B8-VR-01…12 · Persisted Index + B8 Freeze · Next Gate = **B8 Validation Execution** · **No Code Apply** · ≠ Validation PASS · ≠ Fleet Closure |
+| 2026-07-23 | **B8 Validation PASS** · Mode A · B8-VR-01…11 **PASS** · XC-01…XC-12 **PASS** · Apply Mapping B8 = **PASS / Completed** · **Fleet Closure Confirmed** · Final Validation Gate v1.0 · STEP8 Fleet Apply (B0–B8) **Completed** · B3 Hold carried · Code Apply / Runtime / JSON **미변경** · Ops SSOT sync (MASTER · LOG · HANDOFF) |
 
 ---
 

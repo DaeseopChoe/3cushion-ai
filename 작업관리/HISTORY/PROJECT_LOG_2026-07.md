@@ -1,8 +1,74 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.29  
+Version : v1.30  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-23 (Fleet Closure — B8 PASS · STEP8 Fleet Apply Completed · Final Validation Gate)
+
+## 제목
+
+**D-STEP8-43** — STEP8 Batch B8 Validation **PASS** · Fleet Closure · **STEP8 Fleet Apply (B0–B8) Completed** · Final Validation Gate v1.0
+
+## Summary
+
+B8 Target Freeze (Validation Scope Frozen · Empty Apply) · Ratify Review PASS · Mode A Validation Execution 후 **Validation PASS**를 확정하고 Fleet Closure 및 Ops SSOT를 동기화하였다. Code / Runtime / System JSON은 변경하지 않았다.
+
+### B8 Completion Chain
+
+| Gate | Result |
+|------|--------|
+| Architecture Review | **PASS (Conditional)** |
+| Target Freeze v1.0 | **Validation Scope Frozen (Empty Apply · 0)** |
+| Ratify Review | **PASS** · Validation Entry READY |
+| Validation Execution (Mode A) | **PASS** · B8-VR-01…11 · XC-01…XC-12 |
+| Fleet Closure | **Confirmed** |
+| Final Validation Gate | **v1.0 · Final Acceptance** |
+
+### STEP8 Fleet Apply
+
+| Item | Value |
+|------|-------|
+| **B0…B2.5 · B4…B8** | **PASS / Completed** |
+| **B3** | **HALTED (Hold)** · non-blocking · 재시도 금지 |
+| **STEP8 Status** | **Completed** |
+| **Fleet Baseline (STEP9+)** | Final Validation Gate + Ch.8–11 + B4–B8 Freeze/ADR + Ops Workflow v1.0 |
+
+### Explicit Non-Outputs (B8)
+
+- Code Apply / Runtime / System JSON **미변경**
+- Catalog Freeze Candidate **미선언**
+- Ch.12–14 Ratify **미수행**
+- Mode C Engine re-run **미수행** (optional · non-criteria)
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-STEP8-43** | B8 Validation **PASS** (Mode A · Empty Apply · document/vacuous) |
+| **D-STEP8-44** | B8 **Completed** · Fleet Closure **Confirmed** |
+| **D-STEP8-45** | STEP8 Fleet Apply (B0–B8) **Completed** · Final Validation Gate v1.0 **Accepted** |
+| **D-STEP8-46** | B3 Hold · L7-D-001 · Catalog/Ch.12–14/KI inventory **carry** (non-blocking) |
+| **D-STEP8-47** | Next = **Post-STEP8 / STEP9 Entry** · Final Gate = STEP9+ Fleet Baseline Consume |
+
+## Related Project Docs Synced
+
+- `FLEET_CONTRACT_BOOK_B8_Target_Freeze.md` v1.0
+- `FLEET_CONTRACT_BOOK_STEP8_Final_Validation_Gate.md` v1.0
+- `FLEET_CONTRACT_BOOK_v1.0.md` — Apply Mapping B8 = PASS / Completed · Persisted Index
+- `PROJECT_MASTER_INDEX.md` v1.43
+- `CURSOR_SESSION_HANDOFF.md` — STEP8 Completed · Post-STEP8 Entry
+- `PROJECT_LOG_2026-07.md` v1.30 — 본 항목
+
+## Status
+
+**STEP8 Fleet Apply Completed · B8 PASS · Fleet Closure Confirmed · Final Validation Gate v1.0**
+
+## Next Session
+
+**Post-STEP8 / STEP9 Entry** — Consume Final Validation Gate · Carry Hold/Defer inventory
 
 ---
 
