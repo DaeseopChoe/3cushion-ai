@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.44  
-Last Updated: 2026-07-23  
+Version: 1.45  
+Last Updated: 2026-07-26  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -96,6 +96,7 @@ Architecture Review
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**STEP8 Completed** · **Post-STEP8** · Next **STEP9**) |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8–Ch.11 Ratified** · **B0–B8 Completed** · **Final Validation Gate v1.0** |
+| `System Platform Standard (SPS) v1.0/Certification_Platform/` | **STEP9 Certification Platform SSOT v1.0 · FROZEN** · P-01…P-05 · FC-01…FC-08 |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** (IU-6-01A…06A Complete · Design-only · Consume) |
 | `작업관리/OPS_AI_MODEL_GUIDE.md` | **Ops AI Model Recommendation Guide v0.1** (Recommendation only · never Gate) |
 | `System Platform Standard (SPS) v1.0/STEP7_P4_IU-4-0*.md` | **STEP7 P4 Standardization Plan suite** (Complete · Official · VG-P4 PASS) |
@@ -1041,7 +1042,7 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 ## 다음 작업 우선순위
 
-> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed** — B0·B1·B2·B2.5·**B4·B5·B6·B7·B8 PASS** · **Final Validation Gate v1.0** · B3 **HALTED (Hold)** · Ops Workflow **v1.0**. **Current: Post-STEP8** · **Next: STEP9 Entry**.
+> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN** — Phase 0 Architecture · Phase 1 Definition · Phase 2 Freeze Review · Phase 2.5 Gate Closure · Phase 3-A Persist · Phase 3-B Freeze 완료. **Current: Platform Frozen · Pilot Ready** · **Next: STEP9 Phase 4 Pilot Certification**.
 
 ### STEP7 상태
 
@@ -1100,11 +1101,30 @@ STEP7 P6 Fleet · STEP7_P6_FLEET_BATCH1_01A
 | **Freeze Candidate (Catalog)** | **Not Declared** |
 | **Catalog / Register JSON** | **Not created** |
 | **catalogPinId** | **Not issued** |
-| **Current Stage** | **Post-STEP8** · STEP8 Fleet Apply **Completed** · Final Validation Gate v1.0 · B3 HALTED (Hold) |
-| **Prerequisite** | **Final Validation Gate v1.0 (= Fleet Validation Standard baseline) · Ch.8–Ch.11 Ratified · Ops Workflow v1.0** |
-| **Next Session** | **STEP9 Entry** |
-| **Current Queue** | **STEP9** |
+| **Current Stage** | **STEP9 Certification Platform v1.0 FROZEN** · Platform SSOT P-01…P-05 · FC-01…FC-08 |
+| **Prerequisite** | **Frozen Certification Platform v1.0** + Fleet Validation Standard baseline · Ch.8–Ch.11 Ratified · Ops Workflow v1.0 |
+| **Next Session** | **STEP9 Phase 4 Pilot Certification** (Platform 검증 목적) |
+| **Current Queue** | **STEP9 Phase 4 Pilot** |
 | **Ops AI Guide** | **`OPS_AI_MODEL_GUIDE.md` v0.1** |
+
+### STEP9 상태 (Certification Platform — Frozen)
+
+| Item | Status |
+|------|--------|
+| **Phase 0 Architecture Review** | **PASS / Completed** |
+| **Phase 1 Platform Definition** | **PASS / Completed** |
+| **Phase 2 Freeze Review** | **PASS / Completed** |
+| **Phase 2.5 Gate Closure** | **PASS / Completed** |
+| **Phase 3-A Persist** | **Completed** — P-01…P-04 on-disk |
+| **Phase 3-B Freeze Declaration** | **PASS · FROZEN** — P-05 |
+| **Certification Platform** | **v1.0 · Official STEP9 SSOT · Frozen** |
+| **Frozen Scope** | **FC-01…FC-08** |
+| **Change policy** | **Amendment only** (Level 1 Editorial · Level 2 Clarification · Level 3 Contract/Workflow · Level 4 Principle) |
+| **System Certification** | **Not started** |
+| **Production Ready** | **Not declared** |
+| **Next** | **STEP9 Phase 4 Pilot Certification** — Frozen Platform 검증 |
+
+> Platform does not certify. Actors(User/Agent)가 Frozen Platform 기준을 적용한다. 특정 System 때문에 Platform을 변경하지 않는다.
 
 ### STEP8 상태 (Fleet Apply — Completed)
 
@@ -1161,14 +1181,15 @@ STEP8 Fleet Apply              COMPLETED
 
 Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7은 STEP6 **Consume**.
 
-### 최우선 — STEP9 Entry (Fleet Validation Standard Consume)
+### 최우선 — STEP9 Phase 4 Pilot Entry (Frozen Platform Consume)
 
-- Session Entry: `CURSOR_SESSION_HANDOFF.md` (**Post-STEP8** · Next **STEP9**)
+- Session Entry: `CURSOR_SESSION_HANDOFF.md` (**Platform Frozen** · Next **STEP9 Phase 4 Pilot**)
+- **Certification Platform baseline:** `Certification_Platform/STEP9_Platform_Freeze.md` v1.0 + P-01…P-04 · **FROZEN**
 - **Current baseline (Fleet Validation Standard):** `FLEET_CONTRACT_BOOK_STEP8_Final_Validation_Gate.md` v1.0 + Ch.8–Ch.11 + B4–B8 Freeze/ADR + Ops Workflow v1.0
 - **STEP8:** **Completed** · B8 Validation **PASS** · Fleet Closure **Confirmed** · Final Gate **Accepted**
 - **Carry (non-blocking):** B3 Hold · L7-D-001 · Catalog Freeze Candidate · Ch.12–14 · KI backlog
 - Ops: `DEVELOPMENT_WORKFLOW.md` **v1.0** · `OPS_AI_MODEL_GUIDE.md` v0.1
-- **금지:** B3 재시도 · Ch.8–Ch.11 informal edit · Empty Apply reopen without Freeze+ADR · Runtime / JSON silent mutation
+- **금지:** Frozen Platform informal edit · System-driven Platform change · B3 재시도 · Ch.8–Ch.11 informal edit · Runtime / JSON silent mutation
 
 ### SPS STEP6 Document Suite
 

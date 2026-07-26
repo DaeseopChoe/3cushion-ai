@@ -1,8 +1,59 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.31  
+Version : v1.32  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-26 (STEP9 Certification Platform v1.0 — Persist · Freeze · Governance Sync)
+
+## 제목
+
+**D-STEP9-01** — STEP9 Phase 0…3-B 완료 · Certification Platform SSOT **v1.0 FROZEN**
+
+## Summary
+
+STEP9 Phase 0 Architecture Review, Phase 1 Platform Definition, Phase 2 Freeze Review, Phase 2.5 Gate Closure를 PASS 완료하고, Phase 3-A에서 P-01…P-04를 on-disk SSOT로 Persist하였다. Phase 3-B에서 P-05 Freeze Declaration을 작성하여 Certification Platform v1.0을 공식 Freeze하였다.
+
+### Persist / Freeze
+
+| Item | Result |
+|------|--------|
+| P-01 Architecture Review | **Persisted** |
+| P-02 Platform Definition | **Persisted** |
+| P-03 Freeze Review | **Persisted** |
+| P-04 Gate Closure Review | **Persisted** |
+| P-05 Freeze Declaration | **FROZEN v1.0** |
+| Frozen Scope | **FC-01…FC-08** |
+| Location | `System Platform Standard (SPS) v1.0/Certification_Platform/` |
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-STEP9-01** | Certification Platform v1.0 = **Official STEP9 SSOT · FROZEN** |
+| **D-STEP9-02** | Platform은 Certification 주체가 아니라 Certification How의 기준이다. Actors(User/Agent)가 적용한다. |
+| **D-STEP9-03** | Frozen Platform 변경은 Amendment Level 1–4 절차로만 허용한다. |
+| **D-STEP9-04** | 특정 System 또는 Pilot 결과는 Platform Freeze를 우회하지 않는다. |
+| **D-STEP9-05** | Next = **STEP9 Phase 4 Pilot Certification** (Platform 검증 목적) |
+
+## Explicit Non-Claims
+
+- Pilot Certification **미수행**
+- System Certification **미시작**
+- Production Ready **미선언**
+- Runtime / Formula / Dataset / Anchors / Logic / Simulator / Validation 구현 **미변경**
+- Rule Matrix / Checklist / Evidence Schema / Certificate Record **미작성**
+- Commit / Push **미수행** (별도 Commit 세션)
+
+## Status
+
+**Certification Platform v1.0 FROZEN · Architecture/Definition/Freeze Complete · Pilot Ready**
+
+## Next Session
+
+**Governance sync 변경사항 Commit / Push**, 이후 **STEP9 Phase 4 Pilot Certification**.
 
 ---
 
