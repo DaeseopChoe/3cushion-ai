@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.45  
-Last Updated: 2026-07-26  
+Version: 1.47  
+Last Updated: 2026-07-27  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -710,7 +710,8 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 | USER HP/T | `components/user/UserHptPanel.jsx`, `domain/userHptViewModel.ts`, `.modal-panel--user-hpt` |
 | USER 동선 | `components/user/UserTrajectoryInfoCard.jsx`, `domain/userTrajectoryCardViewModel.ts`, `domain/trajectoryPathDisplayPolicy.ts`, `.user-trajectory-info-card`, `App.jsx` (`trajectoryCardSource`, `trajectoryShowAxisValues`, `trajectoryCardOffset`) |
 | USER 시스템값 표시 | `components/table/SystemValueLabels.jsx`, `components/table/LabelText.jsx`, `config/tableConfig.ts` — 동선 카드 내부 토글로 노출 |
-| Overlay 반응형 CSS | `frontend/src/index.css` — `--overlay-scale`, `--ai-scale`, `--overlay-svg-scale` |
+| Overlay 반응형 CSS | `frontend/src/index.css` — `--overlay-scale`, `--ai-scale`, `--overlay-svg-scale` (bridge token 유지, **Layout SSOT는 Ratio/Surface token 기준**) |
+| **Overlay Layout SSOT** | `OVERLAY_LAYOUT_SSOT_v1.2.md` — USER Overlay 공통 Shell 규약 (**Confirmed v1.2**, 구현 전 Consume) |
 
 ---
 
@@ -728,6 +729,7 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 | USER HP/T UI | `frontend/src/components/user/UserHptPanel.jsx` |
 | USER 시스템값 표시 | `frontend/src/components/table/SystemValueLabels.jsx` — 동선 카드 내부 `시스템값 표시` 토글로 제어 |
 | USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · HP/T; table-area: Trajectory card) |
+| USER Overlay Shell | `frontend/src/components/common/UserOverlayShell.jsx` — 공통 Layout Layer (Ratio · Surface · Drag · Clamp · Close) |
 | Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`USER_FUNC_IDS`, `onUserFuncButtonSelect`) |
 | ADMIN AI | `frontend/src/App.jsx` `AiOverlay` |
 | 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.modal-panel--user-system-lesson`, `.user-trajectory-info-card`, `.modal-panel--user-hpt`) |
@@ -735,6 +737,16 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 ---
 
 ## 현재 완료 상태
+
+### USER Overlay UX Phase (2026-07)
+
+| Item | Status |
+|------|--------|
+| **Overlay Layout SSOT** | **v1.2 Confirmed** |
+| **USER Overlay Common Shell** | **Implemented** |
+| **AI Overlay** | **Completed** |
+| **타점 Overlay** | **Almost complete** · Content Fit 미세조정 carry |
+| **계산 Overlay** | **Planned** |
 
 ### 완료
 
@@ -1298,11 +1310,18 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `5_PROJECT_MASTER_STATE_CURRENT.md` | 코드 스냅샷·구조 변경 통제 |
 | `3_SYSTEM_ARCHITECTURE.md` | 계산·데이터 계층 |
 | `4_CALCULATION_RULES.md` | 수식·보정 규칙 |
+| `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` | Frontend 구조·레이어 기준선 |
+| `OVERLAY_LAYOUT_SSOT_v1.2.md` | **USER Overlay Layout SSOT v1.2 (Confirmed)** — Shell/Content · Dark Glass · Ratio · Drag · Position |
 | `SESSION_TRANSFER/APP_USER_SEARCH_FLOW.md` | USER Search 흐름 |
 
 ---
 
 ## USER Overlay (요약)
+
+> **Layout SSOT:** `OVERLAY_LAYOUT_SSOT_v1.2.md` (Confirmed).  
+> Size = `table-area × Ratio` · Default Surface = Dark Glass · Center+Drag · Shell→Content.  
+> Progress = AI 완료 · 타점 거의 완료(Content Fit carry) · 계산 적용 예정.  
+> `--overlay-scale` / `--ai-scale` / `--overlay-svg-scale`는 bridge token이며, 장기 SSOT는 Ratio/Surface/Typography token이다.
 
 ```
 좌측 AI → overlayContent = "AI" → UserAiPanel (--ai-scale)

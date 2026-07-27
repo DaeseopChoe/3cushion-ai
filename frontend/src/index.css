@@ -254,12 +254,259 @@
   overflow: hidden;
 }
 
+/* SYS 관리자 — 기준/보정 2열 계산식이 한 줄로 보이도록 폭 확대 */
+.modal-panel--sys {
+  min-width: min(1040px, 96vw);
+  width: min(1180px, 96vw);
+  max-width: min(1280px, 96vw);
+}
+
 .modal-panel--compact {
   min-width: 320px;
   width: auto;
   max-width: min(900px, 92vw);
   min-height: 0;
   padding: 28px 24px;
+}
+
+/* ============================================
+   USER Overlay Shell — Layout SSOT v1.1
+   Size = table-area × Ratio · Surface · Position/Drag/Clamp
+   Content Layer must not own chrome / absolute width SSOT
+   ============================================ */
+.user-overlay-shell-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.user-overlay-shell {
+  box-sizing: border-box;
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--uos-pad-v, 12px) var(--uos-pad-h, 14px);
+  border-radius: var(--uos-radius, 12px);
+  line-height: var(--uos-line-height, 1.4);
+  font-size: var(--uos-body, 16px);
+  color: #0f172a;
+  overflow: hidden;
+}
+
+.user-overlay-shell--positioned {
+  position: absolute;
+  margin: 0;
+}
+
+.user-overlay-shell--fit {
+  width: fit-content;
+}
+
+/* Small variant: content-fit shell, reduced glass footprint */
+.user-overlay-shell--small {
+  padding:
+    calc(var(--uos-pad-v, 12px) * 0.82)
+    calc(var(--uos-pad-h, 14px) * 0.5);
+}
+
+.user-overlay-shell--fixed {
+  width: var(--uos-w);
+}
+
+.user-overlay-shell--surface-drag {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.user-overlay-shell--dragging {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Surface tokens (Shell-owned) */
+.user-overlay-shell--surface-normal {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.user-overlay-shell--surface-strong {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.user-overlay-shell--surface-transparent {
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.user-overlay-shell--surface-dark {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #f8fafc;
+}
+
+/* AI trial Surface — Glass Dark (공통 확장 전 AI 전용) */
+.user-overlay-shell--surface-glassDark {
+  background: rgba(30, 55, 105, 0.17);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.user-overlay-shell__close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 2;
+  flex: 0 0 auto;
+  font-size: 28px;
+  color: #94a3b8;
+  border: none;
+  background: none;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.user-overlay-shell__close:hover {
+  color: #64748b;
+}
+
+.user-overlay-shell--surface-drag .user-overlay-shell__close,
+.user-overlay-shell--surface-drag button,
+.user-overlay-shell--surface-drag a,
+.user-overlay-shell--surface-drag [data-overlay-no-drag="1"] {
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: auto;
+}
+
+/* Height auto; Shell does not scroll — Content body scrolls past maxHeight */
+.user-overlay-shell__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.user-overlay-shell__content {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: visible !important;
+}
+
+/* Neutralize legacy viewport/width SSOT on Content wrappers inside Shell */
+.user-overlay-shell__content.modal-panel--user-ai,
+.user-overlay-shell__content.modal-panel--user-hpt,
+.user-overlay-shell__content.modal-panel--user-system-lesson,
+.user-overlay-shell__content.modal-panel--compact {
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  --ai-scale: var(--uos-content-scale) !important;
+  --overlay-scale: var(--uos-overlay-scale) !important;
+  --overlay-svg-scale: var(--uos-svg-scale) !important;
+}
+
+/* AI Overlay UX — Glass Dark · single layer · no inner card / divider / header gap */
+.user-overlay-shell--ai.user-overlay-shell--surface-glassDark {
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__close {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__close:hover {
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel {
+  color: rgba(255, 255, 255, 0.96);
+  line-height: 1.4;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-para,
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-lesson-heading,
+.user-overlay-shell--ai .modal-panel--user-ai .ai-comment-empty {
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-para--formula .ai-comment-section-title,
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-lesson-heading {
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel__body {
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-divider {
+  display: none;
+}
+
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-one-point-lessons {
+  margin-top: 0.85em;
+}
+
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-para {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+/* No empty header band — only clear the floating X horizontally */
+.user-overlay-shell--ai .user-overlay-shell__body {
+  padding-top: 0;
+  padding-right: 1.35em;
 }
 
 .modal-panel--user-ai {
@@ -275,6 +522,7 @@
   font-size: inherit;
   line-height: inherit;
 }
+
 
 /* AI 코멘트 공통 레이아웃 */
 .ai-comment-para {
@@ -1110,64 +1358,23 @@ button.user-rail-btn--system-lesson[data-user-info-btn="SYSTEM_LESSON"] {
 }
 
 /* USER HP/T read-only card — mobile portrait, ~2.5× prior compact width */
-.modal-panel--user-hpt {
-  --overlay-scale: 1;
-  --overlay-svg-scale: 1;
-  --overlay-label: 36px;
-  --overlay-value: 40px;
-  --overlay-empty: 24px;
-  --overlay-pad-v: 15px;
-  --overlay-pad-h: 12px;
-  --overlay-viz-mb: 10px;
-  --overlay-viz-pad-v: 6px;
-  --overlay-viz-pad-h: 5px;
-  --overlay-svg-min-vw: 36vw;
-  --overlay-svg-max-vh: 44vh;
-  --overlay-svg-max-px: 340px;
-  --overlay-grid-gap-v: 12px;
-  --overlay-grid-gap-h: 10px;
-  --overlay-grid-mt: 6px;
-  --overlay-grid-pad-v: 15px;
-  --overlay-grid-pad-h: 10px;
-  --overlay-cell-pad-v: 4px;
-  --overlay-cell-pad-h: 3px;
-  --overlay-label-mb: 8px;
-  --overlay-empty-pad-v: 18px;
-  min-width: 0 !important;
-  width: fit-content !important;
-  max-width: min(calc(100vw - 20px), 1050px) !important;
-  min-height: 0 !important;
-  padding:
-    calc(var(--overlay-pad-v) * var(--overlay-scale))
-    calc(var(--overlay-pad-h) * var(--overlay-scale)) !important;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  line-height: 1.4;
-}
-
-@media (orientation: portrait) and (max-width: 900px) {
-  .modal-panel--user-hpt {
-    width: fit-content !important;
-    max-width: calc(100vw - 16px) !important;
-    padding: 12px 8px !important;
-  }
-}
-
-/* USER HP/T card — text-first mobile readability */
+/* USER 타점 card — Shell owns glass, width, padding, drag */
 .user-hpt-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   width: fit-content;
-  max-width: 100%;
-  margin-inline: auto;
-  color: #334155;
+  max-width: calc(var(--uos-w) * 0.94);
+  margin: 0;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
 .user-hpt-viz-wrap {
   box-sizing: border-box;
-  width: fit-content;
-  max-width: 100%;
-  margin-inline: auto;
-  margin-bottom: calc(var(--overlay-viz-mb) * var(--overlay-svg-scale));
+  width: calc(var(--uos-w) * 0.92);
+  max-width: min(100%, calc(var(--uos-w) * 0.92));
+  margin: 0 0 calc(0.4 * var(--uos-gap, 12px));
   padding: 0;
   background: transparent;
   border: none;
@@ -1177,17 +1384,10 @@ button.user-rail-btn--system-lesson[data-user-info-btn="SYSTEM_LESSON"] {
 .user-hpt-viz-wrap svg {
   display: block;
   margin: 0 auto;
-  width: min(
-    calc(var(--overlay-svg-max-px) * var(--overlay-svg-scale)),
-    calc(var(--overlay-svg-min-vw) * var(--overlay-svg-scale))
-  );
+  width: 100%;
   max-width: 100%;
   height: auto;
   aspect-ratio: 2 / 1;
-  max-height: min(
-    calc(var(--overlay-svg-max-vh) * var(--overlay-svg-scale)),
-    calc(var(--overlay-svg-max-px) * var(--overlay-svg-scale))
-  );
   background: transparent;
   border: none;
   border-radius: 0;
@@ -1195,76 +1395,25 @@ button.user-rail-btn--system-lesson[data-user-info-btn="SYSTEM_LESSON"] {
   pointer-events: none;
 }
 
-.user-hpt-metric-grid {
-  display: grid;
-  grid-template-columns: repeat(3, max-content);
-  justify-content: center;
-  justify-items: center;
-  width: fit-content;
-  max-width: 100%;
-  margin-inline: auto;
-  gap:
-    calc(var(--overlay-grid-gap-v) * var(--overlay-scale))
-    calc(var(--overlay-grid-gap-h) * var(--overlay-scale));
-  margin-top: calc(var(--overlay-grid-mt) * var(--overlay-scale));
-  padding:
-    calc(var(--overlay-grid-pad-v) * var(--overlay-scale))
-    calc(var(--overlay-grid-pad-h) * var(--overlay-scale));
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  box-sizing: border-box;
-}
-
-.user-hpt-metric-cell {
+.user-hpt-thickness-line {
+  margin: 0;
   text-align: center;
-  width: max-content;
-  padding:
-    calc(var(--overlay-cell-pad-v) * var(--overlay-scale))
-    calc(var(--overlay-cell-pad-h) * var(--overlay-scale));
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.user-hpt-label {
-  font-size: calc(var(--overlay-label) * var(--overlay-scale));
-  font-weight: 600;
-  color: #475569;
-  line-height: 1.2;
-  margin-bottom: calc(var(--overlay-label-mb) * var(--overlay-scale));
-}
-
-.user-hpt-value {
-  font-size: calc(var(--overlay-value) * var(--overlay-scale));
+  font-size: var(--uos-body, 16px);
   font-weight: 700;
-  color: #0f172a;
-  line-height: 1.12;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
   word-break: keep-all;
 }
 
 .user-hpt-empty {
-  color: #64748b;
-  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  line-height: 1.4;
   margin: 0;
-  font-size: calc(var(--overlay-empty) * var(--overlay-scale));
+  font-size: var(--uos-body, 16px);
   text-align: center;
-  padding: calc(var(--overlay-empty-pad-v) * var(--overlay-scale)) 0;
-}
-
-@media (max-width: 1199px) {
-  .modal-panel--user-hpt {
-    --overlay-scale: 0.72;
-    --overlay-svg-scale: 0.82;
-  }
-}
-
-@media (orientation: landscape) and (max-height: 520px) {
-  .modal-panel--user-hpt {
-    --overlay-scale: 0.44;
-    --overlay-svg-scale: 0.58;
-  }
+  padding: calc(0.5 * var(--uos-gap, 12px)) 0;
 }
 
 /* SysOverlay — 하단 result/info 박스 (layout compression 완화) */
@@ -1273,26 +1422,81 @@ button.user-rail-btn--system-lesson[data-user-info-btn="SYSTEM_LESSON"] {
   padding: 12px 14px;
   border-radius: 6px;
   font-size: 13px;
+  font-weight: 400;
   line-height: 1.65;
   min-height: 3rem;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
+/* Block title: 기준 계산 / 보정 계산 */
 .sys-info-box__title {
+  font-size: 15px;
   font-weight: 700;
-  line-height: 1.45;
+  line-height: 1.4;
   font-family: inherit;
+  margin: 0;
+}
+
+.sys-info-box__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sys-info-box__section + .sys-info-box__section {
+  margin-top: 4px;
+}
+
+/* Section title: [공식], [보정], [출발값 보정] … */
+.sys-info-box__section-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  font-family: inherit;
+  margin: 0;
 }
 
 .sys-info-box__line {
+  font-size: 13px;
+  font-weight: 400;
   line-height: 1.65;
+}
+
+.sys-info-box__line--inline {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 0 6px;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.sys-info-box__line--note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 .sys-info-box__text {
   font-family: inherit;
+  font-size: inherit;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
+}
+
+.sys-info-box__note-text {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 400;
 }
 
 .sys-info-box__num {
@@ -1302,6 +1506,7 @@ button.user-rail-btn--system-lesson[data-user-info-btn="SYSTEM_LESSON"] {
 .sys-info-box__mono {
   font-family: Consolas, Monaco, "Courier New", monospace;
   font-size: 13px;
+  font-weight: 400;
   line-height: 1.65;
   word-break: break-word;
 }

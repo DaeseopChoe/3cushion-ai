@@ -26,6 +26,14 @@ import {
   loadOnePoints,
   saveOnePoints,
 } from "./domain/lesson/onePointLibrary";
+import {
+  loadOnePointCategories,
+  createOnePointCategory,
+  updateOnePointCategory,
+  deleteOnePointCategory,
+} from "./domain/lesson/onePointCategoryLibrary";
+import CategoryManageModal from "./components/overlays/CategoryManageModal";
+import LessonOrderManageModal from "./components/overlays/LessonOrderManageModal";
 import { SysOverlay } from "./components/overlays/SysOverlay";
 import {
   getSystemContract,
@@ -73,8 +81,10 @@ import {
 import SystemValueLabels from "./components/table/SystemValueLabels";
 import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
 import ModalShell from "./components/common/ModalShell";
+import UserOverlayShell from "./components/common/UserOverlayShell.jsx";
 import UserAiPanel from "./components/user/UserAiPanel.jsx";
 import UserHptPanel from "./components/user/UserHptPanel.jsx";
+import { resolveUserOverlayLayout } from "./overlay/layout/overlayLayoutTokens";
 import UserToast from "./components/common/UserToast.jsx";
 import ImpactLines from "./components/table/ImpactLines";
 import SystemGrid from "./components/table/SystemGrid";
@@ -1026,18 +1036,77 @@ export default function App({
   const [onePointLibrary, setOnePointLibrary] = useState(loadOnePoints);
   const [onePointSelectedId, setOnePointSelectedId] = useState("");
   const [onePointDraft, setOnePointDraft] = useState("");
+  /** Lesson Library 전용 Category 선택 — "" = 선택 안함 (Dataset 미전달) */
+  const [onePointCategories, setOnePointCategories] = useState(loadOnePointCategories);
+  const [onePointCategoryNo, setOnePointCategoryNo] = useState("");
+  const [showCategoryManageModal, setShowCategoryManageModal] = useState(false);
+  const [showLessonOrderManageModal, setShowLessonOrderManageModal] = useState(false);
+  const handleCreateOnePointCategory = (name) => {
+    setOnePointCategories(createOnePointCategory(name));
+  };
+  const handleUpdateOnePointCategory = (no, name) => {
+    setOnePointCategories(updateOnePointCategory(no, name));
+  };
+  const handleDeleteOnePointCategory = (no) => {
+    const next = deleteOnePointCategory(no);
+    setOnePointCategories(next);
+    if (Number(onePointCategoryNo) === Number(no)) {
+      setOnePointCategoryNo("");
+    }
+  };
   const saveOnePointLibrary = (next) => {
     setOnePointLibrary(next);
     saveOnePoints(next);
   };
-  const sortedOnePointLibrary = useMemo(() => {
-    return [...onePointLibrary].sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return (b.updatedAt || 0) - (a.updatedAt || 0);
+  /** Category Combo 기준 Lesson Combo 필터 (선택 안함 = categoryNo 없는 항목) */
+  const matchesOnePointCategoryFilter = (item, categoryNo) => {
+    if (categoryNo === "" || categoryNo == null) {
+      return item.categoryNo == null || !Number.isFinite(Number(item.categoryNo));
+    }
+    return Number(item.categoryNo) === Number(categoryNo);
+  };
+  /** 현재 Category Lesson — Library 배열 순서 유지 (순서 관리 DnD 반영) */
+  const filteredSortedOnePointLibrary = useMemo(() => {
+    return onePointLibrary.filter((item) =>
+      matchesOnePointCategoryFilter(item, onePointCategoryNo)
+    );
+  }, [onePointLibrary, onePointCategoryNo]);
+  const onSelectOnePointCategory = (no) => {
+    setOnePointCategoryNo(no);
+    if (!onePointSelectedId) return;
+    const item = onePointLibrary.find((x) => x.id === onePointSelectedId);
+    if (!item || !matchesOnePointCategoryFilter(item, no)) {
+      setOnePointSelectedId("");
+      setOnePointDraft("");
+    }
+  };
+  /** 현재 Category 슬롯만 orderedIds 순서로 치환 — 객체 필드/타 Category 위치 유지 */
+  const reorderOnePointLibraryByCategory = (orderedIds) => {
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
+    const idToItem = new Map(onePointLibrary.map((item) => [item.id, item]));
+    const reordered = orderedIds
+      .map((id) => idToItem.get(id))
+      .filter((item) => item && matchesOnePointCategoryFilter(item, onePointCategoryNo));
+    if (reordered.length === 0) return;
+
+    let i = 0;
+    const next = onePointLibrary.map((item) => {
+      if (!matchesOnePointCategoryFilter(item, onePointCategoryNo)) return item;
+      return reordered[i++] ?? item;
     });
-  }, [onePointLibrary]);
+    saveOnePointLibrary(next);
+  };
   const normalizeLesson = (s) => (s || "").trim();
+  /** 선택 안함이면 categoryNo 키 자체를 남기지 않는다 (기존 데이터와 동일 형태) */
+  const withSelectedCategoryNo = (item) => {
+    const { categoryNo: _prev, ...rest } = item;
+    const no = Number(onePointCategoryNo);
+    return onePointCategoryNo === "" || !Number.isFinite(no)
+      ? rest
+      : { ...rest, categoryNo: no };
+  };
   const onSelectOnePoint = (id) => {
+    // "" = "문장 입력..." 신규 작성 모드 — Category는 유지
     if (!id) {
       setOnePointSelectedId("");
       setOnePointDraft("");
@@ -1047,6 +1116,11 @@ export default function App({
     if (!item) return;
     setOnePointSelectedId(id);
     setOnePointDraft(item.text);
+    setOnePointCategoryNo(
+      Number.isFinite(Number(item.categoryNo)) && item.categoryNo != null
+        ? Number(item.categoryNo)
+        : ""
+    );
   };
   const applyOnePointToShot = () => {
     const text = normalizeLesson(onePointDraft);
@@ -1091,7 +1165,9 @@ export default function App({
       const selectedItem = onePointLibrary.find((x) => x.id === onePointSelectedId);
       if (selectedItem) {
         const nextLib = onePointLibrary.map((x) =>
-          x.id === onePointSelectedId ? { ...x, text, updatedAt: now } : x
+          x.id === onePointSelectedId
+            ? withSelectedCategoryNo({ ...x, text, updatedAt: now })
+            : x
         );
         saveOnePointLibrary(nextLib);
         return;
@@ -1100,20 +1176,22 @@ export default function App({
     const existing = onePointLibrary.find(x => normalizeLesson(x.text) === text);
     if (existing) {
       const nextLib = onePointLibrary.map(x =>
-        x.id === existing.id ? { ...x, text, updatedAt: now } : x
+        x.id === existing.id
+          ? withSelectedCategoryNo({ ...x, text, updatedAt: now })
+          : x
       );
       saveOnePointLibrary(nextLib);
       setOnePointSelectedId(existing.id);
       setOnePointDraft(text);
       return;
     }
-    const newItem = {
+    const newItem = withSelectedCategoryNo({
       id: `${now}-${Math.random().toString(16).slice(2)}`,
       text,
       count: 0,
       createdAt: now,
       updatedAt: now,
-    };
+    });
     const nextLib = [newItem, ...onePointLibrary];
     saveOnePointLibrary(nextLib);
     setOnePointSelectedId(newItem.id);
@@ -1125,6 +1203,7 @@ export default function App({
     saveOnePointLibrary(nextLib);
     setOnePointSelectedId("");
     setOnePointDraft("");
+    setOnePointCategoryNo("");
   };
   // ============================================
   // ImpactBall 모드 상태
@@ -2356,6 +2435,11 @@ function handleJoyPadPointerCancel(e) {
     adminState?.hpt,
     sysHpNResult,
   ]);
+
+  const userOverlayLayout = useMemo(
+    () => resolveUserOverlayLayout(overlayContent),
+    [overlayContent]
+  );
 
   useEffect(() => {
     onUserInfoPanelChange?.(userInfoPanel);
@@ -3903,6 +3987,7 @@ function handlePointerCancel(e) {
                     ? "Anchor 좌표 수정"
                     : ""
         }
+        panelClassName={overlayState.type === "SYS" ? "modal-panel--sys" : ""}
         panelStyle={{
           maxHeight: "85vh",
           overflowY: "auto",
@@ -4090,7 +4175,7 @@ function handlePointerCancel(e) {
                 onSaveStrategy={handleSaveStrategy}
                 onCancel={closeOverlay}
                 onePointLibrary={onePointLibrary}
-                sortedOnePointLibrary={sortedOnePointLibrary}
+                sortedOnePointLibrary={filteredSortedOnePointLibrary}
                 onePointSelectedId={onePointSelectedId}
                 onePointDraft={onePointDraft}
                 setOnePointDraft={setOnePointDraft}
@@ -4101,40 +4186,49 @@ function handlePointerCancel(e) {
                 onePointLessons={adminState.ai?.onePointLessons ?? []}
                 onDeleteLesson={deleteLesson}
                 onReorderLessons={reorderLessons}
+                onePointCategories={onePointCategories}
+                onePointCategoryNo={onePointCategoryNo}
+                onSelectOnePointCategory={onSelectOnePointCategory}
+                onOpenCategoryManage={() => setShowCategoryManageModal(true)}
+                onOpenLessonOrderManage={() => setShowLessonOrderManageModal(true)}
               />
             )}
       </ModalShell>
+
+      <CategoryManageModal
+        open={showCategoryManageModal}
+        categories={onePointCategories}
+        onClose={() => setShowCategoryManageModal(false)}
+        onCreate={handleCreateOnePointCategory}
+        onUpdate={handleUpdateOnePointCategory}
+        onDelete={handleDeleteOnePointCategory}
+      />
+
+      <LessonOrderManageModal
+        open={showLessonOrderManageModal}
+        categoryNo={onePointCategoryNo}
+        lessons={filteredSortedOnePointLibrary}
+        onClose={() => setShowLessonOrderManageModal(false)}
+        onReorder={reorderOnePointLibraryByCategory}
+      />
       
-      {/* USER 모드 오버레이 — read-only info (AI panel = userInfoPanel SSOT) */}
-      <ModalShell
+      {/* USER Overlay Shell (Layout SSOT v1.1) — Content unchanged */}
+      <UserOverlayShell
         open={appMode === "USER" && !!overlayContent}
         onClose={handleCloseUserInfoOverlay}
-        draggable={false}
-        panelClassName={
-          overlayContent === "HPT"
-            ? "modal-panel--user-hpt"
-            : overlayContent === "AI"
-              ? "modal-panel--user-ai"
-              : "modal-panel--compact"
-        }
-        title={undefined}
-        panelStyle={{
-          maxHeight:
-            overlayContent === "AI"
-              ? undefined
-              : overlayContent === "HPT"
-                ? undefined
-                : "78vh",
-          ...(overlayContent === "HPT"
-            ? { minWidth: 0, minHeight: 0, overflowY: "auto" }
-            : overlayContent === "AI"
-              ? { minWidth: 0, minHeight: 0, overflowY: "auto" }
-              : { overflowY: "auto" }),
-        }}
+        layoutKey={overlayContent}
+        sizeVariant={userOverlayLayout.sizeVariant}
+        surface={userOverlayLayout.surface}
+        contentTypeScale={userOverlayLayout.contentTypeScale}
+        fitContent={userOverlayLayout.fitContent}
+        widthRatio={userOverlayLayout.widthRatio}
+        maxHeightRatio={userOverlayLayout.maxHeightRatio}
+        contentClassName={userOverlayLayout.contentClassName}
+        draggable
       >
         {overlayContent === "HPT" && <UserHptPanel model={userHptModel} />}
         {overlayContent === "AI" && <UserAiPanel model={userInfoPanel} />}
-      </ModalShell>
+      </UserOverlayShell>
       </div>
 
       {canEdit && (

@@ -376,3 +376,44 @@ Drag 계층은 전략 문서 레벨에 영향을 주지 않고 상태 정렬에�
 - **`adminState`** — 오버레이·Stage가 직접 읽는 UI/계산 브리지. 활성 슬롯의 draft/applied에서 동기화되며, **sys는 입력과 계산 결과(CO, C3, corrections 등)가 함께 쌓이는 객체**로 취급한다 (단순 replace 금지, merge 원칙).
 
 ⚠ **현재 구현:** 의도 구조는 위와 같다. SYS 지속성·궤적 렌더 일관성·슬롯 동기화는 부분적으로 깨진 상태일 수 있으니, 동작은 코드와 `PROJECT_MASTER_STATE_CURRENT`의 Known Issues를 우선한다.
+
+---
+
+## USER Overlay Layout (SSOT Pointer)
+
+USER Overlay(AI · 타점 · 계산 · Trajectory)의 **공통 Layout 규약**은 별도 SSOT에서 관리한다.
+
+| Item | Value |
+|------|-------|
+| Document | `작업관리/OVERLAY_LAYOUT_SSOT_v1.2.md` |
+| Status | Confirmed v1.2 (2026-07-27) |
+| Container | `.table-area` |
+| Size | Ratio (`tableW × overlayWidthRatio`) · Variants Small / Medium / Large |
+| Height | `auto` + maxHeight ratio · Content scroll only |
+| Surface | Normal / Strong / Transparent / Dark (**Default USER Overlay**) |
+| Position | Center default + Drag + Clamp |
+| Layers | Overlay Shell → Content Layer → (AI \| 타점 \| 계산) |
+
+### Ownership
+
+| Layer | Owns |
+|------|------|
+| **Shell** | surface · ratio · typography · padding · drag · clamp · close · position |
+| **Content** | text · image · svg · calculation · lesson |
+
+### Architecture Shape
+
+```text
+Overlay Layout Layer (SSOT)
+  ↓
+AI / 타점 / 계산
+  ↓
+Content Components
+```
+
+### Rules
+
+- Content는 Layout Size를 직접 결정하지 않는다.
+- Content는 Shell background / border / shadow / radius / position을 직접 소유하지 않는다.
+- 본 Baseline은 폴더·상태 계층 SSOT를 유지한다. Overlay Layout 상세·구현 순서는 위 문서를 Consume한다.
+- v1.2에서 Shell→Content 분리, 전체 Surface Drag, Dark Glass 기본값이 공식 확정되었다.

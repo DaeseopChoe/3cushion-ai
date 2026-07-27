@@ -1,8 +1,90 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.32  
+Version : v1.33  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-27 (USER Overlay UX Phase — SSOT v1.0→v1.2 · Common Shell · AI/HPT Apply)
+
+## 제목
+
+**D-USEROVL-01** — USER Overlay Layout SSOT **v1.0 Draft → v1.1 Confirmed → v1.2 Confirmed** · Common Shell 구현 · AI 완료 · 타점 Shell 이전
+
+## Summary
+
+USER Overlay를 `table-area` 기준 Ratio Shell 구조로 재정의하고, Overlay Layout SSOT를 v1.0 초안에서 v1.1 확정, 이후 AI 실사용 검증 결과를 반영한 v1.2로 승격하였다. 공통 `UserOverlayShell`을 구현하여 Width/Surface/Typography/Padding/Position/Drag/Clamp/Close를 Shell 소유로 고정하고, Content는 AI/타점/계산 renderer가 담당하도록 분리했다. AI Overlay는 Glass Dark · Full Surface Drag · Center/Clamp/No offset persistence를 검증 완료했고, USER 타점 Overlay는 동일 Shell 구조로 이전되었다.
+
+### USER Overlay SSOT Progression
+
+| Item | Result |
+|------|--------|
+| Overlay Layout SSOT v1.0 | **Drafted** |
+| Overlay Layout SSOT v1.1 | **Confirmed** |
+| Overlay Layout SSOT v1.2 | **Confirmed** |
+| USER Overlay Common Shell | **Implemented** |
+| table-area Ratio Size Rule | **Applied** |
+| viewport 기반 sizing | **Removed from SSOT** |
+| Ratio 중심 Layout 구조 | **Established** |
+| Typography Token 공통화 | **Established** |
+| Glass Surface Token 공통화 | **Established** |
+| Glass Dark Surface | **Introduced / Validated** |
+| Full Surface Drag | **Applied** |
+| Grab Bar | **Removed** |
+| Drag Position 저장 금지 | **Confirmed** |
+| Open 시 항상 Center | **Confirmed** |
+| Clamp Rule | **Applied** |
+| AI Overlay UX 개선 | **Completed** |
+| 내부 Card / Divider 제거 | **Completed** |
+| AI Typography 개선 | **Completed** |
+| `타법 → 타점` 명칭 변경 | **Applied (USER only)** |
+| USER 타점 Overlay Shell 이전 | **Completed** |
+| USER Overlay 공통 Architecture | **Established** |
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-USEROVL-01** | USER Overlay SSOT = `table-area` 기준 Ratio Shell 구조 |
+| **D-USEROVL-02** | Overlay Shell owns surface/ratio/typography/padding/position/drag/clamp/close |
+| **D-USEROVL-03** | Content renderer는 Shell style을 직접 소유하지 않는다 |
+| **D-USEROVL-04** | USER Overlay 기본 Surface = **Dark Glass** |
+| **D-USEROVL-05** | Drag 시작 영역 = 전체 overlay surface, exclude = `X` + `data-overlay-no-drag` |
+| **D-USEROVL-06** | Close 후 reopen 시 항상 Center, offset/session/localStorage 저장 금지 |
+| **D-USEROVL-07** | AI Overlay = 기준 디자인, 타점/계산은 동일 Shell로 후속 적용 |
+
+## Explicit Non-Claims
+
+- Admin Overlay 규약 통일 **미수행**
+- USER 계산 Overlay Common Shell 적용 **미수행**
+- USER Overlay 최종 통합 검증 **미수행**
+- Runtime / Formula / Dataset / Formatter / Domain 변경 **미수행**
+- viewport sizing을 Runtime 규칙으로 재도입 **미수행**
+- Commit / Push **미수행**
+
+## Current Status
+
+### 완료
+
+- **Admin SYS Modal**
+- **Overlay Layout SSOT**
+- **USER Overlay Common Shell**
+- **AI Overlay**
+- **타점 Overlay**
+
+### 진행 중
+
+- **타점 Overlay Content Fit 최적화**
+
+### 예정
+
+- **계산 Overlay(Common Shell 적용)**
+- **USER Overlay 최종 통합 검증**
+
+## Next Session
+
+타점 Overlay에 대해 **Layout Inspection → Shell Width 결정 구조 → Content Width 결정 구조 → Glass Width 결정 구조** 순으로 먼저 분석하고, 이후 Content Fit을 수정한다. 그 다음 계산 Overlay에 동일 Common Shell을 적용하고 USER Overlay 최종 통합 검증으로 이어간다.
 
 ---
 

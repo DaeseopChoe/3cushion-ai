@@ -3,44 +3,35 @@
 ```
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
-Date      : 2026-07-26
-Scope     : STEP9 Certification Platform v1.0 FROZEN · Current = Pilot Ready · Next = Phase 4
-Rule      : Fact only · Consume Frozen Certification Platform + Fleet Validation Standard ·
-             Platform change = Amendment only · System Certification / Production Ready not started
+Date      : 2026-07-27
+Scope     : USER Overlay UX Phase · Overlay Layout SSOT v1.2 Confirmed
+Rule      : Fact only · Overlay Layout SSOT v1.2 = absolute baseline ·
+             viewport 기반 width/vh 규칙 재도입 금지 · AI Overlay = 기준 디자인 유지
 ```
 
 ---
 
-## 0. 새 세션 — 필수 읽기 순서 (STEP9 Phase 4 Pilot Entry)
+## 0. 새 세션 — 필수 읽기 순서 (USER Overlay UX Phase)
 
 ```text
 1. PROJECT_MASTER_INDEX.md
-2. PROJECT_LOG_2026-07.md
-3. DEVELOPMENT_WORKFLOW.md          (v1.0 · Sole Ops SSOT)
-4. Certification Platform v1.0 (Frozen)
-     - Certification_Platform/STEP9_Platform_Freeze.md
-     - Certification_Platform/STEP9_P0_Architecture_Review.md
-     - Certification_Platform/STEP9_P1_Platform_Definition.md
-     - Certification_Platform/STEP9_P2_5_Gate_Closure.md
-5. Fleet Validation Standard (baseline)
-     - FLEET_CONTRACT_BOOK_STEP8_Final_Validation_Gate.md v1.0
-     - FLEET_CONTRACT_BOOK_v1.0.md (Front Matter · Apply Mapping)
-     - Ch.8…Ch.11 · B4–B8 Freeze · B6 ADR (필요 시)
-6. CURSOR_SESSION_HANDOFF.md               (본 문서)
-7. docs/APPLICATION_FLOW.md                (Architecture 시)
-8. WG-AI-001                               (PASS · Consume)
-9. OPS_AI_MODEL_GUIDE.md                   (Recommendation only)
+2. HISTORY/PROJECT_LOG_2026-07.md
+3. OVERLAY_LAYOUT_SSOT_v1.2.md
+4. 2_FRONTEND_ARCHITECTURE_BASELINE_v1.md
+5. CURSOR_SESSION_HANDOFF.md
+6. frontend/src/components/common/UserOverlayShell.jsx
+7. frontend/src/overlay/layout/overlayLayoutTokens.ts
+8. frontend/src/index.css
 ```
 
 | # | Document | Purpose |
 |---|----------|---------|
-| **1** | **MASTER** | Platform Frozen · Next Phase 4 Pilot |
-| **2** | **LOG** | STEP9 Persist · Freeze · Governance Sync |
-| **3** | **DEVELOPMENT_WORKFLOW v1.0** | Ops · Fleet gates |
-| **4** | **Certification Platform v1.0** | Official STEP9 SSOT · **FROZEN** |
-| **5** | **Fleet Validation Standard** | STEP8 Final Validation Gate = inherited baseline |
-| 6 | HANDOFF | Entry · Carry · Forbidden |
-| 7–9 | APPLICATION_FLOW · WG · Model Guide | Architecture / recommendation |
+| **1** | **MASTER** | 현재 USER Overlay 진행률 / 공식 기준 |
+| **2** | **LOG** | USER Overlay SSOT 작업 이력 |
+| **3** | **Overlay SSOT v1.2** | 절대 기준 문서 |
+| **4** | **Frontend Baseline** | Layer ownership / architecture pointer |
+| **5** | **HANDOFF** | 현재 carry / next steps |
+| 6–8 | Shell / Token / CSS | 실제 구현 inspection 출발점 |
 
 ---
 
@@ -48,129 +39,145 @@ Rule      : Fact only · Consume Frozen Certification Platform + Fleet Validatio
 
 | Item | Value |
 |------|-------|
-| **Current** | **STEP9 Certification Platform v1.0 FROZEN · Pilot Ready** |
-| **STEP8 Fleet Apply** | **Completed** |
-| **B8 Validation** | **PASS** (Mode A · Empty Apply) |
-| **Fleet Closure** | **Completed / Confirmed** |
-| **Certification Platform** | **v1.0 · Official STEP9 SSOT · FROZEN** |
-| **Frozen scope** | **FC-01…FC-08** · P-01…P-05 |
-| **Current baseline** | Frozen Platform v1.0 + Fleet Validation Standard v1.0 |
-| **Next** | **STEP9 Phase 4 Pilot Certification** |
-| **Next Session** | **Commit / Push Governance Sync**, then Pilot |
-| **Current Queue** | **STEP9 Phase 4 Pilot Preparation** |
+| **Current Phase** | **USER Overlay UX Phase** |
+| **Official Baseline** | **Overlay Layout SSOT v1.2** |
+| **Common Shell** | **Implemented** |
+| **table-area Ratio Layout** | **Applied** |
+| **Glass Dark Surface** | **Applied** |
+| **Full Surface Drag** | **Applied** |
+| **Grab Bar** | **Removed** |
+| **Center Rule** | **Applied** |
+| **Clamp Rule** | **Applied** |
+| **Offset Persistence** | **Forbidden / Not stored** |
+| **AI Overlay** | **Completed** |
+| **타점 Overlay** | **Common Shell 적용 완료 · Content Fit carry** |
+| **계산 Overlay** | **Not started** |
 
 ```text
-STEP7           : Complete
-STEP8 Fleet     : Completed (B0…B2.5·B4…B8 PASS · B3 Hold)
-B8 Validation   : PASS
-Fleet Closure   : Confirmed
-Final Gate      : v1.0 Accepted (= Fleet Validation Standard)
-STEP9 Platform  : v1.0 FROZEN (P-01…P-05 · FC-01…FC-08)
-Ops Workflow    : DEVELOPMENT_WORKFLOW.md v1.0
-System Cert     : Not started
-Production Ready: Not declared
-Next            : STEP9 Phase 4 Pilot Certification
-```
-
-### Deliverables (cite)
-
-| Deliverable | Status |
-|-------------|--------|
-| B0…B2.5 · B4…B8 | **PASS / Completed** |
-| B3 | **HALTED (Hold)** · non-blocking |
-| Final Validation Gate | **v1.0 · Final Acceptance** |
-| Commit / Push | `dde06d2` → `origin/main` |
-| Certification Platform v1.0 | **FROZEN** · Commit / Push pending |
-
----
-
-## 2. Carry (non-blocking inventory)
-
-> Carry는 STEP8 실패가 아니다. STEP9 성공 조건에 넣지 않는다.
-
-| Carry | Notes |
-|-------|-------|
-| **B3 Hold** | Ch.7 Not Persisted · 재시도 금지 |
-| **Ch.12–14 Assurance** | Explicit Defer · Not Persisted |
-| **Catalog Freeze Candidate** | 후속 STEP · Design v0.15 · Pin 미발급 |
-| **L7-D-001** | Explicit Defer / Transitional Debt |
-| **KI backlog** | STEP6 KI-01…04 |
-
----
-
-## 3. Lock / Consume
-
-| Artifact | Status |
-|----------|--------|
-| **Certification Platform v1.0** | **FROZEN · Official STEP9 SSOT · Amendment only** |
-| **P-01…P-05 / FC-01…FC-08** | **Frozen · Consume** |
-| **Fleet Validation Standard (Final Gate v1.0)** | **STEP9+ Baseline · Consume** |
-| **DEVELOPMENT_WORKFLOW v1.0** | **Sole Ops SSOT · Consume** |
-| **Ch.8–Ch.11** | **Ratified · Consume** |
-| **B4–B8 Freeze · B6 ADR** | Consume |
-| **WG-AI-001** | PASS · Consume |
-
----
-
-## 4. 수정 금지
-
-| Forbidden |
-|-----------|
-| Frozen Certification Platform informal edit |
-| Change Platform because of one System / Pilot result |
-| Treat Platform Freeze as Pilot PASS / System Certified / Production Ready |
-| B3 retry without Ch.7 |
-| Runtime / JSON silent mutation without Freeze+ADR |
-| Ch.8–Ch.11 informal edit |
-| Reopen B7/B8 Empty Apply as Code Apply without Amendment+ADR |
-| Parallel Fleet Workflow SSOT |
-| Treat Carry inventory as STEP8 FAIL |
-
----
-
-## 5. Current Session Card
-
-```text
-Session ID     : STEP9 Phase 3-C Governance Synchronization
-Prior          : Phase 3-A Persist · Phase 3-B Platform Freeze v1.0
-Next Session   : Commit / Push, then STEP9 Phase 4 Pilot Certification
-Baseline       : Certification Platform v1.0 (FROZEN) + Fleet Validation Standard
-Carry          : B3 · Ch.12–14 · Catalog Freeze · L7-D-001 · KI (non-blocking)
-Agent Task     : Commit governance/doc changes when directed · Do not run Pilot yet
+Overlay SSOT v1.0 : Drafted
+Overlay SSOT v1.1 : Confirmed
+Overlay SSOT v1.2 : Confirmed
+Common Shell       : Implemented
+AI Overlay         : Completed
+타점 Overlay       : Shell migrated / content-fit carry
+계산 Overlay       : Planned
+Final integration  : Pending
 ```
 
 ---
 
-## 6. Next Session Checklist — Commit / Pilot Entry
+## 2. Completed
 
-### First Consume
+- Overlay Layout SSOT v1.2 확정
+- Common Overlay Shell 구현
+- table-area Ratio 기반 Layout 적용
+- Glass Dark Surface 적용
+- Full Surface Drag 적용
+- Grab Bar 제거
+- Center Rule 적용
+- Clamp Rule 적용
+- Offset 저장 금지 확정
+- AI Overlay 완료
+- 타점 Overlay 공통 Shell 적용
 
-- [ ] `PROJECT_MASTER_INDEX.md`  
-- [ ] `PROJECT_LOG_2026-07.md`  
-- [ ] `DEVELOPMENT_WORKFLOW.md` **v1.0**  
-- [ ] `Certification_Platform/STEP9_Platform_Freeze.md` **v1.0 FROZEN**  
-- [ ] `Certification_Platform/STEP9_P2_5_Gate_Closure.md`  
-- [ ] `FLEET_CONTRACT_BOOK_STEP8_Final_Validation_Gate.md` (**Fleet Validation Standard**)  
+---
 
-### Confirm
+## 3. In Progress
 
-- [ ] STEP8 Fleet Apply **Completed** · Fleet Closure **Confirmed**  
-- [ ] Certification Platform **v1.0 FROZEN** · Amendment only  
-- [ ] System Certification **Not started** · Production Ready **Not declared**  
-- [ ] Carry = **non-blocking** (B3 · Ch.12–14 · Catalog Freeze · L7-D-001 · KI)  
-- [ ] Next = **STEP9 Phase 4 Pilot Certification**  
-- [ ] Runtime / JSON mutation without Freeze+ADR = **금지**  
+- 타점 Overlay Content Fit 최적화
+
+### Confirmed issue
+
+타점 Overlay는 Shell 폭이 Content보다 크게 유지되고 있다.
+
+- 기존 수정은 padding 조정 중심이었다.
+- 실제 화면 변화는 거의 없었다.
+- 다음 세션에서는 CSS 수치 조정부터 시작하지 않는다.
+
+---
+
+## 4. Next Session Analysis Order
+
+반드시 아래 순서로 먼저 분석한다.
 
 ```text
-STEP9 CERTIFICATION PLATFORM v1.0 — FROZEN
-Current: Platform Frozen · Pilot Ready
-Baseline: Frozen Platform + Fleet Validation Standard
-System Certification: Not started
-Production Ready: Not declared
-Next: Commit / Push, then STEP9 Phase 4 Pilot Certification
-Carry: non-blocking inventory only
+1. Layout Inspection
+2. Shell Width 결정 구조
+3. Content Width 결정 구조
+4. Glass Width 결정 구조
+5. Content Fit 수정
+```
+
+즉, 다음 세션에서는 **원인 구조 분석 후 수정**이 우선이다.
+
+---
+
+## 5. Next Work Order
+
+1. 타점 Overlay Layout Inspection  
+2. Content Fit 수정  
+3. 계산 Overlay(Common Shell 적용)  
+4. 계산 Overlay UX 개선  
+5. USER Overlay 최종 통합  
+
+---
+
+## 6. Architecture / Ownership
+
+### Shell owns
+
+- surface
+- ratio
+- typography
+- padding
+- drag
+- clamp
+- close
+- position
+
+### Content owns
+
+- text
+- image
+- svg
+- calculation
+- lesson
+
+### Non-negotiable rule
+
+Content는 Layout Size를 직접 결정하지 않는다.
+
+---
+
+## 7. 수정 금지 / 주의사항
+
+- AI Overlay를 USER Overlay의 기준 디자인으로 유지
+- Overlay Layout SSOT v1.2를 절대 기준으로 사용
+- viewport 기반 width / `vh` 규칙 재도입 금지
+- USER Overlay별 서로 다른 drag 규칙 도입 금지
+- Shell / Content ownership 혼합 금지
+
+모든 USER Overlay는 다음을 유지한다.
+
+- 동일한 Shell
+- 동일한 Drag
+- 동일한 Typography
+- 동일한 Ratio
+- 동일한 Responsive Rule
+
+---
+
+## 8. Current Session Card
+
+```text
+Session ID     : USER Overlay UX Phase
+Baseline       : Overlay Layout SSOT v1.2
+Current Done   : Shell + AI + 타점 Shell migration
+Current Carry  : 타점 Overlay content-fit issue
+Next Session   : Inspection first, then content-fit fix
+After That     : 계산 Overlay Common Shell apply
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — STEP9 Platform Frozen · Pilot Ready*
+*End of CURSOR_SESSION_HANDOFF.md — USER Overlay UX Phase · SSOT v1.2 Baseline*

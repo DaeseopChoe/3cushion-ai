@@ -26,10 +26,10 @@ const ADMIN_FUNC_BUTTONS = [
   { id: "STR", label: "STR", type: "info" },
   { id: "AI", label: "AI", type: "info" },
 ];
-/** USER info layer — AI · 타법 · 동선 */
+/** USER info layer — AI · 타점 · 동선 */
 const USER_PRIMARY_FUNC_BUTTONS = [
   { id: "AI", label: "AI", type: "info" },
-  { id: "HP/T", label: "타법", type: "info" },
+  { id: "HP/T", label: "타점", type: "info" },
   { id: "TRAJECTORY", label: "동선", type: "info" },
 ];
 const USER_FUNC_BUTTON_COUNT = USER_PRIMARY_FUNC_BUTTONS.length;
@@ -614,7 +614,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
           isTrajectoryBtn
             ? "동선 — 기준/보정 궤적과 계산값"
             : id === "HP/T"
-              ? "타법 — 두께·타점"
+              ? "타점 — 두께"
               : label
         }
         aria-label={label}

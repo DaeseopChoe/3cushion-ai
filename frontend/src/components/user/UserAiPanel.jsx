@@ -2,37 +2,24 @@
  * USER read-only AI coaching panel (display only — no edit/mutation).
  */
 
-import { AI_COMMENT_FORMULA_TITLE } from "../../domain/aiAutoCommentViewModel";
-
+/** Legacy lesson heading — strip if present in stored text; not shown in UI. */
 const LESSON_SECTION_TITLE = "[원 포인트 레슨]";
 
-/** ADMIN/USER 공통 자동 생성 블록 */
+/** ADMIN/USER 공통 자동 생성 블록 — 공략 소개 + STR 조언만 표시 (공식/보정 수치 문장 제외) */
 export function AiAutoCommentDisplay({ model }) {
   if (!model) return null;
   const paragraphs = [
     model.introLine,
-    { title: AI_COMMENT_FORMULA_TITLE, body: model.formulaUserLine },
-    ...(model.correctionLine ? [model.correctionLine] : []),
     ...(model.strLine ? [model.strLine] : []),
-  ];
+  ].filter(Boolean);
 
   return (
     <div className="ai-auto-comment">
-      {paragraphs.map((block, i) => {
-        if (typeof block === "string") {
-          return (
-            <p key={i} className="ai-comment-para">
-              {block}
-            </p>
-          );
-        }
-        return (
-          <p key={i} className="ai-comment-para ai-comment-para--formula">
-            <span className="ai-comment-section-title">{block.title}</span>
-            <span className="ai-comment-section-body"> {block.body}</span>
-          </p>
-        );
-      })}
+      {paragraphs.map((block, i) => (
+        <p key={i} className="ai-comment-para">
+          {block}
+        </p>
+      ))}
     </div>
   );
 }
@@ -70,9 +57,6 @@ export function AiOnePointLessonsBlock({ lessons }) {
   return (
     <div className="ai-one-point-lessons">
       <hr className="ai-comment-divider" />
-      <div className="ai-comment-section-title ai-comment-lesson-heading">
-        {LESSON_SECTION_TITLE}
-      </div>
       {lines.map((text, i) => (
         <p key={`lesson-${i}`} className="ai-comment-para">
           {text}
