@@ -1,7 +1,7 @@
 /**
  * USER Overlay Shell — Layout Layer (Overlay Layout SSOT v1.1).
- * Owns size / surface / position / drag / clamp / close.
- * Must not embed Content semantics (AI / 타점 / 계산).
+ * Owns size / surface / position / drag / clamp / backdrop-close.
+ * Close (X) removed — outside tap closes. Must not embed Content semantics.
  */
 
 import React, {
@@ -29,7 +29,6 @@ const NO_DRAG_SELECTOR = [
   "textarea",
   "label",
   '[data-overlay-no-drag="1"]',
-  ".user-overlay-shell__close",
 ].join(", ");
 
 const snapPx = (value) => Math.round(value);
@@ -325,6 +324,8 @@ export default function UserOverlayShell({
     draggable ? "user-overlay-shell--surface-drag" : "",
     isDragging ? "user-overlay-shell--dragging" : "",
     contentClassName.includes("user-ai") ? "user-overlay-shell--ai" : "",
+    contentClassName.includes("user-calc") ? "user-overlay-shell--calc" : "",
+    contentClassName.includes("user-hpt") ? "user-overlay-shell--hpt" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -385,17 +386,6 @@ export default function UserOverlayShell({
         data-size-variant={sizeVariant}
         data-surface={surface}
       >
-        {onClose ? (
-          <button
-            type="button"
-            className="user-overlay-shell__close"
-            onClick={onClose}
-            aria-label="닫기"
-            data-overlay-no-drag="1"
-          >
-            ×
-          </button>
-        ) : null}
         <div className="user-overlay-shell__body">
           <div className={contentClass}>{children}</div>
         </div>

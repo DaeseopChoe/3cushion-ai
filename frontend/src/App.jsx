@@ -16,12 +16,17 @@ import {
 } from "./domain/strategyButtonModel";
 import { buildUserInfoPanel } from "./domain/userInfoPanelModel";
 import { buildUserHptViewModel } from "./domain/userHptViewModel";
-import { canonicalSystemIdForConfig } from "./domain/system/systemIdentity";
+import {
+  canonicalSystemIdForConfig,
+  getSysUseSn,
+  isFiveHalfSystemId,
+} from "./domain/system/systemIdentity";
 import {
   buildEffectiveRenderSysValues,
   computeSysOverlayValues,
   evaluateSysOverlayHasAllInputs,
 } from "./domain/calculator/systemValueCalculator";
+import { parseSysFormulaExpr } from "./domain/calculator/formulaExpr";
 import {
   loadOnePoints,
   saveOnePoints,
@@ -84,7 +89,15 @@ import ModalShell from "./components/common/ModalShell";
 import UserOverlayShell from "./components/common/UserOverlayShell.jsx";
 import UserAiPanel from "./components/user/UserAiPanel.jsx";
 import UserHptPanel from "./components/user/UserHptPanel.jsx";
+import UserCalculationPanel from "./components/user/UserCalculationPanel.jsx";
+import UserCalcToolbar from "./components/user/UserCalcToolbar.jsx";
 import { resolveUserOverlayLayout } from "./overlay/layout/overlayLayoutTokens";
+import { buildSysCalcDisplayModel } from "./overlay/utils/sysCalcDisplayModel";
+import {
+  normalizeSlideDrawCorrections,
+  resolveCoC1C3Keys,
+  unifiedSlideFromCorrections,
+} from "./overlay/utils/sysOverlayUtils";
 import UserToast from "./components/common/UserToast.jsx";
 import ImpactLines from "./components/table/ImpactLines";
 import SystemGrid from "./components/table/SystemGrid";
@@ -98,8 +111,6 @@ import {
   getUserDisplayFlags,
   isUserDisplayModeActive,
 } from "./domain/userDisplayFlags";
-import { buildUserTrajectoryCardModel } from "./domain/userTrajectoryCardViewModel";
-import UserTrajectoryInfoCard from "./components/user/UserTrajectoryInfoCard";
 import { useUserToast } from "./hooks/useUserToast";
 import { normalizeTargetBallForKey } from "./domain/positionMergeEngine";
 import { sysValuesToAnchors } from "./domain/systemEngine";
@@ -567,6 +578,8 @@ export default function App({
   trajectoryCardSource = "baseline",
   trajectoryShowAxisValues = false,
   trajectoryCardOffset = { x: 0, y: 0 },
+  calcOverlayVisible = true,
+  onCalcOverlayVisibleChange,
   onTrajectoryCardOffsetChange,
   onTrajectoryCardSourceChange,
   onTrajectoryShowAxisValuesChange,
@@ -1913,6 +1926,8 @@ function handleJoyPadPointerCancel(e) {
       setOverlayContent("STR");
     } else if (currentButtonId === "AI") {
       setOverlayContent("AI");
+    } else if (currentButtonId === "TRAJECTORY") {
+      setOverlayContent("CALC");
     } else {
       setOverlayContent(null);
     }
@@ -3648,16 +3663,75 @@ function handlePointerCancel(e) {
   const curveDeformActiveForImpact =
     userShowTrajectoryOnTable && userShowCorrectedPath ? useCurveDeform : false;
 
-  const userTrajectoryCardModel =
-    appMode === "USER" && userDisplayFlags?.showTrajectoryInfoCard
-      ? buildUserTrajectoryCardModel({
-          source: trajectoryCardSource,
-          slotRenderSys,
-          resolvedSlotSys,
-          resolvedSlotBaseSysValues,
-          resolvedSlotSysValues,
-          noStrategySelected: !userTableDisplaySlotId,
-        })
+  const userCalculationDisplayBlock =
+    appMode === "USER" &&
+    (userDisplayFlags?.showTrajectoryInfoCard || overlayContent === "CALC")
+      ? (() => {
+          const systemId = canonicalSystemIdForConfig(
+            resolvedSlotSys?.systemId ??
+              slotRenderSys?.systemId ??
+              slotRenderSys?.system_id ??
+              slotRenderSys?.system ??
+              "5_half_system"
+          );
+          const corrections = slotRenderSys?.corrections ?? {};
+          const { slide, draw } = normalizeSlideDrawCorrections(corrections);
+          const unifiedSlide = unifiedSlideFromCorrections({ ...corrections, slide, draw });
+          const angleTilt = Number(corrections.curve_ratio) || 0;
+          const spin = Number(corrections.spin) || 0;
+          const departure = Number(corrections.departure) || 0;
+          const useSn = getSysUseSn(systemId);
+          // Admin path parity: resolveCoC1C3Keys(forced, spaceSel)
+          const spaceSel = slotRenderSys?.spaceSel ?? {
+            CO: "f",
+            C1: "f",
+            C2: "f",
+            C3: "f",
+            C4: "f",
+          };
+          const expr =
+            getSystemContract(systemId)?.profile?.formulaExpr ?? "";
+          const { forced } = parseSysFormulaExpr(expr);
+          const { coKey, c1Key, c3Key } = resolveCoC1C3Keys(forced, spaceSel);
+          const baseCo = Number(resolvedSlotBaseSysValues?.[coKey]);
+          const baseC1 = Number(resolvedSlotBaseSysValues?.[c1Key]);
+          const baseC3 = Number(resolvedSlotBaseSysValues?.[c3Key]);
+          const effCo = Number(resolvedSlotSysValues?.[coKey]);
+          const effC3 = Number(resolvedSlotSysValues?.[c3Key]);
+          const hasCorrection =
+            unifiedSlide !== 0 ||
+            angleTilt !== 0 ||
+            spin !== 0 ||
+            (!useSn && Math.abs(departure) > 1e-9);
+
+          const displayModel = buildSysCalcDisplayModel({
+            systemId,
+            hasAllInputs:
+              !!userTableDisplaySlotId &&
+              (isFiveHalfSystemId(systemId)
+                ? [baseCo, baseC1, baseC3].filter((v) => Number.isFinite(v)).length >= 2
+                : true),
+            useSn,
+            baseCo: Number.isFinite(baseCo) ? baseCo : null,
+            baseC1: Number.isFinite(baseC1) ? baseC1 : null,
+            baseC3: Number.isFinite(baseC3) ? baseC3 : null,
+            effCo: Number.isFinite(effCo) ? effCo : null,
+            effC3: Number.isFinite(effC3) ? effC3 : null,
+            unifiedSlide,
+            angleTilt,
+            spin,
+            hasCorrection,
+          });
+
+          return (
+            displayModel.blocks.find(
+              (block) =>
+                block.id ===
+                  (trajectoryCardSource === "baseline" ? "baseline" : "corrected") &&
+                block.visible
+            ) ?? null
+          );
+        })()
       : null;
 
   const baselineHandleContract = trajectoryContractView?.baselineHandle ?? {
@@ -3941,20 +4015,6 @@ function handlePointerCancel(e) {
         <div className="table-area-inner">
           {tableSVG}
         </div>
-        {appMode === "USER" &&
-          userDisplayFlags?.showTrajectoryInfoCard &&
-          userTrajectoryCardModel &&
-          onTrajectoryCardSourceChange && (
-            <UserTrajectoryInfoCard
-              model={userTrajectoryCardModel}
-              cardSource={trajectoryCardSource}
-              onCardSourceChange={onTrajectoryCardSourceChange}
-              showAxisValues={trajectoryShowAxisValues}
-              onShowAxisValuesChange={onTrajectoryShowAxisValuesChange}
-              dragOffset={trajectoryCardOffset}
-              onDragOffsetChange={onTrajectoryCardOffsetChange}
-            />
-          )}
       {showHistoryModal && (
         <WorkspaceHistoryModal
           history={workspaceHistory}
@@ -4212,10 +4272,30 @@ function handlePointerCancel(e) {
         onReorder={reorderOnePointLibraryByCategory}
       />
       
-      {/* USER Overlay Shell (Layout SSOT v1.1) — Content unchanged */}
+      {/* USER Calculation chrome — Overlay 밖 상단 버튼 (계산 모드에서 항상 표시) */}
+      {appMode === "USER" && userTableDisplayMode === "trajectory" ? (
+        <UserCalcToolbar
+          cardSource={trajectoryCardSource}
+          onCardSourceChange={onTrajectoryCardSourceChange}
+          showAxisValues={trajectoryShowAxisValues}
+          onShowAxisValuesChange={onTrajectoryShowAxisValuesChange}
+          calcOverlayVisible={calcOverlayVisible}
+          onCalcOverlayVisibleChange={onCalcOverlayVisibleChange}
+        />
+      ) : null}
+
+      {/* USER Overlay Shell (Layout SSOT v1.2) — Content unchanged */}
       <UserOverlayShell
-        open={appMode === "USER" && !!overlayContent}
-        onClose={handleCloseUserInfoOverlay}
+        open={
+          appMode === "USER" &&
+          !!overlayContent &&
+          (overlayContent !== "CALC" || calcOverlayVisible)
+        }
+        onClose={
+          overlayContent === "CALC"
+            ? () => onCalcOverlayVisibleChange?.(false)
+            : handleCloseUserInfoOverlay
+        }
         layoutKey={overlayContent}
         sizeVariant={userOverlayLayout.sizeVariant}
         surface={userOverlayLayout.surface}
@@ -4228,6 +4308,16 @@ function handlePointerCancel(e) {
       >
         {overlayContent === "HPT" && <UserHptPanel model={userHptModel} />}
         {overlayContent === "AI" && <UserAiPanel model={userInfoPanel} />}
+        {overlayContent === "CALC" && (
+          <UserCalculationPanel
+            block={userCalculationDisplayBlock}
+            emptyMessage={
+              !userTableDisplaySlotId
+                ? "공략을 선택한 뒤 계산을 사용해 주세요."
+                : "SYS 입력이 완료되지 않았습니다."
+            }
+          />
+        )}
       </UserOverlayShell>
       </div>
 

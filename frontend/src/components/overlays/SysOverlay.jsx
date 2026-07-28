@@ -24,6 +24,9 @@ import {
   renderMixedFormulaLine,
   renderSysFormulaContent,
 } from "../../overlay/utils/sysOverlayUtils";
+import {
+  buildSysCalcDisplayModel,
+} from "../../overlay/utils/sysCalcDisplayModel";
 
 /**
  * AD-B2-01 / Batch 4 STEP 4-2: Presentation Layer Pure.
@@ -38,6 +41,74 @@ function checkInputFinite(inputs, key) {
   if (v === "" || v === null || v === undefined) return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+/** DisplayModel block → sections/lines/parts map 렌더 (표시 전용) */
+function renderSysCalcDisplayBlock(block) {
+  if (!block) return null;
+  return (
+    <>
+      <strong className="sys-info-box__title">{block.title}</strong>
+      {block.sections.map((section) => (
+        <div key={section.id} className="sys-info-box__section">
+          {section.title ? (
+            <div className="sys-info-box__section-title">
+              {`[${section.title}]`}
+            </div>
+          ) : null}
+          {section.lines
+            .filter((line) => line.layout !== "divider")
+            .map((line) => {
+              if (line.layout === "note") {
+                return (
+                  <div
+                    key={line.id}
+                    className="sys-info-box__line sys-info-box__line--note"
+                  >
+                    {line.parts.map((part, idx) => (
+                      <span
+                        key={`${line.id}-p-${idx}`}
+                        className="sys-info-box__note-text"
+                      >
+                        {part.type === "plain" ? part.text : ""}
+                      </span>
+                    ))}
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={line.id}
+                  className="sys-info-box__line sys-info-box__line--inline"
+                >
+                  {line.parts.map((part, idx) => {
+                    if (part.type === "value") {
+                      return (
+                        <span key={`${line.id}-p-${idx}`} className="sys-info-box__text">
+                          {part.label}({part.value})
+                        </span>
+                      );
+                    }
+                    if (part.type === "operator") {
+                      return (
+                        <span key={`${line.id}-p-${idx}`} className="sys-info-box__text">
+                          {part.text}
+                        </span>
+                      );
+                    }
+                    return (
+                      <span key={`${line.id}-p-${idx}`} className="sys-info-box__text">
+                        {part.text}
+                      </span>
+                    );
+                  })}
+                </div>
+              );
+            })}
+        </div>
+      ))}
+    </>
+  );
 }
 
 export function SysOverlay({
@@ -358,27 +429,61 @@ export function SysOverlay({
     return formatFormulaDisplay(displayExpr, baseDisplayMap);
   }, [displayExpr, hasAllInputs, baseDisplayMap]);
 
-  /** 기준(base): 항상 C1 = CO − C3, 값은 normalizedBasePayload만 */
-  const fiveHalfBaseDisplayLine = useMemo(() => {
-    if (!isFiveHalfSystemId(formData.system) || !hasAllInputs) return null;
-    const co = Number(normalizedBasePayload[coKey]);
-    const c1 = Number(normalizedBasePayload[c1Key]);
-    const c3 = Number(normalizedBasePayload[c3Key]);
-    return `${c1Key}_${fmtFiveHalfDisplayNum(c1)} = ${coKey}_${fmtFiveHalfDisplayNum(co)} - ${c3Key}_${fmtFiveHalfDisplayNum(c3)}`;
-  }, [formData.system, hasAllInputs, normalizedBasePayload, coKey, c1Key, c3Key]);
-
-  const effectiveFormulaLine = useMemo(() => {
-    if (!displayExpr || !displayExpr.trim()) return null;
-    if (!hasAllInputs) return null;
-    return formatFormulaDisplay(displayExpr, effDisplayMap);
-  }, [displayExpr, hasAllInputs, effDisplayMap]);
-
+  /** Display Formatter — Baseline + Corrected blocks */
   const hasSlideDraw = formUnifiedSlide !== 0;
   const hasRailAngleSpin = formAngleTilt !== 0 || p_spin !== 0;
   const hasManualDeparture =
     !snFor5HalfEffective &&
     Math.abs(Number(formData.corrections.departure) || 0) > 1e-9;
   const hasAnyCorrection = hasSlideDraw || hasRailAngleSpin || hasManualDeparture;
+
+  const sysCalcDisplayModel = useMemo(() => {
+    const co = Number(normalizedBasePayload?.[coKey]);
+    const c1 = Number(normalizedBasePayload?.[c1Key]);
+    const c3 = Number(normalizedBasePayload?.[c3Key]);
+    const effCo = Number(effDisplayMap?.[coKey]);
+    const effC3 = Number(effDisplayMap?.[c3Key]);
+    return buildSysCalcDisplayModel({
+      systemId: formData.system,
+      hasAllInputs,
+      useSn: !!useSnForSystem,
+      baseCo: Number.isFinite(co) ? co : null,
+      baseC1: Number.isFinite(c1) ? c1 : null,
+      baseC3: Number.isFinite(c3) ? c3 : null,
+      effCo: Number.isFinite(effCo) ? effCo : null,
+      effC3: Number.isFinite(effC3) ? effC3 : null,
+      unifiedSlide: formUnifiedSlide,
+      angleTilt: formAngleTilt,
+      spin: p_spin,
+      hasCorrection: hasAnyCorrection,
+    });
+  }, [
+    formData.system,
+    hasAllInputs,
+    useSnForSystem,
+    normalizedBasePayload,
+    effDisplayMap,
+    coKey,
+    c1Key,
+    c3Key,
+    formUnifiedSlide,
+    formAngleTilt,
+    p_spin,
+    hasAnyCorrection,
+  ]);
+
+  const baselineDisplayBlock = sysCalcDisplayModel.blocks.find(
+    (b) => b.id === "baseline" && b.visible
+  );
+  const correctedDisplayBlock = sysCalcDisplayModel.blocks.find(
+    (b) => b.id === "corrected" && b.visible
+  );
+
+  const effectiveFormulaLine = useMemo(() => {
+    if (!displayExpr || !displayExpr.trim()) return null;
+    if (!hasAllInputs) return null;
+    return formatFormulaDisplay(displayExpr, effDisplayMap);
+  }, [displayExpr, hasAllInputs, effDisplayMap]);
 
   /** 5½ derived: C3 after CO 슬라이드만 (레일 기울기·스핀 제외) */
   const c3AfterSlideOnlyFiveHalf = useMemo(() => {
@@ -849,71 +954,37 @@ export function SysOverlay({
 
       <div
         className={
-          hasAnyCorrection && eduCorrectedFormulaLine
+          correctedDisplayBlock || (hasAnyCorrection && eduCorrectedFormulaLine)
             ? "sys-info-grid sys-info-grid--two"
             : "sys-info-grid sys-info-grid--one"
         }
       >
         <div className="sys-info-box sys-info-box--base">
-          <strong className="sys-info-box__title">기준 계산값</strong>
-          <div className="sys-info-box__line">
-            {renderSysFormulaContent(
-              isFiveHalfSystemId(formData.system) && fiveHalfBaseDisplayLine != null
-                ? fiveHalfBaseDisplayLine
-                : baseFormulaLine
-            )}
-          </div>
+          {baselineDisplayBlock ? (
+            renderSysCalcDisplayBlock(baselineDisplayBlock)
+          ) : (
+            <>
+              <strong className="sys-info-box__title">기준 계산값</strong>
+              <div className="sys-info-box__line">
+                {renderSysFormulaContent(baseFormulaLine)}
+              </div>
+            </>
+          )}
         </div>
 
-        {hasAnyCorrection && eduCorrectedFormulaLine && (
+        {correctedDisplayBlock ? (
+          <div className="sys-info-box sys-info-box--corrected">
+            {renderSysCalcDisplayBlock(correctedDisplayBlock)}
+          </div>
+        ) : hasAnyCorrection && eduCorrectedFormulaLine ? (
           <div className="sys-info-box sys-info-box--corrected">
             <strong className="sys-info-box__title">보정 계산값</strong>
             <div className="sys-info-box__line">
               {renderSysFormulaContent(eduCorrectedFormulaLine)}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
-
-      {hasAnyCorrection && (eduStartCorrectionLine || eduRailCorrectionLine) && (
-        <div className="sys-info-box sys-info-box--detail">
-          {eduStartCorrectionLine && (
-            <div className="sys-info-box--detail-line">
-              {renderMixedFormulaLine(eduStartCorrectionLine)}
-            </div>
-          )}
-          {eduRailCorrectionLine && (
-            <div className="sys-info-box--detail-line">
-              {renderMixedFormulaLine(eduRailCorrectionLine)}
-            </div>
-          )}
-        </div>
-      )}
-
-      {useSnForSystem && isFiveHalfSystemId(formData.system) && hasAllInputs && snFor5HalfEffective && (() => {
-        const { Sn: Sn_eff, C4_f: C4_eff, CO_f: CO_used, C3_r: C3_used } = snFor5HalfEffective;
-        const c3Label = c3Key || "C3_r";
-        const coLabel = coKey || "CO_f";
-        const signMid = Sn_eff >= 0 ? "+" : "−";
-        const midAbs = fmtFiveHalfDisplayNum(Math.abs(Sn_eff));
-        return (
-          <div className="sys-info-box sys-info-box--arrival">
-            <div className="sys-info-box__title">
-              4쿠션 도착값 : <span className="sys-info-box__num">{fmtFiveHalfDisplayNum(C4_eff)}</span>
-            </div>
-            <div className="sys-info-box--detail-line">
-              {renderMixedFormulaLine(
-                `4쿠션 도착값 : ${c3Label}_${fmtFiveHalfDisplayNum(C3_used)} ${signMid} ${midAbs} = ${fmtFiveHalfDisplayNum(C4_eff)}`
-              )}
-            </div>
-            <div className="sys-info-box--detail-line">
-              {renderMixedFormulaLine(
-                `출발값 보정 계산 : (${coLabel}_${fmtFiveHalfDisplayNum(CO_used)} - 50) × 0.5 = ${fmtFiveHalfDisplayNum(Sn_eff)}`
-              )}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* 버튼 */}
       <div style={{ display: 'flex', gap: '10px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>

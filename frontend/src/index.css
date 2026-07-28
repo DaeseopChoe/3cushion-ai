@@ -437,6 +437,7 @@
 /* Neutralize legacy viewport/width SSOT on Content wrappers inside Shell */
 .user-overlay-shell__content.modal-panel--user-ai,
 .user-overlay-shell__content.modal-panel--user-hpt,
+.user-overlay-shell__content.modal-panel--user-calc,
 .user-overlay-shell__content.modal-panel--user-system-lesson,
 .user-overlay-shell__content.modal-panel--compact {
   min-width: 0 !important;
@@ -451,16 +452,22 @@
 }
 
 /* AI Overlay UX — Glass Dark · single layer · no inner card / divider / header gap */
-.user-overlay-shell--ai.user-overlay-shell--surface-glassDark {
+.user-overlay-shell--ai.user-overlay-shell--surface-glassDark,
+.user-overlay-shell--calc.user-overlay-shell--surface-glassDark,
+.user-overlay-shell--hpt.user-overlay-shell--surface-glassDark {
   color: rgba(255, 255, 255, 0.96);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
-.user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__close {
+.user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__close,
+.user-overlay-shell--calc.user-overlay-shell--surface-glassDark .user-overlay-shell__close,
+.user-overlay-shell--hpt.user-overlay-shell--surface-glassDark .user-overlay-shell__close {
   color: rgba(255, 255, 255, 0.78);
 }
 
-.user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__close:hover {
+.user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__close:hover,
+.user-overlay-shell--calc.user-overlay-shell--surface-glassDark .user-overlay-shell__close:hover,
+.user-overlay-shell--hpt.user-overlay-shell--surface-glassDark .user-overlay-shell__close:hover {
   color: rgba(255, 255, 255, 0.96);
 }
 
@@ -503,10 +510,17 @@
   word-break: keep-all;
 }
 
-/* No empty header band — only clear the floating X horizontally */
+/* No empty header band — only clear the floating X horizontally (AI keeps Close offset) */
 .user-overlay-shell--ai .user-overlay-shell__body {
   padding-top: 0;
   padding-right: 1.35em;
+}
+
+/* CALC/HPT: Close(X) removed — do not reserve right gutter; Shell padH only */
+.user-overlay-shell--calc .user-overlay-shell__body,
+.user-overlay-shell--hpt .user-overlay-shell__body {
+  padding-top: 0;
+  padding-right: 0;
 }
 
 .modal-panel--user-ai {
@@ -1357,14 +1371,13 @@ button.user-rail-btn--system-lesson[data-user-info-btn="SYSTEM_LESSON"] {
   }
 }
 
-/* USER HP/T read-only card — mobile portrait, ~2.5× prior compact width */
-/* USER 타점 card — Shell owns glass, width, padding, drag */
+/* USER 타점 card — Shell owns glass, width, padding, drag (AI Shell 규격) */
 .user-hpt-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: fit-content;
-  max-width: calc(var(--uos-w) * 0.94);
+  width: 100%;
+  max-width: 100%;
   margin: 0;
   color: rgba(255, 255, 255, 0.96);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
@@ -1414,6 +1427,224 @@ button.user-rail-btn--system-lesson[data-user-info-btn="SYSTEM_LESSON"] {
   font-size: var(--uos-body, 16px);
   text-align: center;
   padding: calc(0.5 * var(--uos-gap, 12px)) 0;
+}
+
+/* USER Calculation chrome — Overlay typography tokens; glass buttons */
+.user-calc-toolbar {
+  position: absolute;
+  top: 6%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: calc(0.4 * var(--uos-gap, 12px));
+  max-width: 96%;
+  padding: 0;
+  pointer-events: auto;
+}
+
+.user-calc-toolbar__btn {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: fit-content;
+  margin: 0;
+  /* Compact vs prior: lower pad / min-height; text ≈ body, still reads as control */
+  padding:
+    calc(0.28 * var(--uos-pad-v, 12px))
+    calc(0.45 * var(--uos-pad-h, 14px));
+  min-height: calc(var(--uos-body, 16px) * 1.48);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: calc(var(--uos-radius, 12px) * 0.55);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.96);
+  font-size: var(--uos-body, 16px);
+  font-weight: 700;
+  line-height: var(--uos-line-height, 1.4);
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.user-calc-toolbar__btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.user-calc-toolbar__btn--active {
+  background: rgba(14, 165, 233, 0.72);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+}
+
+.user-calc-toolbar__btn--active:hover {
+  background: rgba(14, 165, 233, 0.82);
+}
+
+.user-calc-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  margin: 0;
+  /* AI Overlay body typography parity */
+  font-size: calc(32px * var(--ai-scale, var(--uos-content-scale, 1)));
+  line-height: 1.4;
+  letter-spacing: normal;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.user-calc-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85em;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+/* DisplayModel projection — override ADMIN sys-info-box absolute px inside USER only */
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__section {
+  gap: 0.35em;
+}
+
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__section + .sys-info-box__section {
+  margin-top: 0.85em;
+}
+
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__section-title {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 700;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__line {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 400;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__line--inline {
+  margin-top: 0.15em;
+  gap: 0 0.35em;
+  white-space: normal;
+  flex-wrap: wrap;
+}
+
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__line--note {
+  margin-top: 0.85em;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: inherit;
+  font-weight: 400;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__text,
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__note-text,
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__mono {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+.modal-panel--user-calc .user-calc-panel__projection .sys-info-box__mono {
+  font-family: inherit;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.user-calc-panel__label {
+  display: inline-block;
+  margin-right: 0.4em;
+  font-size: var(--uos-note, 13px);
+  font-weight: 700;
+  opacity: 0.88;
+}
+
+.user-calc-panel__formula,
+.user-calc-panel__values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25em 0.5em;
+  font-size: var(--uos-body, 16px);
+  line-height: var(--uos-line-height, 1.4);
+}
+
+.user-calc-panel__formula-line {
+  font-weight: 600;
+  word-break: keep-all;
+}
+
+.user-calc-panel__value-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(0.25 * var(--uos-gap, 12px)) calc(0.7 * var(--uos-gap, 12px));
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.user-calc-panel__value-item {
+  font-size: var(--uos-body, 16px);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.user-calc-panel__explanation {
+  display: flex;
+  flex-direction: column;
+  gap: calc(0.35 * var(--uos-gap, 12px));
+  margin-top: calc(0.15 * var(--uos-gap, 12px));
+}
+
+.user-calc-panel__correction-list {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: var(--uos-note, 13px);
+  line-height: 1.45;
+}
+
+.user-calc-panel__correction-list li + li {
+  margin-top: 0.25em;
+}
+
+.user-calc-panel__guide {
+  margin: 0;
+  font-size: var(--uos-note, 13px);
+  line-height: 1.45;
+  opacity: 0.92;
+}
+
+.user-calc-panel__empty {
+  margin: 0;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.modal-panel--user-calc .user-calc-panel__projection {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 /* SysOverlay — 하단 result/info 박스 (layout compression 완화) */

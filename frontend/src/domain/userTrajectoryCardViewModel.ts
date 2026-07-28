@@ -147,7 +147,7 @@ export function buildUserTrajectoryCardModel(
       guideLine: "",
       correctionDetailLines: [],
       isEmpty: true,
-      emptyMessage: "공략을 선택한 뒤 동선분석을 사용해 주세요.",
+      emptyMessage: "공략을 선택한 뒤 계산을 사용해 주세요.",
     };
   }
 
@@ -159,7 +159,7 @@ export function buildUserTrajectoryCardModel(
       guideLine: "",
       correctionDetailLines: [],
       isEmpty: true,
-      emptyMessage: "현재 동선분석 카드는 파이브 앤드 하프 시스템부터 제공됩니다.",
+      emptyMessage: "현재 계산 Overlay는 파이브 앤드 하프 시스템부터 제공됩니다.",
     };
   }
 

@@ -3,10 +3,11 @@
 ```
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
-Date      : 2026-07-27
-Scope     : USER Overlay UX Phase · Overlay Layout SSOT v1.2 Confirmed
+Date      : 2026-07-28
+Scope     : USER Overlay UX Phase · Projection Rule · CALC Viewer · Shell 통합
 Rule      : Fact only · Overlay Layout SSOT v1.2 = absolute baseline ·
-             viewport 기반 width/vh 규칙 재도입 금지 · AI Overlay = 기준 디자인 유지
+             viewport 기반 width/vh 규칙 재도입 금지 · AI Overlay = 기준 디자인 유지 ·
+             USER = ADMIN DisplayModel Viewer (Projection Rule)
 ```
 
 ---
@@ -15,23 +16,26 @@ Rule      : Fact only · Overlay Layout SSOT v1.2 = absolute baseline ·
 
 ```text
 1. PROJECT_MASTER_INDEX.md
-2. HISTORY/PROJECT_LOG_2026-07.md
+2. HISTORY/PROJECT_LOG_2026-07.md   ← D-USEROVL-02 (최신)
 3. OVERLAY_LAYOUT_SSOT_v1.2.md
 4. 2_FRONTEND_ARCHITECTURE_BASELINE_v1.md
 5. CURSOR_SESSION_HANDOFF.md
 6. frontend/src/components/common/UserOverlayShell.jsx
 7. frontend/src/overlay/layout/overlayLayoutTokens.ts
-8. frontend/src/index.css
+8. frontend/src/overlay/utils/sysCalcDisplayModel.ts
+9. frontend/src/components/user/UserCalculationPanel.jsx
+10. frontend/src/components/user/UserCalcToolbar.jsx
+11. frontend/src/index.css
 ```
 
 | # | Document | Purpose |
 |---|----------|---------|
-| **1** | **MASTER** | 현재 USER Overlay 진행률 / 공식 기준 |
-| **2** | **LOG** | USER Overlay SSOT 작업 이력 |
-| **3** | **Overlay SSOT v1.2** | 절대 기준 문서 |
-| **4** | **Frontend Baseline** | Layer ownership / architecture pointer |
-| **5** | **HANDOFF** | 현재 carry / next steps |
-| 6–8 | Shell / Token / CSS | 실제 구현 inspection 출발점 |
+| **1** | **MASTER** | 현재 USER Overlay / Projection Rule SSOT |
+| **2** | **LOG** | D-USEROVL-01…02 이력 |
+| **3** | **Overlay SSOT v1.2** | Layout 절대 기준 |
+| **4** | **Frontend Baseline** | Projection / Viewer architecture |
+| **5** | **HANDOFF** | carry / next / 보류 |
+| 6–11 | Shell · Token · DisplayModel · Viewer · Toolbar · CSS | 구현 inspection |
 
 ---
 
@@ -41,111 +45,124 @@ Rule      : Fact only · Overlay Layout SSOT v1.2 = absolute baseline ·
 |------|-------|
 | **Current Phase** | **USER Overlay UX Phase** |
 | **Official Baseline** | **Overlay Layout SSOT v1.2** |
-| **Common Shell** | **Implemented** |
-| **table-area Ratio Layout** | **Applied** |
-| **Glass Dark Surface** | **Applied** |
-| **Full Surface Drag** | **Applied** |
-| **Grab Bar** | **Removed** |
-| **Center Rule** | **Applied** |
-| **Clamp Rule** | **Applied** |
-| **Offset Persistence** | **Forbidden / Not stored** |
-| **AI Overlay** | **Completed** |
-| **타점 Overlay** | **Common Shell 적용 완료 · Content Fit carry** |
-| **계산 Overlay** | **Not started** |
+| **USER Projection Rule** | **Official** |
+| **Common Shell** | **Implemented** · Close(X) 없음 |
+| **AI Overlay** | **Completed** · 기준 UX / Shell (`widthRatio 0.42`) |
+| **HPT Overlay** | **AI Shell 규격 적용** · 공 크기 독립 = **Polish 보류** |
+| **Calculation Overlay** | **Completed** · Shell + Toolbar + DisplayModel Viewer (`widthRatio 0.62`) |
+| **좌측 메뉴** | **계산** (구 `동선`) |
+| **Final integration** | **Pending** |
 
 ```text
-Overlay SSOT v1.0 : Drafted
-Overlay SSOT v1.1 : Confirmed
-Overlay SSOT v1.2 : Confirmed
-Common Shell       : Implemented
-AI Overlay         : Completed
-타점 Overlay       : Shell migrated / content-fit carry
-계산 Overlay       : Planned
-Final integration  : Pending
+Overlay SSOT v1.2     : Confirmed (+ 2026-07-28 incremental)
+Common Shell          : Implemented (No Close X)
+AI Overlay            : Completed (baseline UX)
+HPT Overlay           : AI Shell mapping done · Polish deferred
+Calculation Overlay   : Common Shell + Toolbar + DisplayModel Viewer
+USER Projection Rule  : Official (CALC applied)
+Final integration     : Pending
+Commit / Push         : Not done this session
 ```
 
 ---
 
 ## 2. Completed
 
-- Overlay Layout SSOT v1.2 확정
-- Common Overlay Shell 구현
-- table-area Ratio 기반 Layout 적용
-- Glass Dark Surface 적용
-- Full Surface Drag 적용
-- Grab Bar 제거
-- Center Rule 적용
-- Clamp Rule 적용
-- Offset 저장 금지 확정
-- AI Overlay 완료
-- 타점 Overlay 공통 Shell 적용
+- AI Overlay 기준 UX 완료
+- Close(X) 제거 (Common Shell)
+- HPT Common Shell 이전 → AI Shell 규격 (`0.42` / `0.85` / medium / fitContent false)
+- Calculation Common Shell 이전
+- Calculation Toolbar 완료 (기준값 · 보정값 · 계산 보기/감추기 · 쿠션 포인트)
+- Calculation DisplayModel Viewer 전환 (`buildSysCalcDisplayModel`)
+- USER Projection Rule 코드 반영
+- Calculation 백지 오류 수정 (`resolveCoC1C3Keys` 입력 계약)
+- CALC 우측 미사용 Close gutter 제거
+- CALC 폭 `0.42` → `0.62` 적용
+- AI Typography 적용 (CALC)
+- 쿠션 포인트 토글 복원 및 명칭 확정
 
 ---
 
-## 3. In Progress
+## 3. 주요 오류 및 해결
 
-- 타점 Overlay Content Fit 최적화
+### 백지 화면
 
-### Confirmed issue
+**원인:** `resolveCoC1C3Keys(forced, spaceSel)` 호출 시 USER 경로에서 인자를 하나만 전달 → 두 번째 인자 `spaceSel`이 `undefined` → `spaceSel.CO` TypeError.
 
-타점 Overlay는 Shell 폭이 Content보다 크게 유지되고 있다.
-
-- 기존 수정은 padding 조정 중심이었다.
-- 실제 화면 변화는 거의 없었다.
-- 다음 세션에서는 CSS 수치 조정부터 시작하지 않는다.
-
----
-
-## 4. Next Session Analysis Order
-
-반드시 아래 순서로 먼저 분석한다.
+**수정 (App.jsx — ADMIN 입력 계약과 동일):**
 
 ```text
-1. Layout Inspection
-2. Shell Width 결정 구조
-3. Content Width 결정 구조
-4. Glass Width 결정 구조
-5. Content Fit 수정
+forced  = parseSysFormulaExpr(formulaExpr)
+spaceSel = slotRenderSys?.spaceSel ?? { CO:"f", C1:"f", C2:"f", C3:"f", C4:"f" }
+resolveCoC1C3Keys(forced, spaceSel)
 ```
 
-즉, 다음 세션에서는 **원인 구조 분석 후 수정**이 우선이다.
+**주의:**
+
+- optional chaining으로 숨기지 않음
+- ADMIN과 동일한 입력 계약을 USER 경로에 공급
+- USER Projection Rule 유지 (DisplayModel Viewer 구조 유지)
+
+---
+
+## 4. In Progress / Carry
+
+- USER Overlay 통합 검증 (AI ↔ HPT ↔ CALC)
+- Calculation 기준값/보정값 ↔ ADMIN 표현 일치 최종 확인
+- Mobile / Tablet / Desktop 시각 검증
+
+### 반드시 기억할 보류 항목
+
+> **HPT Overlay SVG intrinsic bounds / viewBox crop 및 공 크기 독립 유지**
+
+현재 HPT는 AI Shell로 이전되었으나, Content(viz)가 `--uos-w`에 커플링되어 Shell 스케일 축소에 따라 공 크기도 함께 줄어든 상태를 **임시 수용**한다. Polish에서 Shell과 Content 크기를 분리한다.
 
 ---
 
 ## 5. Next Work Order
 
-1. 타점 Overlay Layout Inspection  
-2. Content Fit 수정  
-3. 계산 Overlay(Common Shell 적용)  
-4. 계산 Overlay UX 개선  
-5. USER Overlay 최종 통합  
+1. USER Overlay 통합 검증  
+2. Calculation 기준값/보정값 ADMIN 표현 일치 최종 확인  
+3. Mobile / Tablet / Desktop 시각 검증  
+4. HPT UX Polish 재검토  
+   - 공 크기 유지  
+   - SVG intrinsic bounds / viewBox  
+   - Shell과 Content 크기 독립  
+5. 최종 문서 동기화  
+6. Commit / Push  
 
 ---
 
 ## 6. Architecture / Ownership
 
+### USER Projection Rule
+
+```text
+ADMIN Input / Calculation
+  → Domain DisplayModel (buildSysCalcDisplayModel)
+  → USER 공개 Block 선택 (baseline | corrected)
+  → Read-only Viewer (UserCalculationPanel)
+  → UserOverlayShell
+```
+
 ### Shell owns
 
-- surface
-- ratio
-- typography
-- padding
-- drag
-- clamp
-- close
-- position
+- surface · ratio · typography scale · padding · drag · clamp · center
+- Close(X) **없음** · outside tap close
 
 ### Content owns
 
-- text
-- image
-- svg
-- calculation
-- lesson
+- text · image · svg · DisplayModel projection (read-only)
+- Width SSOT 소유 금지 · Shell max token을 preferred width로 재사용 금지
 
-### Non-negotiable rule
+### Toolbar (CALC)
 
-Content는 Layout Size를 직접 결정하지 않는다.
+- Shell **밖** Controller UI · Drag 제외 · Overlay hide 시에도 유지 가능
+
+### Non-negotiable
+
+- Content는 Layout Size를 직접 결정하지 않는다.
+- USER는 문구/식/숫자 배열을 재생성하지 않는다.
 
 ---
 
@@ -156,28 +173,26 @@ Content는 Layout Size를 직접 결정하지 않는다.
 - viewport 기반 width / `vh` 규칙 재도입 금지
 - USER Overlay별 서로 다른 drag 규칙 도입 금지
 - Shell / Content ownership 혼합 금지
+- CALC Projection을 `UserTrajectoryCardModel`로 되돌리지 않음
+- SYS 계산 엔진 / DisplayModel 생성 로직 임의 변경 금지
 
-모든 USER Overlay는 다음을 유지한다.
+공통 유지:
 
-- 동일한 Shell
-- 동일한 Drag
-- 동일한 Typography
-- 동일한 Ratio
-- 동일한 Responsive Rule
+- 동일한 Shell 규칙 (AI/HPT = `0.42`, CALC만 `0.62` 예외)
+- 동일한 Drag / Typography language / Ratio container (`.table-area`)
 
 ---
 
 ## 8. Current Session Card
 
 ```text
-Session ID     : USER Overlay UX Phase
-Baseline       : Overlay Layout SSOT v1.2
-Current Done   : Shell + AI + 타점 Shell migration
-Current Carry  : 타점 Overlay content-fit issue
-Next Session   : Inspection first, then content-fit fix
-After That     : 계산 Overlay Common Shell apply
+Session ID     : D-USEROVL-02
+Baseline       : Overlay Layout SSOT v1.2 + Projection Rule
+Current Done   : CALC Viewer · Toolbar · width 0.62 · HPT→AI Shell · blank fix
+Current Carry  : Integration verify · HPT Polish (ball size independence)
+Next Session   : USER Overlay 통합 검증 → HPT Polish → Commit/Push
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — USER Overlay UX Phase · SSOT v1.2 Baseline*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-07-28 · D-USEROVL-02*

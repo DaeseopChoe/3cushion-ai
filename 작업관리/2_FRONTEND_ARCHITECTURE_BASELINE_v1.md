@@ -1,5 +1,5 @@
-버전: v1.1 (Official Baseline)
-기준: 2026-02 안정 구조
+버전: v1.2 (Official Baseline)
+기준: 2026-02 안정 구조 · USER Overlay Architecture 증분 2026-07-28
 목적: 현재 “동작하는 구조”를 공식 아키텍처로 고정하고, 향후 리팩터링 기준점으로 삼는다.
 
 본 문서는 **프론트엔드 구조와 레이어 분해, 리팩터링 기준선**을 정의한다.
@@ -381,32 +381,34 @@ Drag 계층은 전략 문서 레벨에 영향을 주지 않고 상태 정렬에�
 
 ## USER Overlay Layout (SSOT Pointer)
 
-USER Overlay(AI · 타점 · 계산 · Trajectory)의 **공통 Layout 규약**은 별도 SSOT에서 관리한다.
+USER Overlay(AI · 타점 · 계산)의 **공통 Layout 규약**은 별도 SSOT에서 관리한다.
 
 | Item | Value |
 |------|-------|
 | Document | `작업관리/OVERLAY_LAYOUT_SSOT_v1.2.md` |
-| Status | Confirmed v1.2 (2026-07-27) |
+| Status | Confirmed v1.2 (Last Updated 2026-07-28) |
 | Container | `.table-area` |
-| Size | Ratio (`tableW × overlayWidthRatio`) · Variants Small / Medium / Large |
-| Height | `auto` + maxHeight ratio · Content scroll only |
-| Surface | Normal / Strong / Transparent / Dark (**Default USER Overlay**) |
-| Position | Center default + Drag + Clamp |
-| Layers | Overlay Shell → Content Layer → (AI \| 타점 \| 계산) |
+| Size | Ratio (`tableW × overlayWidthRatio`) · AI/HPT `0.42` · CALC `0.62` |
+| Height | `auto` + maxHeight ratio · Content scroll only past cap |
+| Surface | glassDark (**Default USER Overlay**) |
+| Position | Center default + Drag + Clamp · No persistence |
+| Close | Close(X) 없음 · 외부 터치 닫기 |
+| Layers | Overlay Shell → Content Layer → (AI \| HPT \| 계산) |
 
 ### Ownership
 
 | Layer | Owns |
 |------|------|
-| **Shell** | surface · ratio · typography · padding · drag · clamp · close · position |
-| **Content** | text · image · svg · calculation · lesson |
+| **Shell** | surface · ratio · typography scale · padding · drag · clamp · center |
+| **Content** | text · image · svg · DisplayModel projection (read-only) |
+| **Toolbar (CALC)** | Shell 밖 Controller · Drag 제외 |
 
 ### Architecture Shape
 
 ```text
 Overlay Layout Layer (SSOT)
   ↓
-AI / 타점 / 계산
+AI / HPT / Calculation
   ↓
 Content Components
 ```
@@ -415,5 +417,78 @@ Content Components
 
 - Content는 Layout Size를 직접 결정하지 않는다.
 - Content는 Shell background / border / shadow / radius / position을 직접 소유하지 않는다.
-- 본 Baseline은 폴더·상태 계층 SSOT를 유지한다. Overlay Layout 상세·구현 순서는 위 문서를 Consume한다.
+- Content는 Shell max token을 preferred width로 재사용하지 않는다.
+- 본 Baseline은 폴더·상태 계층 SSOT를 유지한다. Overlay Layout 상세는 위 문서를 Consume한다.
 - v1.2에서 Shell→Content 분리, 전체 Surface Drag, Dark Glass 기본값이 공식 확정되었다.
+
+---
+
+## USER Projection Rule (2026-07-28)
+
+공식 문구:
+
+> **“USER는 관리자가 만든 DisplayModel을 투영해서 보여주는 Viewer이다.”**
+
+### 구조
+
+```text
+ADMIN Input / Calculation
+    ↓
+Domain DisplayModel
+    ↓
+USER 공개 Block 선택
+    ↓
+Read-only Viewer
+    ↓
+UserOverlayShell
+```
+
+### 금지
+
+- USER 전용 공식 재생성
+- USER 전용 계산 문구 재생성
+- 동일 결과의 중복 ViewModel
+- ADMIN과 USER의 표현 계층 분기
+
+### Calculation Architecture
+
+**이전:**
+
+```text
+App
+→ buildUserTrajectoryCardModel
+→ UserTrajectoryCardModel
+→ UserCalculationPanel / UserTrajectoryInfoCard
+```
+
+**현재:**
+
+```text
+App
+→ buildSysCalcDisplayModel
+→ baseline / corrected block 선택
+→ UserCalculationPanel
+→ sections / lines / parts Viewer
+```
+
+### 책임 분리
+
+| Layer | Responsibility |
+|-------|----------------|
+| 계산 엔진 | 숫자 산출 |
+| DisplayModel | 최종 표현 구조 생성 (`buildSysCalcDisplayModel`) |
+| USER Projection | 공개 Block 선택 |
+| Viewer | 순수 렌더 |
+| Shell | Layout / Surface / Drag |
+
+### AI / HPT
+
+이번 세션에서는 AI/HPT **Projection 구조를 변경하지 않았다.**
+
+장기 원칙은 동일하다.
+
+- ADMIN 최종 표현 결과
+- USER 공개 Projection
+- Read-only Viewer
+
+후속 Architecture Review에서 별도 적용 여부를 검토한다.

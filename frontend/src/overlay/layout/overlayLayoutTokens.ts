@@ -11,7 +11,12 @@ export type OverlaySurface =
   | "transparent"
   | "dark"
   | "glassDark";
-export type UserOverlayKind = "AI" | "HPT" | "SYS" | "SYSTEM_LESSON";
+export type UserOverlayKind =
+  | "AI"
+  | "HPT"
+  | "CALC"
+  | "SYS"
+  | "SYSTEM_LESSON";
 
 export type OverlaySizeToken = {
   widthRatio: number;
@@ -34,6 +39,13 @@ export const AI_OVERLAY_WIDTH_RATIO = 0.42;
 export const AI_OVERLAY_MAX_HEIGHT_RATIO = 0.85;
 /** width / height target hint (6:4). Height stays auto; used for docs / future layout. */
 export const AI_OVERLAY_ASPECT_RATIO = 6 / 4;
+
+/**
+ * Calculation Overlay — wider than AI so dense DisplayModel lines reflow less.
+ * ~48% wider than AI (0.42 → 0.62); table-area ratio only (no vw/px).
+ */
+export const CALC_OVERLAY_WIDTH_RATIO = 0.62;
+export const CALC_OVERLAY_MAX_HEIGHT_RATIO = AI_OVERLAY_MAX_HEIGHT_RATIO;
 
 export const OVERLAY_CLAMP_INSET_RATIO = 0.02;
 
@@ -63,6 +75,7 @@ export const OVERLAY_TYPOGRAPHY = {
 export const OVERLAY_CONTENT_TYPE_SCALE: Record<UserOverlayKind, number> = {
   AI: 1.456,
   HPT: 1.0,
+  CALC: 1.0,
   SYS: 1.0,
   SYSTEM_LESSON: 1.0,
 };
@@ -85,11 +98,13 @@ export function resolveUserOverlayLayout(
   switch (kind) {
     case "HPT":
       return {
-        sizeVariant: "small",
+        sizeVariant: "medium",
         surface: "glassDark",
         contentTypeScale: OVERLAY_CONTENT_TYPE_SCALE.AI,
         contentClassName: "modal-panel--user-hpt",
-        fitContent: OVERLAY_SIZE_VARIANTS.small.fitContent,
+        fitContent: OVERLAY_SIZE_VARIANTS.medium.fitContent,
+        widthRatio: AI_OVERLAY_WIDTH_RATIO,
+        maxHeightRatio: AI_OVERLAY_MAX_HEIGHT_RATIO,
       };
     case "AI":
       return {
@@ -100,6 +115,16 @@ export function resolveUserOverlayLayout(
         fitContent: OVERLAY_SIZE_VARIANTS.medium.fitContent,
         widthRatio: AI_OVERLAY_WIDTH_RATIO,
         maxHeightRatio: AI_OVERLAY_MAX_HEIGHT_RATIO,
+      };
+    case "CALC":
+      return {
+        sizeVariant: "medium",
+        surface: "glassDark",
+        contentTypeScale: OVERLAY_CONTENT_TYPE_SCALE.AI,
+        contentClassName: "modal-panel--user-calc",
+        fitContent: OVERLAY_SIZE_VARIANTS.medium.fitContent,
+        widthRatio: CALC_OVERLAY_WIDTH_RATIO,
+        maxHeightRatio: CALC_OVERLAY_MAX_HEIGHT_RATIO,
       };
     case "SYS":
     case "SYSTEM_LESSON":

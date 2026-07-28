@@ -1,14 +1,15 @@
 # Overlay Layout SSOT v1.2
 
 **Status:** Confirmed  
-**Scope:** USER Overlays only (AI · 타점/Aim · 계산/Calculation · Trajectory)  
-**Out of scope:** Admin Overlays, Runtime, Formula, Dataset, Formatter  
+**Scope:** USER Overlays only (AI · 타점/HPT · 계산/Calculation)  
+**Out of scope:** Admin Overlays, Runtime, Formula, Dataset, Calculator Engine  
 **Container SSOT:** `.table-area`  
-**Last Updated:** 2026-07-27  
+**Last Updated:** 2026-07-28  
 
 > 본 문서는 사용자 Overlay의 **공통 Shell 규약**이다.  
 > v1.2는 AI Overlay 실사용 검증 결과를 공통 USER Overlay SSOT로 승격한 버전이다.  
-> 다음 단계부터 타점 → 계산 순으로 동일 Shell을 적용한다.
+> 2026-07-28: USER Overlay Standard · Close/Toolbar · AI/HPT/CALC mapping · Shell/Content 역할을 증분 반영한다.  
+> (과거 v1.2 Decision Summary는 유지한다.)
 
 ---
 
@@ -17,12 +18,30 @@
 ```text
 table-area measure
   → Overlay Shell (Layout Layer)
-  → Content Renderer (AI | Aim | Calculation | Trajectory)
+  → Content Renderer (AI | HPT | Calculation)
 ```
 
 - Overlay는 "창(window)"이 아니라 **텍스트를 보호하는 얇은 glass layer**다.
 - Overlay 존재감은 낮게 유지하고, 뒤의 당구대/공/궤적 인지는 유지해야 한다.
 - Shell과 Content를 분리한다.
+- **AI Overlay = USER Overlay 기준 디자인.**
+
+---
+
+## 0.1 USER Overlay Standard (2026-07-28)
+
+AI Overlay에서 검증된 다음 항목이 USER Overlay 공통 기준이다.
+
+| Item | Rule |
+|------|------|
+| Container | `.table-area` only |
+| Surface | **glassDark** (Dark Glass) |
+| Typography | table-area scale token |
+| Padding | Shell padding token |
+| Drag | Full Surface Drag |
+| Position | Center open · Clamp · **No persistence** |
+| Close | **Close(X) 없음** · 외부 터치 닫기 |
+| Height | `auto` · maxHeight ratio cap |
 
 ---
 
@@ -40,16 +59,15 @@ Overlay Shell은 **다음 역할만** 담당한다.
 - Position
 - Drag
 - Clamp
-- Close
+- (Close UI 없음 — outside tap)
 
 Overlay Shell은 **절대로 Content를 포함하지 않는다.**
 
 ### Content Renderer examples
 
 - `UserAiPanel`
-- `UserAimPanel` (or current HP/T renderer)
-- `UserCalculationPanel`
-- `UserTrajectoryInfoCard`
+- `UserHptPanel`
+- `UserCalculationPanel` (DisplayModel Viewer)
 
 ### Layer Rule
 
@@ -77,6 +95,7 @@ Content
 - `vw` / `vh`
 - media query width tables
 - Admin modal width presets
+- absolute px as Width SSOT
 
 ---
 
@@ -92,7 +111,7 @@ Overlay는 Surface **이름만** 선택한다.
 | **Normal** | `rgba(255,255,255,0.70)` | `4px` | light | soft | 일반 |
 | **Strong** | `rgba(255,255,255,0.82)` | `4px` | light | soft | 밝은 가독성 우선 |
 | **Transparent** | `rgba(255,255,255,0.40)` | `2px` | minimal | minimal | 최소 개입 |
-| **Dark** | `rgba(30,55,105,0.17)` | `4px` | `1px solid rgba(255,255,255,0.05)` | `0 6px 18px rgba(0,0,0,0.12)` | **기본 USER Overlay** |
+| **Dark / glassDark** | `rgba(30,55,105,0.17)` | `4px` | `1px solid rgba(255,255,255,0.05)` | `0 6px 18px rgba(0,0,0,0.12)` | **기본 USER Overlay** |
 
 ### Dark Rule
 
@@ -106,10 +125,9 @@ Dark는 AI Overlay에서 검증 완료된 **low-presence glass**다.
 
 | Overlay | Default Surface |
 |---------|-----------------|
-| AI | Dark |
-| Aim / HP(T) | Dark |
-| Calculation | Dark |
-| Trajectory | 별도 카드 규칙 유지, 향후 정렬 |
+| AI | glassDark |
+| HPT | glassDark |
+| Calculation | glassDark |
 
 ---
 
@@ -143,12 +161,12 @@ noteSize  = effectiveFontBase × noteRatio
 
 ### ContentTypeScale
 
-| Content | `contentTypeScale` |
-|---------|--------------------|
-| AI | `1.456` |
-| Aim / HP(T) | `1.00` |
-| Calculation | `1.00` |
-| Trajectory | `1.00` |
+| Content | `contentTypeScale` | Note |
+|---------|--------------------|------|
+| AI | `1.456` | 기준 |
+| HPT | AI scale 사용 (Shell mapping) | Polish에서 Content 독립 검토 |
+| Calculation | AI scale 사용 | AI Typography 언어 |
+| Trajectory (legacy) | `1.00` | 이력 |
 
 ### Forbidden
 
@@ -168,23 +186,25 @@ overlayMaxH  = tableHeight × overlayMaxHeightRatio
 ```
 
 - Width는 반드시 ratio만 사용한다.
-- Height는 고정하지 않는다.
+- Height는 고정하지 않는다 (`height: auto`).
 - Content에 따라 자연스럽게 증가한다.
 - 최대 높이를 넘을 때만 **Content Body**가 scroll 한다.
 
-### Variants
+### Variants (catalog)
 
 | Variant | Width Ratio | MaxHeight Ratio | Use |
 |---------|-------------|-----------------|-----|
-| Small | `0.55` | `0.82` | Aim / HP(T) |
-| Medium | `0.72` | `0.88` | 기본 중간형 |
-| Large | `0.84` | `0.90` | Calculation |
+| Small | `0.55` | `0.82` | (catalog; HPT는 더 이상 기본 매핑 아님) |
+| Medium | `0.72` | `0.88` | catalog |
+| Large | `0.84` | `0.90` | catalog |
 
-### AI validated example
+### Overlay mapping (2026-07-28)
 
-| Overlay | Width Ratio | MaxHeight Ratio | Notes |
-|---------|-------------|-----------------|-------|
-| AI | `0.42` | `0.85` | 약 `6:4` silhouette, `height: auto`, long text reflow |
+| Overlay | Width Ratio | MaxHeight Ratio | sizeVariant | fitContent | Notes |
+|---------|-------------|-----------------|-------------|------------|-------|
+| **AI** | `0.42` | `0.85` | medium | false | 기준 Shell |
+| **HPT** | `0.42` | `0.85` | medium | false | AI와 동일 Shell mapping · Content 크기 독립은 **Polish 보류** |
+| **CALC** | `0.62` | `0.85` | medium | false | AI 디자인 언어 · 정보량 전용 폭 · AI Typography |
 
 ---
 
@@ -216,6 +236,7 @@ gap  = effectiveFontBase × gapRatio
 - Radius는 공통 token으로 계산한다.
 - Border/Shadow는 Surface가 소유한다.
 - Content는 border/radius/shadow를 다시 만들지 않는다.
+- **Close 예약 gutter 금지** — Content는 정상 Shell padding 한계까지 사용한다.
 
 ---
 
@@ -227,8 +248,9 @@ AI Overlay에서 검증된 방식으로 **Overlay 전체 Surface Drag**를 공�
 
 ```text
 drag start area = full overlay surface
-exclude = X button + [data-overlay-no-drag="1"]
+exclude = [data-overlay-no-drag="1"] (+ interactive controls)
 grab bar = not used
+Close(X) = not present
 ```
 
 ### Interaction
@@ -236,6 +258,7 @@ grab bar = not used
 - Mouse drag
 - Touch drag
 - 동일 pointer rule 사용
+- Calculation Toolbar 버튼은 Drag 제외
 
 ---
 
@@ -262,6 +285,32 @@ clampInsetRatio = 0.02
 
 ---
 
+## 8.1 Close Rule (2026-07-28)
+
+- Common Shell의 **Close(X) 제거**
+- **외부 터치(backdrop)** 로 닫기
+- Close 예약 gutter (`padding-right` 등) **금지**
+- Content는 정상 Shell padding 한계까지 사용
+
+---
+
+## 8.2 Toolbar Rule (Calculation) (2026-07-28)
+
+Calculation Toolbar는 Shell **밖의** 별도 Controller UI다.
+
+| Rule | Value |
+|------|-------|
+| Placement | Overlay 외부 상단 |
+| Layout | 항상 한 줄 · `nowrap` · `fit-content` |
+| Typography | table-area token 기반 |
+| Style | Glass Button · 선택 Accent |
+| Drag | 버튼은 Drag 제외 |
+| Lifecycle | Overlay hide 상태에서도 Toolbar 유지 가능 |
+
+버튼: **기준값** · **보정값** · **계산 보기/감추기** · **쿠션 포인트**
+
+---
+
 ## 9. Content Rule
 
 Content는 **자기 내부 레이아웃과 렌더링만** 담당한다.
@@ -269,9 +318,9 @@ Content는 **자기 내부 레이아웃과 렌더링만** 담당한다.
 ### Content may do
 
 - text flow
-- equation layout
+- equation / DisplayModel parts layout
 - SVG/internal grid
-- tabs / buttons / local structure
+- local structure
 
 ### Content must not do
 
@@ -283,8 +332,19 @@ Content는 **자기 내부 레이아웃과 렌더링만** 담당한다.
 - position
 - width SSOT
 - height SSOT
+- Shell max token(`--uos-w`)을 preferred width로 재사용해 Shell을 팽창시키기
 
-즉, Content는 Shell style을 직접 변경하지 않는다.
+즉, Content는 Shell style을 직접 변경하지 않는다.  
+**표시 정보만 소유**한다.
+
+---
+
+## 9.1 Shell / Content 역할 요약
+
+| Layer | Owns |
+|-------|------|
+| **Shell** | Layout · Ratio · Surface · Typography scale · Padding · Drag · Clamp · Center |
+| **Content** | 표시 정보만 · Width SSOT 금지 · Shell max token preferred width 재사용 금지 |
 
 ---
 
@@ -310,6 +370,7 @@ Content는 **자기 내부 레이아웃과 렌더링만** 담당한다.
 - `--overlay-scale`
 - `--ai-scale`
 - `--overlay-svg-scale`
+- `--uos-*` (UserOverlayShell runtime)
 
 ### Note
 
@@ -323,17 +384,14 @@ bridge token은 기존 content와의 연결용이다.
 ```text
 1. Overlay Shell SSOT 고정
 2. AI 검증 완료
-3. Aim / HP(T) 적용
-4. Calculation 적용
-5. Trajectory 정렬
+3. HPT Shell 적용 (완료 · Content Polish 보류)
+4. Calculation 적용 (완료)
+5. USER Overlay 최종 통합 검증
 ```
-
-이번 v1.2는 **공통 Shell 기준 확정**이 목적이며,  
-타점/계산 content 수정은 다음 단계 범위다.
 
 ---
 
-## 12. Implementation Status (2026-07-27)
+## 12. Implementation Status (2026-07-28)
 
 ### 완료
 
@@ -344,15 +402,15 @@ bridge token은 기존 content와의 연결용이다.
 - Drag Rule
 - Center Rule
 - Clamp Rule
-- Close Rule
+- Close Rule (X 제거)
 - AI Overlay 적용
-- 타점 Overlay Common Shell 이전
+- HPT Overlay AI Shell mapping
+- Calculation Overlay + Toolbar + DisplayModel Viewer
 
-### 진행 예정
+### 보류 / 예정
 
-- 타점 Overlay Content Fit
-- 계산 Overlay 적용
-- USER Overlay 최종 통합
+- HPT Content 크기 독립 · SVG intrinsic bounds / viewBox (UX Polish)
+- USER Overlay 최종 통합 검증
 
 ---
 
@@ -369,6 +427,13 @@ v1.2에서 공식 확정된 사항:
 7. Drag는 Overlay 전체 surface에서 시작한다.
 8. Close 후 reopen 시 항상 Center로 복귀한다.
 9. Content는 Shell style을 직접 소유하지 않는다.
+
+### 2026-07-28 Incremental Decisions
+
+10. Close(X) 제거 · 외부 터치 닫기 · Close gutter 금지.
+11. AI / HPT Shell mapping = `widthRatio 0.42` · CALC = `0.62`.
+12. Calculation Toolbar는 Shell 밖 Controller.
+13. HPT Content/Shell 크기 독립은 Polish 보류.
 
 ---
 

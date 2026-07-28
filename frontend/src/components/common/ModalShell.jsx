@@ -7,8 +7,11 @@ const SUPPRESS_BACKDROP_CLICK_MS = 100;
 const snapPx = (value) => Math.round(value);
 
 /**
- * 공통 modal shell — transparent backdrop + draggable panel (header handle).
+ * Admin / History modal shell — transparent backdrop + draggable panel (header handle).
  * Drag uses snapped left/top (no transform) to keep text on the normal paint path.
+ *
+ * USER Overlay Layout (table-area Ratio / Surface / Clamp) is owned by
+ * `UserOverlayShell.jsx` per Overlay Layout SSOT v1.1 — do not merge USER sizing here.
  */
 export default function ModalShell({
   open = true,

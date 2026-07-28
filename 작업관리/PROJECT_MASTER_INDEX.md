@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.47  
-Last Updated: 2026-07-27  
+Version: 1.48  
+Last Updated: 2026-07-28  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -141,7 +141,7 @@ Architecture Review
 | **SPS System Standardization (STEP 7)** | **P6 Complete (2026-07-21)** — P5 IU-5-01A…05A PASS · P6 IU-6-01A…06A Complete (Design-only) · WG-AI-001 PASS · Architecture Workflow PASS · Fleet design chain (01A–01F) authored |
 | **SPS Fleet Apply (STEP 8)** | **Completed (2026-07-23)** — **B0·B1·B2·B2.5·B4·B5·B6·B7·B8 PASS** · **B3 HALTED (Hold)** · B8 Validation **PASS** · Fleet Closure **Confirmed** · **Final Validation Gate v1.0** · Ops Workflow **v1.0** |
 | ADMIN | Position Lock → SYS / HP·T / STR / AI 입력 → Dataset SAVE |
-| USER | Search(published) → 공략 선택 → **AI · 두께/타점 · 동선** 중심 실전 공략 UI |
+| USER | Search(published) → 공략 선택 → **AI · 두께/타점 · 계산** 중심 실전 공략 UI |
 | 궤적 | Hermite Segment A + 보정선 기반 baseline (2026-05 안정화) |
 | AI 코멘트 | SYS+STR 자동 문장 SSOT + 원 포인트 레슨 분리 **완료** |
 | 시스템 레슨 | **보류** — USER UI 단순화 정책에 따라 현재 메뉴 비노출 · 관련 코드/VM은 보존 |
@@ -302,7 +302,7 @@ Production Search 장애 발생 시 점검 순서:
 | ADMIN **로컬DB** (Stage rail) | `positions_dataset` | `adminSearch` | ✅ |
 | ADMIN **Search** (우측 패널) | Published Dataset | `adminStrict` | ✅ |
 | USER **Search** | Published Dataset | `userStrict` | ✅ |
-| USER **Reset** | 공 위치만 유지 · 검색 결과/공략/오버레이/타겟/동선 카드 offset 초기화 | — | ✅ (Search 성공 시 Reset 버튼으로 전환) |
+| USER **Reset** | 공 위치만 유지 · 검색 결과/공략/오버레이/타겟 상태 초기화 | — | ✅ (Search 성공 시 Reset 버튼으로 전환) |
 
 ### 예정
 
@@ -481,9 +481,8 @@ App.jsx를 Application Runtime Orchestrator로 전환하기 위한 Architecture 
 
 - **두께/타점 Overlay**: **ADMIN 전용** 편집 (`HptOverlay`, `overlayState` HPT).
 - **관리자 입력**: `adminState.hpt`, slot `draft`/`applied` 동기화.
-- **USER HP/T read-only 오버레이** (2026-06-22): 좌측 **두께/타점** 메뉴 복구 · `UserHptPanel` + `userHptViewModel` · `.modal-panel--user-hpt`
-  - **Overlay Scale Framework**: `--overlay-scale` (tablet 0.72 · phone landscape 0.44), `--overlay-svg-scale` (SVG 별도 축소)
-  - 반투명 패널 `rgba(255,255,255,0.72)` + `backdrop-filter: blur(2px)` · 내부 viz/grid 박스 투명 · `width: fit-content`
+- **USER HP/T read-only 오버레이**: 좌측 **두께/타점** · `UserHptPanel` + `userHptViewModel` · Common Shell = **AI 규격** (`widthRatio 0.42`, `maxHeightRatio 0.85`, `medium`, `fitContent: false`, `glassDark`)
+  - 공/텍스트 Content 크기 독립 유지 및 SVG viewBox crop = **UX Polish 보류** (임시로 Shell `--uos-w` 커플링 수용)
 
 ### 시스템 레슨 (System Lesson)
 
@@ -503,8 +502,8 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 **현재 판단**
 
 - USER의 1차 목적은 시스템 학습이 아니라 현재 포지션의 실전 공략 확인이다.
-- 기존 레슨 콘텐츠는 AI 및 동선 내용과 일부 중복된다.
-- 따라서 현재 USER UI는 AI / 두께·타점 / 동선 중심으로 단순화한다.
+- 기존 레슨 콘텐츠는 AI 및 계산 Overlay 내용과 일부 중복된다.
+- 따라서 현재 USER UI는 AI / 두께·타점 / 계산 중심으로 단순화한다.
 - 시스템 레슨은 향후 “시스템 학습 모드” 또는 별도 교육 UX로 재설계할 수 있다.
 
 **현재 USER 런타임**
@@ -532,65 +531,67 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - **반응형 스케일**: `--ai-scale` (tablet 0.72 · phone landscape 0.44) — SYSTEM_LESSON 등과 동일 계수, 변수명만 분리 (통합 Phase 2 **보류**)
 - **Deprecated**: `utils/aiPlayStrategyBuilder.ts` `buildPlayStrategy()` — SYS/HP/T/STR 나열형.
 
-### USER 동선분석 (Trajectory Info Card)
+### USER Projection Rule (공식)
 
-- **메뉴:** `TRAJECTORY` · 라벨 **동선**
-- **표시:** table-area overlay — `UserTrajectoryInfoCard`
-- **역할:** 현재 선택 공략의 기준값/보정값 계산과 진행 경로를 확인하는 실전 분석 UI
+> **“USER는 관리자가 만든 DisplayModel을 투영해서 보여주는 Viewer이다.”**
 
-#### 카드 위치
+| 규칙 | 내용 |
+|------|------|
+| ADMIN | 최종 DisplayModel 생성 (`buildSysCalcDisplayModel` 등) |
+| USER | USER 공개 영역(block)만 선택 |
+| Viewer | 읽기 전용 렌더 |
+| 금지 | USER에서 문구 재생성 · 계산식 재조립 · 숫자 배열 재구성 |
+| SSOT | ADMIN과 USER의 **최종 표현 문구** 일치 |
 
-- 기본 중앙 배치
-- 사용자 드래그 이동 가능
-- `trajectoryCardOffset` 기준 위치 관리
-- 기준값 ↔ 보정값 전환 시 위치 유지
-- 시스템값 표시 ON/OFF 시 위치 유지
-- Reset 또는 동선 종료 시 offset 초기화
+### USER 계산 Overlay (Calculation)
 
-#### 내부 버튼
+- **메뉴 id:** `TRAJECTORY` (내부) · **좌측 라벨:** **계산** (구명칭 `동선` 폐기)
+- **Shell:** `UserOverlayShell` · AI 디자인 언어 · CALC 전용 `widthRatio: 0.62` · `maxHeightRatio: 0.85` · `height: auto`
+- **Content Viewer:** `UserCalculationPanel` — DisplayModel block을 `sections → lines → parts`로 투영
+- **역할:** 현재 선택 공략의 기준값/보정값 계산 표현을 ADMIN DisplayModel과 동일하게 확인
 
-동선 카드 내부에는 다음 3개 버튼이 있다.
+#### Projection 경로
 
-- **기준값**
-- **보정값**
-- **시스템값 표시**
+```text
+App
+  → buildSysCalcDisplayModel(...)   // ADMIN과 동일 Formatter
+  → baseline | corrected block 선택
+  → UserCalculationPanel (read-only Viewer)
+  → UserOverlayShell
+```
 
-#### 기준값 / 보정값
+- `buildUserTrajectoryCardModel()` 의존 **제거** (Calculation 경로)
+- block title(`기준 계산` / `보정 계산`)은 USER에서 **숨김**
+- 내부 계산 내용(공식·보정·설명·안내)은 ADMIN DisplayModel **그대로** 투영
+- SYS 계산 엔진 및 DisplayModel **생성 로직 변경 없음**
 
-- `trajectoryCardSource`
-- 값: `baseline | corrected`
-- 상호배타 토글
-- 기준값 ON이면 보정값 OFF
-- 보정값 ON이면 기준값 OFF
-- 둘 중 하나만 표시
+#### Calculation Toolbar (Shell 밖)
 
-#### 시스템값 표시
+Overlay 외부 상단 · Drag 대상 아님 · Overlay hide 시에도 Toolbar 유지 가능
 
-- `trajectoryShowAxisValues`
-- boolean 독립 토글
-- 기준값/보정값 상태와 독립적으로 ON/OFF
-- 사용자가 직접 `시스템값 표시` 버튼을 눌렀을 때만 변경
+| 버튼 | 역할 |
+|------|------|
+| **기준값** | `baseline` block |
+| **보정값** | `corrected` block |
+| **계산 보기 / 계산 감추기** | Overlay panel 표시 토글 |
+| **쿠션 포인트** | 레일/쿠션 시스템 눈금 표시 (`trajectoryShowAxisValues`) |
 
-허용 조합:
+정책: 한 줄(`nowrap`) · 텍스트 길이에 따른 `fit-content` · Overlay typography token · Glass Button · 선택 Accent
 
-- 기준값 + 시스템값 표시 OFF
-- 기준값 + 시스템값 표시 ON
-- 보정값 + 시스템값 표시 OFF
-- 보정값 + 시스템값 표시 ON
+#### Layout (CALC)
 
-중요 유지 규칙:
+- AI Typography 기준 (본문 `32px × --ai-scale`, line-height 1.4)
+- Close(X) 없음 · 외부 터치 닫기 · Close 예약 `padding-right: 1.35em` **제거**
+- 본문은 Shell 공통 padding 한계까지 사용
+- 일반 내용 = 자연 높이 · 극단적으로 긴 내용만 body scroll
 
-- 시스템값 표시 ON 상태에서 기준값 → 보정값 전환 시 ON 유지
-- 시스템값 표시 ON 상태에서 보정값 → 기준값 전환 시 ON 유지
-- 시스템값 표시는 사용자가 다시 버튼을 눌렀을 때만 OFF
+#### 쿠션 포인트의 의미
 
-#### 시스템값 표시의 의미
+여기서 말하는 쿠션 포인트는 현재 계산 결과값 목록이 아니다.
 
-여기서 말하는 시스템값 표시는 현재 계산 결과값 목록이 아니다.
+위 값들은 이미 궤적 라벨과 계산 Overlay 투영값으로 표시된다.
 
-위 값들은 이미 궤적 라벨과 동선 카드 계산값으로 표시된다.
-
-동선 카드의 `시스템값 표시`는 관리자 SYS/Grid에서 사용하는 **레일/프레임 축 시스템 기준 눈금**을 USER 동선 화면에 표시하는 기능이다.
+Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용하는 **레일/프레임 축 시스템 기준 눈금**을 USER 계산 화면에 표시하는 기능이다.
 
 사용 목적:
 
@@ -599,13 +600,13 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 #### 렌더링 원칙
 
-시스템값 표시 ON:
+쿠션 포인트 ON:
 
 - 현재 기준값/보정값 궤적 유지
 - 현재 CO/C1/C3/C4 등 궤적 라벨 유지
 - 추가로 레일/프레임 축 시스템 기준 숫자 표시
 
-시스템값 표시 OFF:
+쿠션 포인트 OFF:
 
 - 축 시스템 기준 숫자만 숨김
 - 궤적과 현재 계산 라벨은 유지
@@ -615,23 +616,25 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 - ADMIN용 Grid 편집 UI 노출 금지
 - SYS 계산 엔진 변경 금지
 - `SystemValueLabels` 축 숫자 크기/`labelScale` 임의 변경 금지
-- baseline/corrected 계산 로직 변경 금지
+- baseline/corrected 계산 로직 · DisplayModel 생성 로직 변경 금지
+- USER에서 계산 문구/식 재생성 금지
 
-#### UI 스타일
+#### UI 스타일 (Calculation)
 
-- 반투명 카드
-- blur 적용 가능
-- 카드 전체 드래그 가능
-- 버튼 클릭은 기존 동작 유지
-- 스크롤 없는 compact layout 지향
-- 모바일/PC에서 동일 기능 유지
+- Glass Dark Common Shell
+- Full Surface Drag · Center / Clamp · 위치 저장 없음
+- Close(X) 없음 · 외부 터치 닫기
+- Toolbar는 Shell 밖 · Drag 제외
+- 일반 내용은 자연 높이 · 극단 길이만 body scroll
+- 모바일/PC에서 동일 상대 Ratio 유지
 
 #### ViewModel / 코드
 
-- `domain/userTrajectoryCardViewModel.ts`
-- `components/user/UserTrajectoryInfoCard.jsx`
-- `.user-trajectory-info-card` (`index.css`)
-- `App.jsx` — `trajectoryCardSource`, `trajectoryShowAxisValues`, `trajectoryCardOffset`
+- `overlay/utils/sysCalcDisplayModel.ts` — `buildSysCalcDisplayModel`
+- `components/user/UserCalculationPanel.jsx` — DisplayModel Viewer
+- `components/user/UserCalcToolbar.jsx` — 외부 4버튼
+- `App.jsx` — DisplayModel 입력 공급 · `trajectoryCardSource` · `trajectoryShowAxisValues` · `calcOverlayVisible`
+- (이력) `domain/userTrajectoryCardViewModel.ts` — Calculation Projection 경로에서는 미사용
 
 #### Trajectory Display Cap
 
@@ -644,9 +647,9 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 - CO–C3–C6 같은 비연속 동일 rail은 허용
 - 계산 엔진 및 C5/C6 sync rule은 변경하지 않음
 
-### USER 시스템값 라벨 (System Value Labels)
+### USER 쿠션 포인트 라벨 (System Value Labels)
 
-- **노출 방식**: 독립 USER 메뉴가 아니라 **동선 카드 내부 `시스템값 표시` 토글**로 노출
+- **노출 방식**: 독립 USER 메뉴가 아니라 **Calculation Toolbar `쿠션 포인트` 토글**로 노출
 - **Phone Landscape 확대**: `MEDIA_PHONE_LANDSCAPE` → `labelScale` **1.5** (`SYS_LABEL_PHONE_LANDSCAPE_SCALE`, `tableConfig.ts`)
 - **터치 Persistent Selection** (2026-06-22): 라벨 탭 → 선택 유지(1.8× 확대) · 다른 라벨 탭 → 전환 · 빈 테이블 영역 탭 → 해제 · document capture + transparent dismiss rect
 - **Caption Engine 연동**: `systemAxisCaption.ts` — `labelScale` 비례 placement · `SystemValueLabels.jsx` · `LabelText.jsx`
@@ -673,10 +676,10 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 | 버튼 | 오버레이 | 비고 |
 |------|----------|------|
 | Search / Reset | — | Search 성공 시 Reset으로 전환 · Reset은 공 위치만 유지하고 검색 결과/공략/오버레이/타겟 상태 초기화 |
-| 공략 버튼 | — | USER Search 성공 시 활성 · 선택 공략 기준으로 AI/타법/동선 표시 |
-| AI | `overlayContent === "AI"` | `UserAiPanel` · 현재 공략 핵심/원포인트 레슨 |
-| 두께/타점 | `overlayContent === "HP/T"` | `UserHptPanel` read-only |
-| 동선 | table-area overlay | `UserTrajectoryInfoCard` · 기준값/보정값/시스템값 표시 |
+| 공략 버튼 | — | USER Search 성공 시 활성 · 선택 공략 기준으로 AI/타점/계산 표시 |
+| AI | `overlayContent === "AI"` | `UserAiPanel` · Common Shell · 기준 UX |
+| 두께/타점 | `overlayContent === "HPT"` | `UserHptPanel` · AI Shell 규격 (`widthRatio 0.42`) |
+| 계산 | `overlayContent === "CALC"` (id `TRAJECTORY` 유지) | `UserCalculationPanel` + `UserCalcToolbar` · DisplayModel Viewer |
 | History | 모달 | |
 
 ---
@@ -708,10 +711,10 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 | USER 패널 | `domain/userInfoPanelModel.ts`, `components/user/UserAiPanel.jsx` |
 | USER 시스템 레슨 (보류) | `domain/userSystemLessonViewModel.ts`, `components/user/UserSystemLessonPanel.jsx` — 현재 USER 메뉴 비노출, 향후 학습 모드 재사용 후보 |
 | USER HP/T | `components/user/UserHptPanel.jsx`, `domain/userHptViewModel.ts`, `.modal-panel--user-hpt` |
-| USER 동선 | `components/user/UserTrajectoryInfoCard.jsx`, `domain/userTrajectoryCardViewModel.ts`, `domain/trajectoryPathDisplayPolicy.ts`, `.user-trajectory-info-card`, `App.jsx` (`trajectoryCardSource`, `trajectoryShowAxisValues`, `trajectoryCardOffset`) |
-| USER 시스템값 표시 | `components/table/SystemValueLabels.jsx`, `components/table/LabelText.jsx`, `config/tableConfig.ts` — 동선 카드 내부 토글로 노출 |
+| USER 계산 | `components/user/UserCalculationPanel.jsx`, `components/user/UserCalcToolbar.jsx`, `overlay/utils/sysCalcDisplayModel.ts`, `App.jsx` (`trajectoryCardSource`, `trajectoryShowAxisValues`, `calcOverlayVisible`) |
+| USER 쿠션 포인트 | `components/table/SystemValueLabels.jsx`, `components/table/LabelText.jsx`, `config/tableConfig.ts` — Calculation Toolbar 토글로 노출 |
 | Overlay 반응형 CSS | `frontend/src/index.css` — `--overlay-scale`, `--ai-scale`, `--overlay-svg-scale` (bridge token 유지, **Layout SSOT는 Ratio/Surface token 기준**) |
-| **Overlay Layout SSOT** | `OVERLAY_LAYOUT_SSOT_v1.2.md` — USER Overlay 공통 Shell 규약 (**Confirmed v1.2**, 구현 전 Consume) |
+| **Overlay Layout SSOT** | `OVERLAY_LAYOUT_SSOT_v1.2.md` — USER Overlay 공통 Shell 규약 (**Confirmed v1.2**, Consume) |
 
 ---
 
@@ -724,15 +727,16 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 | USER AI UI | `frontend/src/components/user/UserAiPanel.jsx` |
 | USER 시스템 레슨 (보류) UI | `frontend/src/components/user/UserSystemLessonPanel.jsx` |
 | USER 시스템 레슨 (보류) VM | `frontend/src/domain/userSystemLessonViewModel.ts` |
-| USER 동선분석 UI | `frontend/src/components/user/UserTrajectoryInfoCard.jsx` |
-| USER 동선분석 VM | `frontend/src/domain/userTrajectoryCardViewModel.ts` |
+| USER 계산 Overlay UI | `frontend/src/components/user/UserCalculationPanel.jsx` |
+| USER 계산 Toolbar | `frontend/src/components/user/UserCalcToolbar.jsx` |
+| USER 계산 DisplayModel | `frontend/src/overlay/utils/sysCalcDisplayModel.ts` |
 | USER HP/T UI | `frontend/src/components/user/UserHptPanel.jsx` |
-| USER 시스템값 표시 | `frontend/src/components/table/SystemValueLabels.jsx` — 동선 카드 내부 `시스템값 표시` 토글로 제어 |
-| USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · HP/T; table-area: Trajectory card) |
-| USER Overlay Shell | `frontend/src/components/common/UserOverlayShell.jsx` — 공통 Layout Layer (Ratio · Surface · Drag · Clamp · Close) |
+| USER 쿠션 포인트 | `frontend/src/components/table/SystemValueLabels.jsx` — Toolbar `쿠션 포인트` 토글로 제어 |
+| USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · HPT · CALC) |
+| USER Overlay Shell | `frontend/src/components/common/UserOverlayShell.jsx` — 공통 Layout Layer (Ratio · Surface · Drag · Clamp · Close 없음) |
 | Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`USER_FUNC_IDS`, `onUserFuncButtonSelect`) |
 | ADMIN AI | `frontend/src/App.jsx` `AiOverlay` |
-| 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.modal-panel--user-system-lesson`, `.user-trajectory-info-card`, `.modal-panel--user-hpt`) |
+| 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.modal-panel--user-hpt`, `.modal-panel--user-calc`, `.user-calc-toolbar`) |
 
 ---
 
@@ -742,11 +746,14 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 
 | Item | Status |
 |------|--------|
-| **Overlay Layout SSOT** | **v1.2 Confirmed** |
-| **USER Overlay Common Shell** | **Implemented** |
-| **AI Overlay** | **Completed** |
-| **타점 Overlay** | **Almost complete** · Content Fit 미세조정 carry |
-| **계산 Overlay** | **Planned** |
+| **Overlay Layout SSOT** | **v1.2 Confirmed** (+ 2026-07-28 incremental rules) |
+| **USER Overlay Common Shell** | **Implemented** · Close(X) 없음 · 외부 터치 닫기 |
+| **USER Projection Rule** | **Official** — DisplayModel Viewer |
+| **AI Overlay** | **Completed** · 기준 UX / 기준 Shell (`widthRatio 0.42`) |
+| **HPT Overlay** | **Common Shell 적용 완료** · AI Shell 규격 · 공 크기 독립은 **Polish 보류** |
+| **Calculation Overlay** | **Completed** · Common Shell + Toolbar + DisplayModel Viewer · `widthRatio 0.62` |
+| **좌측 메뉴** | `동선` → **`계산`** |
+| **최종 통합 검증** | **Pending** |
 
 ### 완료
 
@@ -902,10 +909,10 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 - AI 오버레이 리팩토링 (SYS+STR SSOT, 레슨 분리)
 - 원 포인트 레슨 ADMIN/USER 표시 분리
 - USER AI 패널 가독성·크기·공간 최적화
-- **USER UX 단순화** — USER 레슨 버튼 제거, AI/두께·타점/동선 중심 실전 공략 구조 확정
-- **USER 동선 카드 개편** — 기준값/보정값 상호배타 토글 + 시스템값 표시 독립 토글
-- **USER 시스템값 표시 이동** — 독립 메뉴가 아니라 동선 카드 내부 축 시스템값 표시 토글로 통합
-- **동선 카드 위치 관리** — 드래그 이동, 위치 유지, Reset 시 offset 초기화
+- **USER UX 단순화** — USER 레슨 버튼 제거, AI/두께·타점/계산 중심 실전 공략 구조 확정
+- **USER 계산 Overlay** — Common Shell + Toolbar + DisplayModel Viewer (`buildSysCalcDisplayModel`) · `동선`→`계산`
+- **USER 쿠션 포인트** — Calculation Toolbar 토글 · 레일/프레임 축 눈금 표시
+- **USER Projection Rule** — ADMIN DisplayModel → USER read-only Viewer
 - **Search/Reset UX** — Search 성공 시 Reset 전환, Reset은 공 위치만 유지하고 검색 결과/공략/오버레이/타겟 상태 초기화
 - USER **시스템 레슨** P0 구현 이력 보존 (`ffe0a26`: ViewModel·Panel) — 현재는 USER UX 단순화 정책에 따라 메뉴 비노출
 - **SYSTEM_LESSON 모바일 UI 최적화 이력 보존** — 현재 활성 메뉴는 아니며 향후 학습 모드 재사용 후보
@@ -1319,25 +1326,41 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 ## USER Overlay (요약)
 
 > **Layout SSOT:** `OVERLAY_LAYOUT_SSOT_v1.2.md` (Confirmed).  
-> Size = `table-area × Ratio` · Default Surface = Dark Glass · Center+Drag · Shell→Content.  
-> Progress = AI 완료 · 타점 거의 완료(Content Fit carry) · 계산 적용 예정.  
+> **기준 UX:** AI Overlay — Glass Dark · table-area Ratio · Typography · Padding · Full Surface Drag · Center/Clamp · Close(X) 없음 · 외부 터치 닫기 · 위치 저장 없음.  
+> **Projection Rule:** USER = ADMIN DisplayModel 투영 Viewer.  
+> Progress = AI 완료 · HPT Shell 완료(Polish 보류) · Calculation Shell+Viewer 완료 · 통합 검증 예정.  
 > `--overlay-scale` / `--ai-scale` / `--overlay-svg-scale`는 bridge token이며, 장기 SSOT는 Ratio/Surface/Typography token이다.
 
 ```
-좌측 AI → overlayContent = "AI" → UserAiPanel (--ai-scale)
+좌측 AI → overlayContent = "AI" → UserAiPanel (Shell widthRatio 0.42)
 
-좌측 시스템레슨 → overlayContent = "SYSTEM_LESSON" → UserSystemLessonPanel (--overlay-scale)
+좌측 두께/타점 → overlayContent = "HPT" → UserHptPanel (AI Shell 규격 0.42 · Polish: 공 크기 독립 보류)
 
-좌측 두께/타점 → overlayContent = "HP/T" → UserHptPanel read-only (--overlay-scale + --overlay-svg-scale)
+좌측 계산 → overlayContent = "CALC" → UserCalcToolbar + UserCalculationPanel
+         → buildSysCalcDisplayModel → baseline|corrected Viewer (Shell widthRatio 0.62)
 
-좌측 동선분석 → table-area UserTrajectoryInfoCard (기준값/보정값 탭 · [공식]/[계산])
+쿠션 포인트 → SystemValueLabels on table rail (Toolbar 토글)
 
-좌측 시스템값 → SystemValueLabels on table rail (phone landscape labelScale 1.5×)
-
-backdrop / handleCloseUserInfoOverlay → overlayContent = null
+backdrop / outside tap → overlayContent = null (Close X 없음)
 
 기준값(BASELINE) → 오버레이만 dismiss (레벨 유지)
 ```
+
+### USER Overlay 기준 (AI)
+
+- Glass Dark
+- table-area 기준 Ratio
+- Typography / Padding token
+- Full Surface Drag
+- Center / Clamp
+- Close(X) 없음 · 외부 터치 닫기
+- 위치 저장 없음
+
+### HPT 상태 (임시 확정)
+
+- AI Shell 규격 이전 (`widthRatio 0.42` · `maxHeightRatio 0.85` · `fitContent: false` · `medium`)
+- 공/텍스트 Content가 Shell 스케일(`--uos-w`) 영향을 받아 함께 축소된 상태는 **임시 수용**
+- **보류:** HPT Overlay SVG intrinsic bounds / viewBox crop 및 공 크기 독립 유지 (UX Polish)
 
 ---
 

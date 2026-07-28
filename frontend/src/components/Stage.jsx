@@ -26,11 +26,11 @@ const ADMIN_FUNC_BUTTONS = [
   { id: "STR", label: "STR", type: "info" },
   { id: "AI", label: "AI", type: "info" },
 ];
-/** USER info layer — AI · 타점 · 동선 */
+/** USER info layer — AI · 타점 · 계산 */
 const USER_PRIMARY_FUNC_BUTTONS = [
   { id: "AI", label: "AI", type: "info" },
   { id: "HP/T", label: "타점", type: "info" },
-  { id: "TRAJECTORY", label: "동선", type: "info" },
+  { id: "TRAJECTORY", label: "계산", type: "info" },
 ];
 const USER_FUNC_BUTTON_COUNT = USER_PRIMARY_FUNC_BUTTONS.length;
 
@@ -322,12 +322,14 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   );
   const [trajectoryShowAxisValues, setTrajectoryShowAxisValues] = useState(false);
   const [trajectoryCardOffset, setTrajectoryCardOffset] = useState({ x: 0, y: 0 });
+  const [calcOverlayVisible, setCalcOverlayVisible] = useState(true);
   const [userSearchHasResults, setUserSearchHasResults] = useState(false);
   const resetUserTableDisplayMode = useCallback(() => {
     setUserTableDisplayMode("default");
     setTrajectoryCardSource("baseline");
     setTrajectoryShowAxisValues(false);
     setTrajectoryCardOffset({ x: 0, y: 0 });
+    setCalcOverlayVisible(true);
   }, []);
 
   const handleUserSearchReset = useCallback(() => {
@@ -612,7 +614,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         className={isDisplayModeBtn ? "user-display-mode-btn" : undefined}
         title={
           isTrajectoryBtn
-            ? "동선 — 기준/보정 궤적과 계산값"
+            ? "계산 — 기준/보정 계산값"
             : id === "HP/T"
               ? "타점 — 두께"
               : label
@@ -621,19 +623,19 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         aria-pressed={isDisplayModeBtn ? displayModeActive : isFuncSelected ? true : undefined}
         onClick={() => {
           if (isTrajectoryBtn) {
-            setUserTableDisplayMode((prev) => {
-              const next = prev === "trajectory" ? "default" : "trajectory";
-              if (next === "default") {
-                setTrajectoryCardOffset({ x: 0, y: 0 });
-              }
-              return next;
-            });
-            setCurrentButtonId("TRAJECTORY");
-            (
-              onCloseUserOverlay ??
-              userRailActions.dismissOverlayPanel ??
-              userRailActions.closeOverlay
-            )?.();
+            if (userTableDisplayMode === "trajectory") {
+              resetUserTableDisplayMode();
+              setCurrentButtonId(activeSlot);
+              (
+                onCloseUserOverlay ??
+                userRailActions.dismissOverlayPanel ??
+                userRailActions.closeOverlay
+              )?.();
+            } else {
+              setUserTableDisplayMode("trajectory");
+              setCalcOverlayVisible(true);
+              setCurrentButtonId("TRAJECTORY");
+            }
             return;
           }
           resetUserTableDisplayMode();
@@ -816,6 +818,8 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
             onTrajectoryCardSourceChange={setTrajectoryCardSource}
             trajectoryShowAxisValues={trajectoryShowAxisValues}
             onTrajectoryShowAxisValuesChange={setTrajectoryShowAxisValues}
+            calcOverlayVisible={calcOverlayVisible}
+            onCalcOverlayVisibleChange={setCalcOverlayVisible}
             trajectoryCardOffset={trajectoryCardOffset}
             onTrajectoryCardOffsetChange={setTrajectoryCardOffset}
             onActiveSlotChange={setActiveSlot}

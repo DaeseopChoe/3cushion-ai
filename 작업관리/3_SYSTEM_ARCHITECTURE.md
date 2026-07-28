@@ -1,6 +1,10 @@
 본 문서는 3Cushion AI의 **계산 구조와 시스템 데이터 계층**만 다룬다.
 UI 구조, 렌더 구조, 리팩터링 청사진은 FRONTEND_ARCHITECTURE 문서에서 관리한다.
 
+> Last Updated: 2026-07-28 — Display Formatter 경계 문장 최소 보강 (UI/Shell/Toolbar 상세 없음)
+
+**표시 Formatter 경계:** `buildSysCalcDisplayModel`은 계산 엔진이 아니라 **표시 전용 Formatter**이며, USER Calculation Overlay가 이를 공유해도 SYS 계산 엔진의 책임과 결과는 변경되지 않는다.
+
 1️⃣ 현재 실제 폴더 구조 (2026-03 기준)
 frontend/src/
  ├── admin/

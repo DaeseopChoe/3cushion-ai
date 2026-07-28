@@ -1,8 +1,90 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.33  
+Version : v1.34  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-28 (USER Projection Rule · Calculation DisplayModel Viewer · Shell 통합)
+
+## 제목
+
+**D-USEROVL-02** — USER Projection Rule 확립 · Calculation DisplayModel Viewer · USER Overlay Shell 통합
+
+## Summary
+
+USER Overlay UX Phase에서 Calculation Overlay를 Common Shell + 외부 Toolbar + ADMIN DisplayModel Viewer로 전환하고, USER Projection Rule을 공식 원칙으로 확립하였다. AI Overlay를 기준 UX로 유지한 채 HPT를 AI Shell 규격으로 이전하고, CALC만 정보량 때문에 `widthRatio 0.62`를 허용하였다. Close(X) 제거 후 잔존 Close gutter를 정리하고, USER 경로 `resolveCoC1C3Keys` 입력 누락으로 발생한 백지 오류를 ADMIN과 동일한 입력 계약으로 수정하였다.
+
+## 완료 사항
+
+- AI Overlay를 USER Overlay 기준 UX로 확정
+- Close(X) 제거 (Common Shell)
+- 좌측 메뉴 `동선` → `계산`
+- Calculation Toolbar 4버튼 (기준값 · 보정값 · 계산 보기/감추기 · 쿠션 포인트)
+- 쿠션 포인트 용어 확정 (구 `시스템값 표시`)
+- Calculation Common Shell 적용
+- Calculation DisplayModel Viewer 전환 (`buildSysCalcDisplayModel` → block → Viewer)
+- USER Projection Rule 공식 승인 및 코드 반영
+- CALC 폭 `0.42` → `0.62`
+- Close gutter (`padding-right: 1.35em`) 제거
+- AI Typography 적용 (CALC)
+- 백지 오류 수정 (`resolveCoC1C3Keys(forced, spaceSel)`)
+- HPT AI Shell 규격 이전 (`0.42` / `0.85` / medium / fitContent false)
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-USEROVL-08** | USER Projection Rule 공식 채택 — “USER는 관리자가 만든 DisplayModel을 투영해서 보여주는 Viewer이다.” |
+| **D-USEROVL-09** | ADMIN DisplayModel = 최종 표현 SSOT |
+| **D-USEROVL-10** | USER = USER 공개 Block read-only Viewer (문구/식/숫자 배열 재생성 금지) |
+| **D-USEROVL-11** | Calculation에서 `UserTrajectoryCardModel` 재생성 금지 · `buildSysCalcDisplayModel` 사용 |
+| **D-USEROVL-12** | AI Overlay = USER Overlay 기준 디자인 |
+| **D-USEROVL-13** | USER Common Shell Close(X) 제거 · 외부 터치 닫기 · Close 예약 gutter 금지 |
+| **D-USEROVL-14** | 쿠션 포인트 = 레일/쿠션 시스템 눈금 표시 용어 |
+| **D-USEROVL-15** | Calculation Toolbar는 Overlay 외부 상단 고정 · Drag 제외 · 한 줄 fit-content |
+| **D-USEROVL-16** | CALC는 정보량 때문에 전용 `widthRatio 0.62` 허용 (AI/HPT는 `0.42`) |
+| **D-USEROVL-17** | HPT 공 크기 축소 상태는 임시 수용 · Polish에서 Shell/Content 크기 독립 및 SVG viewBox 재검토 |
+
+## Explicit Non-Claims
+
+- AI Projection 구조 재설계 **미수행**
+- HPT Projection 구조 재설계 **미수행**
+- HPT SVG crop / 공 크기 독립 **미수행** (보류)
+- SYS 계산 엔진 변경 **없음**
+- 계산 공식 변경 **없음**
+- Dataset 변경 **없음**
+- Commit / Push **미수행**
+
+## Current Status
+
+### 완료
+
+- AI Overlay (기준 UX)
+- HPT Common Shell (AI 규격) — Polish 보류
+- Calculation Overlay (Shell + Toolbar + DisplayModel Viewer)
+- USER Projection Rule (CALC)
+
+### 예정
+
+- USER Overlay 통합 검증
+- HPT UX Polish (공 크기 독립 · SVG intrinsic bounds / viewBox)
+- 문서 최종 동기화
+- Commit / Push
+
+## Next
+
+- USER Overlay 통합 검증
+- Calculation 기준값/보정값 ADMIN 표현 일치 최종 확인
+- Mobile / Tablet / Desktop 시각 검증
+- HPT Polish
+- 문서 최종 동기화
+- Commit / Push
+
+### 보류 (필수 기억)
+
+**HPT Overlay SVG intrinsic bounds / viewBox crop 및 공 크기 독립 유지**
 
 ---
 
