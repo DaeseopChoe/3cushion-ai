@@ -305,6 +305,9 @@ const RG_UNIT_MM = 35.55;
 const BALL_DIAMETER_RG = BALL_DIAMETER_MM / RG_UNIT_MM;
 const BALL_RADIUS_RG = BALL_DIAMETER_RG / 2;
 
+/** Ball touch / hit radius (Interaction SSOT). Render uses BALL_RADIUS_RG only. */
+const BALL_PICK_RADIUS_RG = BALL_RADIUS_RG * 2.5;
+
 const PHYSICS_SCALE = {
   BALL_DIAMETER_RG,
   BALL_RADIUS_RG,
@@ -2988,8 +2991,7 @@ function handlePointerDown(e) {
   const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
   if (!pointerRg) return;
 
-  // hit-test: 선택 반경 1.35배 (UX 개선)
-  const PICK_RADIUS_RG = BALL_RADIUS_RG * 1.35;
+  // hit-test: Interaction SSOT (BALL_PICK_RADIUS_RG) — render size unchanged
   let closestBall = null;
   let minDist = Infinity;
 
@@ -3008,7 +3010,7 @@ function handlePointerDown(e) {
     const dy = pointerRg.y - ballPos.y;
     const dist = Math.hypot(dx, dy);
 
-    if (dist <= PICK_RADIUS_RG && dist < minDist) {
+    if (dist <= BALL_PICK_RADIUS_RG && dist < minDist) {
       minDist = dist;
       closestBall = { id: ballId, pos: ballPos };
     }
