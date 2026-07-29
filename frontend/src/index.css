@@ -166,6 +166,16 @@
   position: fixed;
 }
 
+/**
+ * ADMIN SYS 설정 — Backdrop이 Table SVG의 native click/dblclick을 소비하지 않게 통과시킨다.
+ * (Panel은 `.modal-panel`의 pointer-events: auto로 그대로 조작 가능)
+ * SYS는 Position Editing(Click)과 Target Selection(DoubleClick)을 함께 쓰는 화면이므로
+ * 첫 click이 Backdrop에 먹히면 브라우저가 click pair를 깨고 dblclick을 만들지 않는다.
+ */
+.modal-backdrop--pass-through {
+  pointer-events: none;
+}
+
 .modal-panel {
   box-sizing: border-box;
   pointer-events: auto;
