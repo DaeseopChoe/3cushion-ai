@@ -69,6 +69,12 @@ import { useAdminOverlayRouter } from "./overlay/router/adminOverlayRouter";
 import { useAdminOverlayLifecycle } from "./overlay/state/overlayStateMachine";
 import { useUserOverlayRouter } from "./overlay/router/userOverlayRouter";
 import { useSysLabelScale } from "./renderer/labels/labelScalePolicy";
+import {
+  JOYSTICK_BASE_R_PX,
+  JOYSTICK_KNOB_R_PX,
+  computeJoystickCenterRg,
+  isPointerOnJoystick,
+} from "./interaction/joystickInteractionPolicy";
 import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRenderModel";
 import { buildBaselineHandleModel } from "./renderer/trajectory/baselineHandleModel";
 import { buildTrajectoryPathAttrModel } from "./renderer/trajectory/trajectoryPathAttrModel";
@@ -1833,12 +1839,8 @@ export default function App({
 
 
 // Drag-pad Joystick handlers (mobile friendly)
-function handleJoyPadPointerDown(e) {
-  // joysticks should never trigger table pointer logic
-  e.preventDefault();
-  e.stopPropagation();
-  if (!dragState.joystickVisible || !dragState.ballId) return;
-
+/** Joystick drag 시작 — pad DOM / table SVG 어느 쪽에서 잡혀도 동일 진입점. */
+function beginJoyDrag(e, ballId, captureTarget) {
   // stop any legacy repeat mode
   stopJoystick();
 
@@ -1847,21 +1849,39 @@ function handleJoyPadPointerDown(e) {
     pointerId: e.pointerId,
     lastX: e.clientX,
     lastY: e.clientY,
-    ballId: dragState.ballId,
+    ballId,
   };
 
   try {
-    e.currentTarget.setPointerCapture(e.pointerId);
+    captureTarget?.setPointerCapture?.(e.pointerId);
   } catch {}
 }
 
-function handleJoyPadPointerMove(e) {
-  if (!joyDragRef.current.active) return;
-  if (joyDragRef.current.pointerId !== e.pointerId) return;
+function endJoyDrag(e, releaseTarget) {
+  joyDragRef.current.active = false;
+  joyDragRef.current.pointerId = null;
 
+  try {
+    releaseTarget?.releasePointerCapture?.(e.pointerId);
+  } catch {}
+}
+
+function isJoyDragPointer(e) {
+  return (
+    joyDragRef.current.active && joyDragRef.current.pointerId === e?.pointerId
+  );
+}
+
+function handleJoyPadPointerDown(e) {
+  // joysticks should never trigger table pointer logic
   e.preventDefault();
   e.stopPropagation();
+  if (!dragState.joystickVisible || !dragState.ballId) return;
 
+  beginJoyDrag(e, dragState.ballId, e.currentTarget);
+}
+
+function applyJoyDragMove(e) {
   const dxPx = e.clientX - joyDragRef.current.lastX;
   const dyPx = e.clientY - joyDragRef.current.lastY;
 
@@ -1892,19 +1912,22 @@ function handleJoyPadPointerMove(e) {
   invalidateSavedAndRecalledForBallId(ballId);
 }
 
-function handleJoyPadPointerUp(e) {
-  if (!joyDragRef.current.active) return;
-  if (joyDragRef.current.pointerId !== e.pointerId) return;
+function handleJoyPadPointerMove(e) {
+  if (!isJoyDragPointer(e)) return;
 
   e.preventDefault();
   e.stopPropagation();
 
-  joyDragRef.current.active = false;
-  joyDragRef.current.pointerId = null;
+  applyJoyDragMove(e);
+}
 
-  try {
-    e.currentTarget.releasePointerCapture(e.pointerId);
-  } catch {}
+function handleJoyPadPointerUp(e) {
+  if (!isJoyDragPointer(e)) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  endJoyDrag(e, e.currentTarget);
 }
 
 function handleJoyPadPointerCancel(e) {
@@ -2959,16 +2982,27 @@ function handlePointerDown(e) {
     return;
   }
 
-  // ✅ Joystick pad: taps on the pad itself do not change selection.
-  // Outside pad: fall through to ball hit-test —
+  // ✅ Joystick: 좌표 Hit Radius 판정 (Interaction SSOT).
+  // DOM(closest) 비의존 — 위에 label/overlay 레이어가 덮여도 pad drag가 유지된다.
+  // Pad 밖이면 ball hit-test로 진행:
   //   hit another/same ball → switch/reselect immediately
   //   miss (empty space) → clear selection below
-  if (dragState.joystickVisible) {
-    const inJoy = e.target?.closest?.('[data-joystick="1"]');
-    if (inJoy) return;
+  if (
+    dragState.joystickVisible &&
+    dragState.ballId &&
+    isPointerOnJoystick(
+      pointerRgEarly,
+      balls[dragState.ballId],
+      BALL_RADIUS_RG,
+      SCALE
+    )
+  ) {
+    beginJoyDrag(e, dragState.ballId, svgRef.current);
+    return;
   }
 
-  if (overlayContent) return; // 오버레이 활성 시 비활성화
+  // USER 정보 오버레이(AI/HPT/CALC)는 별도 DOM 레이어다.
+  // 표시 중에도 볼 선택/조이스틱/이동은 항상 허용한다 (Interaction 비차단).
   if (!svgRef.current) return;
 
   const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
@@ -3065,6 +3099,12 @@ function handlePointerDown(e) {
 function handlePointerMove(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
+
+  // Joystick drag가 table SVG에서 시작된 경우 (pad DOM이 가려진 모바일 경로)
+  if (isJoyDragPointer(e)) {
+    applyJoyDragMove(e);
+    return;
+  }
 
   if (svgRef.current) {
     const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
@@ -3203,6 +3243,11 @@ function handlePointerMove(e) {
 function handlePointerUp(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
+
+  if (isJoyDragPointer(e)) {
+    endJoyDrag(e, svgRef.current);
+    return;
+  }
 
   if (endCoBaselineDraftDrag(e)) return;
   if (endC1BaselineDraftDrag(e)) return;
@@ -3921,58 +3966,6 @@ function handlePointerCancel(e) {
           }
         />
       )}
-      {dragState.joystickVisible &&
-        canEditPosition &&
-        dragState.ballId &&
-        balls[dragState.ballId] && (() => {
-  const bp = balls[dragState.ballId];
-
-  // Joystick position: toward table center; outer rings touch (clamped inside table)
-  const CENTER = { x: 40, y: 20 };
-  let dx = CENTER.x - bp.x;
-  let dy = CENTER.y - bp.y;
-  let len = Math.hypot(dx, dy);
-
-  if (len < 1e-6) {
-    dx = 0;
-    dy = -1;
-    len = 1;
-  }
-
-  const ux = dx / len;
-  const uy = dy / len;
-
-  // Mobile-friendly sizes (px in SVG viewBox units)
-  const BASE_R = 52;   // bigger hit area
-  const KNOB_R = 22;
-  // Center distance so ball outer edge touches joystick outer ring
-  const offsetRg = BALL_RADIUS_RG + BASE_R / SCALE;
-
-  const jx = clamp(bp.x + ux * offsetRg, 3, 77);
-  const jy = clamp(bp.y + uy * offsetRg, 3, 37);
-
-  const jp = toPx({ x: jx, y: jy }, SCALE, TABLE_H);
-  const cx = jp.x + PADDING;
-  const cy = jp.y + PADDING;
-
-  return (
-    <g
-      data-joystick="1"
-      style={{ pointerEvents: "all", cursor: "grab" }}
-      onPointerDown={handleJoyPadPointerDown}
-      onPointerMove={handleJoyPadPointerMove}
-      onPointerUp={handleJoyPadPointerUp}
-      onPointerCancel={handleJoyPadPointerCancel}
-    >
-      {/* base */}
-      <circle cx={cx} cy={cy} r={BASE_R} fill="rgba(15,23,42,0.55)" />
-      <circle cx={cx} cy={cy} r={BASE_R - 6} fill="rgba(255,255,255,0.10)" />
-      {/* knob (static visual; movement is via drag vector) */}
-      <circle cx={cx} cy={cy} r={KNOB_R} fill="rgba(255,255,255,0.85)" />
-      <circle cx={cx} cy={cy} r={KNOB_R - 6} fill="rgba(15,23,42,0.35)" />
-    </g>
-  );
-})()}
       {canEdit && (
         <SystemGrid
           track={trackForAnchors}
@@ -4019,6 +4012,40 @@ function handlePointerCancel(e) {
         }
       />
       )}
+      {/* Joystick pad는 SVG 최상단 — label/grid 레이어가 pointer를 가로채지 않도록 마지막에 렌더 */}
+      {dragState.joystickVisible &&
+        canEditPosition &&
+        dragState.ballId &&
+        balls[dragState.ballId] && (() => {
+  const bp = balls[dragState.ballId];
+
+  // Joystick geometry: Interaction SSOT와 동일 식 (joystickInteractionPolicy)
+  const BASE_R = JOYSTICK_BASE_R_PX;
+  const KNOB_R = JOYSTICK_KNOB_R_PX;
+  const jc = computeJoystickCenterRg(bp, BALL_RADIUS_RG, SCALE);
+
+  const jp = toPx({ x: jc.x, y: jc.y }, SCALE, TABLE_H);
+  const cx = jp.x + PADDING;
+  const cy = jp.y + PADDING;
+
+  return (
+    <g
+      data-joystick="1"
+      style={{ pointerEvents: "all", cursor: "grab" }}
+      onPointerDown={handleJoyPadPointerDown}
+      onPointerMove={handleJoyPadPointerMove}
+      onPointerUp={handleJoyPadPointerUp}
+      onPointerCancel={handleJoyPadPointerCancel}
+    >
+      {/* base */}
+      <circle cx={cx} cy={cy} r={BASE_R} fill="rgba(15,23,42,0.55)" />
+      <circle cx={cx} cy={cy} r={BASE_R - 6} fill="rgba(255,255,255,0.10)" />
+      {/* knob (static visual; movement is via drag vector) */}
+      <circle cx={cx} cy={cy} r={KNOB_R} fill="rgba(255,255,255,0.85)" />
+      <circle cx={cx} cy={cy} r={KNOB_R - 6} fill="rgba(15,23,42,0.35)" />
+    </g>
+  );
+})()}
      </svg>
   );
 

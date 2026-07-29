@@ -532,6 +532,8 @@ export default function SystemValueLabels({
       className="system-value-labels"
       onPointerDown={touchExpandEnabled ? handleBackgroundPointerDown : undefined}
     >
+      {/* Table 전면 배경: label 축소용 hit는 document capture 리스너가 담당.
+          pointerEvents를 잡으면 ball/joystick Interaction을 가로채므로 none 유지. */}
       {touchExpandEnabled && (
         <rect
           x={padding}
@@ -539,7 +541,7 @@ export default function SystemValueLabels({
           width={scale * 80}
           height={tableH}
           fill="transparent"
-          pointerEvents="all"
+          pointerEvents="none"
         />
       )}
       {showSystemGrid &&
