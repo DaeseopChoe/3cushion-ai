@@ -306,7 +306,7 @@ const BALL_DIAMETER_RG = BALL_DIAMETER_MM / RG_UNIT_MM;
 const BALL_RADIUS_RG = BALL_DIAMETER_RG / 2;
 
 /** Ball touch / hit radius (Interaction SSOT). Render uses BALL_RADIUS_RG only. */
-const BALL_PICK_RADIUS_RG = BALL_RADIUS_RG * 2.5;
+const BALL_PICK_RADIUS_RG = BALL_RADIUS_RG * 5.0;
 
 const PHYSICS_SCALE = {
   BALL_DIAMETER_RG,
