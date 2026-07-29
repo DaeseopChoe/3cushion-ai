@@ -2959,30 +2959,13 @@ function handlePointerDown(e) {
     return;
   }
 
-  // ✅ Rule: joystick closes ONLY when user taps OUTSIDE the joystick.
-  // - tap inside joystick: ignore (do not change selection)
-  // - tap outside joystick: close joystick immediately and return
+  // ✅ Joystick pad: taps on the pad itself do not change selection.
+  // Outside pad: fall through to ball hit-test —
+  //   hit another/same ball → switch/reselect immediately
+  //   miss (empty space) → clear selection below
   if (dragState.joystickVisible) {
     const inJoy = e.target?.closest?.('[data-joystick="1"]');
     if (inJoy) return;
-
-    stopJoystick();
-    // cancel any ongoing joystick drag
-    joyDragRef.current = { active: false, pointerId: null, lastX: 0, lastY: 0, ballId: null };
-    ballDragLastPointerRgRef.current = null;
-
-    setDragState((s) => ({
-      ...s,
-      dragging: false,
-      ballId: null,
-      grabOffsetRg: { x: 0, y: 0 },
-      previousPosRg: null,
-      joystickVisible: false,
-      frozenImpact: null,
-      frozenCushionPathAttr: null,
-      frozenCushionPathRg: null,
-    }));
-    return;
   }
 
   if (overlayContent) return; // 오버레이 활성 시 비활성화
@@ -3016,15 +2999,45 @@ function handlePointerDown(e) {
     }
   }
 
-  // 🔴 공을 못 잡았을 때
+  // Empty space: clear selection only when a ball was already selected
   if (!closestBall) {
-    // ❗ 조이스틱이 떠 있어도 여기서는 닫지 않음
-    // (전용 닫기 영역에서만 닫도록 별도 처리)
+    if (dragState.joystickVisible) {
+      stopJoystick();
+      joyDragRef.current = {
+        active: false,
+        pointerId: null,
+        lastX: 0,
+        lastY: 0,
+        ballId: null,
+      };
+      ballDragLastPointerRgRef.current = null;
+      setDragState((s) => ({
+        ...s,
+        dragging: false,
+        ballId: null,
+        grabOffsetRg: { x: 0, y: 0 },
+        previousPosRg: null,
+        joystickVisible: false,
+        frozenImpact: null,
+        frozenCushionPathAttr: null,
+        frozenCushionPathRg: null,
+      }));
+    }
     return;
   }
 
+  // Ball hit: select / switch immediately (one-touch ball→ball)
+  if (dragState.joystickVisible) {
+    stopJoystick();
+  }
+  joyDragRef.current = {
+    active: false,
+    pointerId: null,
+    lastX: 0,
+    lastY: 0,
+    ballId: null,
+  };
 
-  // ✅ 공을 다시 터치한 경우 → 조이스틱 재설정
   const grabOffset = {
     x: pointerRg.x - closestBall.pos.x,
     y: pointerRg.y - closestBall.pos.y,
