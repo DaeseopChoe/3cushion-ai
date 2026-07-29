@@ -9,6 +9,7 @@
 import { calcImpactBall } from "../../data/system/calculator";
 import { unifiedSlideFromCorrections } from "../calculator/sysOverlayCalcHelpers";
 import {
+  resolveBaselineTrajectoryDisplayCap,
   resolveTrajectoryDisplayCap,
   slicePathNodesToCap,
   type TrajectoryDisplayCap,
@@ -23,6 +24,7 @@ import {
 } from "../../utils/geometry/anchorResolve";
 import { snapToRail } from "../../utils/geometry/rail";
 import type { TipInput } from "../reflectionEngine";
+import { isFiveHalfSystemId } from "../system/systemIdentity";
 import {
   anchorSemanticForPath,
   coStartForCushionPath,
@@ -76,6 +78,8 @@ export type TrajectoryBuildInput = {
   ballDiameterRg: number;
   ballRadiusRg: number;
   curveEps?: number;
+  /** Baseline SYS values (DisplayModel C4와 동일 소스). 5&Half Display Cap용. */
+  baseSysValues?: Record<string, unknown> | null;
 };
 
 export type LabelAnchorPayload = {
@@ -216,6 +220,30 @@ function baselineHandleFromPath(
   return null;
 }
 
+function pickSysNum(
+  sysValues: Record<string, unknown> | null | undefined,
+  keys: string[]
+): number | null {
+  if (!sysValues || typeof sysValues !== "object") return null;
+  for (const key of keys) {
+    const v = Number(sysValues[key]);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+/** DisplayModel과 동일: C4 = C4_f|C4_r 또는 C3 + (CO−50)×0.5 */
+function resolveBaselineC4Value(
+  baseSysValues: Record<string, unknown> | null | undefined
+): number | null {
+  const direct = pickSysNum(baseSysValues, ["C4_f", "C4_r"]);
+  if (direct != null) return direct;
+  const co = pickSysNum(baseSysValues, ["CO_f", "CO_r", "CO"]);
+  const c3 = pickSysNum(baseSysValues, ["C3_r", "C3_f", "C3"]);
+  if (co == null || c3 == null) return null;
+  return c3 + (co - 50) * 0.5;
+}
+
 /** Baseline path branch — anchorsBase SSOT (STEP 5-4). */
 function buildBaselineBranch(
   anchorsBase: Record<string, unknown> | null | undefined,
@@ -225,7 +253,9 @@ function buildBaselineBranch(
   systemIdForGrid: string | undefined,
   trackForAnchors: string | undefined,
   secondPoint: PathPoint | null,
-  hitTolerance: number
+  hitTolerance: number,
+  correctedDisplayEndIndex: number,
+  baseSysValues: Record<string, unknown> | null | undefined
 ): BaselinePathBundle | null {
   if (!anchorsBase) {
     return null;
@@ -339,11 +369,15 @@ function buildBaselineBranch(
     C6_path_b,
   ];
 
-  const capBaseline = resolveTrajectoryDisplayCap(
-    pathNodes,
-    secondPoint,
-    hitTolerance
-  );
+  // 5&Half: BaselineEnd = min(PhysicalLimit(C4), CorrectedDisplayEnd)
+  // 그 외: legacy second-ball Cap 유지
+  const capBaseline = isFiveHalfSystemId(systemIdForGrid)
+    ? resolveBaselineTrajectoryDisplayCap({
+        pathNodes,
+        correctedDisplayEndIndex,
+        baselineC4Value: resolveBaselineC4Value(baseSysValues),
+      })
+    : resolveTrajectoryDisplayCap(pathNodes, secondPoint, hitTolerance);
   const cushionPath = slicePathNodesToCap(pathNodes, capBaseline);
 
   return {
@@ -390,6 +424,7 @@ export function buildTrajectory(
     ballDiameterRg,
     ballRadiusRg,
     curveEps = DEFAULT_CURVE_EPS,
+    baseSysValues,
   } = input;
 
   const trackForAnchors = resolveAnchorCtx.track;
@@ -602,7 +637,9 @@ export function buildTrajectory(
     systemIdForGrid,
     trackForAnchors,
     secondPoint,
-    hitTolerance
+    hitTolerance,
+    capCorrected.endIndex,
+    baseSysValues
   );
 
   const coRg = baselineHandleFromPath(baseline?.cushionPath[0]);

@@ -3354,6 +3354,7 @@ function handlePointerCancel(e) {
     ballDiameterRg: BALL_DIAMETER_RG,
     ballRadiusRg: BALL_RADIUS_RG,
     curveEps: CURVE_EPS,
+    baseSysValues: resolvedSlotBaseSysValues,
   });
 
   const {

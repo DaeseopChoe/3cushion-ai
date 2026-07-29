@@ -1,5 +1,6 @@
 /**
  * Trajectory 표시 레이어 cap — same-rail 연속 segment 차단 · 세컨드볼 종료.
+ * Baseline은 5&Half PhysicalLimit × CorrectedDisplayEnd 비교 SSOT.
  * 계산 엔진/SYS 값 생성과 분리 (Display Layer only).
  */
 
@@ -16,13 +17,22 @@ export const PATH_NODE_MARKS = [
   "C6",
 ] as const;
 
+/** 5&Half — Baseline C4 >= 이 값이면 자연순환(C6)까지 PhysicalLimit. */
+export const FIVE_HALF_BASELINE_C4_NATURAL_CYCLE_THRESHOLD = 20;
+
+/** pathNodes index: C4 / C6 */
+export const PATH_INDEX_C4 = 4;
+export const PATH_INDEX_C6 = 6;
+
 export type PathPoint = { x: number; y: number };
 
 export type DisplayCapReason =
   | "full"
   | "missing_node"
   | "same_rail"
-  | "second_ball";
+  | "second_ball"
+  | "baseline_physical"
+  | "corrected_ceiling";
 
 export type TrajectoryDisplayCap = {
   endIndex: number;
@@ -33,6 +43,15 @@ export type TrajectoryDisplayCap = {
 export type TrajectoryDisplayCapOptions = {
   railEps?: number;
   degenEps?: number;
+};
+
+export type BaselineDisplayCapInput = {
+  pathNodes: (PathPoint | null | undefined)[];
+  /** Corrected Display Cap endIndex (세컨드볼 Event 결과 — 변경하지 않음). */
+  correctedDisplayEndIndex: number;
+  /** Baseline 4쿠션 SYS 값 (DisplayModel과 동일 기준). */
+  baselineC4Value: number | null | undefined;
+  opts?: TrajectoryDisplayCapOptions;
 };
 
 const DEFAULT_RAIL_EPS = 3;
@@ -209,6 +228,92 @@ export function resolveTrajectoryDisplayCap(
     candidates.length > 0 ? Math.min(...candidates) : -1;
 
   const meta = bindingReason(endIndex, chain, sameRail, secondBall);
+  return { endIndex, ...meta };
+}
+
+/**
+ * 5&Half Baseline PhysicalLimit (Display SSOT).
+ * C4 < 20 → C4까지 / C4 >= 20 → C6까지(자연순환).
+ * C4 미확정이면 보수적으로 C4.
+ */
+export function computeBaselinePhysicalLimitEndIndex(
+  baselineC4Value: number | null | undefined
+): number {
+  if (
+    baselineC4Value == null ||
+    !Number.isFinite(baselineC4Value)
+  ) {
+    return PATH_INDEX_C4;
+  }
+  if (baselineC4Value < FIVE_HALF_BASELINE_C4_NATURAL_CYCLE_THRESHOLD) {
+    return PATH_INDEX_C4;
+  }
+  return PATH_INDEX_C6;
+}
+
+function bindingReasonBaseline(
+  endIndex: number,
+  chain: TrajectoryDisplayCap,
+  sameRail: TrajectoryDisplayCap,
+  physicalLimit: number,
+  correctedDisplayEnd: number
+): Pick<TrajectoryDisplayCap, "reason" | "stoppedSegment"> {
+  if (endIndex === sameRail.endIndex && sameRail.reason === "same_rail") {
+    return {
+      reason: "same_rail",
+      stoppedSegment: sameRail.stoppedSegment,
+    };
+  }
+  if (endIndex === chain.endIndex && chain.reason === "missing_node") {
+    return {
+      reason: "missing_node",
+      stoppedSegment: chain.stoppedSegment,
+    };
+  }
+  if (endIndex === physicalLimit && physicalLimit < correctedDisplayEnd) {
+    return { reason: "baseline_physical" };
+  }
+  if (endIndex === correctedDisplayEnd && correctedDisplayEnd < physicalLimit) {
+    return { reason: "corrected_ceiling" };
+  }
+  return { reason: "full" };
+}
+
+/**
+ * Baseline Display Cap SSOT (5&Half):
+ * BaselineEnd = min(BaselinePhysicalLimit, CorrectedDisplayEnd)
+ * (+ path 존재성: chain / same-rail — 잘못된 segment 표시 방지)
+ *
+ * Corrected second-ball Cap은 호출 측에서 이미 계산한 endIndex만 참조한다.
+ */
+export function resolveBaselineTrajectoryDisplayCap(
+  input: BaselineDisplayCapInput
+): TrajectoryDisplayCap {
+  const { pathNodes, correctedDisplayEndIndex, baselineC4Value, opts } = input;
+
+  const chain = computeChainBreakCapEndIndex(pathNodes);
+  const sameRail = computeSameRailCapEndIndex(pathNodes, opts);
+  const physicalLimit = computeBaselinePhysicalLimitEndIndex(baselineC4Value);
+
+  const correctedEnd = Number.isFinite(correctedDisplayEndIndex)
+    ? correctedDisplayEndIndex
+    : -1;
+
+  const candidates = [
+    chain.endIndex,
+    sameRail.endIndex,
+    physicalLimit,
+    correctedEnd,
+  ].filter((n) => n >= 0);
+
+  const endIndex = candidates.length > 0 ? Math.min(...candidates) : -1;
+  const meta = bindingReasonBaseline(
+    endIndex,
+    chain,
+    sameRail,
+    physicalLimit,
+    correctedEnd
+  );
   return { endIndex, ...meta };
 }
 

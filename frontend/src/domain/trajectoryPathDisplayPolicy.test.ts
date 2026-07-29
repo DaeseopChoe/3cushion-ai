@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeBaselinePhysicalLimitEndIndex,
   computeSameRailCapEndIndex,
   computeSecondBallCapEndIndex,
+  resolveBaselineTrajectoryDisplayCap,
   resolveTrajectoryDisplayCap,
   type PathPoint,
 } from "./trajectoryPathDisplayPolicy";
@@ -9,6 +11,16 @@ import {
 const bottom = (x: number): PathPoint => ({ x, y: 0 });
 const top = (x: number): PathPoint => ({ x, y: 40 });
 const left = (y: number): PathPoint => ({ x: 0, y });
+
+const fullPathNodes = (): (PathPoint | null)[] => [
+  bottom(30),
+  top(4),
+  { x: 48, y: 18 },
+  bottom(26),
+  left(16),
+  top(16),
+  bottom(16),
+];
 
 describe("trajectoryPathDisplayPolicy", () => {
   it("Case 1: same-rail C4-C5 stops at C4 (degenerate corner)", () => {
@@ -114,5 +126,45 @@ describe("trajectoryPathDisplayPolicy", () => {
     const cap = resolveTrajectoryDisplayCap(pathNodes, null, 2);
     expect(cap.endIndex).toBe(1);
     expect(cap.reason).toBe("missing_node");
+  });
+
+  describe("Baseline Display Cap SSOT (5&Half)", () => {
+    it("PhysicalLimit: C4 < 20 → C4; C4 >= 20 → C6", () => {
+      expect(computeBaselinePhysicalLimitEndIndex(16)).toBe(4);
+      expect(computeBaselinePhysicalLimitEndIndex(19.9)).toBe(4);
+      expect(computeBaselinePhysicalLimitEndIndex(20)).toBe(6);
+      expect(computeBaselinePhysicalLimitEndIndex(25)).toBe(6);
+      expect(computeBaselinePhysicalLimitEndIndex(null)).toBe(4);
+    });
+
+    it("Case1: Baseline C4<20 / Corrected=C6 → Baseline ends at C4", () => {
+      const cap = resolveBaselineTrajectoryDisplayCap({
+        pathNodes: fullPathNodes(),
+        correctedDisplayEndIndex: 6,
+        baselineC4Value: 16,
+      });
+      expect(cap.endIndex).toBe(4);
+      expect(cap.reason).toBe("baseline_physical");
+    });
+
+    it("Case2: Baseline C4>=20 / Corrected=C6 → Baseline to C6", () => {
+      const cap = resolveBaselineTrajectoryDisplayCap({
+        pathNodes: fullPathNodes(),
+        correctedDisplayEndIndex: 6,
+        baselineC4Value: 25,
+      });
+      expect(cap.endIndex).toBe(6);
+      expect(["full", "corrected_ceiling"]).toContain(cap.reason);
+    });
+
+    it("Case3: Baseline C4>=20 / Corrected=C5 → Baseline to C5 (ceiling)", () => {
+      const cap = resolveBaselineTrajectoryDisplayCap({
+        pathNodes: fullPathNodes(),
+        correctedDisplayEndIndex: 5,
+        baselineC4Value: 25,
+      });
+      expect(cap.endIndex).toBe(5);
+      expect(cap.reason).toBe("corrected_ceiling");
+    });
   });
 });
