@@ -3926,7 +3926,7 @@ function handlePointerCancel(e) {
         balls[dragState.ballId] && (() => {
   const bp = balls[dragState.ballId];
 
-  // Joystick position: 10 Rg toward table center (clamped inside table)
+  // Joystick position: toward table center; outer rings touch (clamped inside table)
   const CENTER = { x: 40, y: 20 };
   let dx = CENTER.x - bp.x;
   let dy = CENTER.y - bp.y;
@@ -3941,16 +3941,18 @@ function handlePointerCancel(e) {
   const ux = dx / len;
   const uy = dy / len;
 
-  const jx = clamp(bp.x + ux * 10, 3, 77);
-  const jy = clamp(bp.y + uy * 10, 3, 37);
+  // Mobile-friendly sizes (px in SVG viewBox units)
+  const BASE_R = 52;   // bigger hit area
+  const KNOB_R = 22;
+  // Center distance so ball outer edge touches joystick outer ring
+  const offsetRg = BALL_RADIUS_RG + BASE_R / SCALE;
+
+  const jx = clamp(bp.x + ux * offsetRg, 3, 77);
+  const jy = clamp(bp.y + uy * offsetRg, 3, 37);
 
   const jp = toPx({ x: jx, y: jy }, SCALE, TABLE_H);
   const cx = jp.x + PADDING;
   const cy = jp.y + PADDING;
-
-  // Mobile-friendly sizes (px in SVG viewBox units)
-  const BASE_R = 52;   // bigger hit area
-  const KNOB_R = 22;
 
   return (
     <g
