@@ -890,17 +890,6 @@ export default function App({
     anchorKey: null,
   });
 
-  /**
-   * ADMIN SYS 설정은 "Position Editing + Target Selection"을 함께 수행하는 화면이다.
-   * SYS Overlay가 열려 있는 동안에도 Table SVG가 native click/dblclick을 받아야 하므로
-   * Backdrop은 통과(pass-through)시키고 Interaction 가드도 SYS에 한해 열어 둔다.
-   * 그 외 Overlay(HPT/STR/AI/ANCHOR_EDIT)는 기존대로 Table Interaction을 차단한다.
-   */
-  const adminSysOverlayOpen =
-    overlayState.open && overlayState.type === "SYS";
-  const tableInteractionBlockedByOverlay =
-    overlayState.open && !adminSysOverlayOpen;
-
   const [showSystemGrid, setShowSystemGrid] = useState(false);
   const [showBaseLine, setShowBaseLine] = useState(false);
   const baselineCoHandleRgRef = useRef(null);
@@ -1321,7 +1310,7 @@ export default function App({
 
   function handleBallDoubleClickForTarget(ballId, e) {
     if (appMode !== "ADMIN") return;
-    if (tableInteractionBlockedByOverlay || overlayContent) return;
+    if (overlayState.open || overlayContent) return;
     e.preventDefault();
     e.stopPropagation();
     applyTargetFromBallId(ballId, "TARGET_SELECTED_BY_DOUBLECLICK");
@@ -2972,8 +2961,8 @@ function captureBaselineLabelSlotSnapshot(ssotValues) {
 }
 
 function handlePointerDown(e) {
-  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단 (ADMIN SYS는 예외 — 위 정의 참조)
-  if (tableInteractionBlockedByOverlay) return;
+  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
+  if (overlayState.open) return;
 
   if (!svgRef.current) return;
   const pointerRgEarly = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
@@ -3108,8 +3097,8 @@ function handlePointerDown(e) {
 }
 
 function handlePointerMove(e) {
-  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단 (ADMIN SYS는 예외 — 위 정의 참조)
-  if (tableInteractionBlockedByOverlay) return;
+  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
+  if (overlayState.open) return;
 
   // Joystick drag가 table SVG에서 시작된 경우 (pad DOM이 가려진 모바일 경로)
   if (isJoyDragPointer(e)) {
@@ -3252,8 +3241,8 @@ function handlePointerMove(e) {
 }
 
 function handlePointerUp(e) {
-  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단 (ADMIN SYS는 예외 — 위 정의 참조)
-  if (tableInteractionBlockedByOverlay) return;
+  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
+  if (overlayState.open) return;
 
   if (isJoyDragPointer(e)) {
     endJoyDrag(e, svgRef.current);
@@ -4023,10 +4012,10 @@ function handlePointerCancel(e) {
         }
       />
       )}
-      {/* Joystick pad는 SVG 최상단 렌더(시각) + pointerEvents:none(판정 비참여).
-          Pad 조작은 좌표 SSOT(isPointerOnJoystick → beginJoyDrag/applyJoyDragMove/endJoyDrag)가
-          전담하므로 Pad DOM은 hit target이 되지 않는다. 그래야 Pad가 볼 위에 겹쳐도
-          브라우저 native click/dblclick이 볼 <circle>에 그대로 도달한다(ADMIN Target Selection). */}
+      {/* Joystick pad는 SVG 최상단 렌더 + pointerEvents:all(판정 참여).
+          Pad DOM handler가 1차 경로다 — preventDefault(브라우저 기본 동작 차단) +
+          stopPropagation(baseline/ball 판정과 격리) + pad `<g>` pointer capture를 함께 수행한다.
+          SVG 좌표 SSOT(isPointerOnJoystick) 분기는 Pad가 다른 레이어에 덮인 경우의 fallback. */}
       {dragState.joystickVisible &&
         canEditPosition &&
         dragState.ballId &&
@@ -4045,7 +4034,7 @@ function handlePointerCancel(e) {
   return (
     <g
       data-joystick="1"
-      style={{ pointerEvents: "none" }}
+      style={{ pointerEvents: "all", cursor: "grab" }}
       onPointerDown={handleJoyPadPointerDown}
       onPointerMove={handleJoyPadPointerMove}
       onPointerUp={handleJoyPadPointerUp}
@@ -4106,10 +4095,6 @@ function handlePointerCancel(e) {
                     ? "Anchor 좌표 수정"
                     : ""
         }
-        className={
-          overlayState.type === "SYS" ? "modal-backdrop--pass-through" : ""
-        }
-        disableBackdropClick={overlayState.type === "SYS"}
         panelClassName={overlayState.type === "SYS" ? "modal-panel--sys" : ""}
         panelStyle={{
           maxHeight: "85vh",
