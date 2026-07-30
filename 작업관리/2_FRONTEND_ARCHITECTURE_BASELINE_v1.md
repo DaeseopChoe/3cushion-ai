@@ -1,5 +1,5 @@
 버전: v1.2 (Official Baseline)
-기준: 2026-02 안정 구조 · USER Overlay Architecture 증분 2026-07-28
+기준: 2026-02 안정 구조 · USER Overlay Architecture 증분 2026-07-28 · Pointer Capture Timing Interaction SSOT 증분 2026-07-30
 목적: 현재 “동작하는 구조”를 공식 아키텍처로 고정하고, 향후 리팩터링 기준점으로 삼는다.
 
 본 문서는 **프론트엔드 구조와 레이어 분해, 리팩터링 기준선**을 정의한다.
@@ -492,3 +492,54 @@ App
 - Read-only Viewer
 
 후속 Architecture Review에서 별도 적용 여부를 검토한다.
+
+---
+
+## Pointer Capture Timing (Interaction SSOT) — 2026-07-30
+
+ADMIN 테이블 Interaction(공 선택 · Joystick Drag · Ball Drag · Target Ball 더블클릭)의 **Pointer Capture 실행 시점**을 고정하는 SSOT이다.
+
+### 배경
+
+`handlePointerDown()`에서 공 선택 직후 `svg.setPointerCapture()`를 무조건 호출하면, 두 번째 클릭의 browser native `dblclick` target이 Ball `<circle>`에서 `svg.table-svg`로 강제 변경되어 `Ball.onDoubleClick`(Target Ball 지정)이 끊긴다. Playwright trusted event A/B 실험으로 capture ON → dblclick 실패, capture OFF → dblclick 복구가 실측 확인되었다.
+
+### 구조
+
+```text
+pointerdown
+    ↓
+Ball 선택 / Joystick 생성
+    ↓
+(아직 Pointer Capture 없음 — native click/dblclick 보존)
+    ↓
+pointermove
+    ↓
+실제 Drag 시작 (첫 유효 이동)
+    ↓
+setPointerCapture()   (미보유 시 1회)
+    ↓
+pointerup / pointercancel → 자동 해제
+```
+
+### Rule (이후 수정 시 반드시 유지)
+
+- **pointerdown에서는 Pointer Capture를 획득하지 않는다.**
+- **실제 Drag가 시작된 첫 pointermove에서 Capture한다.**
+- **클릭 / 더블클릭 입력은 Browser Native Event를 그대로 유지한다.**
+- **Drag 전용 기능만 Pointer Capture를 사용한다.**
+
+### 코드 SSOT
+
+| 함수 | 책임 |
+|------|------|
+| `App.jsx` `handlePointerDown()` | 공 선택 · Joystick 생성 (Capture 호출 **없음**) |
+| `App.jsx` `handlePointerMove()` | 첫 유효 이동에서 `hasPointerCapture` false일 때만 `setPointerCapture` 획득 |
+| `App.jsx` `handlePointerUp()` / `handlePointerCancel()` | Drag 종료 · Capture 자동 해제 (변경 없음) |
+
+### 금지
+
+- pointerdown 시점 Capture 복귀
+- 클릭/더블클릭 경로에 Capture로 인한 target retarget 유발
+- `handleBallDoubleClickForTarget` · `applyTargetFromBallId` · `Ball()` · `BALL_PICK_RADIUS_RG` · `BALL_RADIUS_RG` · Joystick offset · Pad geometry · `pointer-events` · SVG 구조 · Render 순서 변경으로 본 규칙 우회
+
+> **상세 이력:** `HISTORY/PROJECT_LOG_2026-07.md` 2026-07-30 (D-INTERACT-01~03)

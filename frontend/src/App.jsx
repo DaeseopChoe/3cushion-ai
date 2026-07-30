@@ -3093,7 +3093,9 @@ function handlePointerDown(e) {
     frozenCushionPathRg: derivedRef.current.cushionPathRg,
   }));
 
-  svgRef.current.setPointerCapture(e.pointerId);
+  // Pointer Capture는 여기서 걸지 않는다 — handlePointerMove의 실제 Drag 시작 시점으로 이동.
+  // pointerdown에서 캡처하면 두 번째 click의 native dblclick target이
+  // Ball <circle>에서 table SVG로 바뀌어 Ball.onDoubleClick이 끊긴다.
 }
 
 function handlePointerMove(e) {
@@ -3122,6 +3124,15 @@ function handlePointerMove(e) {
   if (!lastRg) {
     ballDragLastPointerRgRef.current = { x: pointerRg.x, y: pointerRg.y };
     return;
+  }
+
+  // 실제 Drag가 시작된 시점에만 캡처한다 (click/dblclick target 보존).
+  if (svgRef.current && !svgRef.current.hasPointerCapture(e.pointerId)) {
+    try {
+      svgRef.current.setPointerCapture(e.pointerId);
+    } catch {
+      // pointer가 이미 해제된 경우 캡처 없이 드래그를 계속한다.
+    }
   }
 
   const deltaRg = {

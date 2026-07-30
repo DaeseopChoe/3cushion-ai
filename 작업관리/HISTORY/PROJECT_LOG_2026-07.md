@@ -1,8 +1,136 @@
 # PROJECT_LOG_2026-07
 
-Version : v1.34  
+Version : v1.35  
 Period : 2026-07  
 Status : Active Project Log
+
+---
+
+# 2026-07-30 (ADMIN Target Ball native dblclick Regression 해결 · Pointer Capture Timing SSOT)
+
+## 제목
+
+**D-INTERACT-01** — Target Ball native dblclick Regression 해결 · Pointer Capture 실행 시점 구조 개선
+
+## Summary
+
+ADMIN SYS에서 Target Ball 더블클릭(Impact Ball / Baseline 생성)이 동작하지 않던 Regression을 해결하였다. 원인은 `handlePointerDown()`에서 공 선택 직후 무조건 호출되던 `svg.setPointerCapture()`가, 두 번째 클릭의 browser native `dblclick` target을 Ball `<circle>` 대신 `svg.table-svg`로 강제 변경시켜 `Ball.onDoubleClick` 경로를 끊는 것이었다. Pointer Capture를 제거하지 않고 **실제 Drag가 시작되는 첫 유효 `pointermove` 시점으로 이동**시켜, 클릭/더블클릭 입력은 browser native event를 그대로 유지하고 Drag 전용 기능만 Pointer Capture를 사용하도록 구조를 개선하였다. Playwright trusted event로 전 항목 검증 완료.
+
+## 문제
+
+- ADMIN SYS에서 **Target Ball 더블클릭이 동작하지 않음**
+- Cue 선택 시 Joystick은 정상 생성
+- 이후 Yellow / Red 더블클릭으로 Target Ball 지정(Impact Ball · Baseline 생성)이 실패
+- 이전 리포트의 "PASS"와 상반되는 회귀
+
+## 조사 과정
+
+초기에 아래 후보를 모두 조사하였다.
+
+- Ball DOM 구조
+- Pad DOM 구조
+- SVG hit-test
+- `elementFromPoint`
+- `pointer-events`
+- DOM 렌더 순서
+- `BALL_PICK_RADIUS_RG`
+- Pad offset (Joystick geometry)
+- Painter's Algorithm
+- Browser native `dblclick`
+
+모두 분석 후 직접 원인에서 **제외**.
+
+최종적으로 pointerdown 직후의 `svg.setPointerCapture()`가 browser native `dblclick` target을 **Ball → svg.table-svg** 로 변경시키는 것이 **직접 원인**임을 확인.
+
+### A/B 실험 (Playwright trusted event)
+
+| 조건 | dblclick target | Target 선택 |
+|------|-----------------|-------------|
+| **capture ON** (pointerdown 직후) | `svg.table-svg` | 실패 |
+| **capture OFF** | Ball hit circle | 복구 |
+
+→ Pointer Capture 실행 시점이 직접 원인임을 실측으로 확정.
+
+## 해결 내용
+
+Pointer Capture를 **제거하지 않고 실행 시점만 이동**하였다.
+
+**기존**
+
+```text
+pointerdown
+    ↓
+setPointerCapture()   (공 선택 직후 무조건)
+```
+
+**변경**
+
+```text
+pointerdown
+    ↓
+(캡처 안 함)
+    ↓
+pointermove
+    ↓
+실제 Drag 시작 (첫 유효 이동)
+    ↓
+setPointerCapture()   (미보유 시 1회)
+```
+
+- `handlePointerDown()` — 공 선택 branch의 `svgRef.current.setPointerCapture(e.pointerId)` 제거
+- `handlePointerMove()` — 실제 이동량 적용 직전, `hasPointerCapture(e.pointerId)`가 false일 때만 캡처 획득 (`try/catch` guard)
+- 해제 경로(`handlePointerUp` / `handlePointerCancel`)는 변경 없음
+
+## 절대 변경하지 않은 것
+
+`handleBallDoubleClickForTarget` · `applyTargetFromBallId` · `Ball()` · `BALL_PICK_RADIUS_RG` · `BALL_RADIUS_RG` · Joystick offset · Pad geometry · `pointer-events` · SVG 구조 · Render 순서 · React Event 구조. **Pointer Capture의 실행 시점만 변경**하였다.
+
+## 검증 결과 (Playwright trusted event)
+
+| 항목 | 결과 |
+|------|------|
+| Cue Target 선택 | 정상 (`BEGIN_ADMIN_SESSION`) |
+| Yellow Target 선택 | 정상 |
+| Red Target 선택 | 정상 |
+| Pad Drag | 정상 (거리 89.4427 · 변경 전후 동일) |
+| Ball Drag | 정상 (거리 78.1211 · 변경 전후 소수점까지 동일) |
+| PointerMove | 동일 (이동 좌표 10점 일치) |
+| Pointer Capture 시점 | pointerdown false → 첫 유효 move에서 true → mouseup 후 false |
+| PointerUp / PointerCancel | 정상 해제 · Drag 상태 잔류 없음 (mouseup 후 free-move drift 0) |
+| Build | PASS |
+| Lint | 신규 rule 오류 없음 (기존 `no-unused-vars` / `no-empty` 상태 유지) |
+| Regression | 없음 |
+
+### Capture 시점 실측 대비
+
+| 구분 | pointerdown 직후 | 첫 유효 move | mouseup 후 |
+|------|------------------|--------------|------------|
+| **변경 전** | capture ON | ON | OFF |
+| **변경 후** | capture OFF | ON | OFF |
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-INTERACT-01** | Pointer Capture는 pointerdown이 아니라 **실제 Drag가 시작된 첫 pointermove**에서 획득한다. |
+| **D-INTERACT-02** | 클릭 / 더블클릭 입력은 Browser Native Event를 그대로 유지한다 (capture로 target retarget 금지). |
+| **D-INTERACT-03** | Pointer Capture는 Drag 전용 기능에만 사용한다. 본 규칙은 Interaction SSOT로 고정한다. |
+
+## 변경 파일 / 함수
+
+- `frontend/src/App.jsx` — `handlePointerDown()` · `handlePointerMove()`
+
+## Explicit Non-Claims
+
+- `handleBallDoubleClickForTarget` / `applyTargetFromBallId` / `Ball()` 변경 **없음**
+- `BALL_PICK_RADIUS_RG` / `BALL_RADIUS_RG` / Joystick offset / Pad geometry 변경 **없음**
+- `pointer-events` / SVG 구조 / Render 순서 / React Event 구조 변경 **없음**
+- SYS 계산 엔진 · 궤적 엔진 변경 **없음**
+- Commit / Push **미수행**
+
+## Interaction SSOT
+
+Pointer Capture Timing 규칙은 `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` **§Pointer Capture Timing (Interaction SSOT)** 에 고정한다.
 
 ---
 

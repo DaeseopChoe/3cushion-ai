@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.48  
-Last Updated: 2026-07-28  
+Version: 1.49  
+Last Updated: 2026-07-30  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -742,6 +742,16 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 
 ## 현재 완료 상태
 
+### ADMIN Interaction — Pointer Capture Timing (2026-07-30)
+
+- **Target Ball native dblclick Regression 해결** — ADMIN SYS에서 Cue 선택 후 Yellow/Red 더블클릭(Impact Ball · Baseline 생성)이 실패하던 회귀 해결
+- **직접 원인** — `handlePointerDown()`의 무조건 `setPointerCapture()`가 두 번째 클릭의 native `dblclick` target을 Ball `<circle>` → `svg.table-svg`로 강제 변경
+- **Pointer Capture 구조 개선** — Capture 제거가 아니라 **실제 Drag가 시작되는 첫 유효 `pointermove` 시점으로 이동**
+- **Drag / DoubleClick 충돌 제거** — 클릭·더블클릭은 Browser Native Event 유지, Drag 전용 기능만 Capture 사용
+- **Playwright trusted event 검증 완료** — Cue/Yellow/Red Target 선택 · Pad Drag · Ball Drag · PointerMove/Up/Cancel · Capture 시점 · Build PASS · Regression 없음
+- **Interaction SSOT** — `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Pointer Capture Timing (D-INTERACT-01~03)
+- **변경 파일:** `frontend/src/App.jsx` (`handlePointerDown` · `handlePointerMove`) · **상세:** `HISTORY/PROJECT_LOG_2026-07.md` 2026-07-30
+
 ### USER Overlay UX Phase (2026-07)
 
 | Item | Status |
@@ -931,6 +941,7 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 - **USER System Value Labels** — phone landscape 1.5× · 터치 persistent selection · `App.jsx` hooks 순서 수정
 - **USER 동선분석 Overlay** — 투명 패널 · 가독성(26px·shadow) · `[공식]`/`[계산]` 섹션 · 기준/보정 계산값 제목 제거
 - **Trajectory Display Cap** — same-rail 연속 segment 차단 · baseline/corrected 독립 세컨드볼 cap · `trajectoryPathDisplayPolicy.ts`
+- **ADMIN Target Ball native dblclick Regression 해결 (2026-07-30)** — Pointer Capture를 pointerdown→실제 Drag 시작 시점으로 이동 · Drag/DoubleClick 충돌 제거 · Playwright trusted event 검증 · Regression 없음 · Interaction SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Pointer Capture Timing)
 
 ### 진행 중
 
@@ -1307,7 +1318,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `System Platform Standard (SPS) v1.0/System_Inventory.md` | **STEP4 Inventory SSOT (v1.0 Final)** — Frozen Assets · Observation SSOT · Metadata/Registration Inventory |
 | `Application Architecture Standard (AAS) v2.0/App_Migration_Map.md` | **Application Runtime Constitution (Permanent SSOT)** — Migration Blueprint · Architecture Meta · ADR · Review Checklist |
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
-| `HISTORY/PROJECT_LOG_2026-07.md` | 2026-07 AAS Batch · STEP4/5 Final · STEP6 Framework+Pipeline · STEP6-3/4/5 Complete |
+| `HISTORY/PROJECT_LOG_2026-07.md` | 2026-07 AAS Batch · STEP4/5 Final · STEP6 Framework+Pipeline · STEP6-3/4/5 Complete · **2026-07-30 ADMIN Pointer Capture Timing / Target Ball dblclick Regression** |
 | `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) · **USER Overlay** (§19) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
 | `HISTORY/PROJECT_LOG_2026-04.md` | 이전 월 |
@@ -1317,7 +1328,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `5_PROJECT_MASTER_STATE_CURRENT.md` | 코드 스냅샷·구조 변경 통제 |
 | `3_SYSTEM_ARCHITECTURE.md` | 계산·데이터 계층 |
 | `4_CALCULATION_RULES.md` | 수식·보정 규칙 |
-| `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` | Frontend 구조·레이어 기준선 |
+| `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` | Frontend 구조·레이어 기준선 · **Pointer Capture Timing Interaction SSOT (2026-07-30)** |
 | `OVERLAY_LAYOUT_SSOT_v1.2.md` | **USER Overlay Layout SSOT v1.2 (Confirmed)** — Shell/Content · Dark Glass · Ratio · Drag · Position |
 | `SESSION_TRANSFER/APP_USER_SEARCH_FLOW.md` | USER Search 흐름 |
 
