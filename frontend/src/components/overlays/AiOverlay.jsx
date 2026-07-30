@@ -96,6 +96,11 @@ export function AiOverlay({
   onePointLessons,
   onDeleteLesson,
   onReorderLessons,
+  onePointCategories = [],
+  onePointCategoryNo = "",
+  onSelectOnePointCategory,
+  onOpenCategoryManage,
+  onOpenLessonOrderManage,
 }) {
   const str = strData || data?.str || {};
 
@@ -111,6 +116,7 @@ export function AiOverlay({
   );
 
   const [selectedLessonId, setSelectedLessonId] = useState(null);
+  const [manageMenuOpen, setManageMenuOpen] = useState(false);
 
   const lessons = useMemo(() => ensureLessonItems(onePointLessons), [onePointLessons]);
 
@@ -188,9 +194,6 @@ export function AiOverlay({
         {lessons.length > 0 ? (
           <>
             <hr className="ai-comment-divider" />
-            <p className="ai-comment-para ai-comment-para--labeled">
-              <span className="ai-comment-section-title">[원 포인트 레슨]</span>
-            </p>
             <div className="ai-one-point-lessons__list">
             <DndContext
               sensors={sensors}
@@ -217,6 +220,120 @@ export function AiOverlay({
       </div>
 
       <div style={{ marginTop: 14, marginBottom: 12 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <select
+            value={onePointCategoryNo === "" || onePointCategoryNo == null
+              ? ""
+              : String(onePointCategoryNo)}
+            onChange={(e) => {
+              const v = e.target.value;
+              onSelectOnePointCategory?.(v === "" ? "" : Number(v));
+            }}
+            aria-label="Category 번호"
+            style={{
+              width: 120,
+              flexShrink: 0,
+              padding: "10px 12px",
+              fontSize: "14px",
+              border: "1px solid #cbd5e1",
+              borderRadius: "6px",
+              backgroundColor: "#fff",
+            }}
+          >
+            <option value="">선택 안함</option>
+            {(onePointCategories || []).map((cat) => (
+              <option key={cat.no} value={String(cat.no)}>
+                {cat.no}
+              </option>
+            ))}
+          </select>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setManageMenuOpen((open) => !open)}
+              aria-label="관리 메뉴"
+              aria-expanded={manageMenuOpen}
+              style={{
+                padding: "10px 12px",
+                fontSize: "14px",
+                border: "1px solid #94a3b8",
+                borderRadius: "6px",
+                backgroundColor: "#f8fafc",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              관리
+            </button>
+            {manageMenuOpen ? (
+              <div
+                role="menu"
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  marginTop: 4,
+                  minWidth: 160,
+                  background: "#fff",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 6,
+                  boxShadow: "0 8px 20px rgba(15, 23, 42, 0.12)",
+                  zIndex: 20,
+                  overflow: "hidden",
+                }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setManageMenuOpen(false);
+                    onOpenCategoryManage?.();
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    fontSize: 14,
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  Category 관리
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setManageMenuOpen(false);
+                    onOpenLessonOrderManage?.();
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    fontSize: 14,
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    borderTop: "1px solid #e2e8f0",
+                  }}
+                >
+                  Lesson 순서 관리
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
         <select
           value={onePointSelectedId}
           onChange={(e) => {
@@ -233,7 +350,7 @@ export function AiOverlay({
             backgroundColor: '#fff',
           }}
         >
-          <option value="">선택하세요</option>
+          <option value="">문장 입력...</option>
           {(sortedOnePointLibrary || onePointLibrary || []).map((item) => (
             <option key={item.id} value={item.id}>
               {item.text}
@@ -243,7 +360,11 @@ export function AiOverlay({
         <textarea
           value={onePointDraft}
           onChange={(e) => setOnePointDraft?.(e.target.value)}
-          placeholder="문장 입력 또는 수정"
+          placeholder={
+            onePointSelectedId
+              ? "레슨 문장을 수정하세요."
+              : "새 레슨 문장을 입력하세요."
+          }
           rows={3}
           style={{
             width: '100%',
@@ -291,24 +412,25 @@ export function AiOverlay({
           >
             저장
           </button>
-          <button
-            type="button"
-            onClick={() => deleteSelectedOnePointLibraryItem?.()}
-            disabled={!onePointSelectedId}
-            onKeyDown={redirectEnterToGlobalApply}
-            style={{
-              padding: "10px 16px",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "#fff",
-              backgroundColor: onePointSelectedId ? "#ef4444" : "#94a3b8",
-              border: "none",
-              borderRadius: "6px",
-              cursor: onePointSelectedId ? "pointer" : "not-allowed",
-            }}
-          >
-            삭제
-          </button>
+          {onePointSelectedId ? (
+            <button
+              type="button"
+              onClick={() => deleteSelectedOnePointLibraryItem?.()}
+              onKeyDown={redirectEnterToGlobalApply}
+              style={{
+                padding: "10px 16px",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#fff",
+                backgroundColor: "#ef4444",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              삭제
+            </button>
+          ) : null}
         </div>
       </div>
 

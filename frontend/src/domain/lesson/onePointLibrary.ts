@@ -7,6 +7,7 @@ export const ONE_POINT_STORAGE_KEY = "ONE_POINT_LESSON_LIBRARY_V1";
 export interface OnePointItem {
   id: string;
   text: string;
+  categoryNo?: number;
   count?: number;
   createdAt?: number;
   updatedAt?: number;
