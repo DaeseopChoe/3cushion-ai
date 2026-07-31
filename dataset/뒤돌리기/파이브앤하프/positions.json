@@ -3,8 +3,8 @@
   "shotType": "뒤돌리기",
   "systemId": "5_half_system",
   "systemLabel": "파이브앤하프",
-  "exportedAt": "2026-06-19T03:17:21.401Z",
-  "sourceSnapshotId": "e06436ff-2755-4398-92d5-d6cb49386f16",
+  "exportedAt": "2026-07-31T02:27:47.897Z",
+  "sourceSnapshotId": "90b6be5b-9492-4262-9100-d2a12f2fd06f",
   "records": [
     {
       "positionId": "200160200200600200",
@@ -55,8 +55,8 @@
             "text": "",
             "onePointLessons": [
               {
-                "id": "1781177667673-3672b41d9e1688",
-                "text": "앞공의 두께를 1/2 겨냥, +3 정도 밀림값이 내공 출발값에 적용되고, 기준선과 내공과의 기울기 차이에 의해 약 5 정도 직진 에너지가 3쿠션값에 추가됩니다."
+                "id": "1785464815040-dbbda54eb70c2",
+                "text": "그립의 힘을 빼고 등속 스트로크하는데 마지막에 큐를 가볍게 잡아주어 가벼운 분리가 일어나도록 합니다."
               }
             ]
           },
@@ -588,6 +588,164 @@
           "corrections": {
             "slide": 3,
             "curve_ratio": 4,
+            "draw": 0,
+            "departure": 0,
+            "spin": 0
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "yellow"
+    },
+    {
+      "positionId": "596240200200600200",
+      "balls": {
+        "cue": {
+          "x": 59.625,
+          "y": 24
+        },
+        "target": {
+          "x": 20,
+          "y": 20
+        },
+        "second": {
+          "x": 60,
+          "y": 20
+        }
+      },
+      "strategies": {
+        "S1": {
+          "slot": "S1",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": "뒤돌리기"
+          },
+          "track": "T2B_R",
+          "sysInputs": {
+            "CO_f": 40,
+            "C3_r": 36
+          },
+          "hpT": {
+            "T": "-4/8",
+            "hit_point": {
+              "x": 1.2,
+              "y": 0.7
+            },
+            "mode": "SPIN",
+            "tipCount": 0
+          },
+          "str": {
+            "type": null,
+            "acceleration": "smooth_const",
+            "speed": 2.5,
+            "depth": 2,
+            "impact": "medium"
+          },
+          "ai": {
+            "text": "",
+            "onePointLessons": [
+              {
+                "id": "1782446569139-191fa0930370d",
+                "text": "감속하는 리듬으로 스트로크해야 내공이 밀리지 않고 길어지는 것을 방지할 수 있습니다."
+              }
+            ]
+          },
+          "meta": {
+            "impact": {
+              "x": 21.59253793774797,
+              "y": 19.324295236769345
+            },
+            "final": {
+              "x": 5.9171597633136095,
+              "y": 0
+            },
+            "angle_ci": -3.0192666369254244,
+            "angle_fs": 0.3542066856256615
+          },
+          "corrections": {
+            "slide": 3,
+            "curve_ratio": 4,
+            "draw": 0,
+            "departure": 0,
+            "spin": 0
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "yellow"
+    },
+    {
+      "positionId": "598158200200600200",
+      "balls": {
+        "cue": {
+          "x": 59.75,
+          "y": 15.75
+        },
+        "target": {
+          "x": 20,
+          "y": 20
+        },
+        "second": {
+          "x": 60,
+          "y": 20
+        }
+      },
+      "strategies": {
+        "S1": {
+          "slot": "S1",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": "뒤돌리기"
+          },
+          "track": "B2T_L",
+          "sysInputs": {
+            "CO_f": 33,
+            "C3_r": 29
+          },
+          "hpT": {
+            "T": "+4/8",
+            "hit_point": {
+              "x": 1.5,
+              "y": 0.9
+            },
+            "mode": "SPIN",
+            "tipCount": 1
+          },
+          "str": {
+            "type": null,
+            "acceleration": "intentional_decel",
+            "speed": 2.5,
+            "depth": 1.5,
+            "impact": "soft"
+          },
+          "ai": {
+            "text": "",
+            "onePointLessons": [
+              {
+                "id": "1781177667673-3672b41d9e1688",
+                "text": "앞공의 두께를 1/2 겨냥, +3 정도 밀림값이 내공 출발값에 적용되고, 기준선과 내공과의 기울기 차이에 의해 약 5 정도 직진 에너지가 3쿠션값에 추가됩니다."
+              }
+            ]
+          },
+          "meta": {
+            "impact": {
+              "x": 21.596447826721633,
+              "y": 20.66641454574081
+            },
+            "final": {
+              "x": 5.9171597633136095,
+              "y": 40
+            },
+            "angle_ci": 3.0134402121407264,
+            "angle_fs": -0.3542066856256615
+          },
+          "corrections": {
+            "slide": 3,
+            "curve_ratio": 5,
             "draw": 0,
             "departure": 0,
             "spin": 0
