@@ -312,7 +312,7 @@ function buildSlotDraftWithUpdatedSys(
         result: nextResult,
         debug: {
           ...prevDebug,
-          expr: profile?.formula?.expr ?? null,
+          expr: formulaExpr,
           exprInputs,
         },
       },
