@@ -1,5 +1,5 @@
-버전: v1.2 (Official Baseline)
-기준: 2026-02 안정 구조 · USER Overlay Architecture 증분 2026-07-28 · Pointer Capture Timing Interaction SSOT 증분 2026-07-30
+버전: v1.3 (Official Baseline)
+기준: 2026-02 안정 구조 · USER Overlay Architecture 증분 2026-07-28 · Pointer Capture Timing Interaction SSOT 증분 2026-07-30 · Overlay Native Selection Interaction SSOT 증분 2026-08-01
 목적: 현재 “동작하는 구조”를 공식 아키텍처로 고정하고, 향후 리팩터링 기준점으로 삼는다.
 
 본 문서는 **프론트엔드 구조와 레이어 분해, 리팩터링 기준선**을 정의한다.
@@ -543,3 +543,53 @@ pointerup / pointercancel → 자동 해제
 - `handleBallDoubleClickForTarget` · `applyTargetFromBallId` · `Ball()` · `BALL_PICK_RADIUS_RG` · `BALL_RADIUS_RG` · Joystick offset · Pad geometry · `pointer-events` · SVG 구조 · Render 순서 변경으로 본 규칙 우회
 
 > **상세 이력:** `HISTORY/PROJECT_LOG_2026-07.md` 2026-07-30 (D-INTERACT-01~03)
+
+---
+
+## Overlay Native Selection (Interaction SSOT) — 2026-08-01
+
+ADMIN Overlay(`ModalShell`)가 열릴 때 **browser native text selection**을 어떻게 처리하는지 고정하는 SSOT이다. Pointer Capture Timing SSOT의 부수 효과를 Overlay 계층에서 흡수하는 규칙이다.
+
+### 배경
+
+Pointer Capture Timing SSOT에 따라 클릭 / 더블클릭 경로는 browser native event를 그대로 유지한다. 따라서 Target Ball 더블클릭은 `preventDefault()`를 거치지 않고, 브라우저가 Selection Range를 생성한다. 이 Range가 해제되지 않은 상태에서 Overlay panel DOM이 삽입되면 새 텍스트 노드가 기존 Range에 편입되어 selection highlight로 렌더된다.
+
+SYS 버튼은 Target Ball 더블클릭 이후에만 활성화되므로, 새로고침 후 **첫 Overlay 오픈**의 직전 동작은 항상 더블클릭이다. 이 때문에 첫 오픈에서만 재현된다.
+
+### 구조
+
+```text
+Target Ball 더블클릭
+    ↓
+브라우저 Selection Range 생성 (native dblclick 보존 정책의 정상 부수 효과)
+    ↓
+Overlay 버튼 활성화 → ModalShell open
+    ↓
+open 전환 시 1회 window.getSelection()?.removeAllRanges()
+    ↓
+panel DOM 삽입 → highlight 없음
+```
+
+### Rule (이후 수정 시 반드시 유지)
+
+- **ModalShell은 `open` 전환 시 1회 native Selection을 초기화한다.**
+- **Overlay는 browser selection 상태만 초기화한다. Pointer Capture / Ball / Pad Interaction은 변경하지 않는다.**
+- **Selection 문제를 `preventDefault` 추가 또는 `user-select` CSS로 해결하지 않는다.** (Pointer Capture Timing SSOT 위반 위험)
+- **초기화 시점은 mount가 아니라 `open === true` 전환이다.** ModalShell은 닫혀 있을 때 `null`을 렌더링하되 컴포넌트 자체는 mount 상태로 남는다.
+
+### 코드 SSOT
+
+| 파일 | 책임 |
+|------|------|
+| `components/common/ModalShell.jsx` | `open` 전용 `useEffect` — `window.getSelection()?.removeAllRanges()` 1회 |
+
+적용 범위는 ModalShell을 소비하는 ADMIN 계열 모달 전체다 — SYS · HP/T · STR · AI · Workspace History · Category Manage · Lesson Order Manage. USER Overlay(`UserOverlayShell`)는 별도 Layer이며 본 규칙 대상이 아니다.
+
+### 금지
+
+- Overlay 계열에 `user-select: none` 추가로 우회
+- `handlePointerDown` / `handleBallDoubleClickForTarget`에 `preventDefault` 추가로 우회
+- `::selection` 커스텀 색상으로 시각적 은폐
+- Selection 초기화 로직을 drag-state 초기화 effect 등 다른 관심사에 병합
+
+> **상세 이력:** `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-01 (D-OVLSEL-01~02)

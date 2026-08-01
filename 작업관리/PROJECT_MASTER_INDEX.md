@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.49  
-Last Updated: 2026-07-30  
+Version: 1.50  
+Last Updated: 2026-08-01  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -94,7 +94,7 @@ Architecture Review
 | `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 **First Consume** |
 | `작업관리/DEVELOPMENT_WORKFLOW.md` | **Operational Workflow SSOT v1.0** (General + Fleet Apply Workflow · Sole Ops SSOT) |
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**STEP8 Completed** · **Post-STEP8** · Next **STEP9**) |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**Runtime Contract / Interaction 안정화 Completed** · Next **Trajectory Extension 설계**) |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8–Ch.11 Ratified** · **B0–B8 Completed** · **Final Validation Gate v1.0** |
 | `System Platform Standard (SPS) v1.0/Certification_Platform/` | **STEP9 Certification Platform SSOT v1.0 · FROZEN** · P-01…P-05 · FC-01…FC-08 |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** (IU-6-01A…06A Complete · Design-only · Consume) |
@@ -742,6 +742,41 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 
 ## 현재 완료 상태
 
+### Runtime Contract SSOT 안정화 (2026-08-01)
+
+- **SYS Apply 백지화 해결** — 관리자 SYS 설정에서 **적용**을 누르면 화면 전체가 백지화되던 오류 해결
+- **직접 원인** — `hooks/useShotSlots.ts` `buildSlotDraftWithUpdatedSys()`의 debug 필드가 Batch 6 Runtime Contract 이관 후에도 남은 **선언되지 않은 `profile` 변수**를 참조 → `commitDraftSys` render phase에서 `ReferenceError` → ErrorBoundary 부재로 React root unmount
+- **해결** — 같은 함수가 Runtime Contract에서 이미 해석해 둔 `formulaExpr` 재사용 (`getSystemContract()` 경유). System JSON 직접 접근 경로 제거로 **해당 함수의 Runtime Contract 경유 완성**
+- **Legacy profile dangling reference 제거 완료** — Batch 6 이관 잔여 debt 해소
+- **정적 분석 사각지대 확인** — build는 `vite build`(transpile only, `tsc --noEmit` 미포함), ESLint는 `files: ['**/*.{js,jsx}']`로 `.ts` 미검사 → 두 게이트 모두 통과했었음
+- **후속 후보 (미적용):** build에 `tsc --noEmit` 추가 또는 ESLint 대상에 `.ts` 포함 · ErrorBoundary 도입
+- **변경 파일:** `frontend/src/hooks/useShotSlots.ts` (1줄) · **Commit:** `abeca84`
+
+### ADMIN Overlay — Native Selection 처리 (2026-08-01)
+
+- **새로고침 후 첫 SYS Overlay 파란 selection highlight 해결** — Overlay 텍스트 전체가 선택 표시되던 현상 제거
+- **직접 원인** — Pointer Capture / Interaction 문제가 **아님**. Pointer Capture Timing SSOT에 따라 native dblclick을 보존하므로 Target Ball 더블클릭이 Selection Range를 생성하고, 이 Range가 살아 있는 상태에서 Overlay panel DOM이 삽입되면 새 텍스트가 Range에 편입되어 highlight로 렌더
+- **"첫 오픈에서만" 발생하는 이유** — SYS 버튼은 Target Ball 더블클릭 이후에만 활성화되므로 첫 Overlay 오픈의 직전 동작은 항상 더블클릭
+- **해결 (Option A)** — `ModalShell`이 열릴 때 1회 `window.getSelection()?.removeAllRanges()` 호출. `open === true` 전환 기준 (ModalShell은 닫혀 있을 때 `null`을 렌더링하되 mount 상태 유지)
+- **적용 범위** — ModalShell 소비자 전체 (SYS · HP/T · STR · AI · Workspace History · Category Manage · Lesson Order Manage). USER Overlay(`UserOverlayShell`)는 별도 Layer로 비대상
+- **비변경 보증** — Pointer Capture Timing · `preventDefault` · dblclick 로직 · `user-select` CSS · Ball / Pad / SVG Interaction 일절 변경 없음
+- **Overlay SSOT** — `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Overlay Native Selection (D-OVLSEL-01~02)
+- **변경 파일:** `frontend/src/components/common/ModalShell.jsx` (7줄) · **Commit:** `7ef9601`
+- **참고:** 프로젝트에 `ModalShell.tsx`는 존재하지 않는다. 실제 파일은 `ModalShell.jsx`이다.
+
+### 검증 상태 (2026-08-01 기준)
+
+| 항목 | 결과 |
+|------|------|
+| Build | **PASS** (`vite build`) |
+| Lint | **PASS** — 변경 전/후 동일 · 신규 0 |
+| Regression | **없음** |
+| Interaction | 안정 — Target Ball DoubleClick · Ball Drag · Pad Drag · Pointer Capture 시점 유지 |
+| Runtime Contract | 안정 — legacy 직접 접근 제거 |
+| Dataset Pipeline | 안정 — SAVE / Export / Search / Production 반영 검증 완료 |
+
+**상세:** `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-01 (D-RTC-01 · D-OVLSEL-01~02)
+
 ### ADMIN Interaction — Pointer Capture Timing (2026-07-30)
 
 - **Target Ball native dblclick Regression 해결** — ADMIN SYS에서 Cue 선택 후 Yellow/Red 더블클릭(Impact Ball · Baseline 생성)이 실패하던 회귀 해결
@@ -942,6 +977,8 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 - **USER 동선분석 Overlay** — 투명 패널 · 가독성(26px·shadow) · `[공식]`/`[계산]` 섹션 · 기준/보정 계산값 제목 제거
 - **Trajectory Display Cap** — same-rail 연속 segment 차단 · baseline/corrected 독립 세컨드볼 cap · `trajectoryPathDisplayPolicy.ts`
 - **ADMIN Target Ball native dblclick Regression 해결 (2026-07-30)** — Pointer Capture를 pointerdown→실제 Drag 시작 시점으로 이동 · Drag/DoubleClick 충돌 제거 · Playwright trusted event 검증 · Regression 없음 · Interaction SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Pointer Capture Timing)
+- **Runtime Contract SSOT 완성 (2026-08-01)** — `buildSlotDraftWithUpdatedSys()` legacy `profile` dangling reference 제거 · SYS Apply 백지화(`ReferenceError` → React root unmount) 해결 · Contract에서 해석된 `formulaExpr` 재사용 · Build/Lint PASS · Regression 없음 (`abeca84`)
+- **ADMIN Overlay Native Selection 처리 (2026-08-01)** — ModalShell `open` 전환 시 1회 native Selection 초기화 · 새로고침 후 첫 SYS Overlay 파란 highlight 해결 · Pointer Capture / preventDefault / user-select CSS 비변경 · Overlay SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Overlay Native Selection) (`7ef9601`)
 
 ### 진행 중
 
@@ -950,6 +987,7 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 
 ### 예정
 
+- **Trajectory Extension 설계 (최우선 · Product)** — 계산 종료 이후(C4/C5/C6~) Reverse End 연장 궤적 · 계산 엔진 비수정 · 독립 Overlay · 다중 Extension · Second Ball 배치 구조 검토 · **Trajectory Extension SSOT 초안**부터 착수
 - **STEP7 Agent Implementation — P6 Complete** — P5 IU-5-01A…05A PASS · P6 IU-6-01A…06A Complete (Design-only) · WG-AI-001 PASS · Next Session **`STEP7_P6_FLEET_BATCH1_01A`** (P6 Fleet Batch 1) · Prerequisite P6 IU suite Complete · Verification Entry Complete
 - **STEP7 remaining Phases** — Pilot → Fleet → Re-validation → Freeze (WBS) · P2 Catalog · P3 Gap · **P4 Plan done**
 - **Catalog Freeze delivery (post-Design)** — on-disk Catalog/Register JSON · live Freeze Candidate declaration · `catalogPinId` mint (procedure in Design §14)
@@ -1073,6 +1111,8 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 ## 다음 작업 우선순위
 
 > **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN** — Phase 0 Architecture · Phase 1 Definition · Phase 2 Freeze Review · Phase 2.5 Gate Closure · Phase 3-A Persist · Phase 3-B Freeze 완료. **Current: Platform Frozen · Pilot Ready** · **Next: STEP9 Phase 4 Pilot Certification**.
+>
+> **Runtime / Product 상태 (2026-08-01):** Pointer Capture Timing 안정 · Target Ball DoubleClick 안정 · **Runtime Contract SSOT 완료** · SYS Apply 백지화 해결 · ModalShell Native Selection 해결 · Dataset Pipeline 안정. Build / Lint PASS · Regression 없음. **Next (Product): Trajectory Extension 설계**.
 
 ### STEP7 상태
 
@@ -1211,7 +1251,24 @@ STEP8 Fleet Apply              COMPLETED
 
 Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7은 STEP6 **Consume**.
 
-### 최우선 — STEP9 Phase 4 Pilot Entry (Frozen Platform Consume)
+### 최우선 (Product) — Trajectory Extension 설계
+
+**상태:** 설계 착수 예정 (2026-08-01 세션 인계) · SSOT 초안 미작성
+
+계산 종료 이후(C4 / C5 / C6부터 시작 가능)의 **Reverse End 연장 궤적**을 표현하기 위한 설계다. 기존 계산 Trajectory(C1~C6)는 수정하지 않는다.
+
+| 원칙 | 내용 |
+|------|------|
+| **계산 엔진 불변** | 기존 계산 Trajectory(C1~C6) 및 계산 엔진을 수정하지 않는다 |
+| **독립 Overlay** | Extension은 계산 엔진이 아니라 독립 Overlay Layer로 설계한다 |
+| **다중 생성** | Extension은 여러 개 생성 가능한 구조로 설계한다 |
+| **시작점** | C4 / C5 / C6 등 계산 종료 지점부터 연장 시작 가능 |
+| **Second Ball** | 계산 기준이 아니라 생성된 Extension 위에 위치하는 구조를 **검토**한다 (확정 아님) |
+| **진입 산출물** | **Trajectory Extension SSOT 초안** |
+
+첫 작업은 구현이 아니라 **SSOT 초안 설계**다. 상세 인계는 `CURSOR_SESSION_HANDOFF.md`.
+
+### 최우선 (Platform) — STEP9 Phase 4 Pilot Entry (Frozen Platform Consume)
 
 - Session Entry: `CURSOR_SESSION_HANDOFF.md` (**Platform Frozen** · Next **STEP9 Phase 4 Pilot**)
 - **Certification Platform baseline:** `Certification_Platform/STEP9_Platform_Freeze.md` v1.0 + P-01…P-04 · **FROZEN**
@@ -1294,7 +1351,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | 문서 | 용도 |
 |------|------|
 | `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 First Consume |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — STEP8 Completed · **Post-STEP8** · Next **STEP9 Entry** |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — Runtime Contract / Interaction 안정화 Completed · Next **Trajectory Extension 설계** |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
 | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` | **Architecture Impact Working Guideline** — PASS · Consume · Freeze Candidate |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** — IU-6-01A…06A Complete · Design-only |
@@ -1318,6 +1375,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `System Platform Standard (SPS) v1.0/System_Inventory.md` | **STEP4 Inventory SSOT (v1.0 Final)** — Frozen Assets · Observation SSOT · Metadata/Registration Inventory |
 | `Application Architecture Standard (AAS) v2.0/App_Migration_Map.md` | **Application Runtime Constitution (Permanent SSOT)** — Migration Blueprint · Architecture Meta · ADR · Review Checklist |
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
+| `HISTORY/PROJECT_LOG_2026-08.md` | 2026-08 월별 이력 · **2026-08-01 SYS Apply 백지화 / Runtime Contract SSOT 완성 / ModalShell Native Selection** (D-RTC-01 · D-OVLSEL-01~02) |
 | `HISTORY/PROJECT_LOG_2026-07.md` | 2026-07 AAS Batch · STEP4/5 Final · STEP6 Framework+Pipeline · STEP6-3/4/5 Complete · **2026-07-30 ADMIN Pointer Capture Timing / Target Ball dblclick Regression** |
 | `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) · **USER Overlay** (§19) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
@@ -1328,7 +1386,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `5_PROJECT_MASTER_STATE_CURRENT.md` | 코드 스냅샷·구조 변경 통제 |
 | `3_SYSTEM_ARCHITECTURE.md` | 계산·데이터 계층 |
 | `4_CALCULATION_RULES.md` | 수식·보정 규칙 |
-| `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` | Frontend 구조·레이어 기준선 · **Pointer Capture Timing Interaction SSOT (2026-07-30)** |
+| `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` | Frontend 구조·레이어 기준선 · **Pointer Capture Timing Interaction SSOT (2026-07-30)** · **Overlay Native Selection Interaction SSOT (2026-08-01)** |
 | `OVERLAY_LAYOUT_SSOT_v1.2.md` | **USER Overlay Layout SSOT v1.2 (Confirmed)** — Shell/Content · Dark Glass · Ratio · Drag · Position |
 | `SESSION_TRANSFER/APP_USER_SEARCH_FLOW.md` | USER Search 흐름 |
 
