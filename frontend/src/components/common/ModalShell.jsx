@@ -116,6 +116,13 @@ export default function ModalShell({
     }
   }, [open]);
 
+  // Target Ball 더블클릭이 남긴 native Selection Range가 살아 있으면, 새로 삽입된
+  // panel 텍스트가 그 Range에 편입되어 selection highlight로 렌더된다.
+  useEffect(() => {
+    if (!open) return;
+    window.getSelection()?.removeAllRanges();
+  }, [open]);
+
   useLayoutEffect(() => {
     if (!open || !draggable) return;
     updatePanelPlacement();
