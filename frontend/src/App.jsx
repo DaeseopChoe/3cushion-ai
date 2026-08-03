@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
 import { resolveSlotSys } from "./domain/system/slotSysViewModel";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
@@ -106,6 +107,7 @@ import {
 } from "./overlay/utils/sysOverlayUtils";
 import UserToast from "./components/common/UserToast.jsx";
 import ImpactLines from "./components/table/ImpactLines";
+import TrajectoryExtensionLayer from "./components/table/TrajectoryExtensionLayer";
 import SystemGrid from "./components/table/SystemGrid";
 import CoachingOverlay from "./components/table/CoachingOverlay";
 import { useCoachingController } from "./hooks/useCoachingController";
@@ -125,7 +127,30 @@ import {
   getLabelNumericSuffix,
 } from "./domain/anchorCoordinateEngine";
 import { buildTrajectory } from "./domain/trajectory/trajectoryBuilder";
+import {
+  appendExtension1Draft,
+  appendExtension2Draft,
+  buildRevealPathNodes,
+  canAddAnotherExtension,
+  canCreateExtensionFromOrigin,
+  collectDisplayProjectionSegments,
+  draftItemCount,
+  draftToPayload,
+  payloadToDraft,
+  projectBallOntoNearestSegment,
+  resolveDraftSegments,
+  resolveOrigin,
+} from "./domain/trajectoryExtension";
+import {
+  colorForSlotId,
+  getSecondBall,
+  isConfirmedTargetBall,
+  isSecondRoleSlot,
+  resolveImpactTargetBall,
+} from "./domain/ballRole";
+import { buildTrajectoryExtensionRenderModel } from "./renderer/trajectory/trajectoryExtensionRenderModel";
 import { useBaselineDraft } from "./overlay/state/baselineDraftState";
+import { useTrajectoryExtensionHandleDrag } from "./overlay/state/trajectoryExtensionHandleDrag";
 import {
   loadWorkingDataset,
   saveWorkingDataset,
@@ -297,6 +322,24 @@ const INITIAL_BALLS_RG = {
   second: { x: 60, y: 20 },
 };
 
+const USER_STRATEGY_SLOT_IDS = ["S1", "S2", "S3"];
+
+/** USER Search / pick: display slot from matched record (activeSlot, else S1→S2→S3). */
+function resolveUserSearchDisplaySlotId(record, activeSlot) {
+  const strategies = record?.strategies;
+  if (!strategies || typeof strategies !== "object") return null;
+  if (
+    USER_STRATEGY_SLOT_IDS.includes(activeSlot) &&
+    strategies[activeSlot]
+  ) {
+    return activeSlot;
+  }
+  for (const slotId of USER_STRATEGY_SLOT_IDS) {
+    if (strategies[slotId]) return slotId;
+  }
+  return null;
+}
+
 const SHOTS = [
   { id: "H001_05", label: "H001 – B2T_R / C4", file: "canonical.json" },
   { id: "H001_05_SB1", label: "H001 – B2T_R / C4 - SB1", file: "B2T_R/H001_05_SB1.json" },
@@ -385,44 +428,7 @@ function STRContent({ trajectoryState }) {
   );
 }
 
-/** 슬롯 고정: target_center = 노란 공 좌표, second = 빨간 공 좌표 (렌더와 동일), cue = 큐 */
-function getYellowBallCoords(ballsObj) {
-  if (!ballsObj) return null;
-  return ballsObj.target_center ?? ballsObj.target ?? null;
-}
-
-function getRedBallCoords(ballsObj) {
-  if (!ballsObj) return null;
-  return ballsObj.second ?? null;
-}
-
-/** 임팩트·코칭용 1적구 좌표 (targetColor: 실제 타겟 공 색 — 좌표는 슬롯만 사용) */
-function resolveImpactTargetBall(ballsObj, targetColorSel) {
-  if (!ballsObj) return null;
-  const yellowBall = getYellowBallCoords(ballsObj);
-  const redBall = getRedBallCoords(ballsObj);
-  if (targetColorSel === "red") return redBall ?? yellowBall ?? null;
-  if (targetColorSel === "yellow") return yellowBall ?? redBall ?? null;
-  return yellowBall ?? redBall ?? null;
-}
-
-/** 조이스틱이 붙은 공 id → 임팩트 타겟 색 (후보/확정 공통 매핑) */
-function resolveBallColorFromId(ballId) {
-  if (ballId === "target" || ballId === "target_center") return "yellow";
-  if (ballId === "second") return "red";
-  return null;
-}
-
-/** ADMIN 타겟 확정 표시 — isTargetSelected + targetColor SSOT (dragState와 분리) */
-function isConfirmedTargetBall(ballId, targetColorSel, isSelected) {
-  if (
-    !isSelected ||
-    (targetColorSel !== "red" && targetColorSel !== "yellow")
-  ) {
-    return false;
-  }
-  return resolveBallColorFromId(ballId) === targetColorSel;
-}
+/** Ball Role / Slot helpers — domain/ballRole.ts (v1.3 Role SSOT) */
 
 function Ball({ x, y, color, opacity = 1, emphasis: _emphasis, ...eventProps }) {
   const p = toPx({ x, y }, SCALE, TABLE_H);
@@ -710,11 +716,13 @@ export default function App({
     setBallsState,
     setAdminState,
   });
+  const shotEditorRef = useRef(shotEditor);
+  shotEditorRef.current = shotEditor;
   const trajectory = useTrajectoryState();
   const debugSlotSysSnapshotPrevRef = useRef(null);
   /** Last S1/S2/S3 button id — Position reset only on cross-slot navigation, not overlay→slot restore */
   const lastSlotNavButtonRef = useRef(null);
-  /** USER: Search 후 공략 클릭 전까지 trajectory/labels 미표시 */
+  /** USER: Search 또는 공략 pick 후 table/Extension hydrate 대상 슬롯 */
   const [userTableDisplaySlotId, setUserTableDisplaySlotId] = useState(null);
   /** USER: 마지막 Search 성공 record — rail label SSOT */
   const [userLastSearchRecord, setUserLastSearchRecord] = useState(null);
@@ -743,7 +751,8 @@ export default function App({
 
   /** Slot switch: targetBall hydrate + trajectory/admin hydrate flow */
   function hydrateSlotRuntime(slotId) {
-    const slot = shotEditor.slots[slotId];
+    const slots = shotEditorRef.current.slots;
+    const slot = slots[slotId];
     const payload = buildSlotRuntimePayload(slot);
     const slotExtracted = extractSlotTargetBall(slot);
     const adminTarget = getAdminSearchTargetBall(slotId);
@@ -754,10 +763,22 @@ export default function App({
     applySlotRuntimeTargetBall(effectiveTargetBall);
     runTrajectoryHydrate({
       slotId,
-      slots: shotEditor.slots,
+      slots,
       setAdminState,
       trajectory,
     });
+  }
+
+  /**
+   * Shared USER Runtime Slot Activation (Search + 공략 pick).
+   * switchSlot → display slot → hydrateSlotRuntime only (no overlay/UI).
+   */
+  function activateStrategySlot(slotId) {
+    if (!USER_STRATEGY_SLOT_IDS.includes(slotId)) return;
+    actions.switchSlot(slotId);
+    setUserTableDisplaySlotId(slotId);
+    lastHydrateTriggerRef.current = "strategy_pick";
+    hydrateSlotRuntime(slotId);
   }
 
   /** 궤적/앵커 렌더 SSOT: 활성 슬롯의 sys만 사용 (adminState.sys / view.ui.system 혼합 금지) */
@@ -892,6 +913,50 @@ export default function App({
 
   const [showSystemGrid, setShowSystemGrid] = useState(false);
   const [showBaseLine, setShowBaseLine] = useState(false);
+  /** P2: Trajectory Extension Proposal draft (runtime only — not Dataset). */
+  const [trajectoryExtensionDraft, setTrajectoryExtensionDraft] = useState(null);
+  /** P2-4: active Extension endpoint handle (1 | 2 | null). Selection only. */
+  const [extensionActiveHandle, setExtensionActiveHandle] = useState(null);
+
+  useEffect(() => {
+    setTrajectoryExtensionDraft(null);
+    setExtensionActiveHandle(null);
+  }, [shotEditor.activeSlot]);
+
+  /** Hydrate Extension draft from slot StrategyEntry payload (Reveal regenerated at render). */
+  useEffect(() => {
+    if (appMode === "USER") {
+      if (!userTableDisplaySlotId) {
+        setTrajectoryExtensionDraft(null);
+        setExtensionActiveHandle(null);
+        return;
+      }
+      const slot = shotEditor.slots[userTableDisplaySlotId];
+      const payload =
+        slot?.draft?.trajectoryExtensions ??
+        slot?.applied?.trajectoryExtensions ??
+        null;
+      setTrajectoryExtensionDraft(payload ? payloadToDraft(payload) : null);
+      setExtensionActiveHandle(null);
+      return;
+    }
+
+    // ADMIN: restore from recall hydrate when payload present; do not clear local edits
+    const slot = shotEditor.slots[shotEditor.activeSlot];
+    const payload =
+      slot?.draft?.trajectoryExtensions ??
+      slot?.applied?.trajectoryExtensions ??
+      null;
+    if (payload) {
+      setTrajectoryExtensionDraft(payloadToDraft(payload));
+    }
+  }, [
+    appMode,
+    userTableDisplaySlotId,
+    shotEditor.activeSlot,
+    shotEditor.slots,
+  ]);
+
   const baselineCoHandleRgRef = useRef(null);
   const baselineC1HandleRgRef = useRef(null);
   /** P0-4f: 드래그 시작 시점 슬롯 SYS — Apply 후 stale draft vs committed slot 구분 */
@@ -1260,11 +1325,14 @@ export default function App({
 
   function emitTargetSelectionTrace(_traceMessage, _ballId, _targetBall, _ballColor) {}
 
-  /** 볼 더블클릭 — setTargetColor / patchSlotRuntimeMeta SSOT */
+  /** 볼 더블클릭 — setTargetColor / patchSlotRuntimeMeta SSOT (Role Lock 전용) */
   function applyTargetFromBallId(ballId, traceMessage) {
+    // Target Lock: once selected for this input session, never reassign via DoubleClick
+    if (isTargetSelected) return;
+
     const slotId = shotEditor.activeSlot;
     const before = buildAdminTargetStateSnapshot(slotId);
-    const ballColor = resolveBallColorFromId(ballId);
+    const ballColor = colorForSlotId(ballId);
     const targetBall = ballColor;
     emitTargetSelectionTrace(traceMessage, ballId, targetBall, ballColor);
     emitAdminTargetStateTrace(traceMessage, "H1_H2", {
@@ -1306,14 +1374,6 @@ export default function App({
         ...buildAdminTargetStateSnapshot(slotId),
       });
     });
-  }
-
-  function handleBallDoubleClickForTarget(ballId, e) {
-    if (appMode !== "ADMIN") return;
-    if (overlayState.open || overlayContent) return;
-    e.preventDefault();
-    e.stopPropagation();
-    applyTargetFromBallId(ballId, "TARGET_SELECTED_BY_DOUBLECLICK");
   }
 
   const svgRef = useRef(null);
@@ -1361,6 +1421,107 @@ export default function App({
   // 권한 체크
   const canEdit = appMode === "ADMIN";
 
+  const extensionDraftRef = useRef(null);
+  extensionDraftRef.current = trajectoryExtensionDraft;
+  const canEditRef = useRef(false);
+  canEditRef.current = canEdit;
+  const extensionHandleRgRef = useRef({ 1: null, 2: null });
+  const extensionSegmentsRef = useRef([]);
+  const extensionPathNodesRef = useRef([]);
+  /** Calculated + Reveal + Extension display segments for nearest Projection. */
+  const projectionSegmentsRef = useRef([]);
+  const isTargetSelectedRef = useRef(isTargetSelected);
+  isTargetSelectedRef.current = isTargetSelected;
+  const targetColorRef = useRef(targetColor);
+  targetColorRef.current = targetColor;
+  const ballsStateRef = useRef(ballsState);
+  ballsStateRef.current = ballsState;
+
+  function clearBallPointerInteractionState() {
+    stopJoystick();
+    joyDragRef.current = {
+      active: false,
+      pointerId: null,
+      lastX: 0,
+      lastY: 0,
+      ballId: null,
+    };
+    ballDragLastPointerRgRef.current = null;
+    setDragState((s) => ({
+      ...s,
+      dragging: false,
+      ballId: null,
+      grabOffsetRg: { x: 0, y: 0 },
+      previousPosRg: null,
+      joystickVisible: false,
+      frozenImpact: null,
+      frozenCushionPathAttr: null,
+      frozenCushionPathRg: null,
+    }));
+  }
+
+  const {
+    extensionDraggingMark,
+    tryStartExtensionHandleDrag,
+    handleExtensionHandlePointerMove,
+    endExtensionHandleDrag,
+  } = useTrajectoryExtensionHandleDrag({
+    svgRef,
+    canDrag: () =>
+      canEditRef.current && draftItemCount(extensionDraftRef.current) > 0,
+    getDraft: () => extensionDraftRef.current,
+    setDraft: (updater) => {
+      setTrajectoryExtensionDraft((prev) => {
+        const next =
+          typeof updater === "function" ? updater(prev) : updater;
+        extensionDraftRef.current = next;
+        return next;
+      });
+    },
+    setActiveHandle: setExtensionActiveHandle,
+    onHandleDragStart: clearBallPointerInteractionState,
+  });
+
+  function handleBallDoubleClickForTarget(ballId, e) {
+    if (appMode !== "ADMIN") return;
+    if (overlayState.open || overlayContent) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const lock = {
+      targetColor: targetColorRef.current,
+      isTargetSelected: isTargetSelectedRef.current,
+    };
+
+    // Target Lock: any further DoubleClick must not change Target Role
+    if (lock.isTargetSelected) {
+      // Only Second Role Ball → 1× nearest display-segment Projection
+      if (!isSecondRoleSlot(ballId, lock)) return;
+
+      const second = getSecondBall(ballsStateRef.current, lock);
+      if (!second) return;
+
+      const proj = projectBallOntoNearestSegment({
+        ball: second.point,
+        segments: projectionSegmentsRef.current,
+      });
+      if (!proj) return;
+
+      const slotKey = second.slotId === "target" ? "target_center" : second.slotId;
+      setBallsState((prev) => ({
+        ...prev,
+        [slotKey]: prev[slotKey]
+          ? { ...prev[slotKey], x: proj.point.x, y: proj.point.y }
+          : { x: proj.point.x, y: proj.point.y },
+      }));
+      setIsSaved(false);
+      setIsAdminPublishedSearchMatched(false);
+      return;
+    }
+
+    // Target unlocked: first object-ball DoubleClick assigns Target Role
+    applyTargetFromBallId(ballId, "TARGET_SELECTED_BY_DOUBLECLICK");
+  }
   function handleWorkspaceLocalStorageCleanup() {
     if (workspaceCleanupMode === WORKSPACE_CLEANUP_CLEAR_ALL) {
       const ok = window.confirm(
@@ -1467,6 +1628,9 @@ export default function App({
       system,
       resolvedSlotSysValues,
       autoSave,
+      trajectoryExtensionPayload: trajectoryExtensionDraft
+        ? draftToPayload(trajectoryExtensionDraft)
+        : null,
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
@@ -1492,6 +1656,9 @@ export default function App({
       system,
       resolvedSlotSysValues,
       autoSave,
+      trajectoryExtensionPayload: trajectoryExtensionDraft
+        ? draftToPayload(trajectoryExtensionDraft)
+        : null,
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
@@ -1656,34 +1823,95 @@ export default function App({
     resetUserSearchTargetSelection,
   ]);
 
-  /** ADMIN→USER: USER session을 새로고침 직후와 동일하게 (recommendedFrom carry-over 금지). */
+  /** ADMIN→USER: 새로고침 직후 USER 초기 화면과 동일하게 Editing Session 전체 종료. */
   const resetUserSearchSessionOnAdminExit = useCallback(() => {
     actions.clearSearchSlotDrafts();
     setUserLastSearchRecord(null);
     setUserTableDisplaySlotId(null);
-  }, [actions]);
+    setUserPublishedSearchContext({ shotType: null, systemId: null });
 
-  /** USER Search: published corpus → userStrict recall → draft apply (SRCH-003 → userSearchFlow.runUserSearch). */
+    setTrajectoryExtensionDraft(null);
+    setExtensionActiveHandle(null);
+    extensionDraftRef.current = null;
+    extensionSegmentsRef.current = [];
+    extensionHandleRgRef.current = { 1: null, 2: null };
+    projectionSegmentsRef.current = [];
+
+    setTargetColor(null);
+    setIsTargetSelected(false);
+    setIsAdminInputSessionActive(false);
+    setIsAdminPublishedSearchMatched(false);
+    setIsSaved(false);
+    setAdminTableLayersVisible(false);
+    setShowCoaching(false);
+    setShowBaseLine(false);
+    setShowSystemGrid(false);
+    setOverlayContent(null);
+    setOverlayState({ open: false, type: null, anchorKey: null });
+
+    stopJoystick();
+    joyDragRef.current = {
+      active: false,
+      pointerId: null,
+      lastX: 0,
+      lastY: 0,
+      ballId: null,
+    };
+    ballDragLastPointerRgRef.current = null;
+    setDragState({
+      dragging: false,
+      ballId: null,
+      grabOffsetRg: { x: 0, y: 0 },
+      previousPosRg: null,
+      joystickVisible: false,
+      frozenImpact: null,
+      frozenCushionPathAttr: null,
+      frozenCushionPathRg: null,
+    });
+
+    setBallsState({ ...INITIAL_BALLS_RG });
+    trajectory.resetTrajectory();
+    setAdminState((prev) => ({
+      ...prev,
+      sys: createEmptyAdminSysSnapshot(),
+      balls: { ...INITIAL_BALLS_RG },
+    }));
+  }, [actions, trajectory]);
+
+  /** USER Search: published corpus → userStrict recall → draft apply → Runtime Activation (pick과 동일). */
   const handleUserSearchStrategies = useCallback(async () => {
     if (appMode !== "USER") return;
     if (userSearchInFlightRef.current) return;
     userSearchInFlightRef.current = true;
+    const activeSlotAtSearch = shotEditor.activeSlot;
     try {
-      await runUserSearch({
+      const matchedRecord = await runUserSearch({
         ballsState,
         adminState,
-        activeSlot: shotEditor.activeSlot,
+        activeSlot: activeSlotAtSearch,
         slots: shotEditor.slots,
         targetColor,
         userPublishedSearchContext,
         setUserLastSearchRecord,
         setUserPublishedSearchContext,
-        applyUserSearchRecall: actions.applyUserSearchRecall,
+        applyUserSearchRecall: (record) => {
+          flushSync(() => {
+            actions.applyUserSearchRecall(record);
+          });
+        },
         clearSearchSlotDrafts: actions.clearSearchSlotDrafts,
         clearUserSearchDisplayRuntime,
         resetUserSearchTargetSelection,
         showToast: userToast.show,
       });
+      if (!matchedRecord) return;
+      const slotId = resolveUserSearchDisplaySlotId(
+        matchedRecord,
+        activeSlotAtSearch
+      );
+      if (slotId) {
+        activateStrategySlot(slotId);
+      }
     } finally {
       userSearchInFlightRef.current = false;
     }
@@ -1907,6 +2135,7 @@ function applyJoyDragMove(e) {
       x: clamp(cur.x + dxRg, 0.5, 79.5),
       y: clamp(cur.y + dyRg, 0.5, 39.5),
     };
+
     return { ...prev, [ballId]: next };
   });
   invalidateSavedAndRecalledForBallId(ballId);
@@ -2071,26 +2300,9 @@ function handleJoyPadPointerCancel(e) {
     const prev = prevAppModeForUserSessionRef.current;
     if (prev === "ADMIN" && appMode === "USER") {
       resetUserSearchSessionOnAdminExit();
-      const hints = resolvePublishedLeafHints(
-        adminState?.sys,
-        shotEditor.slots,
-        shotEditor.activeSlot
-      );
-      if (hints.shotType || hints.systemId) {
-        setUserPublishedSearchContext((ctx) => ({
-          shotType: hints.shotType ?? ctx?.shotType ?? null,
-          systemId: hints.systemId ?? ctx?.systemId ?? null,
-        }));
-      }
     }
     prevAppModeForUserSessionRef.current = appMode;
-  }, [
-    appMode,
-    resetUserSearchSessionOnAdminExit,
-    adminState?.sys,
-    shotEditor.slots,
-    shotEditor.activeSlot,
-  ]);
+  }, [appMode, resetUserSearchSessionOnAdminExit]);
 
   useEffect(() => {
     if (appMode === "USER") {
@@ -2142,15 +2354,11 @@ function handleJoyPadPointerCancel(e) {
       return;
     }
     const pickStrategySlot = (slotId) => {
-      const slotIds = ["S1", "S2", "S3"];
-      if (!slotIds.includes(slotId)) return;
+      if (!USER_STRATEGY_SLOT_IDS.includes(slotId)) return;
       emitStrategyPickTrace("STRATEGY_PICK_BEFORE", slotId, "before");
-      actions.switchSlot(slotId);
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
-      setUserTableDisplaySlotId(slotId);
-      lastHydrateTriggerRef.current = "strategy_pick";
-      hydrateSlotRuntime(slotId);
+      activateStrategySlot(slotId);
       emitStrategyPickTrace("STRATEGY_PICK_AFTER", slotId, "after");
     };
     onUserStrategySlotPickRegister?.(pickStrategySlot);
@@ -2966,6 +3174,20 @@ function handlePointerDown(e) {
 
   if (!svgRef.current) return;
   const pointerRgEarly = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
+
+  // Priority: Extension Handle → Baseline Handle → Joystick → Ball
+  if (
+    pointerRgEarly &&
+    tryStartExtensionHandleDrag(
+      e,
+      pointerRgEarly,
+      extensionHandleRgRef.current[1],
+      extensionHandleRgRef.current[2]
+    )
+  ) {
+    return;
+  }
+
   if (
     pointerRgEarly &&
     tryStartBaselineEndpointDraftDrag(
@@ -3111,6 +3333,9 @@ function handlePointerMove(e) {
   if (svgRef.current) {
     const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
     if (handleBaselineDraftPointerMove(pointerRg)) {
+      return;
+    }
+    if (handleExtensionHandlePointerMove(pointerRg)) {
       return;
     }
   }
@@ -3262,6 +3487,7 @@ function handlePointerUp(e) {
 
   if (endCoBaselineDraftDrag(e)) return;
   if (endC1BaselineDraftDrag(e)) return;
+  if (endExtensionHandleDrag(e)) return;
 
   if (!dragState.dragging || !dragState.ballId) return;
   stopJoystick();
@@ -3273,11 +3499,12 @@ function handlePointerUp(e) {
 
   const success = autoSeparate(draggedBall, otherBalls);
 
-  const nextBallPos = success ? draggedBall : dragState.previousPosRg;
+  let nextBallPos = success ? draggedBall : dragState.previousPosRg;
+
   if (success) {
     setBallsState((prev) => ({
       ...prev,
-      [dragState.ballId]: draggedBall,
+      [dragState.ballId]: nextBallPos,
     }));
   } else if (dragState.previousPosRg) {
     setBallsState((prev) => ({
@@ -3329,6 +3556,7 @@ function handlePointerUp(e) {
 function handlePointerCancel(e) {
   if (endCoBaselineDraftDrag(e)) return;
   if (endC1BaselineDraftDrag(e)) return;
+  if (endExtensionHandleDrag(e)) return;
   stopJoystick();
   // cancel은 드래그 종료로 처리
   handlePointerUp(e);
@@ -3415,6 +3643,7 @@ function handlePointerCancel(e) {
 
   const {
     corrected: {
+      pathNodes: correctedPathNodes,
       cushionPath,
       cushionPathForRender,
       cap: capCorrected,
@@ -3462,6 +3691,75 @@ function handlePointerCancel(e) {
   );
   const cushionPathAttrRaw = pathAttrModel.cushionPathAttrRaw;
   const cushionPathAttrBase = pathAttrModel.cushionPathAttrBase;
+
+  // --- Trajectory Extension Proposal (P2 overlay; Calculated Trajectory untouched) ---
+  const extensionOriginGate = resolveOrigin(correctedPathNodes ?? [], {
+    kind: "path_node",
+    source: "corrected",
+  });
+  const extensionDraftCount = draftItemCount(trajectoryExtensionDraft);
+  const extensionSegments = resolveDraftSegments(
+    trajectoryExtensionDraft,
+    correctedPathNodes ?? []
+  );
+  extensionPathNodesRef.current = correctedPathNodes ?? [];
+  extensionSegmentsRef.current = extensionSegments;
+  extensionHandleRgRef.current = {
+    1: extensionSegments.find((s) => s.index === 1)?.end ?? null,
+    2: extensionSegments.find((s) => s.index === 2)?.end ?? null,
+  };
+  const extensionRevealPath =
+    extensionDraftCount > 0 && extensionOriginGate
+      ? buildRevealPathNodes(
+          correctedPathNodes ?? [],
+          capCorrected?.endIndex ?? -1,
+          extensionOriginGate.index
+        )
+      : [];
+  // Nearest Projection candidates: displayed Calculated + Reveal + Extension only
+  projectionSegmentsRef.current = collectDisplayProjectionSegments({
+    calculatedPath: pathAttrModel.cushionPathRgSnapshot,
+    revealPath: extensionRevealPath,
+    extensionSegments,
+  });
+  const extensionRenderModel = buildTrajectoryExtensionRenderModel({
+    revealPath: extensionRevealPath,
+    segments: extensionSegments,
+    tablePx: tablePxConfig,
+    activeHandleMark: extensionActiveHandle,
+    draggingHandleMark: extensionDraggingMark,
+    showHandles: canEdit,
+  });
+  const canClickTrajectoryExtension =
+    canEdit &&
+    canAddAnotherExtension(trajectoryExtensionDraft) &&
+    (extensionDraftCount === 1 ||
+      canCreateExtensionFromOrigin(extensionOriginGate));
+
+  const handleTrajectoryExtensionClick = () => {
+    if (!canClickTrajectoryExtension) return;
+    const slotId = shotEditor.activeSlot ?? "S1";
+    const nodes = correctedPathNodes ?? [];
+    if (extensionDraftCount === 0) {
+      const next = appendExtension1Draft(nodes, slotId);
+      if (next) {
+        setTrajectoryExtensionDraft(next);
+        setExtensionActiveHandle(1);
+      }
+      return;
+    }
+    if (extensionDraftCount === 1 && trajectoryExtensionDraft) {
+      const next = appendExtension2Draft(
+        trajectoryExtensionDraft,
+        nodes,
+        slotId
+      );
+      if (next) {
+        setTrajectoryExtensionDraft(next);
+        setExtensionActiveHandle(2);
+      }
+    }
+  };
 
   // 최신 파생 결과를 ref에 보관 (pointerdown에서 Freeze 캡처용)
   derivedRef.current = {
@@ -3915,6 +4213,17 @@ function handlePointerCancel(e) {
         padding={PADDING}
       />
       )}
+      {adminTableLayersActive &&
+        userShowTrajectoryOnTable &&
+        extensionDraftCount > 0 && (
+          <TrajectoryExtensionLayer
+            revealPointsAttr={extensionRenderModel.revealPointsAttr}
+            extensionPolylines={extensionRenderModel.extensionPolylines}
+            handles={extensionRenderModel.handles}
+            showHandles={canEdit}
+            pathStroke="#ff4444"
+          />
+        )}
       {coaching.impactBallPx && (
         <CoachingOverlay
           guideLine={
@@ -4411,6 +4720,26 @@ function handlePointerCancel(e) {
               }}
             >
               기준선
+            </button>
+            <button
+              type="button"
+              className="control-button"
+              disabled={!canClickTrajectoryExtension}
+              onClick={handleTrajectoryExtensionClick}
+              style={{
+                backgroundColor:
+                  extensionDraftCount > 0 ? "#0ea5e9" : "#64748b",
+                color: "white",
+                opacity: canClickTrajectoryExtension ? 1 : 0.45,
+                cursor: canClickTrajectoryExtension ? "pointer" : "not-allowed",
+              }}
+              title={
+                extensionDraftCount >= 2
+                  ? "Extension 최대 2개"
+                  : "궤적 연장 Proposal 생성"
+              }
+            >
+              궤적 연장
             </button>
             <button
               type="button"

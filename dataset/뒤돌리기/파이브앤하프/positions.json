@@ -3,8 +3,8 @@
   "shotType": "뒤돌리기",
   "systemId": "5_half_system",
   "systemLabel": "파이브앤하프",
-  "exportedAt": "2026-07-31T02:27:47.897Z",
-  "sourceSnapshotId": "90b6be5b-9492-4262-9100-d2a12f2fd06f",
+  "exportedAt": "2026-08-03T14:04:08.687Z",
+  "sourceSnapshotId": "2e089b73-a17a-4ebc-8c4a-c82cc04101a3",
   "records": [
     {
       "positionId": "200160200200600200",
@@ -755,6 +755,195 @@
       },
       "schemaVersion": 1,
       "targetBall": "yellow"
+    },
+    {
+      "positionId": "200160702132600200",
+      "balls": {
+        "cue": {
+          "x": 20,
+          "y": 16
+        },
+        "target": {
+          "x": 70.2365078760523,
+          "y": 13.200067548816339
+        },
+        "second": {
+          "x": 60,
+          "y": 20
+        }
+      },
+      "strategies": {
+        "S1": {
+          "slot": "S1",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": "뒤돌리기"
+          },
+          "track": "B2T_R",
+          "sysInputs": {
+            "CO_f": 30,
+            "C3_r": 26
+          },
+          "hpT": {
+            "T": "-4/8",
+            "hit_point": {
+              "x": 1.5,
+              "y": 0.9
+            },
+            "mode": "SPIN",
+            "tipCount": 1
+          },
+          "str": {
+            "type": null,
+            "acceleration": "intentional_decel",
+            "speed": 2.5,
+            "depth": 1.5,
+            "impact": "soft"
+          },
+          "ai": {
+            "text": "",
+            "onePointLessons": [
+              {
+                "id": "1785464815040-dbbda54eb70c2",
+                "text": "그립의 힘을 빼고 등속 스트로크하는데 마지막에 큐를 가볍게 잡아주어 가벼운 분리가 일어나도록 합니다."
+              }
+            ]
+          },
+          "meta": {
+            "impact": {
+              "x": 68.77271040833543,
+              "y": 14.122049643937942
+            },
+            "final": {
+              "x": 74.0828402366864,
+              "y": 40
+            },
+            "angle_ci": -0.03848510985739319,
+            "angle_fs": -2.1842967588966533
+          },
+          "corrections": {
+            "slide": 3,
+            "curve_ratio": 5,
+            "draw": 0,
+            "departure": 0,
+            "spin": 0
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "red"
+    },
+    {
+      "positionId": "200160688142600200",
+      "balls": {
+        "cue": {
+          "x": 20,
+          "y": 16
+        },
+        "target": {
+          "x": 68.78071437611428,
+          "y": 14.166599410998327
+        },
+        "second": {
+          "x": 60,
+          "y": 20
+        }
+      },
+      "strategies": {
+        "S1": {
+          "slot": "S1",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": "뒤돌리기"
+          },
+          "track": "B2T_R",
+          "sysInputs": {
+            "CO_f": 30,
+            "C3_r": 26
+          },
+          "hpT": {
+            "T": "-4/8",
+            "hit_point": {
+              "x": 1.5,
+              "y": 0.9
+            },
+            "mode": "SPIN",
+            "tipCount": 1
+          },
+          "str": {
+            "type": null,
+            "acceleration": "intentional_decel",
+            "speed": 2.5,
+            "depth": 1.5,
+            "impact": "soft"
+          },
+          "ai": {
+            "text": "",
+            "onePointLessons": [
+              {
+                "id": "1785464815040-dbbda54eb70c2",
+                "text": "그립의 힘을 빼고 등속 스트로크하는데 마지막에 큐를 가볍게 잡아주어 가벼운 분리가 일어나도록 합니다."
+              }
+            ]
+          },
+          "meta": {
+            "impact": {
+              "x": 67.29998764893047,
+              "y": 15.061139722903105
+            },
+            "final": {
+              "x": 74.0828402366864,
+              "y": 40
+            },
+            "angle_ci": -0.0198464535380949,
+            "angle_fs": -2.1842967588966533
+          },
+          "trajectoryExtensions": {
+            "extensionSchemaVersion": 1,
+            "origin": {
+              "kind": "path_node",
+              "source": "corrected"
+            },
+            "items": [
+              {
+                "id": "EXT-S1-01",
+                "index": 1,
+                "endpoint": {
+                  "x": 80,
+                  "y": 10.62171630859375
+                },
+                "userEdited": true,
+                "createdAt": "2026-08-03T13:06:44.443Z",
+                "updatedAt": "2026-08-03T13:06:48.031Z"
+              },
+              {
+                "id": "EXT-S1-02",
+                "index": 2,
+                "endpoint": {
+                  "x": 65.15922241210937,
+                  "y": 15.310858154296875
+                },
+                "userEdited": true,
+                "createdAt": "2026-08-03T13:06:49.895Z",
+                "updatedAt": "2026-08-03T13:06:53.600Z"
+              }
+            ]
+          },
+          "corrections": {
+            "slide": 3,
+            "curve_ratio": 5,
+            "draw": 0,
+            "departure": 0,
+            "spin": 0
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "red"
     }
   ]
 }

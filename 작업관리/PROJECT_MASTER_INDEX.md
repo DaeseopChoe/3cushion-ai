@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.50  
-Last Updated: 2026-08-01  
+Version: 1.51  
+Last Updated: 2026-08-04  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -94,7 +94,7 @@ Architecture Review
 | `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 **First Consume** |
 | `작업관리/DEVELOPMENT_WORKFLOW.md` | **Operational Workflow SSOT v1.0** (General + Fleet Apply Workflow · Sole Ops SSOT) |
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**Runtime Contract / Interaction 안정화 Completed** · Next **Trajectory Extension 설계**) |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**Trajectory Extension Completed / Task Closed** · Next **Handle Drag 잔여 또는 차기 Product**) |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8–Ch.11 Ratified** · **B0–B8 Completed** · **Final Validation Gate v1.0** |
 | `System Platform Standard (SPS) v1.0/Certification_Platform/` | **STEP9 Certification Platform SSOT v1.0 · FROZEN** · P-01…P-05 · FC-01…FC-08 |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** (IU-6-01A…06A Complete · Design-only · Consume) |
@@ -262,6 +262,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - **USER Search** → published corpus only (`handleUserSearchStrategies`, profile **`userStrict`**)
 - USER UI: **Search 버튼만** (Search/Recall 토글 제거)
 - 공략 S1/S2/S3: **USER Search 성공 시에만** 활성 (`recommendedFrom` gate)
+- **Runtime Activation (2026-08-04)** — Search 성공 후 `resolveUserSearchDisplaySlotId` → **`activateStrategySlot(slotId)`** (`switchSlot` → `setUserTableDisplaySlotId` → `hydrateSlotRuntime`). Strategy Pick과 **동일 경로** · Search 전용 Hydrate **없음**.
 - **ADMIN→USER carry-over 제거**: 전환 시 draft/`recommendedFrom` 초기화 — F5 직후 USER와 동일 상태
 
 ### Recall profile 분리 (Phase 3-1 — 완료)
@@ -979,6 +980,7 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 - **ADMIN Target Ball native dblclick Regression 해결 (2026-07-30)** — Pointer Capture를 pointerdown→실제 Drag 시작 시점으로 이동 · Drag/DoubleClick 충돌 제거 · Playwright trusted event 검증 · Regression 없음 · Interaction SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Pointer Capture Timing)
 - **Runtime Contract SSOT 완성 (2026-08-01)** — `buildSlotDraftWithUpdatedSys()` legacy `profile` dangling reference 제거 · SYS Apply 백지화(`ReferenceError` → React root unmount) 해결 · Contract에서 해석된 `formulaExpr` 재사용 · Build/Lint PASS · Regression 없음 (`abeca84`)
 - **ADMIN Overlay Native Selection 처리 (2026-08-01)** — ModalShell `open` 전환 시 1회 native Selection 초기화 · 새로고침 후 첫 SYS Overlay 파란 highlight 해결 · Pointer Capture / preventDefault / user-select CSS 비변경 · Overlay SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Overlay Native Selection) (`7ef9601`)
+- **Trajectory Extension (2026-08-03~04) — Task Closed** — 독립 Overlay · Role SSOT · Target Lock + DoubleClick Projection · SAVE/`StrategyEntry.trajectoryExtensions` · Hydrate whitelist · ADMIN/USER 적색 stroke · **`activateStrategySlot()`** 로 USER Search ↔ Strategy Pick Runtime 경로 통합 · Search 전용 Hydrate 없음 · SAVE → Export → Published → Search/Recall → Render 파이프라인 완료 · SSOT `TRAJECTORY_EXTENSION_SSOT.md` v1.4
 
 ### 진행 중
 
@@ -987,7 +989,6 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 
 ### 예정
 
-- **Trajectory Extension 설계 (최우선 · Product)** — 계산 종료 이후(C4/C5/C6~) Reverse End 연장 궤적 · 계산 엔진 비수정 · 독립 Overlay · 다중 Extension · Second Ball 배치 구조 검토 · **Trajectory Extension SSOT 초안**부터 착수
 - **STEP7 Agent Implementation — P6 Complete** — P5 IU-5-01A…05A PASS · P6 IU-6-01A…06A Complete (Design-only) · WG-AI-001 PASS · Next Session **`STEP7_P6_FLEET_BATCH1_01A`** (P6 Fleet Batch 1) · Prerequisite P6 IU suite Complete · Verification Entry Complete
 - **STEP7 remaining Phases** — Pilot → Fleet → Re-validation → Freeze (WBS) · P2 Catalog · P3 Gap · **P4 Plan done**
 - **Catalog Freeze delivery (post-Design)** — on-disk Catalog/Register JSON · live Freeze Candidate declaration · `catalogPinId` mint (procedure in Design §14)
@@ -1016,7 +1017,7 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 **현재 가설:**
 
 - `targetColor`(UI) · `draft.targetBall` · `record.targetBall` 동기화 시점 차이
-- Search apply = draft only; hydrate = 공략 버튼 선택 시
+- (갱신 2026-08-04) USER Search도 `activateStrategySlot`로 Runtime hydrate 수행 — “Search = draft only”는 더 이상 정확하지 않음. 잔여 불일치는 targetBall 동기화 쪽 우선 조사
 
 **우선순위:** P0
 
@@ -1112,7 +1113,7 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 
 > **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN** — Phase 0 Architecture · Phase 1 Definition · Phase 2 Freeze Review · Phase 2.5 Gate Closure · Phase 3-A Persist · Phase 3-B Freeze 완료. **Current: Platform Frozen · Pilot Ready** · **Next: STEP9 Phase 4 Pilot Certification**.
 >
-> **Runtime / Product 상태 (2026-08-01):** Pointer Capture Timing 안정 · Target Ball DoubleClick 안정 · **Runtime Contract SSOT 완료** · SYS Apply 백지화 해결 · ModalShell Native Selection 해결 · Dataset Pipeline 안정. Build / Lint PASS · Regression 없음. **Next (Product): Trajectory Extension 설계**.
+> **Runtime / Product 상태 (2026-08-04):** Pointer Capture Timing 안정 · Target Ball DoubleClick 안정 · **Runtime Contract SSOT 완료** · ModalShell Native Selection 해결 · Dataset Pipeline 안정 · **Trajectory Extension Completed (Task Closed)** — Runtime 통합 · USER Search `activateStrategySlot` · ADMIN/USER 경로 공유. Build / Lint PASS · Regression 없음. **Next (Product): Handle Drag 잔여 간섭 또는 차기 기능**.
 
 ### STEP7 상태
 
@@ -1251,22 +1252,26 @@ STEP8 Fleet Apply              COMPLETED
 
 Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7은 STEP6 **Consume**.
 
-### 최우선 (Product) — Trajectory Extension 설계
+### Product — Trajectory Extension (**Completed / Task Closed**)
 
-**상태:** 설계 착수 예정 (2026-08-01 세션 인계) · SSOT 초안 미작성
+**상태:** **Completed** (2026-08-04) · SSOT `TRAJECTORY_EXTENSION_SSOT.md` **v1.4**
 
-계산 종료 이후(C4 / C5 / C6부터 시작 가능)의 **Reverse End 연장 궤적**을 표현하기 위한 설계다. 기존 계산 Trajectory(C1~C6)는 수정하지 않는다.
+계산 엔진(C1~C6) 비수정 · 독립 Overlay · Role SSOT · SAVE/`trajectoryExtensions` · Hydrate · Render 완료.
 
-| 원칙 | 내용 |
+| 항목 | 상태 |
 |------|------|
-| **계산 엔진 불변** | 기존 계산 Trajectory(C1~C6) 및 계산 엔진을 수정하지 않는다 |
-| **독립 Overlay** | Extension은 계산 엔진이 아니라 독립 Overlay Layer로 설계한다 |
-| **다중 생성** | Extension은 여러 개 생성 가능한 구조로 설계한다 |
-| **시작점** | C4 / C5 / C6 등 계산 종료 지점부터 연장 시작 가능 |
-| **Second Ball** | 계산 기준이 아니라 생성된 Extension 위에 위치하는 구조를 **검토**한다 (확정 아님) |
-| **진입 산출물** | **Trajectory Extension SSOT 초안** |
+| Extension Runtime 통합 | **완료** |
+| USER Search Runtime 활성화 (`activateStrategySlot`) | **완료** |
+| ADMIN / USER Runtime 경로 통합 (Search ↔ Strategy Pick 공유) | **완료** |
+| Search 전용 Hydrate | **없음** (기존 `hydrateSlotRuntime` 재사용) |
+| SAVE → Hydrate → Render 파이프라인 | **완료** |
 
-첫 작업은 구현이 아니라 **SSOT 초안 설계**다. 상세 인계는 `CURSOR_SESSION_HANDOFF.md`.
+상세: `HISTORY/PROJECT_LOG_2026-08.md` (2026-08-03~04) · `CURSOR_SESSION_HANDOFF.md`.
+
+### 최우선 (Product) — 차기
+
+- **Handle First Drag 잔여 간섭** (명시적 후속 · Extension Handle vs Ball/Joystick) — 또는 신규 Product 세션
+- 인계: `CURSOR_SESSION_HANDOFF.md`
 
 ### 최우선 (Platform) — STEP9 Phase 4 Pilot Entry (Frozen Platform Consume)
 
@@ -1351,7 +1356,8 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | 문서 | 용도 |
 |------|------|
 | `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 First Consume |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — Runtime Contract / Interaction 안정화 Completed · Next **Trajectory Extension 설계** |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — Trajectory Extension **Task Closed** · Next **Handle Drag 잔여 / 차기 Product** |
+| `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
 | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` | **Architecture Impact Working Guideline** — PASS · Consume · Freeze Candidate |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** — IU-6-01A…06A Complete · Design-only |

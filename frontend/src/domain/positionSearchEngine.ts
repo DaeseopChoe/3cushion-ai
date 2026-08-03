@@ -1,5 +1,6 @@
 // frontend/src/domain/positionSearchEngine.ts
 import { ballsToPoint6D, dist2_6d } from "./search/kdTree6d";
+import type { TrajectoryExtensionPayload } from "./trajectoryExtension/model";
 
 export type Point = { x: number; y: number };
 export type Ball3 = { cue: Point; target: Point; second: Point };
@@ -49,6 +50,12 @@ export type StrategyEntry = {
 
   // 검색용 메타
   meta: StrategyMeta;
+
+  /**
+   * Trajectory Extension Overlay endpoints (SSOT v1.3).
+   * Optional · additive — Reveal은 저장하지 않고 Runtime 재생성.
+   */
+  trajectoryExtensions?: TrajectoryExtensionPayload;
 };
 
 /** 슬롯당 최대 1전략 (S1/S2/S3 키) */

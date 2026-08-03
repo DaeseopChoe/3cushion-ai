@@ -67,10 +67,11 @@ export type UserSearchFlowContext = {
  * USER Published Search Flow (SRCH-003).
  * Published corpus 검색 → Recall 적용 → userLastSearchRecord 저장.
  * appMode guard 및 in-flight guard는 App.jsx 호출 전에 수행.
+ * @returns matched PositionRecord on success; null on no-match / load error
  */
 export async function runUserSearch(
   ctx: UserSearchFlowContext
-): Promise<void> {
+): Promise<PositionRecord | null> {
   const runtimeHints = resolvePublishedLeafHints(
     (ctx.adminState as Record<string, unknown> | undefined)?.sys as
       | Record<string, unknown>
@@ -97,7 +98,7 @@ export async function runUserSearch(
 
   if (loadResult.kind === "error") {
     alert(`Search 데이터 로드 오류: ${loadResult.message}`);
-    return;
+    return null;
   }
 
   const publishedRecords = loadResult.kind === "ok" ? loadResult.records : [];
@@ -151,7 +152,7 @@ export async function runUserSearch(
       result?.kind === "no-match" ? result.reason : "unknown";
     console.log("[USER_SEARCH_RECALL] no-match", reason);
     ctx.showToast("일치하는 포지션이 없습니다.", { variant: "center" });
-    return;
+    return null;
   }
 
   console.log("[USER_SEARCH_RECALL] applyUserSearchRecall", {
@@ -163,4 +164,5 @@ export async function runUserSearch(
   ctx.applyUserSearchRecall(result.record);
   ctx.setUserLastSearchRecord(result.record);
   ctx.setUserPublishedSearchContext({ shotType, systemId });
+  return result.record;
 }

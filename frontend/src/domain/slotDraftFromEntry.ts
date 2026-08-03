@@ -26,11 +26,12 @@ export function strategyEntryToSlotDraftSys(entry: StrategyEntry): SlotDraftSys 
   };
 }
 
-/** Per-slot runtime fields stored on draft/applied (corrections, shotType, system_values). */
+/** Per-slot runtime fields stored on draft/applied (corrections, shotType, system_values, extensions). */
 export function draftRuntimeFieldsFromStrategyEntry(entry: StrategyEntry): {
   corrections: StrategySysCorrections;
   shotType?: string;
   system_values: Record<string, number>;
+  trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
 } {
   const hydrated = hydrateSysFromStrategyEntry(entry);
   const sigShot = entry.signature?.shotType;
@@ -38,9 +39,18 @@ export function draftRuntimeFieldsFromStrategyEntry(entry: StrategyEntry): {
     sigShot && sigShot !== "default" && sigShot !== "_"
       ? sigShot
       : undefined;
-  return {
+  const out: {
+    corrections: StrategySysCorrections;
+    shotType?: string;
+    system_values: Record<string, number>;
+    trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
+  } = {
     corrections: mergeCorrections(entry.corrections ?? hydrated.corrections),
     shotType,
     system_values: { ...hydrated.system_values },
   };
+  if (entry.trajectoryExtensions) {
+    out.trajectoryExtensions = entry.trajectoryExtensions;
+  }
+  return out;
 }

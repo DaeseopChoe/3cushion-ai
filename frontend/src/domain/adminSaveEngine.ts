@@ -50,6 +50,8 @@ export function createStrategyEntry(args: {
   balls: Ball3;
   track?: string;
   evaluateStrategy: EvaluateStrategyForSave;
+  /** Optional Trajectory Extension payload (endpoints only). */
+  trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
 }): StrategyEntry {
   const meta = buildStrategyMeta({
     balls: args.balls,
@@ -60,7 +62,7 @@ export function createStrategyEntry(args: {
     evaluateStrategy: args.evaluateStrategy,
   });
 
-  return {
+  const entry: StrategyEntry = {
     slot: args.slot,
     signature: args.signature,
     track: args.track ?? "B2T_L",
@@ -70,6 +72,10 @@ export function createStrategyEntry(args: {
     ai: args.ai,
     meta,
   };
+  if (args.trajectoryExtensions) {
+    entry.trajectoryExtensions = args.trajectoryExtensions;
+  }
+  return entry;
 }
 
 // ---------- 3) buildStrategyMeta ----------

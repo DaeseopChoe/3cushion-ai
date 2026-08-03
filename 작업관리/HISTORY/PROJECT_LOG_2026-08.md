@@ -1,8 +1,142 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.0  
+Version : v1.1  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-03 ~ 2026-08-04 (Trajectory Extension 완료 · USER Search Runtime Activation)
+
+## 제목
+
+**D-EXT-26** — Trajectory Extension Product Complete · USER Search ↔ Strategy Pick Runtime 경로 통합 (`activateStrategySlot`)
+
+## Summary
+
+Trajectory Extension(궤적 연장) Overlay를 Architecture Freeze(v1.3)부터 구현·통합하고, USER Search에서 Extension이 표시되지 않던 문제를 Runtime Slot Activation 누락으로 확정·해결하였다. Search 전용 Hydrate는 만들지 않았고, 공략 버튼(`pickStrategySlot`)과 동일한 `activateStrategySlot()` 경로만 공유한다. **Trajectory Extension Task Closed.**
+
+---
+
+## 1. 문제
+
+USER Search(및 초기 분석 시점의 ADMIN Published Search)에서 Working/Published에 `trajectoryExtensions`가 저장되어 있어도 Extension Layer가 보이지 않았다.
+
+- ADMIN Local DB Recall → Extension 표시 **정상**
+- SAVE → Working Dataset → Export → `positions.json`에 `strategies.S*.trajectoryExtensions` **존재**
+- `buildDraftsFromRecord` / `draftRuntimeFieldsFromStrategyEntry`는 payload를 draft에 **정상 복사**
+
+---
+
+## 2. 원인 분석
+
+조사 순서: Published Leaf → SAVE → Hydrate whitelist → Render → **USER Runtime gate**.
+
+| 기각 / 부차 | 내용 |
+|-------------|------|
+| Export Builder strip | Export는 StrategyEntry pass-through · 필드 유지 |
+| `buildDraftsFromRecord` 누락 | whitelist에 `trajectoryExtensions` 포함 |
+| 다른 Position 오선택 | 희소 데이터·`userStrict`에서 주원인 아님 (부차: cache stale 가능) |
+
+**최종 원인:** USER Search 성공 후 `userTableDisplaySlotId`를 설정하지 않음.
+
+```text
+applyUserSearchRecall  →  slot.draft.trajectoryExtensions = O
+        ↓
+userTableDisplaySlotId 미설정 (null)
+        ↓
+App Extension hydrate effect
+  if (!userTableDisplaySlotId) {
+    setTrajectoryExtensionDraft(null);
+    return;
+  }
+        ↓
+extensionDraftCount === 0 → TrajectoryExtensionLayer 미마운트
+```
+
+기존 SSOT는 “공략 클릭 시 table hydrate”였고, Search는 draft/labels만 만들었다. Extension Layer는 `userTableDisplaySlotId` 게이트에 묶여 있어 Search 직후 Runtime이 열리지 않았다.
+
+---
+
+## 3. 해결
+
+### `activateStrategySlot(slotId)` (App.jsx)
+
+공용 Runtime Slot Activation (Overlay/UI 제외):
+
+```text
+actions.switchSlot(slotId)
+  → setUserTableDisplaySlotId(slotId)
+  → hydrateSlotRuntime(slotId)
+```
+
+- `pickStrategySlot` → Overlay clear 후 **`activateStrategySlot` 호출**
+- USER Search 성공 → `resolveUserSearchDisplaySlotId` (activeSlot ∈ record.strategies ? 유지 : S1→S2→S3 첫 슬롯) → **`activateStrategySlot`만 호출**
+- Search 전용 Hydrate / Extension / Trajectory 경로 **없음**
+- `applyUserSearchRecall`은 `flushSync`로 커밋 후 Activation (stale slots 방지 · `shotEditorRef`)
+
+### SSOT
+
+`TRAJECTORY_EXTENSION_SSOT.md` → **v1.4** (Runtime Flow · Search/Pick 공유 · Search-only Hydrate 부재 명시).
+
+---
+
+## 4. 결과
+
+| 검증 | 결과 |
+|------|------|
+| ADMIN Local DB Recall | 정상 |
+| ADMIN Published Search | 정상 |
+| USER Search | 정상 (Extension/Trajectory/Target/Layer) |
+| SAVE → Refresh → Recall | 정상 |
+| Strategy Slot 전환 / Pick | 정상 (`activateStrategySlot` 공유) |
+| ADMIN ↔ USER 전환 세션 리셋 | 정상 |
+| Extension Handle | 정상 (Handle First Drag 잔여 간섭은 후속 후보) |
+
+**Trajectory Extension 기능 완료 (Task Closed).**
+
+---
+
+## Decision Log (본 항목)
+
+| ID | Decision |
+|----|----------|
+| **D-EXT-26** | USER Search와 Strategy Pick은 `activateStrategySlot()` 단일 Runtime Activation 경로를 공유한다. Search 전용 Hydrate를 만들지 않는다. |
+
+---
+
+## 변경 파일 (구현 세션 · 문서 세션 제외)
+
+| 파일 | 내용 |
+|------|------|
+| `frontend/src/App.jsx` | `activateStrategySlot` · `resolveUserSearchDisplaySlotId` · Search/`pickStrategySlot` 통합 · `shotEditorRef` |
+| `frontend/src/application/flows/userSearchFlow.ts` | 성공 시 matched `PositionRecord` 반환 |
+| (선행) Extension Domain / SAVE / Hydrate whitelist / Layer | S1–S3 · Role · Projection 등 |
+
+---
+
+## Explicit Non-Claims
+
+- Trajectory Builder · Formula · Display Cap · Runtime Contract · Dataset Formula **미수정**
+- Search 전용 Hydrate 엔진 **미도입**
+- Handle First Drag 잔여 간섭 **미해결** (후속)
+- Commit / Push (문서 세션) **없음**
+
+---
+
+## Current Status
+
+```text
+Trajectory Extension     : Completed / Task Closed (SSOT v1.4)
+USER Search Runtime      : activateStrategySlot 통합
+ADMIN / USER paths       : Runtime Activation 공유
+Build / Lint             : PASS (구현 세션 기준)
+Next (Product)           : Handle Drag 잔여 또는 차기 기능
+```
+
+## Next
+
+Handle First Drag 잔여 간섭 정리, 또는 신규 Product 세션. 상세는 `CURSOR_SESSION_HANDOFF.md`.
 
 ---
 
@@ -233,6 +367,6 @@ Commit                   : abeca84 · 7ef9601
 
 ## Next
 
-**Trajectory Extension 설계** — 계산 종료 이후(C4/C5/C6 이후)의 Reverse End 연장 궤적을 기존 계산 엔진과 분리된 독립 Overlay로 설계한다. 상세는 `CURSOR_SESSION_HANDOFF.md` 참조.
+~~**Trajectory Extension 설계**~~ → **Completed (2026-08-03~04)**. 상단 최신 로그 · `CURSOR_SESSION_HANDOFF.md` 참조.
 
 ---

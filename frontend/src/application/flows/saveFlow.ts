@@ -29,7 +29,7 @@ import { logCanonicalPersistAudit } from "../../domain/canonicalPersistAudit";
 import { evaluateStrategy } from "../../domain/evaluateStrategy";
 import { makeSignature } from "../../domain/strategySignature";
 import { extractSlotRuntimeMeta } from "../../domain/slotRuntimeHydrate";
-import { type PositionRecord } from "../../domain/positionSearchEngine";
+import { type PositionRecord, type StrategyEntry } from "../../domain/positionSearchEngine";
 import { normalizePublishedShotTypeHint } from "./recallHydrateFlow";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +56,8 @@ export type SaveFlowContext = {
   system: unknown;
   resolvedSlotSysValues: Record<string, unknown> | null | undefined;
   autoSave: boolean;
+  /** Runtime Extension draft → Dataset payload (endpoints only; Reveal not stored). */
+  trajectoryExtensionPayload?: StrategyEntry["trajectoryExtensions"] | null;
 
   // READ (Infrastructure)
   saveWorkingDataset: (updated: PositionRecord[]) => void;
@@ -249,6 +251,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       balls: cleanBall3,
       track: canonicalDraft.track,
       evaluateStrategy: evalForSave,
+      trajectoryExtensions: ctx.trajectoryExtensionPayload ?? null,
     });
     strategy = attachCanonicalFieldsToStrategyEntry(baseEntry, canonicalDraft);
     console.log("[SAVE] strategy JSON check:", JSON.stringify(strategy));

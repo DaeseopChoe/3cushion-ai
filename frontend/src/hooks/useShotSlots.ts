@@ -35,6 +35,8 @@ export interface DraftState {
   shotType?: string;
   system_values?: Record<string, number>;
   targetBall?: TargetBall | null;
+  /** Trajectory Extension Overlay — hydrated from StrategyEntry (endpoints only). */
+  trajectoryExtensions?: import('../domain/positionSearchEngine').StrategyEntry['trajectoryExtensions'];
 }
 
 export interface SlotState {
@@ -97,6 +99,9 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
       shotType: runtime.shotType,
       system_values: runtime.system_values,
       targetBall: recordTarget,
+      ...(runtime.trajectoryExtensions
+        ? { trajectoryExtensions: runtime.trajectoryExtensions }
+        : {}),
     };
   }
   return map;
@@ -683,6 +688,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
             str: entry.str,
             ai: entry.ai,
             meta: { recommendedFrom: { positionId: record.positionId, score: 0 } },
+            ...draftRuntimeFieldsFromStrategyEntry(entry),
           },
         };
       }
