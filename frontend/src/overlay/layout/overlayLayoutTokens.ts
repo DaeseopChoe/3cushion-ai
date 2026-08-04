@@ -37,8 +37,11 @@ export const OVERLAY_SIZE_VARIANTS: Record<OverlaySizeVariant, OverlaySizeToken>
  */
 export const AI_OVERLAY_WIDTH_RATIO = 0.42;
 export const AI_OVERLAY_MAX_HEIGHT_RATIO = 0.85;
-/** width / height target hint (6:4). Height stays auto; used for docs / future layout. */
+/** OFF silhouette + Reading ON originalAspect (width / height). */
 export const AI_OVERLAY_ASPECT_RATIO = 6 / 4;
+
+/** HPT shares AI Shell silhouette; Reading ON uses this originalAspect. */
+export const HPT_OVERLAY_ASPECT_RATIO = AI_OVERLAY_ASPECT_RATIO;
 
 /**
  * Calculation Overlay — wider than AI so dense DisplayModel lines reflow less.
@@ -48,6 +51,14 @@ export const CALC_OVERLAY_WIDTH_RATIO = 0.62;
 export const CALC_OVERLAY_MAX_HEIGHT_RATIO = AI_OVERLAY_MAX_HEIGHT_RATIO;
 
 export const OVERLAY_CLAMP_INSET_RATIO = 0.02;
+
+/**
+ * Reading Mode (DISPLAY_BOUNDARY_POLICY_SSOT §15) — Presentation UX only.
+ * Max height = table inner height; typography × ReadingFontScale.
+ * Width: AI/HPT use originalAspect; CALC keeps OFF max-box aspect (widthRatio/maxHeightRatio).
+ */
+export const READING_FONT_SCALE = 1.45;
+export const READING_MODE_MAX_HEIGHT_RATIO = 1;
 
 export const OVERLAY_TYPOGRAPHY = {
   fontBaseRatio: 0.028,
@@ -89,7 +100,29 @@ export type UserOverlayLayoutChoice = {
   /** Optional Ratio overrides (SSOT-derived; never absolute px). */
   widthRatio?: number;
   maxHeightRatio?: number;
+  /**
+   * Reading ON only — width/height originalAspect.
+   * AI/HPT: design silhouette. CALC: omit → legacy max-box aspect.
+   */
+  readingOriginalAspect?: number;
 };
+
+/**
+ * Map Content class / kind → Reading originalAspect.
+ * Undefined ⇒ Reading width uses OFF max-box (widthRatio/maxHeightRatio) — CALC path.
+ */
+export function resolveReadingOriginalAspect(
+  kindOrClassName?: string | null
+): number | undefined {
+  if (!kindOrClassName) return undefined;
+  if (kindOrClassName === "AI" || kindOrClassName.includes("user-ai")) {
+    return AI_OVERLAY_ASPECT_RATIO;
+  }
+  if (kindOrClassName === "HPT" || kindOrClassName.includes("user-hpt")) {
+    return HPT_OVERLAY_ASPECT_RATIO;
+  }
+  return undefined;
+}
 
 /** Overlay selects Variant + Surface only (SSOT mapping). */
 export function resolveUserOverlayLayout(
@@ -105,6 +138,7 @@ export function resolveUserOverlayLayout(
         fitContent: OVERLAY_SIZE_VARIANTS.medium.fitContent,
         widthRatio: AI_OVERLAY_WIDTH_RATIO,
         maxHeightRatio: AI_OVERLAY_MAX_HEIGHT_RATIO,
+        readingOriginalAspect: HPT_OVERLAY_ASPECT_RATIO,
       };
     case "AI":
       return {
@@ -115,6 +149,7 @@ export function resolveUserOverlayLayout(
         fitContent: OVERLAY_SIZE_VARIANTS.medium.fitContent,
         widthRatio: AI_OVERLAY_WIDTH_RATIO,
         maxHeightRatio: AI_OVERLAY_MAX_HEIGHT_RATIO,
+        readingOriginalAspect: AI_OVERLAY_ASPECT_RATIO,
       };
     case "CALC":
       return {
@@ -125,6 +160,7 @@ export function resolveUserOverlayLayout(
         fitContent: OVERLAY_SIZE_VARIANTS.medium.fitContent,
         widthRatio: CALC_OVERLAY_WIDTH_RATIO,
         maxHeightRatio: CALC_OVERLAY_MAX_HEIGHT_RATIO,
+        // readingOriginalAspect omitted — Reading keeps max-box aspect
       };
     case "SYS":
     case "SYSTEM_LESSON":
@@ -151,27 +187,64 @@ export function computeOverlayLayoutMetrics(
   tableHeight: number,
   sizeVariant: OverlaySizeVariant,
   contentTypeScale = 1,
-  ratioOverrides?: { widthRatio?: number; maxHeightRatio?: number }
+  ratioOverrides?: {
+    widthRatio?: number;
+    maxHeightRatio?: number;
+    /** When true: maxH = tableH, typography × ReadingFontScale. */
+    readingMode?: boolean;
+    /**
+     * Reading ON width aspect (width/height).
+     * Set for AI/HPT. Omit for CALC → widthRatio/maxHeightRatio max-box aspect.
+     */
+    readingOriginalAspect?: number;
+  }
 ) {
   const size = OVERLAY_SIZE_VARIANTS[sizeVariant];
   const widthRatio = ratioOverrides?.widthRatio ?? size.widthRatio;
   const maxHeightRatio = ratioOverrides?.maxHeightRatio ?? size.maxHeightRatio;
+  const readingMode = ratioOverrides?.readingMode === true;
+  const readingOriginalAspect = ratioOverrides?.readingOriginalAspect;
   const tw = Math.max(0, tableWidth);
   const th = Math.max(0, tableHeight);
   const shortSide = Math.min(tw, th) || 1;
+  const insetPx = shortSide * OVERLAY_CLAMP_INSET_RATIO;
 
+  const offWidthPx = tw * widthRatio;
+  const offMaxHeightPx = th * maxHeightRatio;
+  let widthPx = offWidthPx;
+  let maxHeightPx = offMaxHeightPx;
+
+  if (readingMode && th > 0) {
+    maxHeightPx = th * READING_MODE_MAX_HEIGHT_RATIO;
+    const maxWidthPx = Math.max(0, tw - insetPx * 2);
+    const aspect =
+      typeof readingOriginalAspect === "number" &&
+      Number.isFinite(readingOriginalAspect) &&
+      readingOriginalAspect > 0
+        ? readingOriginalAspect
+        : offMaxHeightPx > 0
+          ? offWidthPx / offMaxHeightPx
+          : 1;
+    widthPx = Math.min(maxWidthPx, maxHeightPx * aspect);
+  }
+
+  const typeScale = readingMode
+    ? contentTypeScale * READING_FONT_SCALE
+    : contentTypeScale;
   const fontBase = th * OVERLAY_TYPOGRAPHY.fontBaseRatio;
-  const effectiveFont = fontBase * contentTypeScale;
-  const scale = fontBase > 0 ? effectiveFont / OVERLAY_TYPOGRAPHY.legacyOverlayFontPx : 1;
+  const effectiveFont = fontBase * typeScale;
+  const scale =
+    fontBase > 0 ? effectiveFont / OVERLAY_TYPOGRAPHY.legacyOverlayFontPx : 1;
   const radiusScale = Math.min(
     OVERLAY_TYPOGRAPHY.radiusScaleMax,
     Math.max(OVERLAY_TYPOGRAPHY.radiusScaleMin, scale)
   );
 
   return {
-    widthPx: tw * widthRatio,
-    maxHeightPx: th * maxHeightRatio,
-    insetPx: shortSide * OVERLAY_CLAMP_INSET_RATIO,
+    widthPx,
+    maxHeightPx,
+    insetPx,
+    readingMode,
     fontBasePx: effectiveFont,
     titlePx: effectiveFont * OVERLAY_TYPOGRAPHY.titleRatio,
     sectionPx: effectiveFont * OVERLAY_TYPOGRAPHY.sectionRatio,
@@ -185,6 +258,12 @@ export function computeOverlayLayoutMetrics(
     lineHeight: OVERLAY_TYPOGRAPHY.lineHeight,
     contentScale: effectiveFont / OVERLAY_TYPOGRAPHY.legacyAiFontPx,
     overlayScale: effectiveFont / OVERLAY_TYPOGRAPHY.legacyOverlayFontPx,
-    svgScale: Math.min(1.1, Math.max(0.5, (effectiveFont / OVERLAY_TYPOGRAPHY.legacyOverlayFontPx) * 0.95)),
+    svgScale: Math.min(
+      1.1,
+      Math.max(
+        0.5,
+        (effectiveFont / OVERLAY_TYPOGRAPHY.legacyOverlayFontPx) * 0.95
+      )
+    ),
   };
 }

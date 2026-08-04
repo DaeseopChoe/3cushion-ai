@@ -280,6 +280,11 @@
   z-index: 50;
   background: transparent;
   pointer-events: auto;
+  transition: background-color 165ms ease-out;
+}
+
+.user-overlay-shell-backdrop--reading {
+  background: rgba(8, 15, 30, 0.32);
 }
 
 .user-overlay-shell {
@@ -297,6 +302,12 @@
   font-size: var(--uos-body, 16px);
   color: #0f172a;
   overflow: hidden;
+  transition:
+    width 165ms ease-out,
+    max-width 165ms ease-out,
+    max-height 165ms ease-out,
+    font-size 165ms ease-out,
+    padding 165ms ease-out;
 }
 
 .user-overlay-shell--positioned {
@@ -330,6 +341,7 @@
   cursor: grabbing;
   user-select: none;
   -webkit-user-select: none;
+  transition: none;
 }
 
 /* Surface tokens (Shell-owned) */
@@ -398,7 +410,49 @@
   color: #64748b;
 }
 
+/* Reading Mode toggle — Shell chrome only (SSOT §15) */
+.user-overlay-shell__reading-toggle {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2em;
+  height: 2em;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.28);
+  color: rgba(248, 250, 252, 0.92);
+  font-size: calc(var(--uos-body, 16px) * 1.05);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.user-overlay-shell__reading-toggle:hover {
+  background: rgba(15, 23, 42, 0.42);
+  color: #fff;
+}
+
+.user-overlay-shell__reading-toggle:focus-visible {
+  outline: 2px solid rgba(147, 197, 253, 0.9);
+  outline-offset: 2px;
+}
+
+.user-overlay-shell__reading-icon {
+  display: block;
+  width: 1.15em;
+  height: 1.15em;
+}
+
 .user-overlay-shell--surface-drag .user-overlay-shell__close,
+.user-overlay-shell--surface-drag .user-overlay-shell__reading-toggle,
 .user-overlay-shell--surface-drag button,
 .user-overlay-shell--surface-drag a,
 .user-overlay-shell--surface-drag [data-overlay-no-drag="1"] {
@@ -461,14 +515,22 @@
 
 .user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__close,
 .user-overlay-shell--calc.user-overlay-shell--surface-glassDark .user-overlay-shell__close,
-.user-overlay-shell--hpt.user-overlay-shell--surface-glassDark .user-overlay-shell__close {
-  color: rgba(255, 255, 255, 0.78);
+.user-overlay-shell--hpt.user-overlay-shell--surface-glassDark .user-overlay-shell__close,
+.user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__reading-toggle,
+.user-overlay-shell--calc.user-overlay-shell--surface-glassDark .user-overlay-shell__reading-toggle,
+.user-overlay-shell--hpt.user-overlay-shell--surface-glassDark .user-overlay-shell__reading-toggle {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(8, 15, 30, 0.28);
 }
 
 .user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__close:hover,
 .user-overlay-shell--calc.user-overlay-shell--surface-glassDark .user-overlay-shell__close:hover,
-.user-overlay-shell--hpt.user-overlay-shell--surface-glassDark .user-overlay-shell__close:hover {
-  color: rgba(255, 255, 255, 0.96);
+.user-overlay-shell--hpt.user-overlay-shell--surface-glassDark .user-overlay-shell__close:hover,
+.user-overlay-shell--ai.user-overlay-shell--surface-glassDark .user-overlay-shell__reading-toggle:hover,
+.user-overlay-shell--calc.user-overlay-shell--surface-glassDark .user-overlay-shell__reading-toggle:hover,
+.user-overlay-shell--hpt.user-overlay-shell--surface-glassDark .user-overlay-shell__reading-toggle:hover {
+  color: rgba(255, 255, 255, 0.98);
+  background: rgba(8, 15, 30, 0.42);
 }
 
 .user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel {
@@ -510,17 +572,12 @@
   word-break: keep-all;
 }
 
-/* No empty header band — only clear the floating X horizontally (AI keeps Close offset) */
-.user-overlay-shell--ai .user-overlay-shell__body {
-  padding-top: 0;
-  padding-right: 1.35em;
-}
-
-/* CALC/HPT: Close(X) removed — do not reserve right gutter; Shell padH only */
+/* Reading Mode chrome — reserve right gutter for magnifier on AI / CALC / HPT */
+.user-overlay-shell--ai .user-overlay-shell__body,
 .user-overlay-shell--calc .user-overlay-shell__body,
 .user-overlay-shell--hpt .user-overlay-shell__body {
   padding-top: 0;
-  padding-right: 0;
+  padding-right: 1.75em;
 }
 
 .modal-panel--user-ai {

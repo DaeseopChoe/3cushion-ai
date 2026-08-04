@@ -13,6 +13,7 @@ import {
   resolveTrajectoryDisplayCap,
   slicePathNodesToCap,
   type TrajectoryDisplayCap,
+  type TrajectoryDisplayCapOptions,
 } from "../trajectoryPathDisplayPolicy";
 import { calculateImpact } from "../../utils/physics";
 import { createCurveSegment } from "../../utils/trajectory/curveTrajectory";
@@ -80,6 +81,11 @@ export type TrajectoryBuildInput = {
   curveEps?: number;
   /** Baseline SYS values (DisplayModel C4와 동일 소스). 5&Half Display Cap용. */
   baseSysValues?: Record<string, unknown> | null;
+  /**
+   * Display Cap options (App-injected).
+   * e.g. skipSameRail for ADMIN C2 reflectionOverride — no Reflection/Builder math change.
+   */
+  displayCapOpts?: TrajectoryDisplayCapOptions;
 };
 
 export type LabelAnchorPayload = {
@@ -254,8 +260,8 @@ function buildBaselineBranch(
   trackForAnchors: string | undefined,
   secondPoint: PathPoint | null,
   hitTolerance: number,
-  correctedDisplayEndIndex: number,
-  baseSysValues: Record<string, unknown> | null | undefined
+  baseSysValues: Record<string, unknown> | null | undefined,
+  displayCapOpts?: TrajectoryBuildInput["displayCapOpts"]
 ): BaselinePathBundle | null {
   if (!anchorsBase) {
     return null;
@@ -369,15 +375,20 @@ function buildBaselineBranch(
     C6_path_b,
   ];
 
-  // 5&Half: BaselineEnd = min(PhysicalLimit(C4), CorrectedDisplayEnd)
+  // 5&Half: Baseline Cap = PhysicalLimit + chain/same-rail (C4 Minimum · no corrected ceiling)
   // 그 외: legacy second-ball Cap 유지
   const capBaseline = isFiveHalfSystemId(systemIdForGrid)
     ? resolveBaselineTrajectoryDisplayCap({
         pathNodes,
-        correctedDisplayEndIndex,
         baselineC4Value: resolveBaselineC4Value(baseSysValues),
+        opts: displayCapOpts,
       })
-    : resolveTrajectoryDisplayCap(pathNodes, secondPoint, hitTolerance);
+    : resolveTrajectoryDisplayCap(
+        pathNodes,
+        secondPoint,
+        hitTolerance,
+        displayCapOpts
+      );
   const cushionPath = slicePathNodesToCap(pathNodes, capBaseline);
 
   return {
@@ -425,6 +436,7 @@ export function buildTrajectory(
     ballRadiusRg,
     curveEps = DEFAULT_CURVE_EPS,
     baseSysValues,
+    displayCapOpts,
   } = input;
 
   const trackForAnchors = resolveAnchorCtx.track;
@@ -585,7 +597,8 @@ export function buildTrajectory(
   const capCorrected = resolveTrajectoryDisplayCap(
     pathNodes,
     secondPoint,
-    hitTolerance
+    hitTolerance,
+    displayCapOpts
   );
   const cushionPath = slicePathNodesToCap(pathNodes, capCorrected);
 
@@ -638,8 +651,8 @@ export function buildTrajectory(
     trackForAnchors,
     secondPoint,
     hitTolerance,
-    capCorrected.endIndex,
-    baseSysValues
+    baseSysValues,
+    displayCapOpts
   );
 
   const coRg = baselineHandleFromPath(baseline?.cushionPath[0]);

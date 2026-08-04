@@ -3,8 +3,8 @@
   "shotType": "뒤돌리기",
   "systemId": "5_half_system",
   "systemLabel": "파이브앤하프",
-  "exportedAt": "2026-08-03T14:04:08.687Z",
-  "sourceSnapshotId": "2e089b73-a17a-4ebc-8c4a-c82cc04101a3",
+  "exportedAt": "2026-08-04T06:36:38.730Z",
+  "sourceSnapshotId": "187ee9e7-cba4-4aa5-896f-4a16cd16229f",
   "records": [
     {
       "positionId": "200160200200600200",
@@ -929,6 +929,116 @@
                 "userEdited": true,
                 "createdAt": "2026-08-03T13:06:49.895Z",
                 "updatedAt": "2026-08-03T13:06:53.600Z"
+              }
+            ]
+          },
+          "corrections": {
+            "slide": 3,
+            "curve_ratio": 5,
+            "draw": 0,
+            "departure": 0,
+            "spin": 0
+          },
+          "correctionsStored": true
+        }
+      },
+      "schemaVersion": 1,
+      "targetBall": "red"
+    },
+    {
+      "positionId": "200160703134600200",
+      "balls": {
+        "cue": {
+          "x": 20,
+          "y": 16
+        },
+        "target": {
+          "x": 70.29932461166938,
+          "y": 13.431111038558795
+        },
+        "second": {
+          "x": 60,
+          "y": 20
+        }
+      },
+      "strategies": {
+        "S1": {
+          "slot": "S1",
+          "signature": {
+            "systemId": "5_half_system",
+            "formulaHash": "C1_f = CO_f - C3_r",
+            "shotType": "뒤돌리기"
+          },
+          "track": "B2T_R",
+          "sysInputs": {
+            "CO_f": 30,
+            "C3_r": 26
+          },
+          "hpT": {
+            "T": "-4/8",
+            "hit_point": {
+              "x": 1.5,
+              "y": 0.9
+            },
+            "mode": "SPIN",
+            "tipCount": 1
+          },
+          "str": {
+            "type": null,
+            "acceleration": "intentional_decel",
+            "speed": 2.5,
+            "depth": 1.5,
+            "impact": "soft"
+          },
+          "ai": {
+            "text": "",
+            "onePointLessons": [
+              {
+                "id": "1785464815040-dbbda54eb70c2",
+                "text": "그립의 힘을 빼고 등속 스트로크하는데 마지막에 큐를 가볍게 잡아주어 가벼운 분리가 일어나도록 합니다."
+              }
+            ]
+          },
+          "meta": {
+            "impact": {
+              "x": 68.83127178457508,
+              "y": 14.34630222463939
+            },
+            "final": {
+              "x": 74.0828402366864,
+              "y": 40
+            },
+            "angle_ci": -0.03385261031623668,
+            "angle_fs": -2.1842967588966533
+          },
+          "trajectoryExtensions": {
+            "extensionSchemaVersion": 1,
+            "origin": {
+              "kind": "path_node",
+              "source": "corrected"
+            },
+            "items": [
+              {
+                "id": "EXT-S1-01",
+                "index": 1,
+                "endpoint": {
+                  "x": 80,
+                  "y": 10.7891845703125
+                },
+                "userEdited": true,
+                "createdAt": "2026-08-04T06:35:24.101Z",
+                "updatedAt": "2026-08-04T06:35:28.407Z"
+              },
+              {
+                "id": "EXT-S1-02",
+                "index": 2,
+                "endpoint": {
+                  "x": 59.29779052734375,
+                  "y": 16.4273193359375
+                },
+                "userEdited": true,
+                "createdAt": "2026-08-04T06:35:30.832Z",
+                "updatedAt": "2026-08-04T06:35:35.106Z"
               }
             ]
           },

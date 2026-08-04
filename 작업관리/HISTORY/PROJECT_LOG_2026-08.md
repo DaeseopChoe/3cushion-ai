@@ -1,8 +1,264 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.1  
+Version : v1.6  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-04 (Reading Mode + C2 Reflection Rail Handle — 구현 완료 · 문서 반영)
+
+## 제목
+
+**D-DBP-16 / D-DBP-17 / D-DBP-18** — Reading Mode Implemented · C2 Reflection Rail Handle Implemented · Corner Cap Override
+
+## Summary
+
+이번 세션에서 USER Overlay **Reading Mode**와 ADMIN **C2 Reflection Rail Handle**을 구현·검증하고, Display Boundary Policy SSOT / MASTER INDEX / 본 로그에 완료 상태를 반영하였다. **본 항목의 문서 업데이트는 코드 수정 없음 · Commit/Push 없음.**
+
+## 작업 로그 (시간순)
+
+### ■ Reading Mode UX
+
+- UX 설계 · SSOT §15 작성 (선행 v1.3)
+- Overlay 확대: Max Height = Table Inner Height
+- Typography × `ReadingFontScale=1.45`
+- Aspect 유지 · 우측 상단 돋보기(+/-) 토글
+- Backdrop 강화 · 내부 Scroll
+- USER Overlay Shell only · Overlay 종료 시 OFF · Persistence 없음
+- 구현: `UserOverlayShell.jsx` · `overlayLayoutTokens.ts` · `index.css`
+
+### ■ Reading Mode 개선
+
+- AI Overlay Width 계산 수정 — kind별 **originalAspect**
+- AI/HPT: `AI_OVERLAY_ASPECT_RATIO`(6:4) · CALC: max-box aspect
+- 줄바꿈 감소
+- Reading Mode 토글 시 **Overlay Center 유지** (Drag/clamp 로직 비변경)
+
+### ■ Reflection Handle (C2)
+
+- ADMIN 전용 C2 Rail Handle (작은 노란 점)
+- 1D Rail Drag · Rail Snap · `{ rail, t }` Persist (`reflectionOverride`)
+- Builder: Override 있으면 Reflection 계산 Skip (`anchors.C2`)
+- USER Handle 비표시 · Reflection Engine / `detectRail` 수식 비변경
+- Display Layer 중심 · Builder 최소 변경
+
+### ■ Corner 처리
+
+- Manual Override 경로에서 Display Cap **sameRail 절단 생략** (`skipSameRail`)
+- `detectRail` 수정 없음 · Reflection Engine 수정 없음 · Builder는 Cap 옵션 전달만
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-DBP-16** | Reading ON Width = kind별 originalAspect |
+| **D-DBP-17** | Reading 토글 시 Overlay Center 유지 · Drag 로직 비변경 |
+| **D-DBP-18** | C2 Override rail+t · Cap `skipSameRail` · USER Handle 비표시 |
+
+## 최종 상태
+
+| 항목 | 상태 |
+|------|------|
+| Reading Mode | **완료** |
+| C2 Reflection Handle | **완료** |
+| Corner Override (`skipSameRail`) | **완료** |
+| Build | **PASS** |
+| Unit | **PASS** |
+| Lint | **PASS** |
+
+## 산출물 (문서 세션)
+
+| 문서 | 내용 |
+|------|------|
+| `DISPLAY_BOUNDARY_POLICY_SSOT.md` | v1.3 → **v1.4** (§15 Implemented · §16 C2 Handle) |
+| `PROJECT_MASTER_INDEX.md` | v1.55 → **v1.56** |
+| `HISTORY/PROJECT_LOG_2026-08.md` | 본 항목 · Version **v1.6** |
+
+## Explicit Non-Claims
+
+- Continuation / Boundary / CASE A / Corrected Cap Minimum 코드 — 미착수
+- Extension Runtime redesign — 비대상
+- 본 문서 업데이트 세션의 코드·Git Commit/Push — 없음
+
+## Next
+
+Continuation · CASE A attach · Corrected Cap Minimum · Display Boundary · 또는 Handle Drag 잔여 간섭.
+
+---
+
+# 2026-08-04 (Display Boundary Policy SSOT v1.3 — Reading Mode UX)
+
+## 제목
+
+**D-DBP-13 / D-DBP-14 / D-DBP-15** — Overlay Reading Mode UX 정책 SSOT 추가 (문서 only)
+
+## Summary
+
+Overlay Reading Mode를 구현하기 전에, Display Boundary Policy와 동일 수준의 Presentation UX SSOT를 `DISPLAY_BOUNDARY_POLICY_SSOT.md` §15로 확정하였다. Cap/Boundary/Extension Runtime과 **독립**이며, USER Overlay Shell만 대상이다. **코드·CSS·Component·Icon 수정 없음.**
+
+## 추가 정책
+
+| 항목 | 내용 |
+|------|------|
+| 적용 | USER Overlay (AI · 계산 · 타점) · Shell only |
+| 비적용 | ADMIN · Content Panel · Runtime/Builder/Dataset/Search/Extension |
+| ON | Max Height = Table Inner Height · Aspect 유지 · Width 자동 · Typography ×1.45 · Backdrop↑ · 내부 scroll |
+| 토글 | 우측 상단 돋보기(+)/(-) |
+| Animation | 150–180ms ease-out |
+| Reset | Overlay 종료 시 OFF · localStorage 없음 |
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-DBP-13** | Reading Mode = Presentation UX · Display Boundary와 독립 |
+| **D-DBP-14** | USER Overlay Shell만 · Content Panel 수정 금지 |
+| **D-DBP-15** | Overlay 종료 시 Reading 상태 초기화 · no localStorage |
+
+## 산출물
+
+| 문서 | 내용 |
+|------|------|
+| `DISPLAY_BOUNDARY_POLICY_SSOT.md` | v1.2 → **v1.3** (§15 Reading Mode) |
+| `PROJECT_MASTER_INDEX.md` | v1.54 → **v1.55** |
+
+## Explicit Non-Claims
+
+- Reading Mode 코드/아이콘/CSS 미구현
+- OVERLAY_LAYOUT_SSOT 본문 교차 개정은 구현 Phase에서
+- Cap / Continuation / Boundary / Extension 미변경
+
+## Next
+
+Reading Mode 구현 (Shell · tokens · App state) 또는 Continuation / Corrected Cap Minimum / Boundary.
+
+---
+
+# 2026-08-04 (Display Boundary Phase 2A — Overlay Attach Gate)
+
+## 제목
+
+**D-DBP-12** — Branch별 Trajectory Extension Overlay Attach/Visibility Gate (CASE B)
+
+## Summary
+
+USER 기준값에서 baseline은 C4까지 정상이나, `TrajectoryExtensionLayer`가 draft 존재만으로 corrected Reveal/E1/E2를 항상 그리던 문제를 Presentation Gate로 해결하였다. Runtime draft/hydrate는 유지한다. **“baseline이면 무조건 숨김”이 아니라** `baselineContinuationAllowed`로 CASE A 확장점을 남긴다.
+
+## 구현
+
+| 항목 | 내용 |
+|------|------|
+| Helper | `renderer/trajectory/trajectoryExtensionOverlayVisibility.ts` |
+| App | mount: `extensionOverlayVisibility.attach` |
+| USER baseline (Phase 2A) | `baselineContinuationAllowed: false` → attach=false |
+| USER corrected / ADMIN | draft 있으면 attach=true |
+
+## 검증
+
+- unit: overlay visibility 5 cases
+- Cap tests 회귀
+- Build / Lint
+
+## Explicit Non-Claims
+
+- Continuation Rule 미구현 (CASE A attach는 이후)
+- Corrected Cap Minimum 코드 미구현
+- Extension Runtime / Builder / Hydrate / Search 미변경
+- Commit / Push 없음
+
+## Next
+
+Continuation Rule → CASE A `baselineContinuationAllowed` · Corrected Cap Minimum · Display Boundary.
+
+---
+
+# 2026-08-04 (Display Boundary Policy SSOT v1.1 — Corrected Minimum)
+
+## 제목
+
+**D-DBP-10 / D-DBP-11** — Corrected Display Minimum Guarantee 문서 추가 (Phase 1.5 · 문서 only)
+
+## Summary
+
+Architecture Review 결과, corrected Display Cap이 `second_ball` 미교차 시 기본 **C3**에서 끝나는 현행이 5&Half 제품 의도(계산 결과 C4까지 표시)와 불일치함을 확인하였다. `DISPLAY_BOUNDARY_POLICY_SSOT.md`를 **v1.1**로 보강하여 Corrected Display Minimum Guarantee를 규범화하였다. **코드 수정 없음.**
+
+## 추가 정책
+
+| 항목 | 내용 |
+|------|------|
+| Corrected Minimum | 세컨드볼과 무관하게 **C4까지 항상 표시** · second_ball로 C3 종료 **금지** |
+| C5/C6 | Continuation Rule만 결정 |
+| Baseline ↔ Corrected | **최소 C4 정책 공유** · 차이는 path(계산 결과) |
+| Cap Priority | Invalid → Chain → **Minimum Guarantee** → Continuation → Physical Limit → Second Ball |
+
+## Decision Log
+
+| ID | Decision |
+|----|----------|
+| **D-DBP-10** | Corrected는 계산 결과가 존재하는 마지막 계산 쿠션(C4)까지 항상 표시 |
+| **D-DBP-11** | Continuation은 C4 이후만 · C4 Minimum과 독립 |
+
+## 산출물
+
+| 문서 | 내용 |
+|------|------|
+| `DISPLAY_BOUNDARY_POLICY_SSOT.md` | v1.0 → **v1.1** |
+| `PROJECT_MASTER_INDEX.md` | v1.53 · Display Boundary 절·참고 갱신 |
+
+## Explicit Non-Claims
+
+- Corrected Cap 코드 미구현 (다음: `trajectoryPathDisplayPolicy.ts`)
+- Builder / Extension / Hydrate / Search / Runtime 미변경
+- Commit / Push 없음
+
+## Next
+
+Corrected Display Cap C4 Minimum 구현 → Continuation Rule → Display Boundary → Overlay Attach.
+
+---
+
+# 2026-08-04 (Display Boundary Policy SSOT v1.0)
+
+## 제목
+
+**D-DBP-01…09** — USER 기준값/보정값 Display Boundary Policy SSOT 신규 작성 (문서 only)
+
+## Summary
+
+Trajectory Extension은 Task Closed / Runtime Freeze를 유지한 채, USER **기준값 vs 보정값**의 Display Layer 상위 정책이 없음을 확인하고 `DISPLAY_BOUNDARY_POLICY_SSOT.md` v1.0을 신규 작성하였다. Extension Runtime을 Difference로 취급하지 않으며, Builder → Cap → Boundary → Overlay Attach → Render 역할을 분리한다. **코드·Runtime·Builder·Hydrate·Dataset·Search 변경 없음.**
+
+## 배경
+
+- Extension Overlay / Cap / baseline·corrected path는 각각 존재하나, “사용자에게 무엇을 어디까지 보여줄까”는 SSOT 부재
+- 증상 분석에서 Extension Layer 숨김만으로는 CASE A(동일 계산 → 동일 표시)와 C4 Minimum이 설명되지 않음
+- 근본은 Display Boundary 정책 부재 · baseline의 corrected ceiling 종속 등 **Display Cap/Boundary** 이슈
+
+## 산출물
+
+| 문서 | 내용 |
+|------|------|
+| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | Policy SSOT v1.0 |
+| `PROJECT_MASTER_INDEX.md` | v1.52 · 문서 계층·참고·Display 절·차기 우선순위에 등록 |
+
+## 핵심 정책 (요약)
+
+- Extension ≠ Difference · Runtime Geometry는 Boundary 입력 아님
+- Cap = 단일 path 절단 · Boundary = 두 path 비교/조립 · Overlay Attach = Boundary 이후
+- baseline **C4 Minimum** · corrected second_ball / corrected ceiling **비종속**
+- **Continuation Rule** (Cap 하위 · axis long/short) · false → C4 종료 · 실패 segment 미표시
+- 구현 전 Architecture Review · 수정 허용 = Cap / Boundary / Overlay Attach only
+
+## Explicit Non-Claims
+
+- 코드 구현 없음
+- `TRAJECTORY_EXTENSION_SSOT.md` 미수정
+- Builder / Hydrate / Dataset / Search / Extension Runtime / `activateStrategySlot` 미변경
+- Commit / Push 없음 (문서 세션 · 사용자 지시 시)
+
+## Next
+
+Architecture Review → Display Cap(C4 Minimum · Continuation · ceiling 해소) → Display Boundary → Overlay Attach 순 구현 검토.
 
 ---
 

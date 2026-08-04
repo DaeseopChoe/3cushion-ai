@@ -43,6 +43,8 @@ const ALLOWED_STRATEGY_EXTRA_KEYS = new Set([
   "str",
   "ai",
   "correctionsStored",
+  "trajectoryExtensions",
+  "reflectionOverride",
 ]);
 
 /** DEV: `window.__CANONICAL_DEBUG__ = true` for verbose SAVE/audit logs */

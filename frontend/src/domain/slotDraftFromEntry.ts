@@ -32,6 +32,7 @@ export function draftRuntimeFieldsFromStrategyEntry(entry: StrategyEntry): {
   shotType?: string;
   system_values: Record<string, number>;
   trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
+  reflectionOverride?: StrategyEntry["reflectionOverride"];
 } {
   const hydrated = hydrateSysFromStrategyEntry(entry);
   const sigShot = entry.signature?.shotType;
@@ -44,6 +45,7 @@ export function draftRuntimeFieldsFromStrategyEntry(entry: StrategyEntry): {
     shotType?: string;
     system_values: Record<string, number>;
     trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
+    reflectionOverride?: StrategyEntry["reflectionOverride"];
   } = {
     corrections: mergeCorrections(entry.corrections ?? hydrated.corrections),
     shotType,
@@ -51,6 +53,9 @@ export function draftRuntimeFieldsFromStrategyEntry(entry: StrategyEntry): {
   };
   if (entry.trajectoryExtensions) {
     out.trajectoryExtensions = entry.trajectoryExtensions;
+  }
+  if (entry.reflectionOverride) {
+    out.reflectionOverride = entry.reflectionOverride;
   }
   return out;
 }

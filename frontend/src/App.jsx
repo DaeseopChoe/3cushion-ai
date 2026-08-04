@@ -78,6 +78,7 @@ import {
 } from "./interaction/joystickInteractionPolicy";
 import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRenderModel";
 import { buildBaselineHandleModel } from "./renderer/trajectory/baselineHandleModel";
+import { buildC2HandleModel } from "./renderer/trajectory/c2HandleModel";
 import { buildTrajectoryPathAttrModel } from "./renderer/trajectory/trajectoryPathAttrModel";
 import { buildSystemAxisLabelModel } from "./renderer/labels/systemAxisLabelModel";
 import { buildRgAnchors } from "./renderer/trajectory/anchorConversionModel";
@@ -149,8 +150,14 @@ import {
   resolveImpactTargetBall,
 } from "./domain/ballRole";
 import { buildTrajectoryExtensionRenderModel } from "./renderer/trajectory/trajectoryExtensionRenderModel";
+import { resolveTrajectoryExtensionOverlayVisibility } from "./renderer/trajectory/trajectoryExtensionOverlayVisibility";
 import { useBaselineDraft } from "./overlay/state/baselineDraftState";
 import { useTrajectoryExtensionHandleDrag } from "./overlay/state/trajectoryExtensionHandleDrag";
+import { useC2RailHandleDrag } from "./overlay/state/c2RailHandleDrag";
+import {
+  normalizeReflectionOverride,
+  reflectionOverrideToPoint,
+} from "./domain/trajectory/c2ReflectionOverride";
 import {
   loadWorkingDataset,
   saveWorkingDataset,
@@ -917,11 +924,36 @@ export default function App({
   const [trajectoryExtensionDraft, setTrajectoryExtensionDraft] = useState(null);
   /** P2-4: active Extension endpoint handle (1 | 2 | null). Selection only. */
   const [extensionActiveHandle, setExtensionActiveHandle] = useState(null);
+  /** ADMIN C2 Reflection Override { rail, t } — runtime + SAVE. */
+  const [c2ReflectionOverride, setC2ReflectionOverride] = useState(null);
+  const c2ReflectionOverrideRef = useRef(null);
+  c2ReflectionOverrideRef.current = c2ReflectionOverride;
 
   useEffect(() => {
     setTrajectoryExtensionDraft(null);
     setExtensionActiveHandle(null);
   }, [shotEditor.activeSlot]);
+
+  /** Hydrate C2 override from slot StrategyEntry (ADMIN only; slot switch / recall). */
+  useEffect(() => {
+    if (appMode !== "ADMIN") {
+      setC2ReflectionOverride(null);
+      return;
+    }
+    const slot = shotEditor.slots[shotEditor.activeSlot];
+    const raw =
+      slot?.draft?.reflectionOverride ??
+      slot?.applied?.reflectionOverride ??
+      null;
+    setC2ReflectionOverride(normalizeReflectionOverride(raw));
+    // slots identity changes often; key off activeSlot + override payload only
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid wiping live drag
+  }, [
+    appMode,
+    shotEditor.activeSlot,
+    shotEditor.slots[shotEditor.activeSlot]?.draft?.reflectionOverride,
+    shotEditor.slots[shotEditor.activeSlot]?.applied?.reflectionOverride,
+  ]);
 
   /** Hydrate Extension draft from slot StrategyEntry payload (Reveal regenerated at render). */
   useEffect(() => {
@@ -959,6 +991,7 @@ export default function App({
 
   const baselineCoHandleRgRef = useRef(null);
   const baselineC1HandleRgRef = useRef(null);
+  const c2HandleRgRef = useRef(null);
   /** P0-4f: 드래그 시작 시점 슬롯 SYS — Apply 후 stale draft vs committed slot 구분 */
   const baselineLabelSsotRef = useRef(null);
   const autoSave = true;
@@ -1482,6 +1515,22 @@ export default function App({
     onHandleDragStart: clearBallPointerInteractionState,
   });
 
+  const {
+    c2HandleDragging,
+    tryStartC2HandleDrag,
+    handleC2PointerMove,
+    endC2HandleDrag,
+  } = useC2RailHandleDrag({
+    svgRef,
+    canDrag: () => canEditRef.current,
+    getOverride: () => c2ReflectionOverrideRef.current,
+    setOverride: (next) => {
+      c2ReflectionOverrideRef.current = next;
+      setC2ReflectionOverride(next);
+    },
+    onHandleDragStart: clearBallPointerInteractionState,
+  });
+
   function handleBallDoubleClickForTarget(ballId, e) {
     if (appMode !== "ADMIN") return;
     if (overlayState.open || overlayContent) return;
@@ -1631,6 +1680,7 @@ export default function App({
       trajectoryExtensionPayload: trajectoryExtensionDraft
         ? draftToPayload(trajectoryExtensionDraft)
         : null,
+      reflectionOverridePayload: c2ReflectionOverride ?? null,
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
@@ -1659,6 +1709,7 @@ export default function App({
       trajectoryExtensionPayload: trajectoryExtensionDraft
         ? draftToPayload(trajectoryExtensionDraft)
         : null,
+      reflectionOverridePayload: c2ReflectionOverride ?? null,
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
@@ -3175,7 +3226,7 @@ function handlePointerDown(e) {
   if (!svgRef.current) return;
   const pointerRgEarly = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
 
-  // Priority: Extension Handle → Baseline Handle → Joystick → Ball
+  // Priority: Extension Handle → C2 Handle → Baseline Handle → Joystick → Ball
   if (
     pointerRgEarly &&
     tryStartExtensionHandleDrag(
@@ -3184,6 +3235,13 @@ function handlePointerDown(e) {
       extensionHandleRgRef.current[1],
       extensionHandleRgRef.current[2]
     )
+  ) {
+    return;
+  }
+
+  if (
+    pointerRgEarly &&
+    tryStartC2HandleDrag(e, pointerRgEarly, c2HandleRgRef.current)
   ) {
     return;
   }
@@ -3332,6 +3390,9 @@ function handlePointerMove(e) {
 
   if (svgRef.current) {
     const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
+    if (handleC2PointerMove(pointerRg)) {
+      return;
+    }
     if (handleBaselineDraftPointerMove(pointerRg)) {
       return;
     }
@@ -3485,6 +3546,7 @@ function handlePointerUp(e) {
     return;
   }
 
+  if (endC2HandleDrag(e)) return;
   if (endCoBaselineDraftDrag(e)) return;
   if (endC1BaselineDraftDrag(e)) return;
   if (endExtensionHandleDrag(e)) return;
@@ -3554,6 +3616,7 @@ function handlePointerUp(e) {
 }
 
 function handlePointerCancel(e) {
+  if (endC2HandleDrag(e)) return;
   if (endCoBaselineDraftDrag(e)) return;
   if (endC1BaselineDraftDrag(e)) return;
   if (endExtensionHandleDrag(e)) return;
@@ -3593,7 +3656,7 @@ function handlePointerCancel(e) {
             null,
         },
       };
-  const { anchors, anchorsBase } = buildRgAnchors({
+  const { anchors: anchorsBuilt, anchorsBase: anchorsBaseBuilt } = buildRgAnchors({
     rawAnchors,
     rawAnchorsBase,
     canonical,
@@ -3601,6 +3664,19 @@ function handlePointerCancel(e) {
     profileForCanonical,
     anchorsOverride: override,
   });
+
+  // ADMIN C2 Reflection Override → anchors.C2 (skip Reflection when present)
+  const c2OverridePoint =
+    appMode === "ADMIN"
+      ? reflectionOverrideToPoint(c2ReflectionOverride)
+      : null;
+  const anchors = c2OverridePoint
+    ? { ...anchorsBuilt, C2: c2OverridePoint }
+    : anchorsBuilt;
+  const anchorsBase =
+    c2OverridePoint && anchorsBaseBuilt
+      ? { ...anchorsBaseBuilt, C2: c2OverridePoint }
+      : anchorsBaseBuilt;
 
   const resolveAnchorCtx = {
     track: trackForAnchors,
@@ -3639,6 +3715,7 @@ function handlePointerCancel(e) {
     ballRadiusRg: BALL_RADIUS_RG,
     curveEps: CURVE_EPS,
     baseSysValues: resolvedSlotBaseSysValues,
+    displayCapOpts: c2OverridePoint ? { skipSameRail: true } : undefined,
   });
 
   const {
@@ -4033,6 +4110,21 @@ function handlePointerCancel(e) {
   const curveDeformActiveForImpact =
     userShowTrajectoryOnTable && userShowCorrectedPath ? useCurveDeform : false;
 
+  /** Phase 2A: Overlay Attach/Visibility — Runtime draft 유지, mount만 제어 */
+  const extensionOverlayActiveBranch =
+    appMode === "USER" && userShowBaselinePath && !userShowCorrectedPath
+      ? "baseline"
+      : "corrected";
+  const extensionOverlayVisibility = resolveTrajectoryExtensionOverlayVisibility({
+    appMode,
+    activeBranch: extensionOverlayActiveBranch,
+    extensionDraftCount,
+    canEdit,
+    // CASE A: Continuation Phase에서 true로 확장. Phase 2A는 USER baseline 기본 미부착.
+    baselineContinuationAllowed: false,
+    baselineCap: capBaseline ?? null,
+  });
+
   const userCalculationDisplayBlock =
     appMode === "USER" &&
     (userDisplayFlags?.showTrajectoryInfoCard || overlayContent === "CALC")
@@ -4165,6 +4257,40 @@ function handlePointerCancel(e) {
     </g>
   ) : null;
 
+  // ADMIN C2 rail handle — pathNodes[2] (override or reflected)
+  const c2PathRg = (() => {
+    const n = correctedPathNodes?.[2];
+    if (n && Number.isFinite(n.x) && Number.isFinite(n.y)) return n;
+    return c2OverridePoint;
+  })();
+  c2HandleRgRef.current = c2PathRg ?? null;
+  const c2HandleModel = buildC2HandleModel(
+    {
+      appMode,
+      c2Rg: c2PathRg,
+      dragging: c2HandleDragging,
+    },
+    tablePxConfig
+  );
+  const c2RailHandleNode = c2HandleModel ? (
+    <g
+      className={c2HandleModel.className}
+      data-c2-rail-handle="1"
+      pointerEvents="none"
+      style={{ cursor: "pointer" }}
+    >
+      <circle
+        cx={c2HandleModel.cx}
+        cy={c2HandleModel.cy}
+        r={c2HandleModel.r}
+        fill={c2HandleModel.fill}
+        stroke={c2HandleModel.stroke}
+        strokeWidth={c2HandleModel.strokeWidth}
+        opacity={c2HandleModel.opacity}
+      />
+    </g>
+  ) : null;
+
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
 
@@ -4185,6 +4311,7 @@ function handlePointerCancel(e) {
       <TableGrid />
       {coBaselineHandleNode}
       {c1BaselineHandleNode}
+      {c2RailHandleNode}
       {adminTableLayersActive && userShowTrajectoryOnTable && (
       <ImpactLines
         CO_line={CO_line}
@@ -4215,12 +4342,12 @@ function handlePointerCancel(e) {
       )}
       {adminTableLayersActive &&
         userShowTrajectoryOnTable &&
-        extensionDraftCount > 0 && (
+        extensionOverlayVisibility.attach && (
           <TrajectoryExtensionLayer
             revealPointsAttr={extensionRenderModel.revealPointsAttr}
             extensionPolylines={extensionRenderModel.extensionPolylines}
             handles={extensionRenderModel.handles}
-            showHandles={canEdit}
+            showHandles={extensionOverlayVisibility.showHandles}
             pathStroke="#ff4444"
           />
         )}

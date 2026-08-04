@@ -58,6 +58,8 @@ export type SaveFlowContext = {
   autoSave: boolean;
   /** Runtime Extension draft → Dataset payload (endpoints only; Reveal not stored). */
   trajectoryExtensionPayload?: StrategyEntry["trajectoryExtensions"] | null;
+  /** ADMIN C2 Reflection Override { rail, t }. */
+  reflectionOverridePayload?: StrategyEntry["reflectionOverride"] | null;
 
   // READ (Infrastructure)
   saveWorkingDataset: (updated: PositionRecord[]) => void;
@@ -252,6 +254,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       track: canonicalDraft.track,
       evaluateStrategy: evalForSave,
       trajectoryExtensions: ctx.trajectoryExtensionPayload ?? null,
+      reflectionOverride: ctx.reflectionOverridePayload ?? null,
     });
     strategy = attachCanonicalFieldsToStrategyEntry(baseEntry, canonicalDraft);
     console.log("[SAVE] strategy JSON check:", JSON.stringify(strategy));

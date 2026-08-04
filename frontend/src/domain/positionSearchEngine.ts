@@ -1,6 +1,7 @@
 // frontend/src/domain/positionSearchEngine.ts
 import { ballsToPoint6D, dist2_6d } from "./search/kdTree6d";
 import type { TrajectoryExtensionPayload } from "./trajectoryExtension/model";
+import type { ReflectionOverride } from "./trajectory/c2ReflectionOverride";
 
 export type Point = { x: number; y: number };
 export type Ball3 = { cue: Point; target: Point; second: Point };
@@ -56,6 +57,12 @@ export type StrategyEntry = {
    * Optional · additive — Reveal은 저장하지 않고 Runtime 재생성.
    */
   trajectoryExtensions?: TrajectoryExtensionPayload;
+
+  /**
+   * ADMIN C2 Reflection Override — rail + t only (no absolute coords).
+   * Hydrate → anchors.C2; Reflection compute skipped when present.
+   */
+  reflectionOverride?: ReflectionOverride;
 };
 
 /** 슬롯당 최대 1전략 (S1/S2/S3 키) */

@@ -1,6 +1,8 @@
 /**
  * Trajectory 표시 레이어 cap — same-rail 연속 segment 차단 · 세컨드볼 종료.
- * Baseline은 5&Half PhysicalLimit × CorrectedDisplayEnd 비교 SSOT.
+ * Baseline(5&Half): PhysicalLimit + chain/same-rail.
+ * C4 Minimum Guarantee — corrected second_ball / corrected ceiling에 비종속
+ * (DISPLAY_BOUNDARY_POLICY_SSOT §6 · Phase 1).
  * 계산 엔진/SYS 값 생성과 분리 (Display Layer only).
  */
 
@@ -43,12 +45,20 @@ export type TrajectoryDisplayCap = {
 export type TrajectoryDisplayCapOptions = {
   railEps?: number;
   degenEps?: number;
+  /**
+   * When true, skip same-rail early cut (ADMIN C2 reflectionOverride path).
+   * detectRail() itself is never modified — Cap policy only.
+   */
+  skipSameRail?: boolean;
 };
 
 export type BaselineDisplayCapInput = {
   pathNodes: (PathPoint | null | undefined)[];
-  /** Corrected Display Cap endIndex (세컨드볼 Event 결과 — 변경하지 않음). */
-  correctedDisplayEndIndex: number;
+  /**
+   * @deprecated Phase 1 (D-DBP-05): ignored — baseline Cap은 corrected ceiling에
+   * 종속하지 않는다. 호출부 호환을 위해 필드는 유지한다.
+   */
+  correctedDisplayEndIndex?: number;
   /** Baseline 4쿠션 SYS 값 (DisplayModel과 동일 기준). */
   baselineC4Value: number | null | undefined;
   opts?: TrajectoryDisplayCapOptions;
@@ -123,6 +133,9 @@ export function computeSameRailCapEndIndex(
   opts?: TrajectoryDisplayCapOptions
 ): TrajectoryDisplayCap {
   const chain = computeChainBreakCapEndIndex(pathNodes);
+  if (opts?.skipSameRail === true) {
+    return { endIndex: chain.endIndex, reason: chain.reason };
+  }
   const limit = chain.endIndex;
   if (limit < 1) {
     return chain;
@@ -255,8 +268,7 @@ function bindingReasonBaseline(
   endIndex: number,
   chain: TrajectoryDisplayCap,
   sameRail: TrajectoryDisplayCap,
-  physicalLimit: number,
-  correctedDisplayEnd: number
+  physicalLimit: number
 ): Pick<TrajectoryDisplayCap, "reason" | "stoppedSegment"> {
   if (endIndex === sameRail.endIndex && sameRail.reason === "same_rail") {
     return {
@@ -270,49 +282,52 @@ function bindingReasonBaseline(
       stoppedSegment: chain.stoppedSegment,
     };
   }
-  if (endIndex === physicalLimit && physicalLimit < correctedDisplayEnd) {
+  // PhysicalLimit stopped at C4 (C4 < 20 threshold) — not full chain
+  if (endIndex === physicalLimit && physicalLimit === PATH_INDEX_C4) {
     return { reason: "baseline_physical" };
-  }
-  if (endIndex === correctedDisplayEnd && correctedDisplayEnd < physicalLimit) {
-    return { reason: "corrected_ceiling" };
   }
   return { reason: "full" };
 }
 
 /**
- * Baseline Display Cap SSOT (5&Half):
- * BaselineEnd = min(BaselinePhysicalLimit, CorrectedDisplayEnd)
- * (+ path 존재성: chain / same-rail — 잘못된 segment 표시 방지)
- *
- * Corrected second-ball Cap은 호출 측에서 이미 계산한 endIndex만 참조한다.
+ * Baseline Display Cap (5&Half) — DISPLAY_BOUNDARY_POLICY_SSOT §6 Phase 1:
+ * BaselineEnd = min(chain, same-rail, PhysicalLimit)
+ * C4 Minimum: PhysicalLimit ≥ C4 · corrected ceiling / second_ball 비종속.
+ * Continuation Rule은 본 Phase에서 미구현.
  */
 export function resolveBaselineTrajectoryDisplayCap(
   input: BaselineDisplayCapInput
 ): TrajectoryDisplayCap {
-  const { pathNodes, correctedDisplayEndIndex, baselineC4Value, opts } = input;
+  const { pathNodes, baselineC4Value, opts } = input;
 
   const chain = computeChainBreakCapEndIndex(pathNodes);
   const sameRail = computeSameRailCapEndIndex(pathNodes, opts);
   const physicalLimit = computeBaselinePhysicalLimitEndIndex(baselineC4Value);
 
-  const correctedEnd = Number.isFinite(correctedDisplayEndIndex)
-    ? correctedDisplayEndIndex
-    : -1;
-
   const candidates = [
     chain.endIndex,
     sameRail.endIndex,
     physicalLimit,
-    correctedEnd,
   ].filter((n) => n >= 0);
 
-  const endIndex = candidates.length > 0 ? Math.min(...candidates) : -1;
+  let endIndex = candidates.length > 0 ? Math.min(...candidates) : -1;
+
+  // C4 Minimum Guarantee: safety(chain/same-rail)가 C4+를 허용하면 C3 이하로 내리지 않음.
+  // (과거 corrected_ceiling / second_ball 종속 회귀 방지)
+  if (
+    endIndex >= 0 &&
+    endIndex < PATH_INDEX_C4 &&
+    chain.endIndex >= PATH_INDEX_C4 &&
+    sameRail.endIndex >= PATH_INDEX_C4
+  ) {
+    endIndex = Math.min(PATH_INDEX_C4, physicalLimit, chain.endIndex, sameRail.endIndex);
+  }
+
   const meta = bindingReasonBaseline(
     endIndex,
     chain,
     sameRail,
-    physicalLimit,
-    correctedEnd
+    physicalLimit
   );
   return { endIndex, ...meta };
 }

@@ -1,6 +1,6 @@
 /**
- * USER Overlay Shell — Layout Layer (Overlay Layout SSOT v1.1).
- * Owns size / surface / position / drag / clamp / backdrop-close.
+ * USER Overlay Shell — Layout Layer (Overlay Layout SSOT v1.1 + Reading Mode §15).
+ * Owns size / surface / position / drag / clamp / backdrop-close / Reading Mode.
  * Close (X) removed — outside tap closes. Must not embed Content semantics.
  */
 
@@ -15,6 +15,7 @@ import React, {
 import {
   computeOverlayLayoutMetrics,
   OVERLAY_SIZE_VARIANTS,
+  resolveReadingOriginalAspect,
 } from "../../overlay/layout/overlayLayoutTokens";
 
 const DRAG_THRESHOLD_PX = 4;
@@ -42,6 +43,52 @@ function readTableAreaSize(tableArea) {
     width: rect.width || tableArea.clientWidth || 0,
     height: rect.height || tableArea.clientHeight || 0,
   };
+}
+
+function ReadingModeToggleIcon({ active }) {
+  return (
+    <svg
+      className="user-overlay-shell__reading-icon"
+      viewBox="0 0 24 24"
+      width="1em"
+      height="1em"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle
+        cx="10.5"
+        cy="10.5"
+        r="6.25"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+      <path
+        d="M15.2 15.2 L20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      {active ? (
+        <path
+          d="M7.6 10.5 H13.4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+        />
+      ) : (
+        <path
+          d="M10.5 7.6 V13.4 M7.6 10.5 H13.4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+        />
+      )}
+    </svg>
+  );
 }
 
 /**
@@ -80,6 +127,8 @@ export default function UserOverlayShell({
   const [panelPlacement, setPanelPlacement] = useState({ left: 0, top: 0 });
   const [tableSize, setTableSize] = useState({ width: 0, height: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  /** Reading Mode — Shell Presentation UX only (no localStorage). */
+  const [readingMode, setReadingMode] = useState(false);
 
   const backdropRef = useRef(null);
   const panelRef = useRef(null);
@@ -87,6 +136,8 @@ export default function UserOverlayShell({
   const suppressBackdropClickRef = useRef(false);
   const offsetRef = useRef(offset);
   offsetRef.current = offset;
+  /** Reading toggle only — capture rect before size change to keep center. */
+  const readingCenterSnapshotRef = useRef(null);
 
   const setBackdropNode = useCallback((node) => {
     backdropRef.current = node;
@@ -98,6 +149,11 @@ export default function UserOverlayShell({
     );
   }, []);
 
+  const readingOriginalAspect = useMemo(
+    () => resolveReadingOriginalAspect(contentClassName),
+    [contentClassName]
+  );
+
   const metrics = useMemo(
     () =>
       computeOverlayLayoutMetrics(
@@ -105,7 +161,7 @@ export default function UserOverlayShell({
         tableSize.height,
         sizeVariant,
         contentTypeScale,
-        { widthRatio, maxHeightRatio }
+        { widthRatio, maxHeightRatio, readingMode, readingOriginalAspect }
       ),
     [
       tableSize.width,
@@ -114,10 +170,22 @@ export default function UserOverlayShell({
       contentTypeScale,
       widthRatio,
       maxHeightRatio,
+      readingMode,
+      readingOriginalAspect,
     ]
   );
 
   const layoutReady = tableSize.width > 0 && tableSize.height > 0;
+
+  /** Fixed-width shells: use target metrics width (not mid-transition offsetWidth). */
+  const panelLayoutWidth = useCallback(() => {
+    const panel = panelRef.current;
+    if (!panel) return 0;
+    if (!useFitContent && layoutReady && metrics.widthPx > 0) {
+      return metrics.widthPx;
+    }
+    return panel.offsetWidth;
+  }, [useFitContent, layoutReady, metrics.widthPx]);
 
   const measureTable = useCallback(() => {
     const backdrop = backdropRef.current;
@@ -133,7 +201,7 @@ export default function UserOverlayShell({
 
       const tableArea = backdrop.closest(".table-area") ?? backdrop;
       const tableRect = tableArea.getBoundingClientRect();
-      const pw = panel.offsetWidth;
+      const pw = panelLayoutWidth() || panel.offsetWidth;
       const ph = panel.offsetHeight;
       const inset = metrics.insetPx;
 
@@ -164,7 +232,7 @@ export default function UserOverlayShell({
         y: snapPx(top - baseTop),
       };
     },
-    [metrics.insetPx]
+    [metrics.insetPx, panelLayoutWidth]
   );
 
   const updatePanelPlacement = useCallback(() => {
@@ -172,7 +240,7 @@ export default function UserOverlayShell({
     const backdrop = backdropRef.current;
     if (!panel || !backdrop) return;
 
-    const pw = panel.offsetWidth;
+    const pw = panelLayoutWidth() || panel.offsetWidth;
     const ph = panel.offsetHeight;
     const bw = backdrop.clientWidth;
     const bh = backdrop.clientHeight;
@@ -182,7 +250,7 @@ export default function UserOverlayShell({
       left: snapPx((bw - pw) / 2 + x),
       top: snapPx((bh - ph) / 2 + y),
     });
-  }, []);
+  }, [panelLayoutWidth]);
 
   const windowMoveRef = useRef(null);
   const windowUpRef = useRef(null);
@@ -197,11 +265,15 @@ export default function UserOverlayShell({
     }
   }, []);
 
-  // Close → reopen always starts at Center (no persistence).
+  // Close → reopen / kind switch: Center + Reading OFF (no persistence).
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setReadingMode(false);
+      return;
+    }
     setOffset({ x: 0, y: 0 });
     setIsDragging(false);
+    setReadingMode(false);
     dragRef.current = null;
     suppressBackdropClickRef.current = false;
   }, [open, layoutKey, sizeVariant, widthRatio]);
@@ -243,6 +315,42 @@ export default function UserOverlayShell({
     if (!open || !draggable) return;
     updatePanelPlacement();
   }, [open, draggable, offset, tableSize, metrics, updatePanelPlacement, children]);
+
+  /**
+   * Reading Mode toggle only — keep visual center while size changes.
+   * Drag / clamp formula / pointer handlers are unchanged; only offset is
+   * recomputed from the pre-toggle center, then passed through existing clamp.
+   */
+  useLayoutEffect(() => {
+    if (!open) return;
+    const snapshot = readingCenterSnapshotRef.current;
+    if (!snapshot) return;
+    readingCenterSnapshotRef.current = null;
+
+    const panel = panelRef.current;
+    const backdrop = backdropRef.current;
+    if (!panel || !backdrop) return;
+
+    const centerX = snapshot.left + snapshot.width / 2;
+    const centerY = snapshot.top + snapshot.height / 2;
+    const newW = panelLayoutWidth() || panel.offsetWidth;
+    const newH = panel.offsetHeight || snapshot.height;
+    const bw = backdrop.clientWidth;
+    const bh = backdrop.clientHeight;
+
+    const newLeft = centerX - newW / 2;
+    const newTop = centerY - newH / 2;
+    const nextX = newLeft - (bw - newW) / 2;
+    const nextY = newTop - (bh - newH) / 2;
+    const clamped = clampOffset(nextX, nextY);
+
+    offsetRef.current = clamped;
+    setOffset(clamped);
+    setPanelPlacement({
+      left: snapPx((bw - newW) / 2 + clamped.x),
+      top: snapPx((bh - newH) / 2 + clamped.y),
+    });
+  }, [open, readingMode, panelLayoutWidth, clampOffset]);
 
   useEffect(() => {
     windowMoveRef.current = (e) => {
@@ -313,7 +421,26 @@ export default function UserOverlayShell({
     onClose?.();
   };
 
+  const handleReadingToggle = (e) => {
+    e.stopPropagation();
+    const panel = panelRef.current;
+    if (panel) {
+      readingCenterSnapshotRef.current = {
+        left: panel.offsetLeft,
+        top: panel.offsetTop,
+        width: panel.offsetWidth,
+        height: panel.offsetHeight,
+      };
+    }
+    setReadingMode((prev) => !prev);
+  };
+
   if (!open) return null;
+
+  const isUserInfoOverlay =
+    contentClassName.includes("user-ai") ||
+    contentClassName.includes("user-calc") ||
+    contentClassName.includes("user-hpt");
 
   const shellClass = [
     "user-overlay-shell",
@@ -323,6 +450,7 @@ export default function UserOverlayShell({
     draggable ? "user-overlay-shell--positioned" : "",
     draggable ? "user-overlay-shell--surface-drag" : "",
     isDragging ? "user-overlay-shell--dragging" : "",
+    readingMode ? "user-overlay-shell--reading" : "",
     contentClassName.includes("user-ai") ? "user-overlay-shell--ai" : "",
     contentClassName.includes("user-calc") ? "user-overlay-shell--calc" : "",
     contentClassName.includes("user-hpt") ? "user-overlay-shell--hpt" : "",
@@ -334,10 +462,21 @@ export default function UserOverlayShell({
     .filter(Boolean)
     .join(" ");
 
+  const backdropClass = [
+    "user-overlay-shell-backdrop",
+    readingMode ? "user-overlay-shell-backdrop--reading" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   const shellStyle = {
     left: `${panelPlacement.left}px`,
     top: `${panelPlacement.top}px`,
     visibility: layoutReady ? "visible" : "hidden",
+    // left/top transition with size → Reading expand stays centered; drag disables.
+    transition: isDragging
+      ? "none"
+      : "width 165ms ease-out, max-width 165ms ease-out, max-height 165ms ease-out, left 165ms ease-out, top 165ms ease-out, font-size 165ms ease-out, padding 165ms ease-out",
     ...(useFitContent
       ? { maxWidth: layoutReady ? `${metrics.widthPx}px` : undefined }
       : {
@@ -370,9 +509,10 @@ export default function UserOverlayShell({
   return (
     <div
       ref={setBackdropNode}
-      className="user-overlay-shell-backdrop"
+      className={backdropClass}
       onClick={handleBackdropClick}
       data-user-overlay-shell="backdrop"
+      data-reading-mode={readingMode ? "1" : "0"}
     >
       <div
         ref={panelRef}
@@ -385,7 +525,21 @@ export default function UserOverlayShell({
         data-user-overlay-shell="panel"
         data-size-variant={sizeVariant}
         data-surface={surface}
+        data-reading-mode={readingMode ? "1" : "0"}
       >
+        {isUserInfoOverlay ? (
+          <button
+            type="button"
+            className="user-overlay-shell__reading-toggle"
+            aria-label={readingMode ? "기본 크기로 축소" : "읽기 모드로 확대"}
+            aria-pressed={readingMode}
+            title={readingMode ? "기본 크기" : "읽기 모드"}
+            data-overlay-no-drag="1"
+            onClick={handleReadingToggle}
+          >
+            <ReadingModeToggleIcon active={readingMode} />
+          </button>
+        ) : null}
         <div className="user-overlay-shell__body">
           <div className={contentClass}>{children}</div>
         </div>

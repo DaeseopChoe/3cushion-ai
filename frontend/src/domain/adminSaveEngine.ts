@@ -52,6 +52,8 @@ export function createStrategyEntry(args: {
   evaluateStrategy: EvaluateStrategyForSave;
   /** Optional Trajectory Extension payload (endpoints only). */
   trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
+  /** Optional ADMIN C2 Reflection Override { rail, t }. */
+  reflectionOverride?: StrategyEntry["reflectionOverride"];
 }): StrategyEntry {
   const meta = buildStrategyMeta({
     balls: args.balls,
@@ -74,6 +76,9 @@ export function createStrategyEntry(args: {
   };
   if (args.trajectoryExtensions) {
     entry.trajectoryExtensions = args.trajectoryExtensions;
+  }
+  if (args.reflectionOverride) {
+    entry.reflectionOverride = args.reflectionOverride;
   }
   return entry;
 }

@@ -37,6 +37,8 @@ export interface DraftState {
   targetBall?: TargetBall | null;
   /** Trajectory Extension Overlay — hydrated from StrategyEntry (endpoints only). */
   trajectoryExtensions?: import('../domain/positionSearchEngine').StrategyEntry['trajectoryExtensions'];
+  /** ADMIN C2 Reflection Override { rail, t }. */
+  reflectionOverride?: import('../domain/positionSearchEngine').StrategyEntry['reflectionOverride'];
 }
 
 export interface SlotState {
@@ -101,6 +103,9 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
       targetBall: recordTarget,
       ...(runtime.trajectoryExtensions
         ? { trajectoryExtensions: runtime.trajectoryExtensions }
+        : {}),
+      ...(runtime.reflectionOverride
+        ? { reflectionOverride: runtime.reflectionOverride }
         : {}),
     };
   }

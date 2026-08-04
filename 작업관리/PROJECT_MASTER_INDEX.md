@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.51  
+Version: 1.56  
 Last Updated: 2026-08-04  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
@@ -95,6 +95,8 @@ Architecture Review
 | `작업관리/DEVELOPMENT_WORKFLOW.md` | **Operational Workflow SSOT v1.0** (General + Fleet Apply Workflow · Sole Ops SSOT) |
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**Trajectory Extension Completed / Task Closed** · Next **Handle Drag 잔여 또는 차기 Product**) |
+| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4** — Cap / Boundary · Phase 2A · **Reading Mode Implemented** · **C2 Reflection Rail Handle** · C4 Minimum |
+| `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension Overlay Runtime SSOT **v1.4** (Task Closed · Freeze) |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8–Ch.11 Ratified** · **B0–B8 Completed** · **Final Validation Gate v1.0** |
 | `System Platform Standard (SPS) v1.0/Certification_Platform/` | **STEP9 Certification Platform SSOT v1.0 · FROZEN** · P-01…P-05 · FC-01…FC-08 |
 | `System Platform Standard (SPS) v1.0/STEP7_P6_IU-6-0*.md` | **STEP7 P6 Apply Decision suite** (IU-6-01A…06A Complete · Design-only · Consume) |
@@ -648,6 +650,30 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 - CO–C3–C6 같은 비연속 동일 rail은 허용
 - 계산 엔진 및 C5/C6 sync rule은 변경하지 않음
 
+#### Display Boundary Policy (2026-08-04)
+
+**상태:** Policy SSOT **v1.4** · Phase 1 Cap + Phase 2A · **Reading Mode Completed** · **C2 Reflection Rail Handle Completed** · Continuation/Boundary/Corrected Cap 잔여
+
+USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Runtime(Freeze)과 역할을 분리한다.
+
+- SSOT: `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` **v1.4**
+- Flow: Builder → **Display Cap** → **Display Boundary** → **Overlay Attach** → Render
+- **Phase 2A:** `trajectoryExtensionOverlayVisibility.ts` — USER baseline CASE B 미부착 · corrected/ADMIN 부착 · Runtime 유지
+- **Reading Mode (§15):** USER Overlay Shell · Original Aspect · Center Preserve · `ReadingFontScale=1.45` · **Completed**
+- **C2 Reflection Rail Handle (§16):** ADMIN only · rail+t Override · Cap `skipSameRail` · **Completed**
+- **Extension ≠ Difference** · Extension Runtime은 Boundary 입력이 아님
+- **Baseline · Corrected 공통 Minimum Guarantee (C4)** · Continuation은 C4 이후만
+- 구현 범위: Display Cap / Boundary / Overlay Attach / Reading Shell / C2 Override Presentation · Extension Runtime **비대상**
+
+| 항목 | 상태 |
+|------|------|
+| Reading Mode UX | **Completed** |
+| Reading Mode Original Aspect | **Completed** |
+| Reading Mode Center Preserve | **Completed** |
+| C2 Reflection Rail Handle | **Completed** |
+| Reflection Override Persist (`{rail,t}`) | **Completed** |
+| Display Cap Corner Override (`skipSameRail`) | **Completed** |
+
 ### USER 쿠션 포인트 라벨 (System Value Labels)
 
 - **노출 방식**: 독립 USER 메뉴가 아니라 **Calculation Toolbar `쿠션 포인트` 토글**로 노출
@@ -715,7 +741,7 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 | USER 계산 | `components/user/UserCalculationPanel.jsx`, `components/user/UserCalcToolbar.jsx`, `overlay/utils/sysCalcDisplayModel.ts`, `App.jsx` (`trajectoryCardSource`, `trajectoryShowAxisValues`, `calcOverlayVisible`) |
 | USER 쿠션 포인트 | `components/table/SystemValueLabels.jsx`, `components/table/LabelText.jsx`, `config/tableConfig.ts` — Calculation Toolbar 토글로 노출 |
 | Overlay 반응형 CSS | `frontend/src/index.css` — `--overlay-scale`, `--ai-scale`, `--overlay-svg-scale` (bridge token 유지, **Layout SSOT는 Ratio/Surface token 기준**) |
-| **Overlay Layout SSOT** | `OVERLAY_LAYOUT_SSOT_v1.2.md` — USER Overlay 공통 Shell 규약 (**Confirmed v1.2**, Consume) |
+| **Overlay Layout SSOT** | `OVERLAY_LAYOUT_SSOT_v1.2.md` — USER Overlay 공통 Shell 규약 (**Confirmed v1.2**, Consume) · Reading Mode UX → `DISPLAY_BOUNDARY_POLICY_SSOT.md` **§15** (v1.4 · **Implemented**) |
 
 ---
 
@@ -1113,7 +1139,7 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 
 > **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN** — Phase 0 Architecture · Phase 1 Definition · Phase 2 Freeze Review · Phase 2.5 Gate Closure · Phase 3-A Persist · Phase 3-B Freeze 완료. **Current: Platform Frozen · Pilot Ready** · **Next: STEP9 Phase 4 Pilot Certification**.
 >
-> **Runtime / Product 상태 (2026-08-04):** Pointer Capture Timing 안정 · Target Ball DoubleClick 안정 · **Runtime Contract SSOT 완료** · ModalShell Native Selection 해결 · Dataset Pipeline 안정 · **Trajectory Extension Completed (Task Closed)** — Runtime 통합 · USER Search `activateStrategySlot` · ADMIN/USER 경로 공유. Build / Lint PASS · Regression 없음. **Next (Product): Handle Drag 잔여 간섭 또는 차기 기능**.
+> **Runtime / Product 상태 (2026-08-04):** Pointer Capture Timing 안정 · Target Ball DoubleClick 안정 · **Runtime Contract SSOT 완료** · ModalShell Native Selection 해결 · Dataset Pipeline 안정 · **Trajectory Extension Completed (Task Closed)** · **Display Boundary Policy v1.4** — Reading Mode · C2 Reflection Rail Handle · Corner Cap Override **Completed**. Build / Lint / Unit PASS. **Next (Product): Continuation / CASE A · Corrected Cap Minimum · Boundary · 또는 Handle Drag 잔여**.
 
 ### STEP7 상태
 
@@ -1270,8 +1296,9 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 
 ### 최우선 (Product) — 차기
 
+- **Display Boundary Policy** — SSOT **v1.4** · Reading Mode · C2 Handle · Corner Cap Override **Completed** · Next: Continuation / CASE A · Corrected Cap Minimum · Boundary
 - **Handle First Drag 잔여 간섭** (명시적 후속 · Extension Handle vs Ball/Joystick) — 또는 신규 Product 세션
-- 인계: `CURSOR_SESSION_HANDOFF.md`
+- 인계: `CURSOR_SESSION_HANDOFF.md` · `DISPLAY_BOUNDARY_POLICY_SSOT.md`
 
 ### 최우선 (Platform) — STEP9 Phase 4 Pilot Entry (Frozen Platform Consume)
 
@@ -1357,6 +1384,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 |------|------|
 | `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 First Consume |
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — Trajectory Extension **Task Closed** · Next **Handle Drag 잔여 / 차기 Product** |
+| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4** — Reading Mode · C2 Reflection Rail Handle · Phase 2A · Cap / Boundary |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
 | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` | **Architecture Impact Working Guideline** — PASS · Consume · Freeze Candidate |
@@ -1381,7 +1409,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `System Platform Standard (SPS) v1.0/System_Inventory.md` | **STEP4 Inventory SSOT (v1.0 Final)** — Frozen Assets · Observation SSOT · Metadata/Registration Inventory |
 | `Application Architecture Standard (AAS) v2.0/App_Migration_Map.md` | **Application Runtime Constitution (Permanent SSOT)** — Migration Blueprint · Architecture Meta · ADR · Review Checklist |
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
-| `HISTORY/PROJECT_LOG_2026-08.md` | 2026-08 월별 이력 · **2026-08-01 SYS Apply 백지화 / Runtime Contract SSOT 완성 / ModalShell Native Selection** (D-RTC-01 · D-OVLSEL-01~02) |
+| `HISTORY/PROJECT_LOG_2026-08.md` | 2026-08 월별 이력 · **Display Boundary Policy v1.1** · Cap Phase 1 · Trajectory Extension Complete · SYS Apply / Runtime Contract |
 | `HISTORY/PROJECT_LOG_2026-07.md` | 2026-07 AAS Batch · STEP4/5 Final · STEP6 Framework+Pipeline · STEP6-3/4/5 Complete · **2026-07-30 ADMIN Pointer Capture Timing / Target Ball dblclick Regression** |
 | `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) · **USER Overlay** (§19) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
