@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3cushion.ai/schemas/membership_candidate.schema.json",
+  "title": "Membership Candidate",
+  "description": "Output of Membership Stage before Resolve. Contract from MEMBERSHIP_SSOT. Carries strategyRef and record identity for Resolve. No Modal, Strategy body, Ranking, Geometry, Dataset write. Membership algorithm / thresholds out of scope.",
+  "type": "object",
+  "required": ["strategyRef", "recordIdentity", "membership"],
+  "additionalProperties": false,
+  "properties": {
+    "strategyRef": {
+      "$ref": "published_dataset.schema.json#/$defs/StrategyRef",
+      "description": "Strategy reference from the matched EnvelopeRecord. Used by Resolve after Membership. Not used as Membership judgment input."
+    },
+    "recordIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical identity of the matched EnvelopeRecord within the Published Dataset (e.g. stable key). Format out of scope."
+    },
+    "membership": {
+      "type": "object",
+      "required": ["targetMatch", "cueMembership", "secondMembership"],
+      "additionalProperties": false,
+      "description": "Membership Result flags. Structure only — how flags are computed is Out of Scope.",
+      "properties": {
+        "targetMatch": {
+          "type": "boolean",
+          "description": "Target Match passed."
+        },
+        "cueMembership": {
+          "type": "boolean",
+          "description": "Cue Membership passed."
+        },
+        "secondMembership": {
+          "type": "boolean",
+          "description": "Second Membership passed."
+        }
+      }
+    },
+    "datasetIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional reference to the Published Dataset Identity that produced this Candidate."
+    }
+  }
+}

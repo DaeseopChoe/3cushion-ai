@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3cushion.ai/schemas/package.schema.json",
+  "title": "Published Envelope Dataset Package",
+  "description": "Physical Delivery Unit wrapping one Published Envelope Dataset. Contract from PACKAGE_SSOT. Does not embed Strategy or Modal. No Index, Ranking, Geometry, Cache.",
+  "type": "object",
+  "required": ["packageIdentity", "dataset"],
+  "additionalProperties": false,
+  "properties": {
+    "packageIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical Package Identity. One Package ↔ one Published Dataset (PKG-ID-01)."
+    },
+    "dataset": {
+      "$ref": "published_dataset.schema.json",
+      "description": "Payload: Published Envelope Dataset. Search Representation meaning unchanged by packaging."
+    },
+    "datasetIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional logical Dataset Identity reference (Package Contents optional meta)."
+    },
+    "generatorBuildIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional Generator Build Identity (logical meta)."
+    },
+    "versionReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional Version Reference placeholder. Version format out of scope."
+    },
+    "manifestReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional Manifest Reference placeholder. Manifest schema is separate."
+    }
+  }
+}

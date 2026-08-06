@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3cushion.ai/schemas/manifest.schema.json",
+  "title": "Published Envelope Dataset Manifest",
+  "description": "Metadata-only layer describing one Package / Dataset. Contract from MANIFEST_SSOT. Manifest ≠ Dataset ≠ Strategy. No EnvelopeRecord payload, Modal, Geometry, Index, Search Result.",
+  "type": "object",
+  "required": [
+    "manifestIdentity",
+    "packageReference",
+    "datasetReference",
+    "generatorBuildIdentity"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "manifestIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical Manifest Identity. Manifest ↔ Package = 1:1 (MAN-ID-01/02)."
+    },
+    "packageReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to the corresponding Package Identity (does not embed Package payload)."
+    },
+    "datasetReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to the corresponding Dataset Identity (does not embed EnvelopeRecord[])."
+    },
+    "generatorBuildIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Generator Build Identity (logical)."
+    },
+    "versionReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional Version Reference placeholder. Version format out of scope."
+    },
+    "createdAt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional logical creation time metadata. Concrete datetime format out of scope."
+    },
+    "generatorBuildMetadata": {
+      "type": "object",
+      "description": "Optional Generator Build Metadata bag. Must not contain Strategy/Modal/EnvelopeRecord.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    }
+  }
+}

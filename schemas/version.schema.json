@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3cushion.ai/schemas/version.schema.json",
+  "title": "Published Envelope Dataset Version",
+  "description": "Metadata-only Build/Replace identity. Contract from VERSION_SSOT. Version ≠ Dataset ≠ Strategy ≠ Search Representation. No EnvelopeRecord, Modal, Geometry, Ranking, Cache.",
+  "type": "object",
+  "required": [
+    "versionIdentity",
+    "packageReference",
+    "manifestReference",
+    "datasetReference",
+    "generatorBuildIdentity"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "versionIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical Version Identity. Version ↔ Package = 1:1 (VER-ID-01)."
+    },
+    "packageReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to Package Identity."
+    },
+    "manifestReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to Manifest Identity. Version regenerates with Manifest."
+    },
+    "datasetReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to Dataset Identity."
+    },
+    "generatorBuildIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Generator Output Build Identity."
+    },
+    "generatorReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional logical Generator Reference."
+    },
+    "architectureVersionReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional Architecture Freeze / Architecture Version Reference placeholder."
+    },
+    "buildTime": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional logical Build Time. Concrete format out of scope."
+    }
+  }
+}

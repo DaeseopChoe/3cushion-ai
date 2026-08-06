@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.56  
-Last Updated: 2026-08-04  
+Version: 1.57  
+Last Updated: 2026-08-06  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -40,7 +40,7 @@ Architecture Review
 2. **`OPS_AI_MODEL_GUIDE.md`** — Ops AI Model Recommendation **v0.1** (Recommendation only)  
 3. **`docs/APPLICATION_FLOW.md`** — **Runtime Orchestration Architecture Guide** (Architecture 구현 시 **최우선**)  
 4. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-5. **`CURSOR_SESSION_HANDOFF.md`** — **STEP8 Completed** · Current **Post-STEP8** · Next **STEP9 Entry**  
+5. **`CURSOR_SESSION_HANDOFF.md`** — **Search Engine Foundation Phase 완료** · Next **Dataset Generator Phase**  
 6. **`STEP7_IMPLEMENTATION_DECOMPOSITION.md`** — Session Execution SSOT **v1.0 Approved**  
 7. **`System Platform Standard (SPS) v1.0/STEP7_P4_IU-4-0*.md`** — **P4 Plan suite** (Complete · Official · Consume)  
 8. **`System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md`** — **P2 Catalog Design v0.15** (Consume)  
@@ -94,7 +94,7 @@ Architecture Review
 | `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 **First Consume** |
 | `작업관리/DEVELOPMENT_WORKFLOW.md` | **Operational Workflow SSOT v1.0** (General + Fleet Apply Workflow · Sole Ops SSOT) |
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**Trajectory Extension Completed / Task Closed** · Next **Handle Drag 잔여 또는 차기 Product**) |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**Search Engine Foundation Phase 완료** · Next **Dataset Generator Phase**) |
 | `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4** — Cap / Boundary · Phase 2A · **Reading Mode Implemented** · **C2 Reflection Rail Handle** · C4 Minimum |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension Overlay Runtime SSOT **v1.4** (Task Closed · Freeze) |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8–Ch.11 Ratified** · **B0–B8 Completed** · **Final Validation Gate v1.0** |
@@ -148,6 +148,36 @@ Architecture Review
 | AI 코멘트 | SYS+STR 자동 문장 SSOT + 원 포인트 레슨 분리 **완료** |
 | 시스템 레슨 | **보류** — USER UI 단순화 정책에 따라 현재 메뉴 비노출 · 관련 코드/VM은 보존 |
 | **Dataset Architecture** | **Phase 1~3-1 완료** — Export · Published Loader · USER/ADMIN Recall·Search SSOT |
+| **Search Engine Foundation Phase** | **완료 (2026-08-06)** — Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine · **Architecture Freeze 유지** · Commit 없음 |
+| **Next Phase** | **Dataset Generator Phase** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder |
+
+### Search Engine Foundation Phase (완료)
+
+**상태:** **Complete (2026-08-06)** · Architecture Freeze Compatible · 구현 코드 Commit 없음 (문서 반영 세션)
+
+Envelope Architecture SSOT 계약을 따라 Search Representation Consumer / Host 계층을 구현하였다.  
+Generator·Ranking·KDTree·실제 Geometry 계산·Search Algorithm은 **본 Phase 범위 밖**이다.
+
+| Layer | 상태 | 경로 |
+|-------|------|------|
+| ✓ Schema | 완료 | `schemas/` |
+| ✓ Domain Models | 완료 | `models/` |
+| ✓ Validation | 완료 | `validation/` |
+| ✓ Package Loader | 완료 | `loader/` |
+| ✓ Membership Engine | 완료 | `membership/` |
+| ✓ Resolve Engine | 완료 | `resolve/` |
+| ✓ Search Runtime | 완료 | `runtime/` |
+| ✓ Search Session | 완료 | `session/` |
+| ✓ Strategy Repository | 완료 | `strategy/` |
+| ✓ Strategy Engine | 완료 | `strategy_engine/` |
+| ✓ Modal Engine | 완료 | `modal/` |
+| ✓ Geometry Engine | 완료 | `geometry/` (Context only · 계산 미구현) |
+
+**Architecture SSOT (Consume · Freeze 유지 · 본 문서에서 내용 수정 금지):** `Architecture/`  
+**상세 로그:** `HISTORY/PROJECT_LOG_2026-08.md` — Search Engine Foundation Phase 완료  
+**세션 이관:** `CURSOR_SESSION_HANDOFF.md`
+
+**Next Phase:** **Dataset Generator Phase**
 
 ### 핵심 설계 원칙
 
@@ -311,8 +341,9 @@ Production Search 장애 발생 시 점검 순서:
 
 | Phase | 내용 |
 |-------|------|
+| **Dataset Generator Phase** | **Next** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder (Search Engine Foundation 이후) |
 | **4** | **Spatial Index** — 8×4 grid, `spatialCells` (cue / target / second), Recall 1차 필터 |
-| **5** | **trajectory 기반 파생 데이터 생성** — 별도 세션 이관 예정 |
+| **5** | **trajectory 기반 파생 데이터 생성** — Generator Phase와 연계 · 별도 세션 |
 
 ---
 
@@ -829,6 +860,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 ### 완료
 
+- **Search Engine Foundation Phase (2026-08-06)** — Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine(Context) **완료** · Architecture Freeze 유지 · Commit 없음 · Next **Dataset Generator Phase**
 - **Application Architecture Standard (AAS) v2.0** — Application Runtime Constitution (SSOT) 확정 (2026-07-03):
   - ✔ Application Migration Blueprint
   - ✔ Architecture Meta
@@ -1137,9 +1169,11 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 ## 다음 작업 우선순위
 
-> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN** — Phase 0 Architecture · Phase 1 Definition · Phase 2 Freeze Review · Phase 2.5 Gate Closure · Phase 3-A Persist · Phase 3-B Freeze 완료. **Current: Platform Frozen · Pilot Ready** · **Next: STEP9 Phase 4 Pilot Certification**.
+> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN**. **Envelope Architecture Freeze** — Search Engine Foundation Phase **완료 (2026-08-06)** · Freeze 문서 비수정.
 >
-> **Runtime / Product 상태 (2026-08-04):** Pointer Capture Timing 안정 · Target Ball DoubleClick 안정 · **Runtime Contract SSOT 완료** · ModalShell Native Selection 해결 · Dataset Pipeline 안정 · **Trajectory Extension Completed (Task Closed)** · **Display Boundary Policy v1.4** — Reading Mode · C2 Reflection Rail Handle · Corner Cap Override **Completed**. Build / Lint / Unit PASS. **Next (Product): Continuation / CASE A · Corrected Cap Minimum · Boundary · 또는 Handle Drag 잔여**.
+> **Search Engine (2026-08-06):** Foundation Phase **Complete** — Schema → Geometry Engine(Context). **Next Phase: Dataset Generator Phase**.
+>
+> **Runtime / Product 상태 (2026-08-04 유지):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy v1.4 Completed. Product 잔여(Continuation / Handle Drag 등)는 Generator Phase와 병행 가능 트랙.
 
 ### STEP7 상태
 
@@ -1294,11 +1328,18 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 
 상세: `HISTORY/PROJECT_LOG_2026-08.md` (2026-08-03~04) · `CURSOR_SESSION_HANDOFF.md`.
 
-### 최우선 (Product) — 차기
+### 최우선 (Search Engine) — Dataset Generator Phase
+
+- **Search Engine Foundation Phase** — **완료** (Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine)
+- **Next:** **Dataset Generator Phase** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder
+- Architecture SSOT: `Architecture/` (**Freeze 유지 · 내용 수정 금지**)
+- 인계: `CURSOR_SESSION_HANDOFF.md` · `HISTORY/PROJECT_LOG_2026-08.md`
+
+### 최우선 (Product) — 병행 가능 잔여
 
 - **Display Boundary Policy** — SSOT **v1.4** · Reading Mode · C2 Handle · Corner Cap Override **Completed** · Next: Continuation / CASE A · Corrected Cap Minimum · Boundary
 - **Handle First Drag 잔여 간섭** (명시적 후속 · Extension Handle vs Ball/Joystick) — 또는 신규 Product 세션
-- 인계: `CURSOR_SESSION_HANDOFF.md` · `DISPLAY_BOUNDARY_POLICY_SSOT.md`
+- 인계: `DISPLAY_BOUNDARY_POLICY_SSOT.md`
 
 ### 최우선 (Platform) — STEP9 Phase 4 Pilot Entry (Frozen Platform Consume)
 
@@ -1350,9 +1391,11 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 - USER Search 임팩트 방향: `targetColor` ↔ `draft.targetBall` ↔ `record.targetBall` 동기화 흐름
 - 신규 Export 후 Search 실패: Published Loader · recall profile · cache
 
-### P0 — trajectory 기반 파생 데이터 생성
+### P0 — Dataset Generator Phase (Next)
 
-- 별도 세션 이관 예정 (interpolation·KD-Tree USER 적용·targetBall 가중은 범위 외)
+- Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder
+- Foundation Phase Consumer 계층은 완료 · Generator가 Published Dataset을 생산
+- interpolation·KD-Tree USER 적용·targetBall 가중은 Generator Phase 초기 범위 외 가능
 
 ### P1 — SYS SSOT 정리
 
@@ -1383,7 +1426,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | 문서 | 용도 |
 |------|------|
 | `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 First Consume |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — Trajectory Extension **Task Closed** · Next **Handle Drag 잔여 / 차기 Product** |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — Search Engine Foundation Phase **완료** · Next **Dataset Generator Phase** |
 | `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4** — Reading Mode · C2 Reflection Rail Handle · Phase 2A · Cap / Boundary |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
@@ -1409,7 +1452,8 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `System Platform Standard (SPS) v1.0/System_Inventory.md` | **STEP4 Inventory SSOT (v1.0 Final)** — Frozen Assets · Observation SSOT · Metadata/Registration Inventory |
 | `Application Architecture Standard (AAS) v2.0/App_Migration_Map.md` | **Application Runtime Constitution (Permanent SSOT)** — Migration Blueprint · Architecture Meta · ADR · Review Checklist |
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
-| `HISTORY/PROJECT_LOG_2026-08.md` | 2026-08 월별 이력 · **Display Boundary Policy v1.1** · Cap Phase 1 · Trajectory Extension Complete · SYS Apply / Runtime Contract |
+| `HISTORY/PROJECT_LOG_2026-08.md` | 2026-08 월별 이력 · **Search Engine Foundation Phase 완료** · Display Boundary · Trajectory Extension · SYS Apply / Runtime Contract |
+| `Architecture/` | **Envelope Architecture Freeze SSOT** — Search Engine Foundation Consume · **내용 수정 금지** |
 | `HISTORY/PROJECT_LOG_2026-07.md` | 2026-07 AAS Batch · STEP4/5 Final · STEP6 Framework+Pipeline · STEP6-3/4/5 Complete · **2026-07-30 ADMIN Pointer Capture Timing / Target Ball dblclick Regression** |
 | `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) · **USER Overlay** (§19) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |
