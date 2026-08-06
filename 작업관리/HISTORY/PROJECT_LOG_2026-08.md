@@ -1,8 +1,59 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.8  
+Version : v1.9  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-06 (Search Engine Enhancement Phase — Spatial Index 완료)
+
+## 제목
+
+**Mission 35 — Spatial Index Design & Contract**
+
+## Summary
+
+Search Engine Enhancement Phase의 첫 단계로 Spatial Index 계층을 구현하고 coarse prefilter contract를 검증하였다. Spatial Index는 PublishedDataset로부터 런타임에 파생되는 memory-only index이며, PublishedDataset / Generator / Foundation Consumer 계약은 변경하지 않았다.
+
+## 구현 내역
+
+| Layer | 경로 | 비고 |
+|-------|------|------|
+| Spatial Index Builder | `search/spatial_index/builder.py` | PublishedDataset → SpatialIndex |
+| Spatial Cell Contract | `search/spatial_index/contract.py` | 8×4 grid |
+| Spatial Query API | `search/spatial_index/models.py` | `SpatialQuery` / `SpatialQueryResult` |
+| Fixture / Smoke | `tests/test_spatial_index*.py` | PublishedDataset 기반 coarse prefilter 검증 |
+
+## 검증
+
+| Suite | 결과 |
+|-------|------|
+| Spatial Index unit tests | **PASS** |
+| Spatial Index smoke test | **PASS** |
+| Full test suite | **PASS** |
+
+## 결과
+
+- PublishedDataset로부터 Spatial Index 생성 성공
+- Spatial Cell 생성 성공
+- Query → Candidate ID 반환 성공
+- Runtime-derived only 유지
+- PublishedDataset 수정 없음
+- Generator 수정 없음
+- Foundation 계약 변경 없음
+
+## Explicit Non-Claims
+
+- KDTree **미구현**
+- Membership 변경 **없음**
+- Ranking / Interpolation / Geometry **미구현**
+- Runtime wiring **미구현**
+- Loader / Resolve / Schema 변경 **없음**
+
+## Next
+
+**Mission 36 — KDTree** — Membership 후보 접근 최적화
 
 ---
 

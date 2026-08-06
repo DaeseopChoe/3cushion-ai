@@ -4,7 +4,7 @@
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
 Date      : 2026-08-06
-Scope     : Search Engine Foundation + Dataset Generator Phase Completed → Next Search Engine Enhancement Phase
+Scope     : Search Engine Foundation + Dataset Generator Phase Completed → Search Engine Enhancement Phase In Progress
 Rule      : Fact only ·
              Architecture Freeze (`Architecture/`) = absolute baseline (내용 수정 금지) ·
              Schema / Models / Validation / Loader / Membership / Resolve /
@@ -51,7 +51,7 @@ Next
 | **Dataset Generator Phase** | **Completed (2026-08-06)** |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
 | **Commit (Generator 구현)** | **없음** (사용자 미지시) |
-| **Next Phase** | **Search Engine Enhancement Phase** |
+| **Next Phase** | **KDTree** |
 
 ### Foundation 완료 범위
 
@@ -100,7 +100,6 @@ C3 이후 세컨드볼을 통과한 쿠션까지 이어지는 실제 궤적에�
 
 ### Next Candidate
 
-- Spatial Index
 - KDTree
 - Membership Optimization
 - Ranking
@@ -123,7 +122,7 @@ Interpolation
 Geometry
 ```
 
-Search Engine Enhancement는 계획 단계이며, Foundation / Generator 완료 상태를 전제로 Search 품질과 성능을 향상시키는 후속 Phase이다.
+Search Engine Enhancement는 진행 중이며, Mission 35에서 Spatial Index를 완료하였다. 현재 Foundation / Generator 완료 상태를 전제로 Search 품질과 성능을 단계적으로 향상시키는 중이다.
 
 ---
 
@@ -157,13 +156,13 @@ Search Engine Enhancement는 계획 단계이며, Foundation / Generator 완료 
 ## 6. Current Session Card
 
 ```text
-Session ID     : Generator Phase Complete / Docs
-Baseline       : Architecture Freeze · Foundation + Generator Layers Complete
-Current Done   : Strategy → PublishedDataset · Validation/Loader/Membership E2E PASS · Docs (MASTER/LOG/HANDOFF)
-Current Status : Search Engine Foundation + Dataset Generator Phase 완료
-Next Session   : Search Engine Enhancement Phase
-                 (Spatial Index · KDTree · Membership Optimization · Ranking · Interpolation · Geometry)
-Commit         : 없음 (문서 세션 · 사용자 미지시)
+Session ID     : Mission 35 / Spatial Index
+Baseline       : Architecture Freeze · Foundation + Generator Complete
+Current Done   : Spatial Index complete · Runtime-derived only · Query → Candidate IDs · Unit/Smoke/Full PASS
+Current Status : Search Engine Enhancement Phase 진행 중 (Spatial Index 완료)
+Next Session   : KDTree
+                 (Membership 후보 접근 최적화)
+Commit         : Mission 35 구현 커밋/푸시 예정
 ```
 
 ---
