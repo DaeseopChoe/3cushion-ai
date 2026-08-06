@@ -1,8 +1,65 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.11  
+Version : v1.12  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-06 (Search Engine Enhancement Phase — Ranking Engine 완료)
+
+## 제목
+
+**Mission 38 — Ranking Engine**
+
+## Summary
+
+Membership를 통과한 `MembershipCandidate[]`를 deterministic Score Model로 정렬하는 Ranking Engine을 구현하였다. Ranking은 Ordering만 담당하며 Membership Contract / Resolve / Runtime / PublishedDataset은 변경하지 않았다.
+
+## Architecture Review 요약
+
+- Ranking은 Membership 이후에만 수행된다.
+- Score Model은 Ranking Engine과 분리된 독립 계층이다 (`ScoreModel` protocol).
+- Baseline Score는 Membership flag contribution (`membership_flags_v1`)이며, 향후 Geometry metric scorer로 확장 가능하다.
+- Tie-break는 `record_identity` 오름차순이며, Python `sorted`의 Stable Sort를 유지한다.
+
+## 구현 내역
+
+| Layer | 경로 | 비고 |
+|-------|------|------|
+| Ranking Contract | `search/ranking/contract.py` | score model id · weights |
+| Score Model | `search/ranking/score.py` | MembershipFlagsScoreModel |
+| Ranking Engine | `search/ranking/engine.py` | MembershipCandidate[] → RankedCandidate[] |
+| Fixture / Tests | `search/ranking/fixtures.py`, `tests/test_ranking_engine*.py` | tie-break · stable sort · smoke |
+
+## 검증
+
+| Suite | 결과 |
+|-------|------|
+| Ranking unit / regression tests | **PASS** |
+| Ranking smoke test | **PASS** |
+| Full test suite | **PASS** |
+
+## 결과
+
+- MembershipCandidate[] 입력 → RankedCandidate[] 반환
+- Score Model 독립 계층 유지
+- Stable Sort / deterministic ordering 확인
+- Tie-break Rule 정의 및 테스트
+- score_detail 제공
+- Membership / PublishedDataset / Generator 수정 없음
+
+## Explicit Non-Claims
+
+- Interpolation Engine **미구현**
+- Geometry Metrics **미구현**
+- Runtime wiring **미구현**
+- Resolve 변경 **없음**
+- Search Quality Tuning **미구현**
+
+## Next
+
+**Mission 39 — Interpolation Engine** — Search quality 보강용 파생 계산
 
 ---
 
