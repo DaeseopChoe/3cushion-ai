@@ -51,7 +51,7 @@ Next
 | **Dataset Generator Phase** | **Completed (2026-08-06)** |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
 | **Commit (Generator 구현)** | **없음** (사용자 미지시) |
-| **Next Phase** | **Geometry Engine** |
+| **Next Phase** | **Search Quality Tuning** |
 
 ### Foundation 완료 범위
 
@@ -100,7 +100,7 @@ C3 이후 세컨드볼을 통과한 쿠션까지 이어지는 실제 궤적에�
 
 ### Next Candidate
 
-- Geometry
+- Search Quality Tuning
 
 ### 로드맵
 
@@ -119,7 +119,7 @@ Geometry
 ```
 
 Search Engine Enhancement는 진행 중이며, Mission 35에서 Spatial Index를 완료하였다. 현재 Foundation / Generator 완료 상태를 전제로 Search 품질과 성능을 단계적으로 향상시키는 중이다.
-Mission 36~38에서 KDTree · Membership Optimization · Ranking을 완료했고, Mission 39에서 Interpolation Engine까지 완료하였다. 다음 단계는 Geometry Engine이다.
+Mission 36~39에서 KDTree · Membership Optimization · Ranking · Interpolation을 완료했고, Mission 40에서 Geometry Metrics Engine까지 완료하였다. 다음 단계는 Search Quality Tuning이다.
 
 ---
 
@@ -153,13 +153,13 @@ Mission 36~38에서 KDTree · Membership Optimization · Ranking을 완료했고
 ## 6. Current Session Card
 
 ```text
-Session ID     : Mission 39 / Interpolation Engine
+Session ID     : Mission 40 / Geometry Metrics
 Baseline       : Architecture Freeze · Foundation + Generator Complete
-Current Done   : Spatial Index + KDTree + Membership Optimization + Ranking + Interpolation complete · rank-continuity refinement · PublishedDataset Immutable · Unit/Regression/Smoke/Full PASS
-Current Status : Search Engine Enhancement Phase 진행 중 (Spatial Index · KDTree · Membership Optimization · Ranking · Interpolation 완료)
-Next Session   : Geometry Engine
-                 (Context only 이후 실제 Geometry 계산 단계)
-Commit         : Mission 39 구현 커밋/푸시 예정
+Current Done   : Spatial Index + KDTree + Membership Optimization + Ranking + Interpolation + Geometry Metrics complete · Metric Providers · Trajectory 미생성 · Unit/Regression/Smoke/Full PASS
+Current Status : Search Engine Enhancement Phase 진행 중 (Spatial Index · KDTree · Membership Optimization · Ranking · Interpolation · Geometry Metrics 완료)
+Next Session   : Search Quality Tuning
+                 (Ranking/Interpolation/Geometry 통합 품질 조정)
+Commit         : Mission 40 구현 커밋/푸시 예정
 ```
 
 ---

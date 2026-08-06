@@ -1,8 +1,65 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.13  
+Version : v1.14  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-06 (Search Engine Enhancement Phase — Geometry Metrics 완료)
+
+## 제목
+
+**Mission 40 — Geometry Metrics Engine**
+
+## Summary
+
+Foundation Geometry Context(`geometry/`)와 분리하여, 검색 품질용 Geometry Metrics Engine을 `search/geometry/`에 구현하였다. Geometry는 Metric Producer이며 Trajectory 생성·Sampling·Dataset Patch를 수행하지 않는다. Generator / Ranking / Interpolation 계약은 변경하지 않았다.
+
+## Architecture Review 요약
+
+- Geometry Metrics는 Interpolation 이후 Metric Producer이다.
+- Foundation `geometry/` Context Layer와 책임 분리 (`search/geometry/` = Metrics only).
+- MetricProvider는 독립 계층이며 distance / angle / similarity / error를 기본 제공한다.
+- Trajectory 생성은 Generator만 담당하며, Metrics Engine은 호출하지 않는다.
+- 출력 순서는 RefinedCandidate 순서를 보존한다 (재정렬 금지).
+
+## 구현 내역
+
+| Layer | 경로 | 비고 |
+|-------|------|------|
+| Geometry Metric Contract | `search/geometry/contract.py` | engine id · weights |
+| Metric Providers | `search/geometry/providers.py` | distance/angle/similarity/error |
+| Metric Engine | `search/geometry/engine.py` | RefinedCandidate[] + Query → GeometryEvaluatedCandidate[] |
+| Fixture / Tests | `search/geometry/fixtures.py`, `tests/test_geometry_metrics*.py` | extension · no trajectory · smoke |
+
+## 검증
+
+| Suite | 결과 |
+|-------|------|
+| Geometry Metrics unit / regression tests | **PASS** |
+| Geometry Metrics smoke test | **PASS** |
+| Full test suite | **PASS** |
+
+## 결과
+
+- RefinedCandidate[] + GeometrySearchQuery 입력
+- geometry_score / metric_detail 제공
+- Metric Provider 확장 가능
+- Trajectory 미생성 · Generator 미수정 · Dataset Patch 없음
+- Ranking / Interpolation Contract 변경 없음
+
+## Explicit Non-Claims
+
+- Trajectory Generation **미구현**
+- Runtime wiring **미구현**
+- Search Quality Tuning **미구현**
+- Resolve 변경 **없음**
+- Foundation Geometry Context 계약 변경 **없음**
+
+## Next
+
+**Mission 41 — Search Quality Tuning** — Ranking/Interpolation/Geometry 통합 품질 조정
 
 ---
 
