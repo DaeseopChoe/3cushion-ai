@@ -1,8 +1,66 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.9  
+Version : v1.10  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-06 (Search Engine Enhancement Phase — KDTree 완료)
+
+## 제목
+
+**Mission 36 — KDTree Layer for Envelope Candidates**
+
+## Summary
+
+Mission 35의 Spatial Index 후보 집합을 입력으로 consume하는 KDTree 계층을 구현하였다. EnvelopeRecord는 cue centroid / target / second centroid 기반의 고정 6D 벡터로 encoding되며, KDTree는 deterministic top-N nearest shortlist만 반환하고 Membership 판정·Ranking·Geometry 계산은 수행하지 않는다.
+
+## Architecture Review 요약
+
+- Spatial Index는 coarse prefilter, KDTree는 shortlist retrieval로 책임을 분리한다.
+- Encoding은 tree build/query와 분리하여 `search/kd_tree/encoding.py`에 고정한다.
+- EnvelopeRecord는 set-valued(`cueSet`, `secondSet`) 구조이므로, KDTree coarse retrieval에서는 centroid representative를 사용한다.
+- Tie-break는 `candidate_id` 오름차순으로 고정하여 동일 입력에 동일 순서를 보장한다.
+
+## 구현 내역
+
+| Layer | 경로 | 비고 |
+|-------|------|------|
+| KDTree Contract | `search/kd_tree/contract.py` | 6D 고정 차원 |
+| Point Encoding | `search/kd_tree/encoding.py` | query direct / record centroid encoding |
+| KDTree Builder | `search/kd_tree/builder.py` | 후보 집합 → KDTreeIndex |
+| KDTree Query API | `search/kd_tree/query.py` | top-N nearest shortlist |
+| Fixture / Smoke | `search/kd_tree/fixtures.py`, `tests/test_kd_tree*.py` | tie-break · Spatial Index 연동 검증 |
+
+## 검증
+
+| Suite | 결과 |
+|-------|------|
+| KDTree unit tests | **PASS** |
+| KDTree smoke test | **PASS** |
+| Full test suite | **PASS** |
+
+## 결과
+
+- Spatial Index 후보 집합으로 KDTree 생성 성공
+- Query와 Record를 동일 6D contract로 encoding
+- Query → Top-N nearest shortlist 반환 성공
+- 결과에 `candidate_id`, `strategy_ref`, `distance`, deterministic tie-break metadata 포함
+- Membership 계약 변경 없음
+- PublishedDataset / Generator 수정 없음
+
+## Explicit Non-Claims
+
+- Membership Optimization Integration **미구현**
+- Ranking / Interpolation / Geometry Metrics **미구현**
+- Runtime wiring **미구현**
+- Persisted KDTree / Dataset index field **미구현**
+- Loader / Resolve / Schema 변경 **없음**
+
+## Next
+
+**Mission 37 — Membership Optimization** — KDTree shortlist consume
 
 ---
 

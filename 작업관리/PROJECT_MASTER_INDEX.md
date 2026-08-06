@@ -150,8 +150,8 @@ Architecture Review
 | **Dataset Architecture** | **Phase 1~3-1 완료** — Export · Published Loader · USER/ADMIN Recall·Search SSOT |
 | **Search Engine Foundation Phase** | **완료 (2026-08-06)** — Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine · **Architecture Freeze 유지** · Commit 없음 |
 | **Dataset Generator Phase** | **완료 (2026-08-06)** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E · Validation/Loader/Membership PASS |
-| **Search Engine Enhancement Phase** | **In Progress (2026-08-06)** — Spatial Index 완료 · Next KDTree · Membership Optimization · Ranking Engine · Interpolation Engine · Geometry Engine · Search Quality Tuning |
-| **Next Phase** | **KDTree** — Membership 후보 접근 최적화 |
+| **Search Engine Enhancement Phase** | **In Progress (2026-08-06)** — Spatial Index 완료 · KDTree 완료 · Next Membership Optimization · Ranking Engine · Interpolation Engine · Geometry Engine · Search Quality Tuning |
+| **Next Phase** | **Membership Optimization** — Candidate Selection 성능 개선 |
 
 ### Search Engine Foundation Phase (완료)
 
@@ -365,8 +365,8 @@ Production Search 장애 발생 시 점검 순서:
 |-------|------|
 | **Dataset Generator Phase** | **Complete** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E |
 | **3** | **Spatial Index** — 8×4 grid, `spatialCells` (cue / target / second), Recall 1차 필터 · **완료** |
-| **4** | **KDTree** — Membership 후보 접근 최적화 · **Next** |
-| **5** | **Membership Optimization** — Candidate Selection 성능 개선 |
+| **4** | **KDTree** — Membership 후보 접근 최적화 · **완료** |
+| **5** | **Membership Optimization** — Candidate Selection 성능 개선 · **Next** |
 | **6** | **Ranking Engine** — MembershipCandidate ordering / scoring |
 | **7** | **Interpolation Engine** — Search quality 보강용 파생 계산 |
 | **8** | **Geometry Engine** — Context only 이후 실제 Geometry 계산 단계 |
@@ -890,6 +890,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 - **Search Engine Foundation Phase (2026-08-06)** — Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine(Context) **완료** · Architecture Freeze 유지 · Commit 없음
 - **Dataset Generator Phase (2026-08-06)** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E **완료** · Validation PASS · Loader 연동 PASS · MembershipCandidate 생성 PASS · Round-trip PASS · Next **Search Engine Enhancement Phase**
 - **Search Engine Enhancement Phase (2026-08-06)** — Spatial Index **완료** · Runtime-derived only · PublishedDataset 수정 없음 · Query → Candidate ID 반환 · Unit/Smoke/Full PASS · Next **KDTree**
+- **Search Engine Enhancement Phase (2026-08-06)** — KDTree **완료** · Spatial 후보 집합 consume · 6D encoding · deterministic top-N shortlist · Unit/Smoke/Full PASS · Next **Membership Optimization**
 - **Application Architecture Standard (AAS) v2.0** — Application Runtime Constitution (SSOT) 확정 (2026-07-03):
   - ✔ Application Migration Blueprint
   - ✔ Architecture Meta
@@ -1200,7 +1201,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 > **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN**. **Envelope Architecture Freeze** — Search Engine Foundation Phase **완료 (2026-08-06)** · Freeze 문서 비수정.
 >
-> **Search Engine (2026-08-06):** Foundation + Generator **Complete**, Enhancement **Started** — Spatial Index complete, next KDTree.
+> **Search Engine (2026-08-06):** Foundation + Generator **Complete**, Enhancement progressing — Spatial Index + KDTree complete, next Membership Optimization.
 >
 > **Runtime / Product 상태 (2026-08-04 유지):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy v1.4 Completed. Product 잔여(Continuation / Handle Drag 등)는 Generator Phase와 병행 가능 트랙.
 
@@ -1361,8 +1362,8 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 
 - **Search Engine Foundation Phase** — **완료** (Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine)
 - **Dataset Generator Phase** — **완료** (Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E)
-- **Search Engine Enhancement Phase** — **진행 중** (Spatial Index 완료)
-- **Next:** **KDTree** → Membership Optimization → Ranking Engine → Interpolation Engine → Geometry Engine → Search Quality Tuning
+- **Search Engine Enhancement Phase** — **진행 중** (Spatial Index · KDTree 완료)
+- **Next:** **Membership Optimization** → Ranking Engine → Interpolation Engine → Geometry Engine → Search Quality Tuning
 - Architecture SSOT: `Architecture/` (**Freeze 유지 · 내용 수정 금지**)
 - 인계: `CURSOR_SESSION_HANDOFF.md` · `HISTORY/PROJECT_LOG_2026-08.md`
 
@@ -1424,7 +1425,6 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 ### P0 — Search Engine Enhancement Phase (Next)
 
-- KDTree
 - Membership Optimization
 - Ranking Engine
 - Interpolation Engine
