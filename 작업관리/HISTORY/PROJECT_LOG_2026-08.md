@@ -1,8 +1,65 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.10  
+Version : v1.11  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-06 (Search Engine Enhancement Phase — Membership Optimization 완료)
+
+## 제목
+
+**Mission 37 — Membership Optimization Integration**
+
+## Summary
+
+기존 Membership Contract와 `MembershipCandidate` 모델은 그대로 유지한 채, 내부 후보 탐색 경로를 `Spatial Index -> KDTree -> Membership Gate`로 최적화하였다. 최적화 경로를 사용할 수 없거나 후보를 얻지 못한 경우에는 기존 full scan path로 즉시 fallback하도록 구현하여 결과 정합성을 유지하였다.
+
+## Architecture Review 요약
+
+- Membership는 여전히 최종 contract gate이며, Spatial Index와 KDTree는 후보 축소/정렬만 담당한다.
+- 외부 API는 `PublishedDataset + MembershipQuery -> MembershipCandidate[]`로 유지한다.
+- 최적화 경로가 비어 있거나 실패하면 full scan fallback을 수행해 기존 결과와 동일성을 보장한다.
+- 최종 MembershipCandidate 순서는 dataset 원래 순서를 유지하여 legacy 결과 ordering을 보존한다.
+
+## 구현 내역
+
+| Layer | 경로 | 비고 |
+|-------|------|------|
+| Candidate Prefilter Adapter | `search/membership/adapter.py` | Spatial Index + KDTree 통합 |
+| Membership Optimization Hook | `membership/engine.py` | optimized path + full scan fallback |
+| Regression / Smoke | `tests/test_membership_engine.py`, `tests/test_membership_optimization_smoke.py` | 결과 동일성 / fallback 검증 |
+
+## 검증
+
+| Suite | 결과 |
+|-------|------|
+| Membership regression tests | **PASS** |
+| Membership optimization smoke test | **PASS** |
+| Full test suite | **PASS** |
+
+## 결과
+
+- Membership Contract 유지
+- MembershipCandidate Model 유지
+- Spatial Index → KDTree → Membership 경로 동작
+- Full Scan Fallback 유지
+- 동일 Query에서 기존 full scan과 동일한 Membership 결과 확인
+- Resolve Contract 변경 없음
+- Runtime API 변경 없음
+
+## Explicit Non-Claims
+
+- Ranking Engine **미구현**
+- Interpolation Engine / Geometry Metrics **미구현**
+- Runtime wiring **미구현**
+- Resolve 변경 **없음**
+- PublishedDataset / Generator 수정 **없음**
+
+## Next
+
+**Mission 38 — Ranking Engine** — MembershipCandidate ordering / scoring
 
 ---
 

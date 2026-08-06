@@ -23,6 +23,8 @@ from models import (
 from .exceptions import MembershipFailure, MembershipInputError
 from .interfaces import MembershipQuery
 from .matcher import is_member, match_record
+from search.membership.adapter import DefaultCandidatePrefilterAdapter
+from search.membership.interfaces import CandidatePrefilterAdapter
 
 
 def _record_identity(record: EnvelopeRecord, index: int) -> RecordIdentity:
@@ -35,6 +37,17 @@ def _record_identity(record: EnvelopeRecord, index: int) -> RecordIdentity:
 
 class DefaultMembershipEngine:
     """Concrete MembershipEngine. Selection only."""
+
+    def __init__(
+        self,
+        *,
+        prefilter_adapter: CandidatePrefilterAdapter | None = None,
+    ) -> None:
+        self._prefilter_adapter = (
+            prefilter_adapter
+            if prefilter_adapter is not None
+            else DefaultCandidatePrefilterAdapter()
+        )
 
     def evaluate(
         self,
@@ -62,14 +75,40 @@ class DefaultMembershipEngine:
         dataset: PublishedDataset,
         query: MembershipQuery,
     ) -> List[MembershipCandidate]:
-        candidates: List[MembershipCandidate] = []
-        records = dataset.records or []
+        records = self._validated_records(dataset)
+        optimized_records = self._select_candidate_records(dataset, query)
+        if not optimized_records:
+            optimized_records = tuple(records)
+        return self._evaluate_records(dataset, query, optimized_records)
 
+    def _validated_records(self, dataset: PublishedDataset) -> List[EnvelopeRecord]:
+        records = dataset.records or []
         for index, record in enumerate(records):
             if not isinstance(record, EnvelopeRecord):
                 raise MembershipInputError(
                     f"records[{index}] is not an EnvelopeRecord"
                 )
+        return records
+
+    def _select_candidate_records(
+        self,
+        dataset: PublishedDataset,
+        query: MembershipQuery,
+    ) -> tuple[EnvelopeRecord, ...] | None:
+        try:
+            return self._prefilter_adapter.select_records(dataset, query)
+        except Exception:
+            return None
+
+    def _evaluate_records(
+        self,
+        dataset: PublishedDataset,
+        query: MembershipQuery,
+        records: tuple[EnvelopeRecord, ...] | List[EnvelopeRecord],
+    ) -> List[MembershipCandidate]:
+        candidates: List[MembershipCandidate] = []
+
+        for index, record in enumerate(records):
             flags = match_record(query, record)
             if not is_member(flags):
                 continue

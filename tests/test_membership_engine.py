@@ -23,6 +23,7 @@ from membership import (  # noqa: E402
     match_second,
     match_target,
 )
+from membership.engine import DefaultMembershipEngine  # noqa: E402
 from models import (  # noqa: E402
     DatasetIdentity,
     EnvelopeRecord,
@@ -30,6 +31,21 @@ from models import (  # noqa: E402
     PublishedDataset,
     StrategyRef,
 )
+
+
+class _FallbackAdapter:
+    def select_records(self, dataset, query):
+        return None
+
+
+class _BrokenAdapter:
+    def select_records(self, dataset, query):
+        raise RuntimeError("prefilter unavailable")
+
+
+class _EmptyAdapter:
+    def select_records(self, dataset, query):
+        return ()
 
 
 def _record(
@@ -133,6 +149,48 @@ def test_multiple_candidates() -> None:
     query = MembershipQuery(cue=cue, target=target, second=second)
     candidates = engine.evaluate(ds, query)
     assert [c.strategy_ref for c in candidates] == ["s1", "s2"]
+
+
+def test_optimized_path_matches_full_scan_regression() -> None:
+    target = Point(10.0, 20.0)
+    cue = Point(1.0, 2.0)
+    second = Point(3.0, 4.0)
+    ds = _dataset(
+        [
+            _record("s1", target, [cue], [second]),
+            _record("s2", target, [cue, Point(9.0, 9.0)], [second]),
+            _record("s3", Point(0.0, 0.0), [cue], [second]),
+        ]
+    )
+    query = MembershipQuery(cue=cue, target=target, second=second)
+    baseline = DefaultMembershipEngine(prefilter_adapter=_FallbackAdapter()).evaluate(
+        ds, query
+    )
+    optimized = create_membership_engine().evaluate(ds, query)
+    assert optimized == baseline
+    assert [candidate.strategy_ref for candidate in optimized] == ["s1", "s2"]
+
+
+def test_full_scan_fallback_when_prefilter_unavailable() -> None:
+    target = Point(10.0, 20.0)
+    cue = Point(1.0, 2.0)
+    second = Point(3.0, 4.0)
+    ds = _dataset([_record("s1", target, [cue], [second])])
+    query = MembershipQuery(cue=cue, target=target, second=second)
+    engine = DefaultMembershipEngine(prefilter_adapter=_BrokenAdapter())
+    candidates = engine.evaluate(ds, query)
+    assert [candidate.strategy_ref for candidate in candidates] == ["s1"]
+
+
+def test_full_scan_fallback_when_prefilter_returns_empty() -> None:
+    target = Point(10.0, 20.0)
+    cue = Point(1.0, 2.0)
+    second = Point(3.0, 4.0)
+    ds = _dataset([_record("s1", target, [cue], [second])])
+    query = MembershipQuery(cue=cue, target=target, second=second)
+    engine = DefaultMembershipEngine(prefilter_adapter=_EmptyAdapter())
+    candidates = engine.evaluate(ds, query)
+    assert [candidate.strategy_ref for candidate in candidates] == ["s1"]
 
 
 def test_empty_dataset() -> None:
