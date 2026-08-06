@@ -149,7 +149,8 @@ Architecture Review
 | 시스템 레슨 | **보류** — USER UI 단순화 정책에 따라 현재 메뉴 비노출 · 관련 코드/VM은 보존 |
 | **Dataset Architecture** | **Phase 1~3-1 완료** — Export · Published Loader · USER/ADMIN Recall·Search SSOT |
 | **Search Engine Foundation Phase** | **완료 (2026-08-06)** — Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine · **Architecture Freeze 유지** · Commit 없음 |
-| **Next Phase** | **Dataset Generator Phase** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder |
+| **Dataset Generator Phase** | **완료 (2026-08-06)** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E · Validation/Loader/Membership PASS |
+| **Next Phase** | **Search Engine Enhancement Phase** — Spatial Index · KDTree · Membership Optimization · Ranking Engine · Interpolation Engine · Geometry Engine · Search Quality Tuning |
 
 ### Search Engine Foundation Phase (완료)
 
@@ -177,7 +178,27 @@ Generator·Ranking·KDTree·실제 Geometry 계산·Search Algorithm은 **본 Ph
 **상세 로그:** `HISTORY/PROJECT_LOG_2026-08.md` — Search Engine Foundation Phase 완료  
 **세션 이관:** `CURSOR_SESSION_HANDOFF.md`
 
-**Next Phase:** **Dataset Generator Phase**
+### Dataset Generator Phase (완료)
+
+**상태:** **Complete (2026-08-06)** · Architecture Freeze Compatible · Foundation Consumer 수정 없음 · Commit 없음
+
+Generator Producer 계층을 구현하여 Strategy Authoring 입력으로부터 PublishedDataset까지 생성하고, Validation → Loader → Membership E2E 검증을 완료하였다.  
+Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E가 모두 완료되었다.
+
+| Layer | 상태 | 경로 |
+|-------|------|------|
+| ✓ Trajectory Generator | 완료 | `generator/trajectory_generator/` |
+| ✓ Cue Sampler | 완료 | `generator/cue_sampler/` |
+| ✓ Second Sampler | 완료 | `generator/second_sampler/` |
+| ✓ Envelope Builder | 완료 | `generator/envelope_builder/` |
+| ✓ Published Dataset Builder | 완료 | `generator/published_dataset_builder/` |
+| ✓ Generator Pipeline E2E | 완료 | `tests/test_generator_pipeline_e2e.py` |
+
+**Architecture SSOT (Consume · Freeze 유지 · 본 문서에서 내용 수정 금지):** `Architecture/`  
+**상세 로그:** `HISTORY/PROJECT_LOG_2026-08.md` — Dataset Generator Phase Complete  
+**세션 이관:** `CURSOR_SESSION_HANDOFF.md`
+
+**Next Phase:** **Search Engine Enhancement Phase**
 
 ### 핵심 설계 원칙
 
@@ -341,9 +362,14 @@ Production Search 장애 발생 시 점검 순서:
 
 | Phase | 내용 |
 |-------|------|
-| **Dataset Generator Phase** | **Next** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder (Search Engine Foundation 이후) |
-| **4** | **Spatial Index** — 8×4 grid, `spatialCells` (cue / target / second), Recall 1차 필터 |
-| **5** | **trajectory 기반 파생 데이터 생성** — Generator Phase와 연계 · 별도 세션 |
+| **Dataset Generator Phase** | **Complete** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E |
+| **3** | **Spatial Index** — 8×4 grid, `spatialCells` (cue / target / second), Recall 1차 필터 |
+| **4** | **KDTree** — Membership 후보 접근 최적화 |
+| **5** | **Membership Optimization** — Candidate Selection 성능 개선 |
+| **6** | **Ranking Engine** — MembershipCandidate ordering / scoring |
+| **7** | **Interpolation Engine** — Search quality 보강용 파생 계산 |
+| **8** | **Geometry Engine** — Context only 이후 실제 Geometry 계산 단계 |
+| **9** | **Search Quality Tuning** — Ranking/Interpolation/Geometry 통합 품질 조정 |
 
 ---
 
@@ -860,7 +886,8 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 ### 완료
 
-- **Search Engine Foundation Phase (2026-08-06)** — Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine(Context) **완료** · Architecture Freeze 유지 · Commit 없음 · Next **Dataset Generator Phase**
+- **Search Engine Foundation Phase (2026-08-06)** — Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine(Context) **완료** · Architecture Freeze 유지 · Commit 없음
+- **Dataset Generator Phase (2026-08-06)** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E **완료** · Validation PASS · Loader 연동 PASS · MembershipCandidate 생성 PASS · Round-trip PASS · Next **Search Engine Enhancement Phase**
 - **Application Architecture Standard (AAS) v2.0** — Application Runtime Constitution (SSOT) 확정 (2026-07-03):
   - ✔ Application Migration Blueprint
   - ✔ Architecture Meta
@@ -1171,7 +1198,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 > **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN**. **Envelope Architecture Freeze** — Search Engine Foundation Phase **완료 (2026-08-06)** · Freeze 문서 비수정.
 >
-> **Search Engine (2026-08-06):** Foundation Phase **Complete** — Schema → Geometry Engine(Context). **Next Phase: Dataset Generator Phase**.
+> **Search Engine (2026-08-06):** Foundation Phase + Dataset Generator Phase **Complete** — Schema → PublishedDataset generation → Loader/Membership E2E. **Next Phase: Search Engine Enhancement Phase**.
 >
 > **Runtime / Product 상태 (2026-08-04 유지):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy v1.4 Completed. Product 잔여(Continuation / Handle Drag 등)는 Generator Phase와 병행 가능 트랙.
 
@@ -1328,10 +1355,11 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 
 상세: `HISTORY/PROJECT_LOG_2026-08.md` (2026-08-03~04) · `CURSOR_SESSION_HANDOFF.md`.
 
-### 최우선 (Search Engine) — Dataset Generator Phase
+### 최우선 (Search Engine) — Search Engine Enhancement Phase
 
 - **Search Engine Foundation Phase** — **완료** (Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine)
-- **Next:** **Dataset Generator Phase** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder
+- **Dataset Generator Phase** — **완료** (Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E)
+- **Next:** **Search Engine Enhancement Phase** — Spatial Index → KDTree → Membership Optimization → Ranking Engine → Interpolation Engine → Geometry Engine → Search Quality Tuning
 - Architecture SSOT: `Architecture/` (**Freeze 유지 · 내용 수정 금지**)
 - 인계: `CURSOR_SESSION_HANDOFF.md` · `HISTORY/PROJECT_LOG_2026-08.md`
 
@@ -1391,11 +1419,15 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 - USER Search 임팩트 방향: `targetColor` ↔ `draft.targetBall` ↔ `record.targetBall` 동기화 흐름
 - 신규 Export 후 Search 실패: Published Loader · recall profile · cache
 
-### P0 — Dataset Generator Phase (Next)
+### P0 — Search Engine Enhancement Phase (Next)
 
-- Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder
-- Foundation Phase Consumer 계층은 완료 · Generator가 Published Dataset을 생산
-- interpolation·KD-Tree USER 적용·targetBall 가중은 Generator Phase 초기 범위 외 가능
+- Spatial Index
+- KDTree
+- Membership Optimization
+- Ranking Engine
+- Interpolation Engine
+- Geometry Engine
+- Search Quality Tuning
 
 ### P1 — SYS SSOT 정리
 

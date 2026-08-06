@@ -4,7 +4,7 @@
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
 Date      : 2026-08-06
-Scope     : Search Engine Foundation Phase Completed → Next Dataset Generator Phase
+Scope     : Search Engine Foundation + Dataset Generator Phase Completed → Next Search Engine Enhancement Phase
 Rule      : Fact only ·
              Architecture Freeze (`Architecture/`) = absolute baseline (내용 수정 금지) ·
              Schema / Models / Validation / Loader / Membership / Resolve /
@@ -28,8 +28,8 @@ Rule      : Fact only ·
 
 | # | Document | Purpose |
 |---|----------|---------|
-| **1** | **MASTER** | 현재 상태 SSOT · Foundation **완료** · Next **Generator** |
-| **2** | **LOG 2026-08** | Foundation Phase 구현·테스트·Freeze 유지 기록 |
+| **1** | **MASTER** | 현재 상태 SSOT · Foundation / Generator **완료** · Next **Enhancement** |
+| **2** | **LOG 2026-08** | Foundation + Generator 구현·테스트·Freeze 유지 기록 |
 | **3** | **Architecture Freeze** | Envelope / Dataset / Membership / Resolve / Runtime SSOT |
 | **4** | **HANDOFF** | Current Status · cueSet/secondSet · Generator 목표 |
 
@@ -39,18 +39,19 @@ Rule      : Fact only ·
 
 ```text
 Current Status
-  Search Engine Foundation Phase 완료
+  Search Engine Foundation + Dataset Generator Phase 완료
 
 Next
-  Dataset Generator Phase 시작 예정
+  Search Engine Enhancement Phase
 ```
 
 | Item | Value |
 |------|-------|
 | **Search Engine Foundation** | **Completed (2026-08-06)** |
+| **Dataset Generator Phase** | **Completed (2026-08-06)** |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
-| **Commit (Foundation 구현)** | **없음** (사용자 미지시) |
-| **Next Phase** | **Dataset Generator Phase** |
+| **Commit (Generator 구현)** | **없음** (사용자 미지시) |
+| **Next Phase** | **Search Engine Enhancement Phase** |
 
 ### Foundation 완료 범위
 
@@ -95,32 +96,34 @@ C3 이후 세컨드볼을 통과한 쿠션까지 이어지는 실제 궤적에�
 
 ---
 
-## 3. 다음 작업 — Dataset Generator Phase
+## 3. 다음 작업 — Search Engine Enhancement Phase
 
-### 핵심 구현 예정
+### Next Candidate
 
-- Trajectory Generator
-- Cue Sampler
-- Second Sampler
-- Envelope Builder
-- Published Dataset Builder
+- Spatial Index
+- KDTree
+- Membership Optimization
+- Ranking
+- Interpolation
+- Geometry
 
-### Generator Phase 목표
+### 로드맵
 
 ```text
-관리자가 시스템을 입력하면
+Spatial Index
         ↓
-Trajectory 생성
+KDTree
         ↓
-cueSet / secondSet 생성
+Membership Optimization
         ↓
-EnvelopeRecord 생성
+Ranking
         ↓
-PublishedDataset 생성
+Interpolation
+        ↓
+Geometry
 ```
 
-Loader → Membership → Resolve → Runtime/Session이 consume하는 Published Dataset을  
-Generator가 **생산**한다. Foundation Consumer 계층을 대체하지 않는다.
+Search Engine Enhancement는 계획 단계이며, Foundation / Generator 완료 상태를 전제로 Search 품질과 성능을 향상시키는 후속 Phase이다.
 
 ---
 
@@ -154,12 +157,12 @@ Generator가 **생산**한다. Foundation Consumer 계층을 대체하지 않는
 ## 6. Current Session Card
 
 ```text
-Session ID     : Mission 29 / Search Engine Foundation Phase Docs
-Baseline       : Architecture Freeze · Foundation Layers Complete
-Current Done   : Schema…Geometry Engine · Smoke Tests PASS · Docs (MASTER/LOG/HANDOFF)
-Current Status : Search Engine Foundation Phase 완료
-Next Session   : Dataset Generator Phase
-                 (Trajectory Generator · Cue/Second Sampler · Envelope · Published Dataset Builder)
+Session ID     : Generator Phase Complete / Docs
+Baseline       : Architecture Freeze · Foundation + Generator Layers Complete
+Current Done   : Strategy → PublishedDataset · Validation/Loader/Membership E2E PASS · Docs (MASTER/LOG/HANDOFF)
+Current Status : Search Engine Foundation + Dataset Generator Phase 완료
+Next Session   : Search Engine Enhancement Phase
+                 (Spatial Index · KDTree · Membership Optimization · Ranking · Interpolation · Geometry)
 Commit         : 없음 (문서 세션 · 사용자 미지시)
 ```
 
