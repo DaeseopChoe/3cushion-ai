@@ -1,7 +1,7 @@
 """
 Search Runtime Host public API.
 
-Orchestration: Membership → Resolve → SearchResult (SEARCH_RUNTIME_SSOT).
+Orchestration: Enhancement pipeline → Resolve → SearchResult.
 """
 
 from .engine import DefaultSearchRuntime

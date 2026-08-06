@@ -119,7 +119,7 @@ Geometry
 ```
 
 Search Engine Enhancement는 진행 중이며, Mission 35에서 Spatial Index를 완료하였다. 현재 Foundation / Generator 완료 상태를 전제로 Search 품질과 성능을 단계적으로 향상시키는 중이다.
-Mission 36~39에서 KDTree · Membership Optimization · Ranking · Interpolation을 완료했고, Mission 40에서 Geometry Metrics Engine까지 완료하였다. 다음 단계는 Search Quality Tuning이다.
+Mission 36~40에서 KDTree · Membership Optimization · Ranking · Interpolation · Geometry Metrics를 완료했고, Mission 41에서 Search Runtime Enhancement Wiring까지 완료하였다. 다음 단계는 Search Quality Tuning이다.
 
 ---
 
@@ -153,13 +153,13 @@ Mission 36~39에서 KDTree · Membership Optimization · Ranking · Interpolatio
 ## 6. Current Session Card
 
 ```text
-Session ID     : Mission 40 / Geometry Metrics
+Session ID     : Mission 41 / Runtime Enhancement Wiring
 Baseline       : Architecture Freeze · Foundation + Generator Complete
-Current Done   : Spatial Index + KDTree + Membership Optimization + Ranking + Interpolation + Geometry Metrics complete · Metric Providers · Trajectory 미생성 · Unit/Regression/Smoke/Full PASS
-Current Status : Search Engine Enhancement Phase 진행 중 (Spatial Index · KDTree · Membership Optimization · Ranking · Interpolation · Geometry Metrics 완료)
+Current Done   : Enhancement engines wired into Search Runtime · Spatial→KDTree→Membership→Ranking→Interpolation→Geometry→Resolve · Integration/Smoke/Full PASS
+Current Status : Search Engine Enhancement Phase 진행 중 (Runtime Wiring 완료)
 Next Session   : Search Quality Tuning
                  (Ranking/Interpolation/Geometry 통합 품질 조정)
-Commit         : Mission 40 구현 커밋/푸시 예정
+Commit         : Mission 41 구현 커밋/푸시 예정
 ```
 
 ---

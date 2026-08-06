@@ -1,12 +1,11 @@
 """
-Search Runtime Host — Membership → Resolve orchestration.
+Search Runtime Host — Enhancement pipeline → Resolve orchestration.
 
 Contract: Architecture/SEARCH_RUNTIME_SSOT.md
 
-Does not implement Membership, Resolve, or Loader logic.
+Host / orchestration only.
+Does not implement Membership, Ranking, Interpolation, Geometry, or Resolve logic.
 Does not read Package / Manifest / Version.
-Does not create Strategy or Modal.
-Does not re-run Validation.
 Does not mutate PublishedDataset.
 """
 
@@ -17,6 +16,7 @@ from membership.exceptions import MembershipError
 from models import PublishedDataset
 from resolve import ResolveEngine, Strategy
 from resolve.exceptions import ResolveError
+from search.runtime.orchestrator import SearchEnhancementOrchestrator
 
 from .exceptions import RuntimeConfigurationError, RuntimeExecutionError
 from .result import SearchResult
@@ -30,6 +30,7 @@ class DefaultSearchRuntime:
         *,
         membership: MembershipEngine,
         resolve: ResolveEngine,
+        orchestrator: SearchEnhancementOrchestrator | None = None,
     ) -> None:
         if membership is None:
             raise RuntimeConfigurationError("MembershipEngine is required")
@@ -37,6 +38,11 @@ class DefaultSearchRuntime:
             raise RuntimeConfigurationError("ResolveEngine is required")
         self._membership = membership
         self._resolve = resolve
+        self._orchestrator = (
+            orchestrator
+            if orchestrator is not None
+            else SearchEnhancementOrchestrator(membership=membership)
+        )
 
     def execute(
         self,
@@ -55,7 +61,7 @@ class DefaultSearchRuntime:
             raise RuntimeConfigurationError("query must be a MembershipQuery")
 
         try:
-            candidates = self._membership.evaluate(dataset, query)
+            artifacts = self._orchestrator.run(dataset, query)
         except MembershipError as exc:
             raise RuntimeExecutionError(
                 f"Membership stage failed: {exc}",
@@ -63,12 +69,13 @@ class DefaultSearchRuntime:
             ) from exc
         except Exception as exc:  # noqa: BLE001
             raise RuntimeExecutionError(
-                f"Membership stage failed unexpectedly: {exc}",
+                f"Enhancement pipeline failed: {exc}",
                 cause=exc,
             ) from exc
 
-        if candidates is None:
-            raise RuntimeExecutionError("Membership returned None")
+        candidates = list(artifacts.resolve_candidates)
+        if not candidates:
+            return SearchResult()
 
         resolved_candidates = []
         resolved_strategies: list[Strategy] = []
@@ -88,9 +95,6 @@ class DefaultSearchRuntime:
                 ) from exc
             resolved_candidates.append(candidate)
             resolved_strategies.append(strategy)
-
-        if not resolved_candidates:
-            return SearchResult()
 
         return SearchResult(
             candidate=resolved_candidates[0],

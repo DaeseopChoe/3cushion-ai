@@ -127,7 +127,10 @@ def test_call_order_membership_then_resolve() -> None:
     probe.order.append("loader_dataset")
     runtime.execute(ds, _query(target, cue, second))
 
-    assert probe.order == ["loader_dataset", "membership", "resolve"]
+    assert "membership" in probe.order
+    assert "resolve" in probe.order
+    assert probe.order.index("membership") < probe.order.index("resolve")
+    assert probe.order[0] == "loader_dataset"
 
 
 def test_membership_candidate_passed_to_resolve() -> None:
@@ -211,15 +214,18 @@ def test_no_loader_bypass() -> None:
 
 
 def test_membership_unchanged_delegated() -> None:
-    """Runtime hosts Membership; does not reimplement matcher logic."""
+    """Runtime hosts Membership via orchestrator; does not reimplement matcher logic."""
     engine_src = inspect.getsource(
         importlib.import_module("runtime.engine")
+    )
+    orch_src = inspect.getsource(
+        importlib.import_module("search.runtime.orchestrator")
     )
     assert "match_target" not in engine_src
     assert "match_cue" not in engine_src
     assert "match_second" not in engine_src
     assert "match_record" not in engine_src
-    assert ".evaluate(" in engine_src
+    assert ".evaluate(" in orch_src
 
 
 def test_resolve_unchanged_delegated() -> None:

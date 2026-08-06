@@ -22,7 +22,8 @@ class SearchRuntime(Protocol):
     Search Runtime Host (SEARCH_RUNTIME_SSOT).
 
     PublishedDataset (Loader-supplied) + MembershipQuery
-        → Membership → Resolve → SearchResult
+        → Spatial Index → KDTree → Membership → Ranking
+        → Interpolation → Geometry Metrics → Resolve → SearchResult
     """
 
     def execute(
@@ -30,5 +31,5 @@ class SearchRuntime(Protocol):
         dataset: PublishedDataset,
         query: MembershipQuery,
     ) -> SearchResult:
-        """Host Membership then Resolve; return SearchResult."""
+        """Host Enhancement pipeline then Resolve; return SearchResult."""
         ...
