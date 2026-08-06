@@ -3,11 +3,14 @@
 ```
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
+Authority : Operations
 Date      : 2026-08-06
 Scope     : Search Engine Architecture Complete
              (Phase 1 Foundation + Phase 2 Dataset Generator + Phase 3 Enhancement)
+             · Phase 4 Foundation — GLOSSARY_SSOT adopt (Session ops)
 Rule      : Fact only ·
-             Architecture Freeze (`Architecture/`) = absolute baseline (내용 수정 금지) ·
+             GLOSSARY_SSOT = Official Terminology / Official Pipeline Expression SSOT ·
+             Architecture Freeze (`Architecture/`) = Structure baseline (내용 수정 금지) ·
              Schema / Models / Validation / Loader / Membership / Resolve /
              Runtime / Session / Strategy / Strategy Engine / Modal / Geometry
              Foundation 구현은 완료 · Generator Phase에서 재작성하지 않음 ·
@@ -15,25 +18,140 @@ Rule      : Fact only ·
              Overlay Native Selection SSOT = absolute baseline (변경 금지)
 ```
 
+> 본 문서는 `작업관리/GLOSSARY_SSOT.md`의 공식 용어·Official Pipeline 표현을 따른다.
+
 ---
 
 ## 0. 새 세션 — 필수 읽기 순서
 
 ```text
 1. PROJECT_MASTER_INDEX.md
-2. HISTORY/PROJECT_LOG_2026-08.md      ← Phase 3 Complete
-3. Architecture/ENVELOPE_ARCHITECTURE_SSOT.md  ← Freeze (Consume only)
-4. CURSOR_SESSION_HANDOFF.md
-5. search/quality/SEARCH_QUALITY_REPORT.md
+2. HISTORY/PROJECT_LOG_YYYY-MM.md
+3. 작업관리/GLOSSARY_SSOT.md
+4. Architecture/ENVELOPE_ARCHITECTURE_SSOT.md
+5. CURSOR_SESSION_HANDOFF.md
+6. Mission-specific documents (필요 시)
 ```
 
-| # | Document | Purpose |
-|---|----------|---------|
-| **1** | **MASTER** | Phase 1~3 Complete · Search Engine Architecture Complete · Next Track |
-| **2** | **LOG 2026-08** | Phase Complete · Mission 35~42 · Validation |
-| **3** | **Architecture Freeze** | Envelope / Dataset / Membership / Resolve / Runtime SSOT |
-| **4** | **HANDOFF** | Current Status · Next Track |
-| **5** | **Quality Report** | E2E / Regression / Benchmark |
+| # | Document | Role |
+|---|----------|------|
+| **1** | **MASTER** | Status — 현재 Phase · Next Track · 기능 SSOT |
+| **2** | **LOG** | History — 최근 Mission · 검증 사실 |
+| **3** | **GLOSSARY** | Terminology — Official Name · Official Pipeline 표현 |
+| **4** | **Architecture Freeze** | Structure — Envelope / Sampling / Dataset / Membership / Resolve 규칙 (Consume only) |
+| **5** | **HANDOFF** | Operations — Current / Next / Carry · Session Checklist |
+| **6** | **Mission-specific** | 해당 Mission만 (예: Product Phase Handoff · `search/quality/SEARCH_QUALITY_REPORT.md`) |
+
+**기본 5종을 마친 뒤에만** Mission-specific 문서를 읽는다.
+
+---
+
+## 0.1 Session Rules
+
+세션 시작 · 구현/설계 착수 **전**:
+
+| ID | Rule |
+|----|------|
+| SR-01 | Read `PROJECT_MASTER_INDEX` |
+| SR-02 | Read latest `HISTORY/PROJECT_LOG_YYYY-MM` |
+| SR-03 | Read `작업관리/GLOSSARY_SSOT.md` |
+| SR-04 | Use **Official Terminology** only |
+| SR-05 | Do **not** redefine official terminology |
+| SR-06 | **Cite** Glossary definitions — do not duplicate them |
+| SR-07 | Read Architecture Freeze **after** Glossary |
+| SR-08 | Preserve Architecture Freeze (`Architecture/` 본문 수정 금지) |
+| SR-09 | Generator = Producer |
+| SR-10 | Search = Consumer |
+| SR-11 | Runtime = Orchestrator only |
+| SR-12 | Product Host ≠ Search Runtime |
+| SR-13 | PublishedDataset ≠ positions.json |
+| SR-14 | Mission-specific documents are read **after** the core documents (1–5) |
+
+---
+
+## 0.2 Authority Hierarchy
+
+축을 분리한다. MASTER가 Architecture를 개정하는 상위 헌법이 **아니다**.
+
+### Status
+
+```text
+PROJECT_MASTER_INDEX
+        ↓
+PROJECT_LOG
+        ↓
+CURSOR_SESSION_HANDOFF
+```
+
+| Authority | Role |
+|-----------|------|
+| MASTER | Current Phase · Next Track · 기능 상태 |
+| LOG | 사실 이력 · Mission 완료/검증 기록 |
+| HANDOFF | 세션 ops · Current / Next / Carry · Checklist |
+
+### Structure
+
+```text
+Architecture Freeze (`Architecture/`)
+```
+
+| Authority | Role |
+|-----------|------|
+| Architecture Freeze | Envelope 의미 · Sampling Policy · Dataset Must/Must-Not · Membership / Resolve 규칙 |
+
+### Terminology
+
+```text
+GLOSSARY_SSOT (`작업관리/GLOSSARY_SSOT.md`)
+```
+
+| Authority | Role |
+|-----------|------|
+| GLOSSARY | Official Name · Pipeline Label · Alias · 금지 표현 · Product Terminology |
+
+Envelope 용어의 **의미** Parent는 여전히 Architecture Freeze이다. Glossary는 cite/consume한다.
+
+---
+
+## 0.3 Conflict Resolution
+
+| Conflict domain | Winner |
+|-----------------|--------|
+| Architecture 의미 · Sampling Policy · Dataset Must/Must-Not | **Architecture Freeze** |
+| Official Name · Official Pipeline · Alias · 금지 표현 | **GLOSSARY_SSOT** |
+| Project Status · Next Track | **PROJECT_MASTER_INDEX** (+ LOG 보강) |
+| Current Mission / Session Checklist / Carry | **CURSOR_SESSION_HANDOFF** |
+
+---
+
+## 0.4 Glossary Consume Policy
+
+```text
+All official terminology and Official Pipeline labels shall follow
+작업관리/GLOSSARY_SSOT.md.
+
+Envelope meaning, Sampling Policy, Membership, Resolve,
+Dataset Must/Must-Not rules are defined by Architecture Freeze.
+
+Glossary cites them and does not redefine them.
+
+Do not duplicate Glossary definitions.
+
+Use official terminology and cite the relevant Glossary section.
+```
+
+---
+
+## 0.5 Startup Checklist
+
+새 세션 시작 시:
+
+- [ ] MASTER Next Track 확인
+- [ ] 최신 LOG 확인
+- [ ] Glossary Official Terminology / Official Pipeline 확인
+- [ ] Architecture Freeze 확인 (Consume only)
+- [ ] Handoff Current / Next / Carry 확인
+- [ ] Mission 문서 확인 (core 5종 이후)
 
 ---
 
@@ -41,16 +159,14 @@ Rule      : Fact only ·
 
 ```text
 Current Status
-  Phase 3 Complete
-  Search Engine Architecture Complete
-
-  ✅ Phase 1 — Search Engine Foundation
-  ✅ Phase 2 — Dataset Generator
-  ✅ Phase 3 — Search Engine Enhancement
+  Phase 3 Complete — Search Engine Architecture Complete
+  Phase 4 Product Pipeline COMPLETE
+  ✅ Mission 01 Export · Mission 02 Package · Mission 03 Deploy
+  ✅ Mission 04 Authoring Integration ABSORBED (ADR)
 
 Next Track
-  Product / Platform Carry
-  · System Authoring / Dataset Expansion 준비
+  Phase 5 — Search Quality · Mission 01 Real Interpolation
+  · Product / Platform Carry (Display Boundary · STEP9 · Known Issues)
 ```
 
 | Item | Value |
@@ -59,10 +175,11 @@ Next Track
 | **Phase 2 Dataset Generator** | ✅ **Completed** |
 | **Phase 3 Search Engine Enhancement** | ✅ **Completed** |
 | **Search Engine Architecture** | ✅ **Complete** |
+| **Phase 4 Product Pipeline** | ✅ **COMPLETED** (Mission 01–03 · Mission 04 ABSORBED) |
+| **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
-| **Full Test** | **248 PASS** |
-| **Next Track** | **Product / Platform Carry** · System Authoring / Dataset Expansion 준비 |
-
+| **Product Pipeline Tests** | **21 PASS** (export · package · deploy) |
+| **Next Track** | **Phase 5 — Search Quality · Real Interpolation** · Product / Platform Carry |
 ### 구현 완료 범위
 
 | ✓ | Phase / Layer | Path |
@@ -78,29 +195,26 @@ Next Track
 | ✓ | Runtime Wiring | `search/runtime/` |
 | ✓ | Quality Validation | `search/quality/` |
 
+Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT` §5.3.
+
 ---
 
-## 2. 이번 세션에서 확정된 데이터 정의
+## 2. Sampling / Dataset 용어 (cite only)
 
-> Sampling Policy / Envelope Dataset 계약과 정합.
+> Official definitions: `작업관리/GLOSSARY_SSOT.md` §3.1 · §4.  
+> Envelope meaning / Sampling Policy: `Architecture/ENVELOPE_ARCHITECTURE_SSOT.md` (Freeze).
 
-### cueSet
+| Term | Cite |
+|------|------|
+| **cueSet** | GLOSSARY §3.1 · Freeze SP-C-* |
+| **secondSet** | GLOSSARY §3.1 · Freeze SP-S-* · Line of Score |
+| **Target** | GLOSSARY §3.1 — Sampling 대상 아님 · Freeze SP-T-* |
+| **Domain Rule** | GLOSSARY §3.1 · Freeze |
+| **Cartesian product** | 저장 금지 — GLOSSARY §6 · Freeze SP-D-01 |
+| **PublishedDataset** | GLOSSARY §3.1 — ≠ `positions.json` |
+| **Trajectory Sampling** | GLOSSARY §3.1 · §4 |
 
-큐볼에서 임펙트볼로 향하는 실제 궤적에서,  
-큐볼 시작점부터 임펙트볼과 연결되기 직전 **1/3 지점**까지를  
-**1.5gr** 간격으로 분할하여 저장한 좌표 집합(Set).
-
-### secondSet
-
-C3 이후 세컨드볼을 통과한 쿠션까지 이어지는 실제 궤적에서,  
-**C3를 시작점**으로 마지막 쿠션까지를  
-**1.5gr** 간격으로 분할하여 저장한 좌표 집합(Set).
-
-### 참고 (Freeze)
-
-- Target은 Strategy당 1개(Authoring Target) — Sampling 대상 아님
-- Domain Rule: Cue Set × Second Set는 동일 Strategy 안에서 모두 유효
-- Cartesian product는 Dataset에 저장하지 않음
+본 Handoff에 용어 전문을 재정의·복제하지 않는다.
 
 ---
 
@@ -108,28 +222,37 @@ C3 이후 세컨드볼을 통과한 쿠션까지 이어지는 실제 궤적에�
 
 ### Primary
 
+- **Phase 5 — Search Quality · Mission 01 Real Interpolation** — **READY TO START**
 - **Product / Platform Carry**
   - Display Boundary Continuation / CASE A / Corrected Cap · Handle Drag
   - STEP9 Phase 4 Pilot
   - Known Issues OPEN-01 · OPEN-02 · OPEN-05
   - USER Overlay 통합 검증
 
+### Phase 4 Product Pipeline — Complete
+
+Official Pipeline: GLOSSARY §5.2 · Code: `product/` · CLI: `export` · `package` · `deploy` · `pipeline`  
+Mission 04 ADR: `SESSION_TRANSFER/ADR_MISSION_04_AUTHORING_INTEGRATION_ABSORBED.md`
 ### Follow-up Candidates
 
 - System Authoring
 - Published Dataset Expansion
 - Real System Corpus
-- Search Quality Tuning (실데이터)
+- Search Quality Tuning (실데이터) — Phase 5+
 - Product Integration
 
-### Enhancement Pipeline (Complete)
+### Search Enhancement Pipeline (Complete)
+
+Official name — GLOSSARY §5.3:
 
 ```text
+PublishedDataset
+        ↓
 Spatial Index
         ↓
 KDTree
         ↓
-Membership Optimization
+Membership
         ↓
 Ranking
         ↓
@@ -137,9 +260,9 @@ Interpolation
         ↓
 Geometry Metrics
         ↓
-Runtime Wiring
+Resolve
         ↓
-E2E / Quality Validation
+SearchResult
 ```
 
 **Phase 3 Search Engine Enhancement = Complete.**
@@ -161,9 +284,12 @@ E2E / Quality Validation
 ### Envelope / Search Engine
 
 - `Architecture/` Freeze SSOT **내용 수정 금지**
+- Official terminology: **GLOSSARY_SSOT** (재정의 금지 · cite)
 - Foundation 구현 계층을 Generator가 재구현·우회하지 않음
-- Geometry Metrics ≠ Trajectory 생성 (Generator 전담)
+- Geometry Metrics ≠ Trajectory Generator (GLOSSARY §6)
 - Modal / Strategy Handle에 Modal body · Search Algorithm 삽입 금지 (현 단계)
+- Generator = Producer · Search = Consumer · Runtime = Orchestrator only
+- Product Host ≠ Search Runtime
 
 ### Interaction / Overlay (기존 baseline)
 
@@ -176,15 +302,15 @@ E2E / Quality Validation
 ## 6. Current Session Card
 
 ```text
-Session ID     : Project Docs / Phase 3 Complete
-Baseline       : Architecture Freeze · Search Engine Architecture Complete
-Current Done   : MASTER / LOG / HANDOFF 프로젝트 관점 Phase 3 Complete 반영
-Current Status : Phase 3 Complete · Search Engine Architecture Complete
-Next Session   : Product / Platform Carry
-                 · System Authoring / Dataset Expansion 준비
-Commit         : 없음 (문서 세션 · Commit/Push 미수행)
+Session ID     : Phase 4 Mission 03 — Deployment Workflow
+Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 Product Pipeline
+Current Done   : Mission 01–03 · Mission 04 ABSORBED · Phase 4 COMPLETE
+Current Status : Phase 4 Product Pipeline COMPLETE
+Next Session   : Phase 5 — Search Quality · Real Interpolation
+                 · Product / Platform Carry
+Commit         : 없음 (Commit/Push 미수행)
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-06*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-06 · Phase 4 Product Pipeline COMPLETE*

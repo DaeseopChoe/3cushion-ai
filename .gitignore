@@ -47,3 +47,7 @@ Application Architecture Standard (AAS) v2.0/Chapter/Chapter.zip
 _commit_msg*.txt
 _update_*.py
 _update_*.txt
+
+# Phase 4 local artifacts / caches (never commit)
+product_export/
+.npm-cache/

@@ -1,26 +1,174 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.57  
+Version: 1.61  
 Last Updated: 2026-08-06  
-Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님)
+Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
 > 상세 이력은 `HISTORY/PROJECT_LOG_YYYY-MM.md`에 둔다.  
-> **폴더·파이프라인 구조 변경** 시 `5_PROJECT_MASTER_STATE_CURRENT.md` 전면 재작성.
+> **폴더·파이프라인 구조 변경** 시 `5_PROJECT_MASTER_STATE_CURRENT.md` 전면 재작성.  
+> 공식 용어·Official Pipeline: `작업관리/GLOSSARY_SSOT.md` (Terminology Authority).
+
+---
+
+## Milestone — Phase 4 Foundation
+
+| Field | Value |
+|-------|--------|
+| **Phase** | Phase 4 Foundation |
+| **Status** | **COMPLETED** |
+| **Date** | 2026-08-06 |
+| **Type** | Project Governance (docs only · no code / Architecture Freeze change) |
+
+### Foundation Completion
+
+| Item | Status |
+|------|--------|
+| Project Constitution | ✓ |
+| Official Glossary SSOT | ✓ |
+| Session Governance | ✓ |
+| Documentation Governance | ✓ |
+| Authority Hierarchy | ✓ |
+| Official Read Order | ✓ |
+| Glossary Consume Policy | ✓ |
+| Product Phase Handoff alignment | ✓ |
+
+### Foundation Summary
+
+Phase 4 Foundation established the Project Governance required before Product Pipeline implementation.  
+All Constitution-level documents are now aligned (MASTER · Architecture Freeze · GLOSSARY · HANDOFF · LOG · Product Phase Handoff).  
+**Mission 01 · Mission 02 · Mission 03 COMPLETED. Mission 04 ABSORBED. Phase 4 Product Pipeline COMPLETE.**
+
+### Project Status (Current)
+
+| Field | Value |
+|-------|--------|
+| **Current Phase** | Phase 4 — Product Pipeline |
+| **Phase 4 Product Pipeline** | ✅ **COMPLETED** |
+| **Current Mission** | — (Phase 4 closed) |
+| **Next Track** | Phase 5 — Search Quality · Mission 01 Real Interpolation |
+| **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
+| **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
+| **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
+| **Mission 04 Authoring Integration** | ✅ **ABSORBED** (ADR · Missions 01–03 + `product pipeline`) |
+
+---
+
+## Project Constitution
+
+This project is governed by the following Constitution-level documents.
+
+| # | Document | Authority | Role |
+|---|----------|-----------|------|
+| 1 | **`PROJECT_MASTER_INDEX.md`** (본 문서) | **Status** | Project Entry · Project Status · Current Phase · Next Track |
+| 2 | **`Architecture/*`** | **Structure** | Structure · Contract · Constraints (Architecture Freeze · 내용 수정 금지) |
+| 3 | **`작업관리/GLOSSARY_SSOT.md`** | **Terminology** | Official Terminology · Official Pipeline Expression |
+| 4 | **`CURSOR_SESSION_HANDOFF.md`** | **Operations** | Session Operations · Startup Rules · Current / Next / Carry |
+| 5 | **`HISTORY/PROJECT_LOG_YYYY-MM.md`** | **History** | Mission Completion · 검증 사실 · 월별 이력 |
+
+Envelope 의미·Sampling Policy·Dataset Must/Must-Not은 **Architecture Freeze**가 Parent이다.  
+Official Name·Pipeline Label은 **GLOSSARY_SSOT**가 우선한다.  
+본 문서는 Status Entry이며 Architecture를 개정하는 상위 헌법이 **아니다**.
+
+### Core Document Roles
+
+| Document | Role |
+|----------|------|
+| **PROJECT_MASTER_INDEX** | Project Status · Current Phase · Next Track |
+| **Architecture** | Structure · Contract · Constraints |
+| **GLOSSARY_SSOT** | Official Terminology · Official Pipeline |
+| **CURSOR_SESSION_HANDOFF** | Session Operations · Startup Rules |
+| **PROJECT_LOG** | History · Mission Completion |
+
+### SSOT Authority Summary
+
+| Authority | Document |
+|-----------|----------|
+| **Status** | MASTER (`PROJECT_MASTER_INDEX.md`) |
+| **History** | LOG (`HISTORY/PROJECT_LOG_YYYY-MM.md`) |
+| **Structure** | Architecture (`Architecture/*`) |
+| **Terminology** | Glossary (`작업관리/GLOSSARY_SSOT.md`) |
+| **Operations** | Handoff (`CURSOR_SESSION_HANDOFF.md`) |
+
+Authority는 중복되지 않는다. Terminology 전용 추가 SSOT(`SEARCH_TERMINOLOGY.md` 등)를 신설하지 않는다 — GLOSSARY에 통합 (GLOSSARY §8).
+
+### Conflict Resolution (요약)
+
+| Domain | Winner |
+|--------|--------|
+| Architecture 의미 · Sampling · Dataset Must/Must-Not | Architecture Freeze |
+| Official Name · Official Pipeline · Alias | GLOSSARY_SSOT |
+| Project Status · Next Track | PROJECT_MASTER_INDEX (+ LOG) |
+| Current Mission · Session Checklist | CURSOR_SESSION_HANDOFF |
+
+---
+
+## Official Session Read Order
+
+새 세션(Envelope / Product / Search / Validation)의 **기본** 순서:
+
+```text
+1. PROJECT_MASTER_INDEX.md
+        ↓
+2. HISTORY/PROJECT_LOG_YYYY-MM.md
+        ↓
+3. 작업관리/GLOSSARY_SSOT.md
+        ↓
+4. Architecture/ENVELOPE_ARCHITECTURE_SSOT.md
+        ↓
+5. CURSOR_SESSION_HANDOFF.md
+        ↓
+6. Mission-specific documents
+```
+
+| # | Document | Purpose |
+|---|----------|---------|
+| 1 | MASTER | Status / Next Track |
+| 2 | LOG | Recent facts / Mission history |
+| 3 | GLOSSARY | Official Terminology / Pipelines |
+| 4 | Architecture Freeze | Structure (Consume only) |
+| 5 | HANDOFF | Session ops / Checklist |
+| 6 | Mission-specific | 해당 Mission만 (예: Product Phase Handoff · Quality Report) |
+
+상세 Session Rules: `CURSOR_SESSION_HANDOFF.md` §0.1.
+
+---
+
+## Documentation Governance
+
+새 문서를 만들기 전 반드시 확인한다.
+
+| # | Question | Look in |
+|---|----------|---------|
+| ① | Project Status | MASTER / LOG |
+| ② | Architecture | `Architecture/` |
+| ③ | Terminology | `GLOSSARY_SSOT` |
+| ④ | Session Operation | HANDOFF |
+| ⑤ | Mission | `SESSION_TRANSFER/` |
+| ⑥ | Reference | `docs/` |
+
+기존 Authority와 중복되는 별도 SSOT를 만들지 않는다.  
+용어·Pipeline 표현은 GLOSSARY에만 등록한다.
 
 ---
 
 ## 문서 계층 (읽는 순서)
 
-### Development Workflow — Architecture 구현 전 Consume (공식)
+### 기본 세션 — Official Read Order (위 절)
 
-Architecture 관련 구현(Runtime / Presentation / Validation 등) **전에** 반드시 다음 순서로 Consume한다.
+Envelope / Product / Search 세션은 **Official Session Read Order**를 따른다.
+
+### Development Workflow — Architecture 구현 전 Consume (공식 · AAS/Fleet 트랙)
+
+Application Runtime / Fleet Contract 관련 구현(Runtime / Presentation / Validation 등) **전에** 반드시 다음 순서로 Consume한다.  
+(**기본 Official Read Order와 병행** — AAS 트랙 전용 First Consume.)
 
 ```text
 1. docs/APPLICATION_FLOW.md
 2. 관련 Fleet Contract Book (L4 / L5 / L6 / L7)
 3. PROJECT_MASTER_INDEX.md
-4. CURSOR_SESSION_HANDOFF.md
+4. 작업관리/GLOSSARY_SSOT.md
+5. CURSOR_SESSION_HANDOFF.md
         ↓
 Architecture Review
         ↓
@@ -29,9 +177,9 @@ Architecture Review
 
 | Rule | Statement |
 |------|-----------|
-| **First reference** | `APPLICATION_FLOW.md` = Runtime Orchestration 공식 Architecture Guide |
+| **First reference (AAS Runtime)** | `APPLICATION_FLOW.md` = Runtime Orchestration 공식 Architecture Guide |
 | **Normative layers** | Fleet Contract Book Ch.8(L4) · Ch.9(L5) · Ch.10(L6) · **Ch.11(L7 Ratified)** |
-| **Ops context** | MASTER + HANDOFF로 현재 Gate / Hold / Next 확인 |
+| **Ops context** | MASTER + GLOSSARY + HANDOFF로 현재 Gate / Hold / Next · 용어 확인 |
 | **Gate** | Consume → **Architecture Review** → 구현 (Review 생략 금지) |
 
 ### 신규 세션 온보딩 (STEP7 Agent Implementation)
@@ -90,11 +238,14 @@ Architecture Review
 
 | 문서 | 역할 |
 |------|------|
-| **본 문서 (`PROJECT_MASTER_INDEX.md`)** | 현재 기능·UI·완료/예정 SSOT |
-| `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 **First Consume** |
+| **본 문서 (`PROJECT_MASTER_INDEX.md`)** | **Project Entry** · Status · Current Phase · Next Track |
+| `작업관리/GLOSSARY_SSOT.md` | **Terminology Constitution** — Official Terminology · Official Pipeline Expression |
+| `Architecture/` | **Structure Constitution** — Envelope Architecture Freeze suite (내용 수정 금지) |
+| `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — AAS Architecture 구현 전 **First Consume** |
 | `작업관리/DEVELOPMENT_WORKFLOW.md` | **Operational Workflow SSOT v1.0** (General + Fleet Apply Workflow · Sole Ops SSOT) |
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | Cursor 세션 이관 메모 (**Search Engine Foundation Phase 완료** · Next **Dataset Generator Phase**) |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Operations** — Session Read Order · Startup Rules · Current / Next / Carry |
+| `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
 | `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4** — Cap / Boundary · Phase 2A · **Reading Mode Implemented** · **C2 Reflection Rail Handle** · C4 Minimum |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension Overlay Runtime SSOT **v1.4** (Task Closed · Freeze) |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8–Ch.11 Ratified** · **B0–B8 Completed** · **Final Validation Gate v1.0** |
@@ -152,7 +303,9 @@ Architecture Review
 | **Dataset Generator Phase** | **완료 (2026-08-06)** — Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E · Validation/Loader/Membership PASS |
 | **Search Engine Enhancement Phase** | **완료 (2026-08-06)** — Phase 3 Complete · Spatial Index · KDTree · Membership Optimization · Ranking · Interpolation · Geometry Metrics · Runtime Wiring · E2E/Regression/Benchmark Validation |
 | **Search Engine Architecture** | **Complete** — Phase 1 Foundation ✅ · Phase 2 Dataset Generator ✅ · Phase 3 Search Engine Enhancement ✅ |
-| **Next Phase** | **Product / Platform Carry** · **System Authoring / Dataset Expansion** 준비 |
+| **Phase 4 Foundation** | ✅ **COMPLETED** — Project Constitution · GLOSSARY · Session / Documentation Governance · Handoff alignment |
+| **Phase 4 Product Pipeline** | ✅ **COMPLETED** — Mission 01–03 · Mission 04 ABSORBED |
+| **Next Phase** | **Phase 5 — Search Quality · Mission 01 Real Interpolation** |
 
 ### Search Engine Phase Map (Complete)
 
@@ -164,6 +317,20 @@ Architecture Review
 
 **Search Engine Architecture Complete (2026-08-06).**  
 상세: `HISTORY/PROJECT_LOG_2026-08.md` · `search/quality/SEARCH_QUALITY_REPORT.md` · `CURSOR_SESSION_HANDOFF.md`
+
+### Phase 4 Product Pipeline Map
+
+| Mission | 이름 | 상태 |
+|---------|------|------|
+| **Foundation** | Project Governance (GLOSSARY · Session · MASTER · Product Handoff align) | ✅ **COMPLETED** |
+| **01** | Export Pipeline | ✅ **COMPLETED** |
+| **02** | Published Package Builder | ✅ **COMPLETED** |
+| **03** | Deployment Workflow | ✅ **COMPLETED** |
+| **04** | Authoring Integration | ✅ **ABSORBED** (see ADR) |
+
+Official Product Pipeline: `GLOSSARY_SSOT` §5.2 · `SESSION_TRANSFER/Product Phase Handoff.md`  
+Mission 04 ADR: `SESSION_TRANSFER/ADR_MISSION_04_AUTHORING_INTEGRATION_ABSORBED.md`
+
 
 ### Search Engine Foundation Phase (완료)
 
@@ -233,7 +400,7 @@ Phase 3에서 Search 품질·성능 Enhancement Engine을 구현하고 Runtime�
 **품질 보고서:** `search/quality/SEARCH_QUALITY_REPORT.md`  
 **세션 이관:** `CURSOR_SESSION_HANDOFF.md`
 
-**Next Track:** **Product / Platform Carry** · **System Authoring / Dataset Expansion** 준비
+**Next Track:** **Phase 5 — Search Quality · Mission 01 Real Interpolation**
 
 ### 핵심 설계 원칙
 
@@ -400,9 +567,13 @@ Production Search 장애 발생 시 점검 순서:
 | **Phase 1 Foundation** | **Complete** |
 | **Phase 2 Dataset Generator** | **Complete** |
 | **Phase 3 Search Engine Enhancement** | **Complete** — Mission 35~42 |
-| **Next** | **Product / Platform Carry** · System Authoring / Published Dataset Expansion 준비 |
+| **Phase 4 Foundation** | ✅ **COMPLETED** |
+| **Phase 4 Product Pipeline** | ✅ **COMPLETED** |
+| **Next** | **Phase 5 — Search Quality · Real Interpolation** |
 
-> Phase 3 Enhancement 로드맵(Spatial Index → … → Quality Validation)은 **전부 완료**되었다.
+> Phase 3 Enhancement 로드맵(Spatial Index → … → Quality Validation)은 **전부 완료**되었다.  
+> Phase 4 Foundation · Mission 01–03 COMPLETED · Mission 04 ABSORBED · **Phase 4 Product Pipeline COMPLETE**.  
+> Phase 4 Product Pipeline Official Name: `GLOSSARY_SSOT` §5.2.
 
 ---
 
@@ -1237,13 +1408,27 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 ## 다음 작업 우선순위
 
-> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN**. **Envelope Architecture Freeze** — Search Engine Foundation Phase **완료 (2026-08-06)** · Freeze 문서 비수정.
+> **Architecture 상태:** AAS v2.0 **완료**. Batch 1~6 **Final Freeze**. STEP4/5 **Final Freeze**. **STEP6 Final Freeze v1.0**. **STEP7** P2–P6 **Complete**. **STEP8 Fleet Apply Completed**. **STEP9 Certification Platform v1.0 FROZEN**. **Envelope Architecture Freeze** — Search Engine Architecture **Complete (2026-08-06)** · Freeze 문서 비수정.
 >
 > **Search Engine (2026-08-06):** **Architecture Complete** — Phase 1 Foundation ✅ · Phase 2 Dataset Generator ✅ · Phase 3 Enhancement ✅ (E2E/Regression/Benchmark · Full Test 248 PASS).
 >
-> **Next Track:** Product / Platform Carry · System Authoring / Dataset Expansion 준비.
+> **Phase 4 Foundation (2026-08-06):** ✅ **COMPLETED**.
 >
-> **Runtime / Product 상태 (2026-08-04 유지):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy v1.4 Completed. Product 잔여(Continuation / Handle Drag 등)는 Generator Phase와 병행 가능 트랙.
+> **Mission 01 Export Pipeline:** ✅ **COMPLETED**.
+>
+> **Mission 02 Published Package Builder:** ✅ **COMPLETED**.
+>
+> **Mission 03 Deployment Workflow:** ✅ **COMPLETED** (`product/deployment*` · prepare/report · Package immutable).
+>
+> **Mission 04 Authoring Integration:** ✅ **ABSORBED** — `SESSION_TRANSFER/ADR_MISSION_04_AUTHORING_INTEGRATION_ABSORBED.md` · `python -m product pipeline`.
+>
+> **Phase 4 Product Pipeline:** ✅ **COMPLETED**.
+>
+> **Next Track:** **Phase 5 — Search Quality · Mission 01 Real Interpolation**.
+>
+> **병행 Carry:** Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · System Authoring 준비.
+>
+> **Runtime / Product 상태 (2026-08-04 유지):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy v1.4 Completed.
 
 ### STEP7 상태
 
@@ -1398,18 +1583,32 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 
 상세: `HISTORY/PROJECT_LOG_2026-08.md` (2026-08-03~04) · `CURSOR_SESSION_HANDOFF.md`.
 
-### 최우선 (Search Engine) — Search Engine Architecture Complete
+### 최우선 (Phase 5 Search Quality) — Next Track
 
-- **Phase 1 — Search Engine Foundation** — ✅ Complete
-- **Phase 2 — Dataset Generator** — ✅ Complete
-- **Phase 3 — Search Engine Enhancement** — ✅ Complete (Mission 35~42)
-- **Search Engine Architecture** — **Complete**
-- **Next Track:** Product / Platform Carry · System Authoring / Published Dataset Expansion / Real System Corpus / Search Quality Tuning(실데이터) / Product Integration
+- **Phase 4 Product Pipeline** — ✅ **COMPLETED** (Mission 01–03 · Mission 04 ABSORBED)
+- **Phase 5 Mission 01 — Real Interpolation** — **READY TO START**
+- Phase 5 Mission 02 — Dead Code Cleanup
+- Official Search Enhancement Pipeline: `GLOSSARY_SSOT` §5.3
+- Terminology: `작업관리/GLOSSARY_SSOT.md` · Session ops: `CURSOR_SESSION_HANDOFF.md`
 - Architecture SSOT: `Architecture/` (**Freeze 유지 · 내용 수정 금지**)
-- 품질 보고서: `search/quality/SEARCH_QUALITY_REPORT.md`
-- 인계: `CURSOR_SESSION_HANDOFF.md` · `HISTORY/PROJECT_LOG_2026-08.md`
 
-### 최우선 (Product) — 병행 가능 잔여
+### 최우선 (Phase 4 Product Pipeline) — Complete
+
+- **Mission 01 — Export Pipeline** — ✅ COMPLETED
+- **Mission 02 — Published Package Builder** — ✅ COMPLETED
+- **Mission 03 — Deployment Workflow** — ✅ COMPLETED
+- **Mission 04 — Authoring Integration** — ✅ ABSORBED (`ADR_MISSION_04_AUTHORING_INTEGRATION_ABSORBED.md`)
+- Code: `product/` (Export · Package · Deploy · `pipeline` CLI)
+- Mission roadmap: `SESSION_TRANSFER/Product Phase Handoff.md`
+- Official Pipeline: `GLOSSARY_SSOT` §5.2
+
+### 최우선 (Search Engine) — Architecture Complete (Closed)
+
+- **Phase 1–3** — ✅ Complete · Full Test 248 PASS
+- Search Quality (Real Interpolation 등)는 **Phase 5** — Product Pipeline 이후
+- 품질 보고서: `search/quality/SEARCH_QUALITY_REPORT.md`
+
+### 최우선 (Product Carry) — 병행 가능 잔여
 
 - **Display Boundary Policy** — SSOT **v1.4** · Reading Mode · C2 Handle · Corner Cap Override **Completed** · Next: Continuation / CASE A · Corrected Cap Minimum · Boundary
 - **Handle First Drag 잔여 간섭** (명시적 후속 · Extension Handle vs Ball/Joystick) — 또는 신규 Product 세션
@@ -1469,10 +1668,11 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 - _(Phase 3 Complete — Enhancement P0 closed)_
 
-### P0 — Next Track (준비)
+### P0 — Next Track
 
-- Product / Platform Carry (Display Boundary · STEP9 · Known Issues)
-- System Authoring / Published Dataset Expansion 준비
+- **Phase 5 Mission 01 — Real Interpolation** — **READY TO START**
+- Phase 4 Product Pipeline: ✅ COMPLETED
+- 병행: Product Carry (Display Boundary · STEP9 · Known Issues) · System Authoring 준비
 
 ### P1 — SYS SSOT 정리
 
@@ -1502,8 +1702,11 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 | 문서 | 용도 |
 |------|------|
-| `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — Architecture 구현 전 First Consume |
-| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Cursor 세션 이관** — Search Engine Foundation Phase **완료** · Next **Dataset Generator Phase** |
+| `docs/APPLICATION_FLOW.md` | **Runtime Orchestration Architecture Guide** — AAS Architecture 구현 전 First Consume |
+| `작업관리/GLOSSARY_SSOT.md` | **Terminology Constitution** — Official Terminology · Official Pipeline |
+| `Architecture/` | **Structure Constitution** — Envelope Architecture Freeze (내용 수정 금지) |
+| `작업관리/CURSOR_SESSION_HANDOFF.md` | **Session Operations** — Official Read Order · Startup Rules · Current / Next / Carry |
+| `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
 | `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4** — Reading Mode · C2 Reflection Rail Handle · Phase 2A · Cap / Boundary |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
@@ -1529,8 +1732,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `System Platform Standard (SPS) v1.0/System_Inventory.md` | **STEP4 Inventory SSOT (v1.0 Final)** — Frozen Assets · Observation SSOT · Metadata/Registration Inventory |
 | `Application Architecture Standard (AAS) v2.0/App_Migration_Map.md` | **Application Runtime Constitution (Permanent SSOT)** — Migration Blueprint · Architecture Meta · ADR · Review Checklist |
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
-| `HISTORY/PROJECT_LOG_2026-08.md` | 2026-08 월별 이력 · **Search Engine Foundation Phase 완료** · Display Boundary · Trajectory Extension · SYS Apply / Runtime Contract |
-| `Architecture/` | **Envelope Architecture Freeze SSOT** — Search Engine Foundation Consume · **내용 수정 금지** |
+| `HISTORY/PROJECT_LOG_2026-08.md` | 2026-08 월별 이력 · Search Engine Architecture Complete · Phase 4 Foundation · Display Boundary · Trajectory Extension |
 | `HISTORY/PROJECT_LOG_2026-07.md` | 2026-07 AAS Batch · STEP4/5 Final · STEP6 Framework+Pipeline · STEP6-3/4/5 Complete · **2026-07-30 ADMIN Pointer Capture Timing / Target Ball dblclick Regression** |
 | `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) · **USER Overlay** (§19) |
 | `HISTORY/PROJECT_LOG_2026-05.md` | 2026-05 상세 작업 로그 |

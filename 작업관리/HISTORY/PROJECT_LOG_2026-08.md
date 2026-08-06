@@ -1,8 +1,241 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.17  
+Version : v1.20  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-06 (Phase 4 Mission 03 — Deployment Workflow · Phase 4 Complete)
+
+## 제목
+
+**Mission 03 — Deployment Workflow Complete · Mission 04 Absorbed · Phase 4 Product Pipeline COMPLETE**
+
+## Status
+
+**Completed**
+
+## Purpose
+
+Mission 02 **Published Package**를 유일한 입력으로 소비하여  
+Deployment Workflow(Load · Validation · Target · Metadata · Status · Report)를 구축한다.  
+Package / Dataset은 수정하지 않는다. Git Push / Vercel Publish는 수행하지 않는다 (prepare/report only).
+
+## Summary
+
+`product/deployment*`가 Package directory를 load·validate하고 Deployment Report를 `deployment/reports/`에 기록한다.  
+`local_staging` 타겟은 source package를 변경하지 않고 staging mirror만 생성한다.
+
+## Pipeline
+
+```text
+Published Package/
+  → Package Loader (read-only)
+  → Package Validation
+  → Deployment Target (local_staging | git_ready | vercel_ready)
+  → Deployment Report / Metadata / Status
+```
+
+## Completed
+
+| Item | 결과 |
+|------|------|
+| Published Package sole input | ✅ |
+| Package Loader | ✅ `deployment_loader.py` |
+| Package Validation | ✅ |
+| Deployment Workflow / API / CLI | ✅ `deploy` · `run_deployment` |
+| Deployment Report / Metadata / Status | ✅ |
+| Package immutability (checksum) | ✅ |
+| Mission 04 Review | ✅ **ABSORBED** |
+
+## Mission 04 Review
+
+| Question | Answer |
+|----------|--------|
+| Mission 01에서 Authoring→Export→Generator가 이미 있는가? | **Yes** |
+| 별도 Mission 04 구현이 필요한가? | **No** |
+| Continuity CLI | `python -m product pipeline` |
+
+ADR: `SESSION_TRANSFER/ADR_MISSION_04_AUTHORING_INTEGRATION_ABSORBED.md`
+
+## Phase 4 Completion
+
+**Phase 4 Product Pipeline = COMPLETE**  
+(Foundation · Mission 01 · 02 · 03 · Mission 04 Absorbed)
+
+## Explicit Non-Claims / Not Changed
+
+- Architecture Freeze · Generator · Search · Runtime
+- Package Builder / Export Pipeline 코드 책임 변경 없음 (consume only)
+- Git Push / Vercel Publish **미수행**
+- Commit / Push **없음**
+
+## Next Track
+
+**Phase 5 — Search Quality · Mission 01 Real Interpolation**
+
+## 산출물
+
+| Path | Role |
+|------|------|
+| `product/deployment.py` | Deployment Workflow |
+| `product/deployment_loader.py` | Package dir loader |
+| `product/deployment_models.py` | Report / Status / Metadata |
+| `tests/test_deployment_workflow.py` | Mission 03 tests |
+| `SESSION_TRANSFER/ADR_MISSION_04_…` | Mission 04 Absorbed |
+| `PROJECT_MASTER_INDEX.md` | v1.61 · Phase 4 COMPLETE |
+
+---
+
+# 2026-08-06 (Phase 4 Mission 02 — Published Package Builder)
+
+## 제목
+
+**Mission 02 — Published Package Builder Complete**
+
+## Status
+
+**Completed**
+
+## Purpose
+
+Mission 01 **Export Handoff Artifact**를 유일한 입력으로 받아  
+배포 가능한 **Published Package** (`package/` folder)를 Product Layer에서 생성한다.
+
+## Summary
+
+Package Builder는 dataset wrap · identity mint · manifest / version / package.json 생성 · schema validation · Export Folder write만 수행한다.  
+Generator / Search / Runtime / Architecture / Schema는 수정하지 않았다.
+
+## Pipeline
+
+```text
+Export Handoff Artifact
+  → Package Builder
+  → dataset.json · package.json · manifest.json · version.json · metadata/
+  → Mission 03 input
+```
+
+## Completed
+
+| Item | 결과 |
+|------|------|
+| Export Handoff Artifact sole input | ✅ |
+| Package Builder | ✅ `product/package_builder.py` |
+| dataset.json / package.json / manifest.json / version.json | ✅ |
+| metadata/ (provenance · identities · build) | ✅ |
+| Package Validation (schema) | ✅ |
+| Export Folder write | ✅ `product/package_writer.py` |
+| Loader round-trip | ✅ |
+| Mission 03 input contract | ✅ `assert_mission03_input_contract` |
+| CLI `python -m product package` | ✅ |
+
+## Explicit Non-Claims / Not Changed
+
+- Architecture Freeze 본문
+- Generator / Search / Runtime 코드·책임
+- PublishedDataset Schema / record mutation
+- Deployment / Git Push / Vercel
+- Commit / Push **없음**
+
+## Next Track
+
+**Phase 4 — Mission 03 Deployment Workflow**
+
+## 산출물
+
+| Path | Role |
+|------|------|
+| `product/package_builder.py` | Package Builder |
+| `product/package_writer.py` | Export Folder emit |
+| `product/package_factory.py` | Factory / one-shot API |
+| `tests/test_package_builder.py` | Mission 02 tests |
+| `PROJECT_MASTER_INDEX.md` | Status · Next = Mission 03 (v1.60) |
+
+---
+
+# 2026-08-06 (Phase 4 Foundation — Project Governance)
+
+## 제목
+
+**Phase 4 Foundation — Official Glossary · Session Governance · MASTER Constitution**
+
+## Status
+
+**Completed**
+
+## Purpose
+
+Phase 4 구현(Export Pipeline 등)에 앞서 **Project Governance**를 정비하여,  
+프로젝트 운영 규칙을 Constitution 수준으로 확립하였다.  
+본 항목은 **문서 Governance만** 기록한다 (코드·Architecture Freeze 본문 변경 없음).
+
+## Summary
+
+Terminology SSOT(`GLOSSARY_SSOT`) · Session Handoff Modernization · MASTER Constitution을 도입하여  
+Official Read Order · Authority Hierarchy · Documentation Governance · Glossary Consume Policy를 고정하였다.
+
+## Completed
+
+| Item | 결과 |
+|------|------|
+| Official Glossary SSOT 도입 | ✅ `작업관리/GLOSSARY_SSOT.md` |
+| Session Governance 확립 | ✅ `CURSOR_SESSION_HANDOFF.md` §0 |
+| Documentation Governance 확립 | ✅ `PROJECT_MASTER_INDEX.md` |
+| Project Constitution 정의 | ✅ MASTER Constitution 절 |
+| Official Read Order 표준화 | ✅ MASTER → LOG → GLOSSARY → Architecture → HANDOFF → Mission |
+| Authority Hierarchy 확립 | ✅ Status / History / Structure / Terminology / Operations |
+| Official Pipeline 명칭 통일 | ✅ Architecture Chain · Product Pipeline · Search Enhancement Pipeline |
+| Official Terminology 관리 체계 | ✅ GLOSSARY §3 · Naming Rules |
+| Glossary Consume Policy 적용 | ✅ HANDOFF · MASTER banner / cite |
+| Duplicate terminology 제거 정책 | ✅ HANDOFF §2 cite-only · GLOSSARY §8 Governance |
+
+## Decisions
+
+1. **GLOSSARY_SSOT**는 공식 Terminology 및 Official Pipeline 표현의 SSOT이다 (Authority: Terminology).
+2. **Architecture Freeze**는 Structure와 Constraint의 Parent Authority이다. Glossary는 이를 **cite**하며 의미를 **재정의하지 않는다**.
+3. 새 Session은 다음 순서로 시작한다:  
+   `MASTER → LOG → GLOSSARY → Architecture → HANDOFF → Mission`
+4. 새로운 문서는 **Documentation Governance**를 따른다 (Status → Architecture → Terminology → Session → Mission → Reference).
+5. 새로운 공식 용어는 **Glossary 등록 후** 사용한다.
+
+## Impact
+
+앞으로 작성되는 Product · Search · Validation · Session · Mission 문서는  
+Glossary의 Official Terminology를 사용한다.  
+동일 용어를 문서마다 다시 정의하지 않는다.
+
+## Explicit Non-Claims / Not Changed
+
+다음은 **변경하지 않았다**.
+
+- Architecture Freeze 본문 (`Architecture/**`)
+- Generator / Search / Runtime 코드·책임
+- Schema / Models
+- PublishedDataset Contract
+- Membership Contract
+- Resolve Contract
+- Commit / Push **없음**
+
+## Next Track
+
+**Phase 4 — Mission 01 Export Pipeline**
+
+- Export → Product Host → Generator
+- PublishedDataset handoff contract
+- No Package emission · No Deployment · No Search migration
+
+Roadmap: `SESSION_TRANSFER/Product Phase Handoff.md` · Official Pipeline: `GLOSSARY_SSOT` §5.2
+
+## 산출물 (문서)
+
+| 문서 | 내용 |
+|------|------|
+| `작업관리/GLOSSARY_SSOT.md` | Terminology Constitution (Step 1) |
+| `CURSOR_SESSION_HANDOFF.md` | Session Read Order · Rules · Authority · Consume (Step 2) |
+| `PROJECT_MASTER_INDEX.md` | Constitution · Governance · Next Track Mission 01 (Step 3 · v1.58) |
+| `HISTORY/PROJECT_LOG_2026-08.md` | 본 항목 · Version **v1.18** |
 
 ---
 
