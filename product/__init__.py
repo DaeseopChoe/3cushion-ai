@@ -27,8 +27,10 @@ from .exceptions import (
     AuthoringAdapterError,
     DeploymentError,
     DeploymentValidationFailure,
+    EnvelopeStaticPublishError,
     HandoffContractError,
     InvalidDeploymentInput,
+    InvalidEnvelopePublishInput,
     InvalidExportRequest,
     InvalidPackageInput,
     Mission03ContractError,
@@ -65,6 +67,12 @@ from .package_models import (
     PublishedPackageEmitResult,
 )
 from .package_writer import write_published_package
+from .publish_envelope_static import (
+    EnvelopeStaticPublishResult,
+    default_repo_dataset_root,
+    publish_envelope_static,
+    published_envelope_target,
+)
 
 __all__ = [
     "AuthoringAdapter",
@@ -78,11 +86,14 @@ __all__ = [
     "DeploymentStatus",
     "DeploymentTarget",
     "DeploymentValidationFailure",
+    "EnvelopeStaticPublishError",
+    "EnvelopeStaticPublishResult",
     "ExportHandoffArtifact",
     "ExportHandoffProvenance",
     "ExportHandoffStatus",
     "HandoffContractError",
     "InvalidDeploymentInput",
+    "InvalidEnvelopePublishInput",
     "InvalidExportRequest",
     "InvalidPackageInput",
     "Mission03ContractError",
@@ -111,6 +122,9 @@ __all__ = [
     "handoff_to_json",
     "load_export_handoff_artifact",
     "load_published_package_dir",
+    "publish_envelope_static",
+    "published_envelope_target",
+    "default_repo_dataset_root",
     "run_deployment",
     "run_product_export",
     "serialize_handoff",

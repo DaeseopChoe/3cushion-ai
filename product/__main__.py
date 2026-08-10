@@ -13,12 +13,20 @@ from product.deployment import deployment_report_to_json, run_deployment
 from product.factory import run_product_export
 from product.handoff import serialize_handoff
 from product.package_factory import emit_published_package_from_handoff_json
+from product.publish_envelope_static import (
+    default_repo_dataset_root,
+    publish_envelope_static,
+)
+from product.exceptions import (
+    EnvelopeStaticPublishError,
+    InvalidEnvelopePublishInput,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="product",
-        description="Phase 4 Product Pipeline — Export / Package / Deploy",
+        description="Phase 4 Product Pipeline — Export / Package / Deploy / Publish",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -66,6 +74,26 @@ def main(argv: list[str] | None = None) -> int:
     pipe_p.add_argument("--out", required=True, type=Path)
     pipe_p.add_argument("--target", default="local_staging")
     pipe_p.add_argument("--geometry", choices=("fixture",), default="fixture")
+
+    pub_p = sub.add_parser(
+        "publish-envelope-static",
+        help=(
+            "Phase 5: Published Package dataset.json → "
+            "dataset/_published/envelope/dataset.json (full replace)"
+        ),
+    )
+    pub_p.add_argument(
+        "--package",
+        required=True,
+        type=Path,
+        help="Published Package directory or export root containing package/",
+    )
+    pub_p.add_argument(
+        "--dataset-root",
+        type=Path,
+        default=None,
+        help="Frontend static dataset root (default: <repo>/dataset)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -118,6 +146,25 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"Pipeline complete: handoff={handoff_path} "
             f"package={pkg.package_dir} deploy={dep.report.status.state}"
+        )
+        return 0
+
+    if args.command == "publish-envelope-static":
+        dataset_root = args.dataset_root or default_repo_dataset_root()
+        try:
+            result = publish_envelope_static(
+                args.package,
+                dataset_root=dataset_root,
+            )
+        except (InvalidEnvelopePublishInput, EnvelopeStaticPublishError) as exc:
+            print(f"publish-envelope-static FAILED: {exc}", file=sys.stderr)
+            return 1
+        print(
+            "publish-envelope-static OK\n"
+            f"  source={result.source_path}\n"
+            f"  target={result.target_path}\n"
+            f"  datasetIdentity={result.dataset_identity}\n"
+            f"  records={result.record_count}"
         )
         return 0
 

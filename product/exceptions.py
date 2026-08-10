@@ -53,3 +53,11 @@ class InvalidDeploymentInput(DeploymentError):
 
 class DeploymentValidationFailure(DeploymentError):
     """Package validation failed during Deployment."""
+
+
+class EnvelopeStaticPublishError(ProductError):
+    """Failed to publish Envelope PublishedDataset to frontend static dataset tree."""
+
+
+class InvalidEnvelopePublishInput(EnvelopeStaticPublishError):
+    """Source package / dataset.json rejected before publish."""
