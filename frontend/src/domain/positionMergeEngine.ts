@@ -1,9 +1,11 @@
 /**
  * Position 병합 엔진
- * positionId = createPositionId(balls), 슬롯당 전략 1개(slot 키 overwrite)
+ * positionId = createPositionId(balls) after Exact balls are fixed.
+ * SAVE upsert uses Exact 3-Ball identity only — no global proximity merge.
  */
 
 import { normalizeCanonicalStrategyEntry } from "./canonicalStrategy";
+import { ballsExactEqual } from "./cueEditSnap";
 import { createPositionId } from "./positionId";
 import type {
   Ball3,
@@ -13,6 +15,10 @@ import type {
   TargetBall,
 } from "./positionSearchEngine";
 
+/**
+ * @deprecated Not used for SAVE upsert. Cue Edit Snap Tolerance lives in cueEditSnap.ts.
+ * Kept only so accidental imports do not silently invent a new merge policy.
+ */
 export const MERGE_EPSILON = 0.5;
 
 /** undefined/null → yellow (레거시 dataset 호환) */
@@ -22,44 +28,27 @@ export function normalizeTargetBallForKey(
   return t === "red" ? "red" : "yellow";
 }
 
-export function isSamePosition(
-  a: PositionRecord,
-  b: PositionRecord,
-  epsilon: number = MERGE_EPSILON
-): boolean {
+/** Exact Position equality (6 coordinates). */
+export function isSamePosition(a: PositionRecord, b: PositionRecord): boolean {
   return (
-    isSameBalls(a.balls, b.balls, epsilon) &&
-    normalizeTargetBallForKey(a.targetBall) === normalizeTargetBallForKey(b.targetBall)
+    ballsExactEqual(a.balls, b.balls) &&
+    normalizeTargetBallForKey(a.targetBall) ===
+      normalizeTargetBallForKey(b.targetBall)
   );
 }
 
-export function isSameBalls(
-  a: Ball3,
-  b: Ball3,
-  epsilon: number = MERGE_EPSILON
-): boolean {
-  return (
-    Math.abs(a.cue.x - b.cue.x) < epsilon &&
-    Math.abs(a.cue.y - b.cue.y) < epsilon &&
-    Math.abs(a.target.x - b.target.x) < epsilon &&
-    Math.abs(a.target.y - b.target.y) < epsilon &&
-    Math.abs(a.second.x - b.second.x) < epsilon &&
-    Math.abs(a.second.y - b.second.y) < epsilon
-  );
+/** @deprecated Use ballsExactEqual — proximity comparison removed from SAVE path. */
+export function isSameBalls(a: Ball3, b: Ball3, _epsilon?: number): boolean {
+  return ballsExactEqual(a, b);
 }
 
+/** Exact 3-Ball lookup only (no proximity). */
 export function findSimilarPosition(
   dataset: PositionRecord[],
   balls: Ball3,
-  epsilon: number = MERGE_EPSILON
+  _epsilon?: number
 ): PositionRecord | null {
-  const pid = createPositionId(balls);
-  const byId = dataset.find((r) => r.positionId === pid);
-  if (byId) return byId;
-  for (const pos of dataset) {
-    if (isSameBalls(pos.balls, balls, epsilon)) return pos;
-  }
-  return null;
+  return dataset.find((pos) => ballsExactEqual(pos.balls, balls)) ?? null;
 }
 
 export function sameSignature(a: StrategyEntry, b: StrategyEntry): boolean {
@@ -154,42 +143,49 @@ export function normalizeDatasetFromStorage(rows: unknown): PositionRecord[] {
     .filter((r): r is PositionRecord => r != null);
 }
 
+/**
+ * Exact Position upsert + Latest Write Wins.
+ * - Match by Exact 6-coordinate balls only (never proximity / never positionId-only).
+ * - Remove all Exact duplicates, insert one current record.
+ * - Other slots on the Exact Position are preserved; saved slot is replaced.
+ * - positionId is recomputed from the Exact balls after SNAP.
+ *
+ * @param _epsilon Ignored (legacy signature). Proximity merge disabled.
+ */
 export function upsertPositionRecord(
-  dataset: PositionRecord[],
+  dataset: PositionRecord[] | null | undefined,
   balls: Ball3,
   newStrategy: StrategyEntry,
-  epsilon: number = MERGE_EPSILON,
+  _epsilon?: number,
   targetBall?: PositionRecord["targetBall"]
 ): PositionRecord[] {
+  const base = Array.isArray(dataset) ? dataset : [];
   const positionId = createPositionId(balls);
-  let idx = dataset.findIndex((r) => r.positionId === positionId);
-  if (idx < 0) {
-    idx = dataset.findIndex((r) => isSameBalls(r.balls, balls, epsilon));
-  }
-
   const slot = newStrategy.slot;
 
-  if (idx >= 0) {
-    const found = dataset[idx];
-    const nextStrategies = { ...found.strategies, [slot]: newStrategy };
-    const updated: PositionRecord = {
-      ...found,
-      positionId,
-      balls,
-      strategies: nextStrategies,
-    };
-    if (targetBall === "yellow" || targetBall === "red") {
-      updated.targetBall = targetBall;
-    }
-    return dataset.map((r, i) => (i === idx ? updated : r));
+  const matches = base.filter((r) => ballsExactEqual(r.balls, balls));
+  const others = base.filter((r) => !ballsExactEqual(r.balls, balls));
+
+  let mergedStrategies: SlotStrategiesMap = {};
+  for (const m of matches) {
+    mergedStrategies = { ...mergedStrategies, ...m.strategies };
+  }
+  mergedStrategies = { ...mergedStrategies, [slot]: newStrategy };
+
+  const updated: PositionRecord = {
+    positionId,
+    balls: {
+      cue: { x: balls.cue.x, y: balls.cue.y },
+      target: { x: balls.target.x, y: balls.target.y },
+      second: { x: balls.second.x, y: balls.second.y },
+    },
+    strategies: mergedStrategies,
+  };
+  if (targetBall === "yellow" || targetBall === "red") {
+    updated.targetBall = targetBall;
+  } else if (matches[0]?.targetBall === "yellow" || matches[0]?.targetBall === "red") {
+    updated.targetBall = matches[0].targetBall;
   }
 
-  const newRecord: PositionRecord = {
-    positionId,
-    balls,
-    strategies: { [slot]: newStrategy },
-    ...(targetBall === "yellow" || targetBall === "red" ? { targetBall } : {}),
-  };
-
-  return [...dataset, newRecord];
+  return [...others, updated];
 }

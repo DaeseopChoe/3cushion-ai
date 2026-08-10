@@ -8,7 +8,7 @@ Parent Authority : Architecture Freeze for Envelope meaning
 Status         : Active
 Scope          : Envelope / Generator / Product / Search / Validation terminology
 Out of Scope   : Architecture rule changes, algorithm, schema, API, implementation
-Last Updated   : 2026-08-06
+Last Updated   : 2026-08-10
 Path           : 작업관리/GLOSSARY_SSOT.md
 ```
 
@@ -542,6 +542,42 @@ Glossary는 Architecture Freeze를 무단으로 개정할 수 없다.
 | **Do Not Use** | PublishedDataset, Envelope Dataset |
 | **Notes** | Product Dual-write / 이주 ADR과 연계 · 본 Glossary는 동의어 금지까지만 고정. |
 
+#### Cue-Only Edit Snap
+
+| Field | Value |
+|-------|--------|
+| **Official Name** | Cue-Only Edit Snap |
+| **Kind** | Authoring Normalization Policy |
+| **Definition** | History/Workspace에서 기존 Position을 Load한 **Edit Source** 편집 중, Target·Second가 Edit Source와 **Exact**이고 Cue Ball만 이동된 경우에 한해, Edit Source lineage의 Authoring `balls.cue` 후보 중 최근접점까지 Rg Euclidean 거리 **d ≤ 0.5**이면 Cue를 그 중심으로 SNAP하는 Authoring-side normalization. |
+| **Parent / Source** | Glossary (Authoring policy) · `HISTORY/PROJECT_LOG_2026-08.md` (Phase 5 Preparation) · Code: `frontend/src/domain/cueEditSnap.ts` |
+| **Allowed Alias** | Cue Edit Snap (서술) |
+| **Do Not Use** | Search tolerance, Membership/KDTree/Ranking/Interpolation tolerance, cueSet Snap, 전역 Position proximity merge |
+| **Notes** | **Cue Edit Snap Tolerance = 0.5 Rg** (inclusive). Edit Source 없으면 적용 금지. `cueSet` / Trajectory Sampling samples는 Snap 후보가 **아니다** (Freeze SP-C-* cite · 재정의 금지). |
+
+#### Exact Position Replacement
+
+| Field | Value |
+|-------|--------|
+| **Official Name** | Exact Position Replacement |
+| **Kind** | Authoring Normalization Policy |
+| **Definition** | Cue+Target+Second **Exact 6-coordinate** identity가 동일한 Authoring `PositionRecord`에 대해 신규 저장본이 기존 동일 Position을 대체하는 정책 (**Latest Write Wins**). 근접하나 Exact가 아닌 Position은 독립 보존한다. |
+| **Parent / Source** | Glossary · Phase 5 Preparation LOG · `positionMergeEngine.ts` Exact upsert |
+| **Allowed Alias** | Exact 3-Ball Position Replacement (서술) |
+| **Do Not Use** | `createPositionId` 양자화만으로 equality 판정, 전역 `MERGE_EPSILON` proximity merge, PublishedDataset in-place patch/delete |
+| **Notes** | SNAP 후 balls를 Exact로 확정한 뒤 `positionId`를 재계산한다. History는 append-only. Published corpus는 Export → Generator **Full Regenerate**로만 갱신. |
+
+#### Edit Source
+
+| Field | Value |
+|-------|--------|
+| **Official Name** | Edit Source |
+| **Kind** | Authoring Session Concept |
+| **Definition** | History/Workspace Snapshot Load 시 세션에 유지하는 편집 출처 context. `WorkspaceSnapshot.id` 기반 · load-time balls · lineage Cue candidates. Schema 필드가 아니다. |
+| **Parent / Source** | Glossary · Cue-Only Edit Snap |
+| **Allowed Alias** | — |
+| **Do Not Use** | strategyRef, PublishedDataset identity와 동의어 |
+| **Notes** | Cue-Only Edit Snap gate에 필수. |
+
 ---
 
 ## 4. Trajectory Sampling Detail
@@ -661,6 +697,9 @@ PublishedDataset
 | Published Package ≠ PublishedDataset | Delivery wrap ≠ corpus |
 | Sampling Policy ≠ Generator | Rule SSOT ≠ Producer |
 | Envelope Dataset ≠ Strategy / Modal | Search Representation ≠ Authoring |
+| Cue-Only Edit Snap ≠ Search / Interpolation tolerance | Authoring SAVE normalization only · 0.5 Rg not reusable as Search ε |
+| Exact Position Replacement ≠ proximity merge | Exact 6-coordinate only · near Positions preserved |
+| cueSet ≠ Cue Snap candidate | Freeze Sampling set ≠ Authoring lineage Cue centers |
 
 ---
 
@@ -736,7 +775,7 @@ Freeze와 용어 표현이 어긋나면 Glossary를 Freeze에 **맞춰** 개정�
 
 **Architecture / Sampling:** Strategy · Strategy Envelope · Sampling Policy · Trajectory Sampling · Target · cueSet · secondSet · Line of Score · strategyRef · EnvelopeRecord · PublishedDataset · AuthoringStrategy · Modal Data · Domain Rule  
 
-**Generator / Product:** Generator · Product Host · Export Pipeline · Export Handoff Artifact · Published Package · Package Builder · Manifest · Version · Deployment Workflow  
+**Generator / Product:** Generator · Product Host · Export Pipeline · Export Handoff Artifact · Published Package · Package Builder · Manifest · Version · Deployment Workflow · Cue-Only Edit Snap · Exact Position Replacement · Edit Source  
 
 **Search Engine:** Search Engine · Search Runtime · Spatial Index · KDTree · Membership · Ranking · Interpolation · Geometry Metrics · Resolve · SearchResult  
 
@@ -746,4 +785,4 @@ Freeze와 용어 표현이 어긋나면 Glossary를 Freeze에 **맞춰** 개정�
 
 ---
 
-*End of GLOSSARY_SSOT.md — 2026-08-06 · Terminology Authority · Envelope meaning Parent = Architecture Freeze*
+*End of GLOSSARY_SSOT.md — 2026-08-10 · Terminology Authority · Envelope meaning Parent = Architecture Freeze*

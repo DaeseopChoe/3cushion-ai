@@ -15,9 +15,10 @@
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
 import { createStrategyEntry } from "../../domain/adminSaveEngine";
 import {
-  MERGE_EPSILON,
-  upsertPositionRecord,
-} from "../../domain/positionMergeEngine";
+  applyCueEditSnap,
+  type EditSourceContext,
+} from "../../domain/cueEditSnap";
+import { upsertPositionRecord } from "../../domain/positionMergeEngine";
 import {
   applySchemaVersionToDatasetRecord,
   attachCanonicalFieldsToStrategyEntry,
@@ -29,7 +30,11 @@ import { logCanonicalPersistAudit } from "../../domain/canonicalPersistAudit";
 import { evaluateStrategy } from "../../domain/evaluateStrategy";
 import { makeSignature } from "../../domain/strategySignature";
 import { extractSlotRuntimeMeta } from "../../domain/slotRuntimeHydrate";
-import { type PositionRecord, type StrategyEntry } from "../../domain/positionSearchEngine";
+import {
+  type Ball3,
+  type PositionRecord,
+  type StrategyEntry,
+} from "../../domain/positionSearchEngine";
 import { normalizePublishedShotTypeHint } from "./recallHydrateFlow";
 
 // ---------------------------------------------------------------------------
@@ -60,6 +65,11 @@ export type SaveFlowContext = {
   trajectoryExtensionPayload?: StrategyEntry["trajectoryExtensions"] | null;
   /** ADMIN C2 Reflection Override { rail, t }. */
   reflectionOverridePayload?: StrategyEntry["reflectionOverride"] | null;
+
+  /**
+   * History Load Edit Source (session). Null → no Cue Snap / no proximity replace.
+   */
+  editSource?: EditSourceContext | null;
 
   // READ (Infrastructure)
   saveWorkingDataset: (updated: PositionRecord[]) => void;
@@ -192,14 +202,25 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     }
   };
 
-  const ball3ForDataset = normalizeBallsToBall3(
+  const ball3Raw = normalizeBallsToBall3(
     ctx.ballsState as Record<string, unknown>
-  );
+  ) as Ball3;
+
+  // Cue-Only Edit Snap (Authoring) — before Exact upsert; never proximity merge.
+  const snapOutcome = applyCueEditSnap(ball3Raw, ctx.editSource ?? null);
+  const ball3ForDataset = snapOutcome.balls;
+  console.log("[SAVE] cueEditSnap:", {
+    reason: snapOutcome.reason,
+    didSnap: snapOutcome.didSnap,
+    distance: snapOutcome.distance,
+    hasEditSource: !!ctx.editSource,
+  });
+
   const cleanBall3 = (safe(ball3ForDataset) ?? ball3ForDataset) as Record<
     string,
     unknown
   >;
-  console.log("[SAVE] ball3ForDataset (ballsState SSOT):", ball3ForDataset);
+  console.log("[SAVE] ball3ForDataset (after cue snap):", ball3ForDataset);
 
   const datasetTargetBall =
     ctx.targetColor === "red" || ctx.targetColor === "yellow"
@@ -263,12 +284,12 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     throw e;
   }
 
-  console.log("[SAVE] Running upsertPositionRecord");
+  console.log("[SAVE] Running Exact upsertPositionRecord");
   let updated = upsertPositionRecord(
     ctx.dataset,
     ball3ForDataset,
     strategy,
-    MERGE_EPSILON,
+    undefined,
     datasetTargetBall
   );
   updated = applySchemaVersionToDatasetRecord(updated, cleanBall3);

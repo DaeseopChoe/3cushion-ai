@@ -1,8 +1,82 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.20  
+Version : v1.21  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-10 (Phase 5 Preparation — Cue-Only Edit Snap & Exact Position Replacement)
+
+## 제목
+
+**Phase 5 Preparation — Cue-Only Edit Snap & Exact Position Replacement**
+
+## Status
+
+**Completed** (Authoring normalization · Phase 5 Mission 01 아님)
+
+## Purpose
+
+Phase 5 · Mission 01 Real Interpolation 전에, Authoring SAVE의 전역 근접 병합(`MERGE_EPSILON`)을 제거하고  
+History Load → Cue-only edit → Exact Position Replacement 정책을 고정한다.
+
+Search / Real Interpolation / Architecture Freeze / Generator / Schema는 변경하지 않는다.
+
+## Official Names
+
+- **Cue-Only Edit Snap** · **Exact Position Replacement** · **Edit Source** — `GLOSSARY_SSOT.md`
+
+## Decisions (Recorded)
+
+1. History Load 시 **Edit Source** context를 세션에 유지한다.
+2. Edit Source identity는 **`WorkspaceSnapshot.id`** 기반이다 (Schema 변경 없음).
+3. **Cue Ball만** 수정된 편집에서만 Snap 판정을 허용한다.
+4. **Target Exact** 필수.
+5. **Second Exact** 필수.
+6. Cue candidate = Edit Source lineage의 Authoring **`balls.cue`** 만.
+7. **`cueSet` / Trajectory Sampling samples는 Snap 후보가 아니다.**
+8. 거리는 Rg **Euclidean** `sqrt(dx²+dy²)`.
+9. **d ≤ 0.5 Rg** → SNAP (경계 0.5 포함).
+10. **d > 0.5 Rg** → 신규 Position.
+11. Edit Source 없으면 근접 자동 병합/교체 **금지**.
+12. SNAP 후 Cue/Target/Second를 Exact identity로 확정.
+13. Position equality = **Exact 6-coordinate** comparison.
+14. **`createPositionId` 양자화만으로 equality 판정하지 않음** (SNAP 후 재계산).
+15. 동일 Exact Position → **Latest Write Wins**.
+16. 독립 근접 Position은 **반드시 보존**.
+17. Authoring SAVE에서 전역 **`MERGE_EPSILON` proximity merge 사용 금지**.
+18. History는 **append-only**.
+19. **PublishedDataset 직접 patch/delete 금지**.
+20. 다음 Export → Generator **Full Regenerate**로 새 PublishedDataset.
+21. Package / Deploy는 생성된 PublishedDataset을 소비.
+22. **0.5 Rg ≠ Search / Membership / KDTree / Ranking / Interpolation tolerance.**
+
+## Implementation (code cite)
+
+| Path | Role |
+|------|------|
+| `frontend/src/domain/cueEditSnap.ts` | Snap gates · lineage candidates |
+| `frontend/src/domain/positionMergeEngine.ts` | Exact upsert · LWW |
+| `frontend/src/application/flows/saveFlow.ts` | SAVE wiring |
+| `frontend/src/hooks/useSettings.js` | Edit Source on History Load |
+
+## Tests
+
+| Suite | Result |
+|-------|--------|
+| `cueEditSnap.test.ts` + `productExportRequest.test.ts` | **19 PASS** |
+| Phase 4 `test_product_*` / package / deployment | **21 PASS** |
+
+## Explicit Non-Claims
+
+- Phase 5 Mission 01 Real Interpolation **미시작 · 미완료**
+- Architecture Freeze · Generator · Search · Runtime · Schema **미변경**
+- Commit / Push **없음** (본 LOG 작성 시점의 구현 세션 기준)
+
+## Next Track
+
+**Phase 5 — Search Quality · Mission 01 Real Interpolation**
 
 ---
 

@@ -1130,6 +1130,8 @@ export default function App({
     handleDeleteWorkspaceSnapshot,
     handleDeleteOldest30,
     handleExportSnapshots,
+    editSourceContext,
+    clearEditSourceContext,
   } = useSettings({
     adminState,
     ballsState,
@@ -1582,6 +1584,7 @@ export default function App({
     if (import.meta.env.DEV) {
       console.log("[WorkspaceCleanup]", removedKeys);
     }
+    clearEditSourceContext();
     setWorkspaceCleanupOpen(false);
     window.location.reload();
   }
@@ -1681,6 +1684,7 @@ export default function App({
         ? draftToPayload(trajectoryExtensionDraft)
         : null,
       reflectionOverridePayload: c2ReflectionOverride ?? null,
+      editSource: editSourceContext,
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
@@ -1710,6 +1714,7 @@ export default function App({
         ? draftToPayload(trajectoryExtensionDraft)
         : null,
       reflectionOverridePayload: c2ReflectionOverride ?? null,
+      editSource: editSourceContext,
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,

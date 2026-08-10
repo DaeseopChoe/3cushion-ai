@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.61  
-Last Updated: 2026-08-06  
+Version: 1.62  
+Last Updated: 2026-08-10  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -43,9 +43,10 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 
 | Field | Value |
 |-------|--------|
-| **Current Phase** | Phase 4 — Product Pipeline |
+| **Current Phase** | Phase 5 — Search Quality (precondition done · Mission 01 not started) |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** |
-| **Current Mission** | — (Phase 4 closed) |
+| **Phase 5 Preparation** | ✅ **Cue-Only Edit Snap & Exact Position Replacement** (Authoring) |
+| **Current Mission** | — (ready for Phase 5 Mission 01) |
 | **Next Track** | Phase 5 — Search Quality · Mission 01 Real Interpolation |
 | **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
@@ -1424,6 +1425,8 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 >
 > **Phase 4 Product Pipeline:** ✅ **COMPLETED**.
 >
+> **Phase 5 Preparation (2026-08-10):** ✅ **Cue-Only Edit Snap & Exact Position Replacement** (Authoring normalization · not Mission 01). Detail: LOG · GLOSSARY.
+>
 > **Next Track:** **Phase 5 — Search Quality · Mission 01 Real Interpolation**.
 >
 > **병행 Carry:** Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · System Authoring 준비.
@@ -1586,7 +1589,8 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 ### 최우선 (Phase 5 Search Quality) — Next Track
 
 - **Phase 4 Product Pipeline** — ✅ **COMPLETED** (Mission 01–03 · Mission 04 ABSORBED)
-- **Phase 5 Mission 01 — Real Interpolation** — **READY TO START**
+- **Phase 5 Preparation** — ✅ **Cue-Only Edit Snap & Exact Position Replacement** (Authoring · cite LOG / GLOSSARY)
+- **Phase 5 Mission 01 — Real Interpolation** — **READY TO START** (not complete)
 - Phase 5 Mission 02 — Dead Code Cleanup
 - Official Search Enhancement Pipeline: `GLOSSARY_SSOT` §5.3
 - Terminology: `작업관리/GLOSSARY_SSOT.md` · Session ops: `CURSOR_SESSION_HANDOFF.md`
@@ -1671,6 +1675,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 ### P0 — Next Track
 
 - **Phase 5 Mission 01 — Real Interpolation** — **READY TO START**
+- Phase 5 Preparation (Cue-Only Edit Snap): ✅ COMPLETED
 - Phase 4 Product Pipeline: ✅ COMPLETED
 - 병행: Product Carry (Display Boundary · STEP9 · Known Issues) · System Authoring 준비
 

@@ -420,13 +420,13 @@ User Mode:
 
 # 5.9 positionMergeEngine.ts
 
-**역할:** 동일(또는 ε 이내) balls 배치 시 새 PositionRecord 생성 대신 기존에 StrategyEntry 추가/갱신
+**역할 (current):** Exact 3-Ball identity upsert · Latest Write Wins.  
+**Superseded (2026-08-10):** 전역 `MERGE_EPSILON = 0.5` proximity merge는 Authoring SAVE에서 **사용하지 않음**.  
+Current Authoring policy: **Cue-Only Edit Snap** · **Exact Position Replacement** — cite `GLOSSARY_SSOT` · `HISTORY/PROJECT_LOG_2026-08.md` (2026-08-10) · `frontend/src/domain/cueEditSnap.ts`.
 
-- MERGE_EPSILON = 0.5
-- isSameBalls(a, b, epsilon): 6축 각각 |Δ| < ε 비교
-- findSimilarPosition(dataset, balls)
-- mergeStrategyIntoPosition(position, newStrategy): slot+signature 동일 시 덮어쓰기, 아니면 추가
-- upsertPositionRecord(dataset, balls, newStrategy): 최종 진입점
+- (legacy note) MERGE_EPSILON = 0.5 — deprecated for SAVE proximity
+- Exact upsert via `ballsExactEqual` / `upsertPositionRecord`
+- Cue snap gates: Edit Source · Target Exact · Second Exact · lineage Cue · d ≤ 0.5 Rg
 
 ------------------------------------------------------------
 

@@ -163,6 +163,7 @@ Current Status
   Phase 4 Product Pipeline COMPLETE
   ✅ Mission 01 Export · Mission 02 Package · Mission 03 Deploy
   ✅ Mission 04 Authoring Integration ABSORBED (ADR)
+  ✅ Phase 5 Preparation — Cue-Only Edit Snap & Exact Position Replacement
 
 Next Track
   Phase 5 — Search Quality · Mission 01 Real Interpolation
@@ -176,6 +177,7 @@ Next Track
 | **Phase 3 Search Engine Enhancement** | ✅ **Completed** |
 | **Search Engine Architecture** | ✅ **Complete** |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** (Mission 01–03 · Mission 04 ABSORBED) |
+| **Phase 5 Preparation** | ✅ **Cue-Only Edit Snap & Exact Position Replacement** (Authoring · not Mission 01) |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
 | **Product Pipeline Tests** | **21 PASS** (export · package · deploy) |
@@ -229,6 +231,20 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
   - Known Issues OPEN-01 · OPEN-02 · OPEN-05
   - USER Overlay 통합 검증
 
+### Phase 5 Preparation — Authoring normalization (Complete)
+
+Cite: `GLOSSARY_SSOT` (Cue-Only Edit Snap · Exact Position Replacement · Edit Source) · `HISTORY/PROJECT_LOG_2026-08.md` (2026-08-10)
+
+- Edit Source + Cue-only edit · Target Exact · Second Exact
+- lineage Authoring Cue candidate only (not `cueSet`)
+- Euclidean **d ≤ 0.5 Rg** → SNAP · **d > 0.5** → new Position
+- SNAP 후 Exact 3-Ball identity · Exact duplicate → Latest Write Wins
+- near-but-not-exact Positions preserved · global proximity merge **forbidden**
+- History append-only · PublishedDataset Full Regenerate only (no in-place patch)
+
+**0.5 Rg SHALL NOT** be reused as Search / Membership / KDTree / Ranking / Real Interpolation tolerance.  
+Real Interpolation = separate Search Quality Mission (Next Track).
+
 ### Phase 4 Product Pipeline — Complete
 
 Official Pipeline: GLOSSARY §5.2 · Code: `product/` · CLI: `export` · `package` · `deploy` · `pipeline`  
@@ -271,6 +287,7 @@ SearchResult
 
 ## 4. In Progress / Carry (병행 트랙)
 
+- **Authoring normalization Carry (Active):** Cue-Only Edit Snap · Exact Position Replacement — see §3 Phase 5 Preparation · GLOSSARY
 - Product: Display Boundary Continuation / CASE A / Corrected Cap · Handle Drag 잔여
 - Platform: STEP9 Phase 4 Pilot (Frozen Platform Consume)
 - Known Issues OPEN-01 · OPEN-02 — P0 조사 중
@@ -302,15 +319,15 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : Phase 4 Mission 03 — Deployment Workflow
-Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 Product Pipeline
-Current Done   : Mission 01–03 · Mission 04 ABSORBED · Phase 4 COMPLETE
-Current Status : Phase 4 Product Pipeline COMPLETE
-Next Session   : Phase 5 — Search Quality · Real Interpolation
+Session ID     : Phase 5 Preparation — Cue-Only Edit Snap
+Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 COMPLETE
+Current Done   : Cue-Only Edit Snap · Exact Position Replacement (Authoring)
+Current Status : Phase 5 precondition complete · Mission 01 Real Interpolation NOT started
+Next Session   : Phase 5 — Search Quality · Mission 01 Real Interpolation
                  · Product / Platform Carry
-Commit         : 없음 (Commit/Push 미수행)
+Commit         : 없음 (문서 세션 · Commit/Push 미수행)
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-06 · Phase 4 Product Pipeline COMPLETE*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-10 · Phase 5 Preparation (Authoring Snap)*

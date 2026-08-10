@@ -69,24 +69,19 @@ signature = systemId + formulaHash + shotType
 
 4. Position 병합 규칙
 
-동일한 물리 배치는 하나의 PositionRecord로 유지한다.
+> **Superseded (2026-08-10):** 전역 `MERGE_EPSILON = 0.5` proximity merge는 Authoring SAVE 정책이 **아님**.  
+> Current: **Cue-Only Edit Snap** · **Exact Position Replacement** (`GLOSSARY_SSOT` · LOG 2026-08-10).  
+> Exact 6-coordinate identity만 교체 · 근접하나 Exact가 아닌 Position은 보존.
 
-판단 기준
+~~동일한 물리 배치는 MERGE_EPSILON(0.5)로 하나의 PositionRecord로 유지한다.~~ (legacy)
 
-MERGE_EPSILON = 0.5
+현재 판단 기준 (Authoring SAVE)
 
-비교 대상
+- Edit Source 있을 때만 Cue Snap (d ≤ 0.5 Rg, lineage Cue only)
+- Position equality = Exact cue/target/second coordinates
+- Latest Write Wins on Exact duplicate
 
-cue.x
-cue.y
-target.x
-target.y
-second.x
-second.y
-
-판단 함수
-
-isSameBalls()
+(구 문서 본문의 MERGE_EPSILON / isSameBalls proximity 설명은 historical reference.)
 
 파일
 

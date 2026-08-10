@@ -893,7 +893,7 @@ Extension Label은 `PATH_NODE_MARKS`와 다른 네임스페이스를 사용한�
 | `BALL_PICK_RADIUS_RG` | 4.3248 (`× 5.0`) | `App.jsx` 315 |
 | `HIT_TOLERANCE` | 3.4599 (`max(2, R × 4)`) | `App.jsx` 3382 |
 | Baseline Handle hit 반경 | 2.5 Rg | `baselineDraftState.ts` 53 |
-| `MERGE_EPSILON` | 0.5 Rg | `positionMergeEngine.ts` 16 |
+| `MERGE_EPSILON` | 0.5 Rg | `positionMergeEngine.ts` — **LEGACY constant name**; Authoring SAVE **no longer** uses proximity merge. Current policy: **Cue-Only Edit Snap** / **Exact Position Replacement** (`GLOSSARY_SSOT` · LOG 2026-08-10). |
 | `positionId` 양자화 | 0.1 Rg | `positionId.ts` |
 | **Extension2 기본 길이** | **20 Rg** | 본 문서 §4 |
 | **Extension 최대 개수** | **2** | 본 문서 §4 |

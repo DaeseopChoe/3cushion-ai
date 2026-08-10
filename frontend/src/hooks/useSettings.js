@@ -11,6 +11,11 @@ import {
   updateSnapshotsExported,
 } from "../domain/workspaceHistory";
 import { normalizeDatasetFromStorage } from "../domain/positionMergeEngine";
+import { buildEditSourceContext } from "../domain/cueEditSnap";
+import {
+  hydrateBallsStateForUi,
+  normalizeBallsToBall3,
+} from "../admin/slotAutoRecommend";
 import {
   buildDatasetExport,
   normalizeDatasetExport,
@@ -28,7 +33,6 @@ import {
   mergeProductExportRequests,
 } from "../domain/productExportRequest";
 import { canonicalDebugLog } from "../domain/canonicalPersistAudit";
-import { hydrateBallsStateForUi } from "../admin/slotAutoRecommend";
 
 async function getOrCreateDir(parent, name) {
   return parent.getDirectoryHandle(name, { create: true });
@@ -105,6 +109,8 @@ export function useSettings({
   const [workspaceHistoryVersion, setWorkspaceHistoryVersion] = useState(0);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [exportDirHandle, setExportDirHandle] = useState(null);
+  /** History Load → SAVE Cue-Only Edit Snap context (session only; not Schema). */
+  const [editSourceContext, setEditSourceContext] = useState(null);
 
   const workspaceHistory = useMemo(
     () => loadWorkspaceHistory(),
@@ -287,7 +293,8 @@ export function useSettings({
       }
       const s = snapshot.state;
       setAdminState(s.adminState);
-      setBallsState(hydrateBallsStateForUi(s.ballsState));
+      const hydratedBalls = hydrateBallsStateForUi(s.ballsState);
+      setBallsState(hydratedBalls);
       const nextDataset = normalizeDatasetFromStorage(s.dataset ?? []);
       setDataset(nextDataset);
       try {
@@ -303,6 +310,22 @@ export function useSettings({
       const restoredTarget = s.targetBall ?? null;
       setTargetColor(restoredTarget);
       setIsTargetSelected(!!restoredTarget);
+
+      // Edit Source for Cue-Only Edit Snap (Authoring session state only).
+      try {
+        if (hydratedBalls?.cue) {
+          const ball3 = normalizeBallsToBall3(hydratedBalls);
+          setEditSourceContext(
+            buildEditSourceContext(snapshot.id, ball3, nextDataset)
+          );
+        } else {
+          setEditSourceContext(null);
+        }
+      } catch (e) {
+        console.warn("Failed to build edit source context", e);
+        setEditSourceContext(null);
+      }
+
       console.log("📂 Workspace restored:", snapshot.name);
       alert(`복원 완료: ${snapshot.name}`);
     },
@@ -318,6 +341,10 @@ export function useSettings({
       setIsTargetSelected,
     ]
   );
+
+  const clearEditSourceContext = useCallback(() => {
+    setEditSourceContext(null);
+  }, []);
 
   const handleDeleteWorkspaceSnapshot = useCallback((id) => {
     deleteSnapshotById(id);
@@ -367,5 +394,7 @@ export function useSettings({
     handleDeleteWorkspaceSnapshot,
     handleDeleteOldest30,
     handleExportSnapshots,
+    editSourceContext,
+    clearEditSourceContext,
   };
 }
