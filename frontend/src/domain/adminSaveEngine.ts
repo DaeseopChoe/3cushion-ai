@@ -49,6 +49,8 @@ export function createStrategyEntry(args: {
   ai?: unknown;
   balls: Ball3;
   track?: string;
+  /** Phase 5 Mission 01 — Authoring Strategy lineage. */
+  authoringStrategyId?: string;
   evaluateStrategy: EvaluateStrategyForSave;
   /** Optional Trajectory Extension payload (endpoints only). */
   trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
@@ -74,6 +76,9 @@ export function createStrategyEntry(args: {
     ai: args.ai,
     meta,
   };
+  if (args.authoringStrategyId && args.authoringStrategyId.trim()) {
+    entry.authoringStrategyId = args.authoringStrategyId.trim();
+  }
   if (args.trajectoryExtensions) {
     entry.trajectoryExtensions = args.trajectoryExtensions;
   }

@@ -464,7 +464,79 @@ Glossary는 Architecture Freeze를 무단으로 개정할 수 없다.
 | **Parent / Source** | Glossary · Phase 3 (baseline) · Phase 5 Real Interpolation (후속) |
 | **Allowed Alias** | Refinement (계층 서술) |
 | **Do Not Use** | Ranking, Modal blend를 Interpolation과 동의어 |
-| **Notes** | Architecture Freeze Out of Scope (알고리즘). |
+| **Notes** | Architecture Freeze Out of Scope (알고리즘). Phase 3 path = `search/interpolation/` `rank_continuity_v1` (유지). |
+
+#### Real Interpolation
+
+| Field | Value |
+|-------|--------|
+| **Official Name** | Real Interpolation |
+| **Kind** | Search Quality (Phase 5 Mission 01) |
+| **Definition** | Query → Second Scoring Gate → Cue/Target Geometry Gate → same-`authoringStrategyId` family → Exact / Interpolated / Nearest + confidence → top-3 Strategy results → existing Calculator / Trajectory Builder consume. SYS continuous fields만 blend · Modal(AI/hpT/str/corrections) 비보간 · No Extrapolation. |
+| **Parent / Source** | Glossary · Phase 5 Mission 01 · D1-C1 / D2-B / D3-A / D4-A |
+| **Allowed Alias** | — |
+| **Do Not Use** | Phase 3 Interpolation과 동의어 · shotType/공략명으로 Strategy family 추정 · cross-family SYS blend |
+| **Notes** | Module: `frontend/src/domain/realInterpolation/`. Flow: `realInterpolationSearchFlow`. Hard Gate: `authoringStrategyId` equality only. `strategyRef` = Resolve handle ≠ lineage id. |
+
+#### authoringStrategyId
+
+| Field | Value |
+|-------|--------|
+| **Official Name** | authoringStrategyId |
+| **Kind** | Identity (Authoring Strategy lineage) |
+| **Definition** | Explicit Strategy family id on `StrategyEntry`. Same id → SYS interpolation family. Different id → never pair even if 공략명 identical. |
+| **Parent / Source** | Glossary · Phase 5 Mission 01 · D1-C1 |
+| **Allowed Alias** | — |
+| **Do Not Use** | `strategyRef` (`${positionId}.${slot}`)와 혼동 |
+| **Notes** | New SAVE required · legacy read optional · Real Interpolation excludes missing id. |
+
+#### matchType
+
+| Field | Value |
+|-------|--------|
+| **Official Name** | matchType |
+| **Kind** | Search Result Classifier |
+| **Definition** | `exact` \| `interpolated` \| `nearest` — Real Interpolation result class for one `authoringStrategyId`. |
+| **Parent / Source** | Glossary · Phase 5 Mission 01 |
+| **Allowed Alias** | — |
+| **Do Not Use** | Phase 3 Ranking score class와 혼동 |
+| **Notes** | Exact → confidence 100. |
+
+#### confidence
+
+| Field | Value |
+|-------|--------|
+| **Official Name** | confidence |
+| **Kind** | Search Result Quality Score |
+| **Definition** | 0..100 weighted quality (second 0.40 · geometry 0.35 · pair 0.25). Separate from Hard Gates. |
+| **Parent / Source** | Glossary · Phase 5 Mission 01 |
+| **Allowed Alias** | — |
+| **Do Not Use** | shotType / 공략명 기반 scoring |
+| **Notes** | Nearest may score above poor Interpolated. |
+
+#### Second Scoring Gate
+
+| Field | Value |
+|-------|--------|
+| **Official Name** | Second Scoring Gate |
+| **Kind** | Search Gate (D4-A) |
+| **Definition** | `d_score` = min distance from `query.second` to ordered Envelope `secondSet` polyline ≤ 1.73 Rg. |
+| **Parent / Source** | Glossary · Phase 5 Mission 01 · D4-A |
+| **Allowed Alias** | Line of Score MVP (polyline consume) |
+| **Do Not Use** | Extension / Display Cap · Snapshot `line_of_score` persistence |
+| **Notes** | Empty `secondSet` → fail. |
+
+#### Cue/Target Geometry Gate
+
+| Field | Value |
+|-------|--------|
+| **Official Name** | Cue/Target Geometry Gate |
+| **Kind** | Search Gate |
+| **Definition** | Position + shape (optional angle) vs Envelope `cueSet[0]` + `target`. POS/SHAPE tol 2.0 Rg · angle MVP off. |
+| **Parent / Source** | Glossary · Phase 5 Mission 01 |
+| **Allowed Alias** | — |
+| **Do Not Use** | slope-based angle |
+| **Notes** | Candidate Cue = Envelope `cueSet[0]`. |
 
 #### Geometry Metrics
 

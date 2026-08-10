@@ -18,6 +18,7 @@ import {
   applyCueEditSnap,
   type EditSourceContext,
 } from "../../domain/cueEditSnap";
+import { resolveAuthoringStrategyIdForSave } from "../../domain/authoringStrategyId";
 import { upsertPositionRecord } from "../../domain/positionMergeEngine";
 import {
   applySchemaVersionToDatasetRecord,
@@ -222,6 +223,20 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   >;
   console.log("[SAVE] ball3ForDataset (after cue snap):", ball3ForDataset);
 
+  // Phase 5 Mission 01 — authoringStrategyId mint / inherit (Edit Source Exact T+S).
+  const editSourceSlotEntry =
+    ctx.editSource && Array.isArray(ctx.dataset)
+      ? (ctx.dataset.find((r) => r.positionId === ctx.editSource?.positionId)
+          ?.strategies?.[slotId as "S1" | "S2" | "S3"] ?? null)
+      : null;
+  const authoringStrategyId = resolveAuthoringStrategyIdForSave({
+    editSource: ctx.editSource ?? null,
+    balls: ball3ForDataset,
+    slotId: slotId as "S1" | "S2" | "S3",
+    editSourceSlotEntry,
+  });
+  console.log("[SAVE] authoringStrategyId:", authoringStrategyId);
+
   const datasetTargetBall =
     ctx.targetColor === "red" || ctx.targetColor === "yellow"
       ? ctx.targetColor
@@ -231,6 +246,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     toCanonicalStrategyEntry({
       slotId,
       signature,
+      authoringStrategyId,
       applied: appliedForSave,
       adminSys: ctx.adminState?.sys,
     })
@@ -273,6 +289,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       ai: cleanAi,
       balls: cleanBall3,
       track: canonicalDraft.track,
+      authoringStrategyId: canonicalDraft.authoringStrategyId,
       evaluateStrategy: evalForSave,
       trajectoryExtensions: ctx.trajectoryExtensionPayload ?? null,
       reflectionOverride: ctx.reflectionOverridePayload ?? null,

@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.62  
+Version: 1.63  
 Last Updated: 2026-08-10  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -43,15 +43,31 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 
 | Field | Value |
 |-------|--------|
-| **Current Phase** | Phase 5 — Search Quality (precondition done · Mission 01 not started) |
+| **Current Phase** | Phase 5 — Search Quality |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** |
 | **Phase 5 Preparation** | ✅ **Cue-Only Edit Snap & Exact Position Replacement** (Authoring) |
-| **Current Mission** | — (ready for Phase 5 Mission 01) |
-| **Next Track** | Phase 5 — Search Quality · Mission 01 Real Interpolation |
+| **Phase 5 Mission 01** | ✅ **Real Interpolation COMPLETE** (separate layer · D3-A) |
+| **Current Mission** | Phase 5 Mission 01 Real Interpolation **COMPLETE** |
+| **Next Track** | Phase 5 Search Quality follow-on · Product / Platform Carry |
 | **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
 | **Mission 04 Authoring Integration** | ✅ **ABSORBED** (ADR · Missions 01–03 + `product pipeline`) |
+
+### Phase 5 Mission 01 — Real Interpolation (Implemented)
+
+| Item | Status |
+|------|--------|
+| `authoringStrategyId` lineage (D1-C1) | ✅ |
+| Knot View + explicit-mapping Migration (dry-run default) | ✅ |
+| Second Scoring Gate (ordered `secondSet` polyline · 1.73 Rg) | ✅ |
+| Cue/Target Geometry Gate (POS/SHAPE · angle off) | ✅ |
+| Same-family SYS interpolation · No Extrapolation | ✅ |
+| `matchType` exact/interpolated/nearest · confidence · top-3 | ✅ |
+| Calculator / Builder bridge consume | ✅ |
+| Parallel App flow (`VITE_REAL_INTERPOLATION_SEARCH=1`) | ✅ |
+| Phase 3 `rank_continuity_v1` unchanged | ✅ regression green |
+| Architecture Freeze / PublishedDataset mutation | ✅ not modified |
 
 ---
 

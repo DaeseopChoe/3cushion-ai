@@ -36,6 +36,14 @@ export type StrategyEntry = {
   slot: "S1" | "S2" | "S3";
   signature: StrategySignature;
 
+  /**
+   * Explicit Authoring Strategy lineage identity (Phase 5 Mission 01).
+   * Same logical admin Strategy → same id across Position-shaped SYS knots.
+   * Distinct from strategyRef (`${positionId}.${slot}`).
+   * New SAVE: required. Legacy read: optional (excluded from Real Interpolation family).
+   */
+  authoringStrategyId?: string;
+
   /** 관리자 선택 트랙 (미지정 시 리콜·렌더는 B2T_L 기본) */
   track?: string;
 

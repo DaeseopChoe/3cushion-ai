@@ -1,8 +1,75 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.21  
+Version : v1.22  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-10 (Phase 5 Mission 01 — Real Interpolation)
+
+## 제목
+
+**Phase 5 Mission 01 — Real Interpolation**
+
+## Status
+
+**Completed** (implementation · tests green · docs updated · Commit/Push not requested)
+
+## Purpose
+
+Query Balls에 대해 same-`authoringStrategyId` family 안에서 Exact / Interpolated / Nearest + confidence top-3를 산출하고,  
+interpolated `sysInputs` + Query balls로 existing Calculator / Trajectory Builder를 consume한다.
+
+Phase 3 `search/interpolation/` `rank_continuity_v1`는 유지한다 (D3-A). Architecture Freeze / PublishedDataset는 변경하지 않는다.
+
+## Official Names
+
+- **Real Interpolation** · **authoringStrategyId** · **matchType** · **confidence**
+- **Second Scoring Gate** · **Cue/Target Geometry Gate** · **No Extrapolation**
+— `GLOSSARY_SSOT.md`
+
+## Decisions (Locked)
+
+| ID | Decision |
+|----|----------|
+| D1-C1 | PositionRecord-shaped SYS knot + explicit `authoringStrategyId` |
+| D2-B | Gates · matchType/confidence · top-3 · SYS interp · Calculator/Builder consume |
+| D3-A | Keep Phase 3 Interpolation · Real Interpolation = separate layer |
+| D4-A | Line of Score MVP = ordered Envelope `secondSet` polyline |
+
+## Implementation (facts)
+
+| Area | Path / Fact |
+|------|-------------|
+| Identity | `StrategyEntry.authoringStrategyId` · `authoringStrategyId.ts` · SAVE mint/inherit |
+| Knot / Migration | `knotCorpus.ts` · `migration.ts` · dry-run default · explicit mapping only |
+| Gates | `secondScoring.ts` · `geometryGate.ts` |
+| Bracket / SYS | `bracket.ts` · `sysInterpolate.ts` · Modal never blended |
+| Result | `engine.ts` · `confidence.ts` · `selectTop3.ts` |
+| Bridge / Flow | `applicationBridge.ts` · `realInterpolationSearchFlow.ts` |
+| App | `VITE_REAL_INTERPOLATION_SEARCH=1` parallel to `userSearchFlow` |
+| Envelope join | `strategyRef` · Envelope에 SYS/Modal/authoringStrategyId 추가 없음 |
+
+## Verification
+
+| Suite | Result |
+|-------|--------|
+| `frontend/.../realInterpolation.test.ts` | **20 PASS** |
+| `tests/test_interpolation_engine*.py` (Phase 3) | **12 PASS** |
+| Architecture Freeze edited | **No** |
+| PublishedDataset mutated by engine | **No** (immutability test) |
+
+## Remaining Limitations
+
+- Production Envelope PublishedDataset loader는 App에서 `window.__ENVELOPE_PUBLISHED_DATASET__` injection MVP
+- Cue POS Gate는 Envelope `cueSet[0]` 기준 — Cue-1D INTERPOLATED는 양 knot가 query Cue POS_TOL 내에 있어야 gate 통과
+- Legacy corpus without `authoringStrategyId`는 Real Interpolation family에서 제외 (migration 수동)
+- UI confidence/matchType는 hook (`__REAL_INTERPOLATION_TOP3__`) · 공략 버튼 디자인 변경 없음
+
+## Verdict
+
+**MISSION 01 COMPLETE**
 
 ---
 

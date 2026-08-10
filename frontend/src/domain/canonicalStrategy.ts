@@ -81,6 +81,8 @@ export const CANONICAL_STRIP_EFFECTIVE_SYS_INPUT_KEYS = new Set<string>([
 export type CanonicalStrategyEntry = {
   slot: "S1" | "S2" | "S3";
   signature: StrategySignature;
+  /** Phase 5 Mission 01 — Authoring Strategy lineage (not stripped). */
+  authoringStrategyId?: string;
   track?: string;
   sysInputs: Record<string, number>;
   corrections: StrategySysCorrections;
@@ -103,6 +105,8 @@ export type CanonicalPositionRecord = {
 export type CanonicalSaveDraft = {
   slot: "S1" | "S2" | "S3";
   signature: StrategySignature;
+  /** Phase 5 Mission 01 — required on new SAVE; preserved through normalize. */
+  authoringStrategyId?: string;
   track: string;
   sysInputs: Record<string, number>;
   corrections: StrategySysCorrections;
@@ -123,6 +127,8 @@ export type ExtractBaseSysInputsArgs = {
 export type ToCanonicalStrategyEntryArgs = {
   slotId: "S1" | "S2" | "S3";
   signature: StrategySignature;
+  /** Phase 5 Mission 01 lineage identity for this SAVE. */
+  authoringStrategyId?: string;
   applied?: {
     sys?: {
       inputs?: Record<string, unknown>;
@@ -260,6 +266,7 @@ export function toCanonicalStrategyEntry(
   return {
     slot: args.slotId,
     signature: args.signature,
+    authoringStrategyId: args.authoringStrategyId,
     track: sys?.track ?? admin?.track ?? "B2T_L",
     sysInputs,
     corrections: mergeCorrections(admin?.corrections),
@@ -278,6 +285,7 @@ export function normalizeCanonicalSaveDraft(
   return {
     slot: draft.slot,
     signature: draft.signature,
+    authoringStrategyId: draft.authoringStrategyId,
     track: draft.track ?? "B2T_L",
     sysInputs: stripRuntimeSysInputs(draft.sysInputs),
     corrections: mergeCorrections(draft.corrections),
@@ -302,6 +310,9 @@ export function attachCanonicalFieldsToStrategyEntry(
   }
   return {
     ...stripped,
+    ...(draft.authoringStrategyId
+      ? { authoringStrategyId: draft.authoringStrategyId }
+      : {}),
     sysInputs: stripRuntimeSysInputs(draft.sysInputs),
     corrections: mergeCorrections(draft.corrections),
     correctionsStored: true,
@@ -318,6 +329,10 @@ export function normalizeCanonicalStrategyEntry(entry: StrategyEntry): StrategyE
   );
   return {
     ...entry,
+    ...(typeof entry.authoringStrategyId === "string" &&
+    entry.authoringStrategyId.trim()
+      ? { authoringStrategyId: entry.authoringStrategyId.trim() }
+      : {}),
     sysInputs: stripRuntimeSysInputs(entry.sysInputs as Record<string, unknown>),
     corrections: mergeCorrections(entry.corrections),
     correctionsStored,

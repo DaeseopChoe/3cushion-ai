@@ -19,6 +19,8 @@ export type ProductExportStrategyRow = {
   strategyRef: string;
   positionId: string;
   slot: string;
+  /** Phase 5 Mission 01 — Authoring Strategy lineage (optional on legacy). */
+  authoringStrategyId?: string;
   cue: { x: number; y: number };
   target: { x: number; y: number };
   second: { x: number; y: number };
@@ -52,14 +54,21 @@ export function buildProductExportRequestFromSnapshot(
     if (!cue || !target || !second) continue;
 
     for (const entry of listStrategiesInRecord(rec)) {
-      strategies.push({
+      const row: ProductExportStrategyRow = {
         strategyRef: `${rec.positionId}.${entry.slot}`,
         positionId: rec.positionId,
         slot: entry.slot,
         cue,
         target,
         second,
-      });
+      };
+      if (
+        typeof entry.authoringStrategyId === "string" &&
+        entry.authoringStrategyId.trim()
+      ) {
+        row.authoringStrategyId = entry.authoringStrategyId.trim();
+      }
+      strategies.push(row);
     }
   }
 

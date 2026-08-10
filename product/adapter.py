@@ -183,6 +183,12 @@ class AuthoringAdapter:
                     ref = entry.get("strategyRef")
                     if isinstance(ref, str) and ref.strip():
                         row["strategyRef"] = ref.strip()
+                    asid = entry.get("authoringStrategyId") or entry.get(
+                        "authoring_strategy_id"
+                    )
+                    if isinstance(asid, str) and asid.strip():
+                        # Knot-corpus lineage only — not written into EnvelopeRecord.
+                        row["authoringStrategyId"] = asid.strip()
                     # Optional precomputed geometry from meta.impact only is insufficient;
                     # callers may attach geometry separately.
                 out.append(row)

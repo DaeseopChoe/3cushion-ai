@@ -173,6 +173,7 @@ import { runUserSearchReset } from "./application/flows/resetFlow";
 import { runAdminLocalDbRecall } from "./application/flows/adminLocalDbFlow";
 import { runAdminSearch } from "./application/flows/adminSearchFlow";
 import { runUserSearch } from "./application/flows/userSearchFlow";
+import { runRealInterpolationSearchFlow } from "./application/flows/realInterpolationSearchFlow";
 import { runSaveStrategy } from "./application/flows/saveFlow";
 import { runCanonicalSave } from "./application/flows/historyFlow";
 import { runBallDrag } from "./application/flows/ballDragFlow";
@@ -733,6 +734,12 @@ export default function App({
   const [userTableDisplaySlotId, setUserTableDisplaySlotId] = useState(null);
   /** USER: 마지막 Search 성공 record — rail label SSOT */
   const [userLastSearchRecord, setUserLastSearchRecord] = useState(null);
+  /** Phase 5 Mission 01 — parallel Real Interpolation path (feature-flagged). */
+  const REAL_INTERPOLATION_SEARCH_ENABLED =
+    import.meta?.env?.VITE_REAL_INTERPOLATION_SEARCH === "1";
+  const [realInterpolationResults, setRealInterpolationResults] = useState([]);
+  // Expose top-3 matchType/confidence for future UI without redesign.
+  void realInterpolationResults;
   /** USER Search / ADMIN→USER: published leaf key hint (survives clearUserSearchDisplayRuntime). */
   const [userPublishedSearchContext, setUserPublishedSearchContext] = useState(
     () => ({ shotType: null, systemId: null })
@@ -1934,7 +1941,9 @@ export default function App({
     }));
   }, [actions, trajectory]);
 
-  /** USER Search: published corpus → userStrict recall → draft apply → Runtime Activation (pick과 동일). */
+  /** USER Search: published corpus → userStrict recall → draft apply → Runtime Activation (pick과 동일).
+   * Phase 5 Mission 01: optional parallel Real Interpolation (VITE_REAL_INTERPOLATION_SEARCH=1).
+   */
   const handleUserSearchStrategies = useCallback(async () => {
     if (appMode !== "USER") return;
     if (userSearchInFlightRef.current) return;
@@ -1960,13 +1969,72 @@ export default function App({
         resetUserSearchTargetSelection,
         showToast: userToast.show,
       });
-      if (!matchedRecord) return;
+      if (!matchedRecord) {
+        if (REAL_INTERPOLATION_SEARCH_ENABLED) {
+          setRealInterpolationResults([]);
+        }
+        return;
+      }
       const slotId = resolveUserSearchDisplaySlotId(
         matchedRecord,
         activeSlotAtSearch
       );
       if (slotId) {
         activateStrategySlot(slotId);
+      }
+
+      // Parallel Real Interpolation path — does not replace Phase 3 / userStrict recall.
+      // Envelope corpus must be supplied via window.__ENVELOPE_PUBLISHED_DATASET__ for gates.
+      if (REAL_INTERPOLATION_SEARCH_ENABLED) {
+        try {
+          const query = normalizeBallsToBall3(ballsState);
+          const envelopeDataset =
+            typeof window !== "undefined"
+              ? window.__ENVELOPE_PUBLISHED_DATASET__ ?? null
+              : null;
+          const leafRecords =
+            userLastSearchRecord != null
+              ? [userLastSearchRecord, matchedRecord].filter(Boolean)
+              : [matchedRecord];
+          // Prefer full leaf corpus when cache holds it.
+          const hintShot =
+            userPublishedSearchContext?.shotType ??
+            matchedRecord?.strategies?.S1?.signature?.shotType;
+          const hintSys =
+            userPublishedSearchContext?.systemId ??
+            matchedRecord?.strategies?.S1?.signature?.systemId;
+          let positionRecords = leafRecords;
+          if (hintShot && hintSys) {
+            const { getPublishedLeafCacheEntry } = await import(
+              "./domain/publishedDatasetStore"
+            );
+            const cached = getPublishedLeafCacheEntry(hintShot, hintSys);
+            if (cached?.status === "ready" && cached.records?.length) {
+              positionRecords = cached.records;
+            }
+          }
+          const { results } = runRealInterpolationSearchFlow({
+            query,
+            positionRecords,
+            envelopeDataset,
+            resolveEvalProfile,
+            resolveAnchorsData,
+          });
+          setRealInterpolationResults(results);
+          // Mission 01 UI hook points: confidence / matchType / top-3 (no redesign).
+          if (typeof window !== "undefined") {
+            window.__REAL_INTERPOLATION_TOP3__ = results.slice(0, 3).map((r, i) => ({
+              slotHint: ["S1", "S2", "S3"][i],
+              authoringStrategyId: r.authoringStrategyId,
+              matchType: r.matchType,
+              confidence: r.confidence,
+              strategyRef: r.strategyRef,
+            }));
+          }
+        } catch (err) {
+          console.warn("[RealInterpolation] search failed", err);
+          setRealInterpolationResults([]);
+        }
       }
     } finally {
       userSearchInFlightRef.current = false;
@@ -1981,8 +2049,10 @@ export default function App({
     shotEditor.activeSlot,
     clearUserSearchDisplayRuntime,
     userPublishedSearchContext,
+    userLastSearchRecord,
     userToast.show,
     resetUserSearchTargetSelection,
+    REAL_INTERPOLATION_SEARCH_ENABLED,
   ]);
 
   const handleOpenUserHistory = useCallback(() => {

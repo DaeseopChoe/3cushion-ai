@@ -93,3 +93,22 @@ SearchResult
 - `tests/test_search_enhancement_regression.py`
 - `tests/test_search_enhancement_benchmark.py`
 - `tests/test_search_enhancement_phase_complete_smoke.py`
+
+---
+
+## 9. Phase 5 Mission 01 — Real Interpolation (2026-08-10)
+
+| Item | Result |
+|------|--------|
+| Layer | **Separate** from Phase 3 `rank_continuity_v1` (D3-A · unchanged) |
+| Hard Gate | same `authoringStrategyId` only · No Extrapolation |
+| Gates | Second Scoring (1.73 Rg polyline) · Cue/Target Geometry (2.0 Rg · angle off) |
+| matchType | exact / interpolated / nearest |
+| confidence | 0..100 (second 0.40 · geom 0.35 · pair 0.25) |
+| Results | top-3 by `authoringStrategyId` · no shot-name dedupe |
+| Consume | existing `evaluateStrategy` (+ optional Builder inject) |
+| Vitest | **20 PASS** (`frontend/src/domain/realInterpolation/realInterpolation.test.ts`) |
+| Phase 3 Interpolation regression | **12 PASS** |
+| Architecture Freeze / PublishedDataset | **not modified** |
+
+Module: `frontend/src/domain/realInterpolation/` · Flow: `application/flows/realInterpolationSearchFlow.ts`
