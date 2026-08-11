@@ -1381,8 +1381,6 @@ export default function App({
   frozenCushionPathRg: null,
 });
 
-  function emitTargetSelectionTrace(_traceMessage, _ballId, _targetBall, _ballColor) {}
-
   /** 볼 더블클릭 — setTargetColor / patchSlotRuntimeMeta SSOT (Role Lock 전용) */
   function applyTargetFromBallId(ballId, traceMessage) {
     // Target Lock: once selected for this input session, never reassign via DoubleClick
@@ -1391,8 +1389,6 @@ export default function App({
     const slotId = shotEditor.activeSlot;
     const before = buildAdminTargetStateSnapshot(slotId);
     const ballColor = colorForSlotId(ballId);
-    const targetBall = ballColor;
-    emitTargetSelectionTrace(traceMessage, ballId, targetBall, ballColor);
     emitAdminTargetStateTrace(traceMessage, "H1_H2", {
       ballId,
       ballColor,
