@@ -275,21 +275,6 @@ function traceSlotPresence(slots) {
   });
 }
 
-function traceSearchRuntimeSnapshot(trajectory, adminState, userTableDisplaySlotId) {
-  const t = trajectory?.state;
-  return {
-    userTableDisplaySlotId,
-    trajectoryPhase: t?.phase ?? null,
-    trajectoryHasAdjusted: !!t?.adjusted,
-    trajectoryAdjustedSys: t?.adjusted?.sys ?? null,
-    adminSysSystemId: adminState?.sys?.system_id ?? adminState?.sys?.systemId ?? null,
-    adminSysShotType: adminState?.sys?.shotType ?? null,
-    adminSysHasOutputs: !!adminState?.sys?.outputs?.result,
-  };
-}
-
-function emitAdminRecallTrace(_message, _hypothesisId, _snapshot) {}
-
 function buildAdminRecallTraceSnapshot(args) {
   const t = args.trajectory?.state;
   const resolved = args.resolvedSlotSys;
@@ -1114,23 +1099,6 @@ export default function App({
   function resetUserSearchTargetSelection() {
     setTargetColor(null);
     setIsTargetSelected(false);
-  }
-
-  function buildStrategyPickTrace(slotId, phase) {
-    const slot = shotEditor.slots[slotId];
-    const payload = buildSlotRuntimePayload(slot);
-    return {
-      phase,
-      selectedStrategyId: slotId,
-      activeSlotId: shotEditor.activeSlot,
-      userTableDisplaySlotId,
-      runtimePayloadTargetBall: payload.targetBall ?? null,
-      trajectoryTargetBall: targetColor ?? null,
-      trajectoryType: payload.adminSys?.shotType ?? null,
-      trajectoryPhase: trajectory.state?.phase ?? null,
-      draftShotType: slot?.draft?.shotType ?? null,
-      appliedShotType: slot?.applied?.shotType ?? null,
-    };
   }
 
   function emitStrategyPickTrace(_message, _slotId, _phase, _hypothesisId = "Q3") {}
