@@ -1112,7 +1112,6 @@ export default function App({
       ...extra,
     };
     console.log("[ADMIN_SEARCH_TARGET]", payload);
-    emitAdminTargetStateTrace(phase, "B1", payload);
   }
 
   function buildAdminTargetStateSnapshot(slotId = shotEditor.activeSlot) {
