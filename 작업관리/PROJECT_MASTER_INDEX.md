@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.63  
-Last Updated: 2026-08-10  
+Version: 1.64  
+Last Updated: 2026-08-11  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -46,9 +46,11 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Current Phase** | Phase 5 — Search Quality |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** |
 | **Phase 5 Preparation** | ✅ **Cue-Only Edit Snap & Exact Position Replacement** (Authoring) |
-| **Phase 5 Mission 01** | ✅ **Real Interpolation COMPLETE** (separate layer · D3-A) |
-| **Current Mission** | Phase 5 Mission 01 Real Interpolation **COMPLETE** |
-| **Next Track** | Phase 5 Search Quality follow-on · Product / Platform Carry |
+| **Phase 5 Mission 01** | ✅ **Real Interpolation COMPLETE** (core engine · separate layer · D3-A) |
+| **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
+| **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
+| **Current Mission** | Phase 5 Search Quality Follow-on **Task #5 COMPLETE** |
+| **Next Track** | **Phase 5 Mission 02 — Dead Code Cleanup** |
 | **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
@@ -68,6 +70,24 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | Parallel App flow (`VITE_REAL_INTERPOLATION_SEARCH=1`) | ✅ |
 | Phase 3 `rank_continuity_v1` unchanged | ✅ regression green |
 | Architecture Freeze / PublishedDataset mutation | ✅ not modified |
+
+### Phase 5 Search Quality Follow-on — Task #5 (Production Integration)
+
+> Mission 01 = Real Interpolation **core engine**.  
+> Task #5 = Production frontend **integration** (loader · DI · slot · Calculator/Builder · UI).  
+> Task #5 did **not** re-implement Mission 01 interpolation algorithms.
+
+| Step | Item | Status |
+|------|------|--------|
+| **1** | Published Envelope locator · read-only loader · parse/validation · module cache | ✅ |
+| **2** | App DI · production `window.__ENVELOPE_PUBLISHED_DATASET__` removed · fail-closed · USER Search isolation | ✅ |
+| **3** | RI candidate → existing Strategy Slot hydrate · `authoringStrategyId` family · `strategyRef` separate | ✅ |
+| **4** | Existing Calculator + App-owned `buildTrajectory` DI · no SYS/Modal recompute | ✅ |
+| **5** | matchType · confidence · Top-3 UI surface · existing activation path | ✅ |
+| **E2E** | Product publish → `/dataset/_published/envelope/dataset.json` → RI → Slot → Calculator/Builder → UI | ✅ VERIFIED |
+| **Commit/Push** | `282c859` · `feat(search): integrate production real interpolation flow` | ✅ |
+
+**Final Integration Verification:** Vitest **76 PASS** · Phase 3 **12** · Search **4** · Publisher **11** · Architecture/SSOT audit PASS · Unexpected **0**.
 
 ---
 
@@ -322,7 +342,7 @@ Architecture Review
 | **Search Engine Architecture** | **Complete** — Phase 1 Foundation ✅ · Phase 2 Dataset Generator ✅ · Phase 3 Search Engine Enhancement ✅ |
 | **Phase 4 Foundation** | ✅ **COMPLETED** — Project Constitution · GLOSSARY · Session / Documentation Governance · Handoff alignment |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** — Mission 01–03 · Mission 04 ABSORBED |
-| **Next Phase** | **Phase 5 — Search Quality · Mission 01 Real Interpolation** |
+| **Next Phase** | **Phase 5 Mission 02 — Dead Code Cleanup** (Search Quality Follow-on Task #5 COMPLETE) |
 
 ### Search Engine Phase Map (Complete)
 
@@ -417,7 +437,7 @@ Phase 3에서 Search 품질·성능 Enhancement Engine을 구현하고 Runtime�
 **품질 보고서:** `search/quality/SEARCH_QUALITY_REPORT.md`  
 **세션 이관:** `CURSOR_SESSION_HANDOFF.md`
 
-**Next Track:** **Phase 5 — Search Quality · Mission 01 Real Interpolation**
+**Next Track:** **Phase 5 Mission 02 — Dead Code Cleanup**
 
 ### 핵심 설계 원칙
 
@@ -586,7 +606,7 @@ Production Search 장애 발생 시 점검 순서:
 | **Phase 3 Search Engine Enhancement** | **Complete** — Mission 35~42 |
 | **Phase 4 Foundation** | ✅ **COMPLETED** |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** |
-| **Next** | **Phase 5 — Search Quality · Real Interpolation** |
+| **Next** | **Phase 5 Mission 02 — Dead Code Cleanup** |
 
 > Phase 3 Enhancement 로드맵(Spatial Index → … → Quality Validation)은 **전부 완료**되었다.  
 > Phase 4 Foundation · Mission 01–03 COMPLETED · Mission 04 ABSORBED · **Phase 4 Product Pipeline COMPLETE**.  
@@ -1443,9 +1463,15 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 >
 > **Phase 5 Preparation (2026-08-10):** ✅ **Cue-Only Edit Snap & Exact Position Replacement** (Authoring normalization · not Mission 01). Detail: LOG · GLOSSARY.
 >
-> **Next Track:** **Phase 5 — Search Quality · Mission 01 Real Interpolation**.
+> **Phase 5 Mission 01 Real Interpolation:** ✅ **COMPLETE** (core engine).
 >
-> **병행 Carry:** Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · System Authoring 준비.
+> **Product Envelope Static Publisher (Task #4):** ✅ **COMPLETE** — `690d6fe`.
+>
+> **Phase 5 Search Quality Follow-on Task #5:** ✅ **COMPLETE** — Production RI E2E · `282c859` · Push done.
+>
+> **Next Track:** **Phase 5 Mission 02 — Dead Code Cleanup**.
+>
+> **병행 Carry:** Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · System Authoring 준비 · Product / Platform Carry.
 >
 > **Runtime / Product 상태 (2026-08-04 유지):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy v1.4 Completed.
 
@@ -1606,8 +1632,10 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 
 - **Phase 4 Product Pipeline** — ✅ **COMPLETED** (Mission 01–03 · Mission 04 ABSORBED)
 - **Phase 5 Preparation** — ✅ **Cue-Only Edit Snap & Exact Position Replacement** (Authoring · cite LOG / GLOSSARY)
-- **Phase 5 Mission 01 — Real Interpolation** — **READY TO START** (not complete)
-- Phase 5 Mission 02 — Dead Code Cleanup
+- **Phase 5 Mission 01 — Real Interpolation** — ✅ **COMPLETE** (core engine)
+- **Product Envelope Static Publisher (Task #4)** — ✅ **COMPLETE** (`690d6fe`)
+- **Phase 5 Search Quality Follow-on · Task #5** — ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done)
+- **Phase 5 Mission 02 — Dead Code Cleanup** — **NEXT**
 - Official Search Enhancement Pipeline: `GLOSSARY_SSOT` §5.3
 - Terminology: `작업관리/GLOSSARY_SSOT.md` · Session ops: `CURSOR_SESSION_HANDOFF.md`
 - Architecture SSOT: `Architecture/` (**Freeze 유지 · 내용 수정 금지**)
@@ -1690,7 +1718,9 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 ### P0 — Next Track
 
-- **Phase 5 Mission 01 — Real Interpolation** — **READY TO START**
+- **Phase 5 Mission 02 — Dead Code Cleanup** — **NEXT**
+- Phase 5 Search Quality Follow-on Task #5: ✅ COMPLETE (`282c859`)
+- Phase 5 Mission 01 Real Interpolation: ✅ COMPLETE
 - Phase 5 Preparation (Cue-Only Edit Snap): ✅ COMPLETED
 - Phase 4 Product Pipeline: ✅ COMPLETED
 - 병행: Product Carry (Display Boundary · STEP9 · Known Issues) · System Authoring 준비

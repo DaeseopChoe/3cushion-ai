@@ -1,8 +1,145 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.22  
+Version : v1.23  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-11 (Phase 5 Search Quality Follow-on — Task #5 Production Real Interpolation)
+
+## 제목
+
+**Phase 5 Search Quality Follow-on · Task #5 — Production Real Interpolation Integration**
+
+## Status
+
+**Completed** · Final Integration Verification **PASS** · Commit/Push **COMPLETE**
+
+## Distinction
+
+| Item | Role |
+|------|------|
+| **Mission 01** | Real Interpolation **core engine** (gates · SYS interp · matchType/confidence · top-3) |
+| **Task #4** | Product Envelope Static Publisher |
+| **Task #5** | Production **frontend integration** of Mission 01 (loader · DI · slot · Calculator/Builder · UI) |
+
+Task #5 did **not** re-implement Mission 01 interpolation algorithms.
+
+## Purpose
+
+Product-published Envelope corpus를 Frontend read-only loader로 소비하고,  
+Mission 01 Real Interpolation을 existing Strategy Slot · Calculator · `buildTrajectory` · UI surface에 연결한다.
+
+## E2E Flow (Implemented)
+
+```text
+Product Envelope publish
+  → /dataset/_published/envelope/dataset.json
+  → Frontend read-only Envelope loader
+  → App DI
+  → Real Interpolation Search
+  → same-family gates · exact/interpolated/nearest
+  → SYS / primary Modal / confidence / Top-3
+  → existing Calculator bridge
+  → existing buildTrajectory DI
+  → candidate activation
+  → existing Strategy Slot hydrate
+  → UI render
+```
+
+## Steps Completed
+
+| Step | Scope |
+|------|--------|
+| **1** | Published Envelope locator · read-only loader · parse/validation · module cache |
+| **2** | App DI · production `window.__ENVELOPE_PUBLISHED_DATASET__` removed · fail-closed · USER Search isolation |
+| **3** | RI → existing `activateStrategySlot` hydrate · `authoringStrategyId` family · `strategyRef` separate |
+| **4** | Existing Calculator + App-owned `buildTrajectory` DI · no SYS/Modal recompute |
+| **5** | matchType · confidence · Top-3 UI · existing activation path |
+
+## Ownership Preserved
+
+| Owner | Fact |
+|-------|------|
+| Search | SYS result from engine |
+| Modal | primary Modal as-is |
+| Calculator | existing `applyCalculatorBridge` / `evaluateStrategy` |
+| Builder | existing App/domain `buildTrajectory` |
+| Product | Envelope artifact publisher |
+| Frontend | read / load / cache / DI / display |
+| Phase 3 / Mission 01 core / Architecture Freeze | unchanged |
+
+## Verification (Final)
+
+| Suite | Result |
+|-------|--------|
+| Step 1 loader | **15 PASS** |
+| Step 2 App DI | **5 PASS** |
+| Step 3 Strategy Slot | **12 PASS** |
+| Step 4 Trajectory Build | **16 PASS** |
+| Step 5 UI Surface | **8 PASS** |
+| Mission 01 RI | **20 PASS** |
+| Vitest total | **76 PASS** |
+| Phase 3 interpolation | **12 PASS** |
+| Search regression | **4 PASS** |
+| Product publisher | **11 PASS** |
+| Expected vs Actual | **delta 0** |
+| Unexpected changes | **0** |
+| Architecture / SSOT audit | **PASS** |
+
+## Git
+
+| Item | Value |
+|------|--------|
+| Product publisher | `690d6fe` · `feat(product): add envelope static publisher` |
+| Task #5 | `282c859` · `feat(search): integrate production real interpolation flow` |
+| Push | **COMPLETE** (`main` · ahead/behind 0/0) |
+
+## Next Track
+
+**Phase 5 Mission 02 — Dead Code Cleanup**
+
+## Verdict
+
+**TASK #5 COMPLETE**
+
+---
+
+# 2026-08-11 (Product Envelope Static Publisher — Task #4)
+
+## 제목
+
+**Product Envelope Static Publisher**
+
+## Status
+
+**Completed** · Commit/Push **COMPLETE** (prerequisite for Task #5)
+
+## Purpose
+
+Published Package `dataset.json` → frontend static tree  
+`dataset/_published/envelope/dataset.json` (full replace · atomic).
+
+Runtime URL: `/dataset/_published/envelope/dataset.json`
+
+## Ownership
+
+Product owns publish · Frontend is read-only consumer (Task #5).
+
+## Verification
+
+| Suite | Result |
+|-------|--------|
+| `tests/test_publish_envelope_static.py` | **11 PASS** |
+
+## Git
+
+`690d6fe` · `feat(product): add envelope static publisher`
+
+## Verdict
+
+**TASK #4 COMPLETE**
 
 ---
 

@@ -164,12 +164,13 @@ Current Status
   ✅ Mission 01 Export · Mission 02 Package · Mission 03 Deploy
   ✅ Mission 04 Authoring Integration ABSORBED (ADR)
   ✅ Phase 5 Preparation — Cue-Only Edit Snap & Exact Position Replacement
-  ✅ Phase 5 Mission 01 — Real Interpolation COMPLETE
+  ✅ Phase 5 Mission 01 — Real Interpolation COMPLETE (core engine)
+  ✅ Product Envelope Static Publisher (Task #4) COMPLETE
+  ✅ Phase 5 Search Quality Follow-on Task #5 COMPLETE (Production RI E2E)
 
 Next Track
-  Phase 5 Search Quality follow-on · Product / Platform Carry
-  · Envelope corpus load for Production Real Interpolation gates
-  · Display Boundary · STEP9 · Known Issues
+  Phase 5 Mission 02 — Dead Code Cleanup
+  · Product / Platform Carry (Display Boundary · STEP9 · Known Issues)
 ```
 
 | Item | Value |
@@ -180,11 +181,13 @@ Next Track
 | **Search Engine Architecture** | ✅ **Complete** |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** (Mission 01–03 · Mission 04 ABSORBED) |
 | **Phase 5 Preparation** | ✅ **Cue-Only Edit Snap & Exact Position Replacement** (Authoring · not Mission 01) |
-| **Phase 5 Mission 01 Real Interpolation** | ✅ **COMPLETED** (`frontend/src/domain/realInterpolation/`) |
+| **Phase 5 Mission 01 Real Interpolation** | ✅ **COMPLETED** (core engine · `frontend/src/domain/realInterpolation/`) |
+| **Product Envelope Static Publisher** | ✅ **COMPLETED** (`690d6fe`) |
+| **Phase 5 Search Quality Follow-on Task #5** | ✅ **COMPLETED** (`282c859` · Production RI E2E · Push done) |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
 | **Product Pipeline Tests** | **21 PASS** (export · package · deploy) |
-| **Next Track** | **Phase 5 Search Quality follow-on** · Product / Platform Carry |
+| **Next Track** | **Phase 5 Mission 02 — Dead Code Cleanup** |
 ### 구현 완료 범위
 
 | ✓ | Phase / Layer | Path |
@@ -227,13 +230,26 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
 
 ### Primary
 
-- **Phase 5 Mission 01 Real Interpolation** — ✅ **COMPLETE**
-- **Follow-on:** Production Envelope corpus load for gates · UI confidence/matchType surface
+- **Phase 5 Mission 02 — Dead Code Cleanup** — **NEXT**
+- **Phase 5 Mission 01 Real Interpolation** — ✅ **COMPLETE** (core engine)
+- **Product Envelope Static Publisher (Task #4)** — ✅ **COMPLETE**
+- **Phase 5 Search Quality Follow-on Task #5** — ✅ **COMPLETE** (Production RI E2E)
 - **Product / Platform Carry**
   - Display Boundary Continuation / CASE A / Corrected Cap · Handle Drag
   - STEP9 Phase 4 Pilot
   - Known Issues OPEN-01 · OPEN-02 · OPEN-05
   - USER Overlay 통합 검증
+
+### Phase 5 Search Quality Follow-on — Task #5 (Complete)
+
+Cite: `HISTORY/PROJECT_LOG_2026-08.md` (2026-08-11) · MASTER Status
+
+- Production Envelope URL: `/dataset/_published/envelope/dataset.json`
+- Frontend read-only loader · App DI · fail-closed · USER Search isolation
+- RI → existing Strategy Slot hydrate · Calculator / `buildTrajectory` ownership reused
+- UI: matchType · confidence · Top-3 · existing activation path
+- No production `window.__ENVELOPE_PUBLISHED_DATASET__` dependency
+- Commit: `282c859` · Push **COMPLETE**
 
 ### Phase 5 Mission 01 — Real Interpolation (Complete)
 
@@ -242,7 +258,8 @@ Cite: `GLOSSARY_SSOT` (Real Interpolation · authoringStrategyId · matchType ·
 - Module: `frontend/src/domain/realInterpolation/` · Flow: `realInterpolationSearchFlow`
 - Hard Gate: same `authoringStrategyId` only · No Extrapolation · Modal never blended
 - Phase 3 `search/interpolation/` `rank_continuity_v1` **unchanged** (D3-A)
-- Feature flag: `VITE_REAL_INTERPOLATION_SEARCH=1` · Envelope via `window.__ENVELOPE_PUBLISHED_DATASET__`
+- Feature flag: `VITE_REAL_INTERPOLATION_SEARCH=1`
+- Production Envelope load / UI surface / Builder DI: **Task #5** (not Mission 01 scope)
 - Architecture Freeze / PublishedDataset **not mutated**
 
 ### Phase 5 Preparation — Authoring normalization (Complete)
@@ -333,14 +350,14 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : Phase 5 Mission 01 — Real Interpolation
-Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 COMPLETE · Phase 5 Prep
-Current Done   : Real Interpolation engine · gates · matchType/confidence · top-3 · bridge · tests
-Current Status : Mission 01 COMPLETE · Commit/Push 미요청
-Next Session   : Envelope Production load wiring · UI surface · Product / Platform Carry
-Commit         : 없음 (사용자 요청 전 Commit/Push 미수행)
+Session ID     : Phase 5 Search Quality Follow-on — Task #5 COMPLETE
+Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 COMPLETE · Mission 01 COMPLETE
+Current Done   : Task #4 Envelope publisher · Task #5 Production RI E2E (Steps 1–5) · docs sync
+Current Status : Task #5 COMPLETE · Commit/Push COMPLETE (282c859)
+Next Session   : Phase 5 Mission 02 — Dead Code Cleanup
+Commit         : 690d6fe (publisher) · 282c859 (Task #5) · main == origin/main
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-10 · Phase 5 Mission 01 Real Interpolation*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-11 · Phase 5 Task #5 Production Real Interpolation*
