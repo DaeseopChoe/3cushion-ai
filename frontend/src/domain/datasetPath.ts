@@ -1,6 +1,10 @@
 /**
  * Published dataset folder layout SSOT:
  * dataset/{shotType}/{systemLabel}/positions.json
+ *
+ * Envelope PublishedDataset (Product publish contract):
+ * dataset/_published/envelope/dataset.json
+ * → runtime /dataset/_published/envelope/dataset.json
  */
 
 import { getSystemNameKo } from "../utils/aiPlayStrategyBuilder";
@@ -13,6 +17,20 @@ export const DATASET_ROOT_DIR = "dataset";
 
 /** Dataset export envelope schema (not PositionRecord.schemaVersion logic) */
 export const DATASET_EXPORT_SCHEMA_VERSION = 2;
+
+/**
+ * Product → Frontend static Envelope corpus (Task #3/#4 contract).
+ * Relative under dataset root: _published/envelope/dataset.json
+ */
+export const PUBLISHED_ENVELOPE_RELATIVE_SEGMENTS = [
+  "_published",
+  "envelope",
+  "dataset.json",
+] as const;
+
+/** Path under dataset root (no leading slash): `_published/envelope/dataset.json` */
+export const PUBLISHED_ENVELOPE_RELATIVE_PATH =
+  PUBLISHED_ENVELOPE_RELATIVE_SEGMENTS.join("/");
 
 /** Folder name overrides (display-friendly, no spaces) */
 const SYSTEM_FOLDER_LABEL_OVERRIDES: Record<string, string> = {
@@ -65,4 +83,12 @@ export function buildDatasetExportPathSegments(
     systemDir: systemLabel,
     fileName: DATASET_EXPORT_FILENAME,
   };
+}
+
+/**
+ * Same-origin URL for Product-published Envelope PublishedDataset.
+ * `/dataset/_published/envelope/dataset.json`
+ */
+export function buildPublishedEnvelopeDatasetUrl(): string {
+  return `/${DATASET_ROOT_DIR}/${PUBLISHED_ENVELOPE_RELATIVE_PATH}`;
 }

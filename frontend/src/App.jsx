@@ -99,6 +99,7 @@ import UserAiPanel from "./components/user/UserAiPanel.jsx";
 import UserHptPanel from "./components/user/UserHptPanel.jsx";
 import UserCalculationPanel from "./components/user/UserCalculationPanel.jsx";
 import UserCalcToolbar from "./components/user/UserCalcToolbar.jsx";
+import RealInterpolationPanel from "./components/user/RealInterpolationPanel.jsx";
 import { resolveUserOverlayLayout } from "./overlay/layout/overlayLayoutTokens";
 import { buildSysCalcDisplayModel } from "./overlay/utils/sysCalcDisplayModel";
 import {
@@ -174,6 +175,20 @@ import { runAdminLocalDbRecall } from "./application/flows/adminLocalDbFlow";
 import { runAdminSearch } from "./application/flows/adminSearchFlow";
 import { runUserSearch } from "./application/flows/userSearchFlow";
 import { runRealInterpolationSearchFlow } from "./application/flows/realInterpolationSearchFlow";
+import {
+  getOrLoadPublishedEnvelopeDataset,
+  publishedEnvelopeDatasetForSearch,
+} from "./domain/realInterpolation/envelopeDatasetLoader";
+import {
+  positionIdFromStrategyRef,
+  projectRealInterpolationResultToStrategyEntry,
+} from "./domain/realInterpolation/strategySlotHydrate";
+import { buildRealInterpolationTrajectoryBuildInput } from "./domain/realInterpolation/trajectoryBuildInput";
+import {
+  buildRealInterpolationUiSurface,
+  formatRiConfidenceLabel,
+  formatRiMatchTypeLabel,
+} from "./domain/realInterpolation/uiSurface";
 import { runSaveStrategy } from "./application/flows/saveFlow";
 import { runCanonicalSave } from "./application/flows/historyFlow";
 import { runBallDrag } from "./application/flows/ballDragFlow";
@@ -738,8 +753,12 @@ export default function App({
   const REAL_INTERPOLATION_SEARCH_ENABLED =
     import.meta?.env?.VITE_REAL_INTERPOLATION_SEARCH === "1";
   const [realInterpolationResults, setRealInterpolationResults] = useState([]);
-  // Expose top-3 matchType/confidence for future UI without redesign.
-  void realInterpolationResults;
+  const realInterpolationResultsRef = useRef(realInterpolationResults);
+  realInterpolationResultsRef.current = realInterpolationResults;
+  /** Selected Top-3 index for RI UI focus (display only). */
+  const [riUiSelectedIndex, setRiUiSelectedIndex] = useState(null);
+  /** App trajectory context snapshot for RI → existing buildTrajectory DI. */
+  const riTrajectoryContextRef = useRef(null);
   /** USER Search / ADMIN→USER: published leaf key hint (survives clearUserSearchDisplayRuntime). */
   const [userPublishedSearchContext, setUserPublishedSearchContext] = useState(
     () => ({ shotType: null, systemId: null })
@@ -793,6 +812,37 @@ export default function App({
     setUserTableDisplaySlotId(slotId);
     lastHydrateTriggerRef.current = "strategy_pick";
     hydrateSlotRuntime(slotId);
+  }
+
+  /**
+   * RI candidate → existing slot contract (no second hydrate architecture).
+   * Consumes engine result.sysInputs as-is; fail-closed on bad identity/shape.
+   */
+  function activateRealInterpolationCandidate(result, slotHint) {
+    const projection = projectRealInterpolationResultToStrategyEntry(
+      result,
+      slotHint
+    );
+    if (!projection.ok) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          "[RealInterpolation] activate fail-closed:",
+          projection.reason
+        );
+      }
+      return false;
+    }
+    const positionId =
+      positionIdFromStrategyRef(projection.strategyRef) ??
+      projection.strategyRef;
+    flushSync(() => {
+      actions.loadDraftFromStrategyEntry(projection.slotId, projection.entry, {
+        positionId,
+        score: typeof result?.confidence === "number" ? result.confidence : 0,
+      });
+    });
+    activateStrategySlot(projection.slotId);
+    return true;
   }
 
   /** 궤적/앵커 렌더 SSOT: 활성 슬롯의 sys만 사용 (adminState.sys / view.ui.system 혼합 금지) */
@@ -1972,6 +2022,7 @@ export default function App({
       if (!matchedRecord) {
         if (REAL_INTERPOLATION_SEARCH_ENABLED) {
           setRealInterpolationResults([]);
+          setRiUiSelectedIndex(null);
         }
         return;
       }
@@ -1984,56 +2035,76 @@ export default function App({
       }
 
       // Parallel Real Interpolation path — does not replace Phase 3 / userStrict recall.
-      // Envelope corpus must be supplied via window.__ENVELOPE_PUBLISHED_DATASET__ for gates.
+      // Envelope: Product-published static corpus via read-only loader (no window global).
       if (REAL_INTERPOLATION_SEARCH_ENABLED) {
         try {
           const query = normalizeBallsToBall3(ballsState);
+          const envelopeLoad = await getOrLoadPublishedEnvelopeDataset();
           const envelopeDataset =
-            typeof window !== "undefined"
-              ? window.__ENVELOPE_PUBLISHED_DATASET__ ?? null
-              : null;
-          const leafRecords =
-            userLastSearchRecord != null
-              ? [userLastSearchRecord, matchedRecord].filter(Boolean)
-              : [matchedRecord];
-          // Prefer full leaf corpus when cache holds it.
-          const hintShot =
-            userPublishedSearchContext?.shotType ??
-            matchedRecord?.strategies?.S1?.signature?.shotType;
-          const hintSys =
-            userPublishedSearchContext?.systemId ??
-            matchedRecord?.strategies?.S1?.signature?.systemId;
-          let positionRecords = leafRecords;
-          if (hintShot && hintSys) {
-            const { getPublishedLeafCacheEntry } = await import(
-              "./domain/publishedDatasetStore"
-            );
-            const cached = getPublishedLeafCacheEntry(hintShot, hintSys);
-            if (cached?.status === "ready" && cached.records?.length) {
-              positionRecords = cached.records;
+            publishedEnvelopeDatasetForSearch(envelopeLoad);
+          if (!envelopeDataset) {
+            // Fail-closed: RI empty; USER Search path already completed above.
+            setRealInterpolationResults([]);
+            setRiUiSelectedIndex(null);
+            if (typeof window !== "undefined") {
+              window.__REAL_INTERPOLATION_TOP3__ = [];
             }
-          }
-          const { results } = runRealInterpolationSearchFlow({
-            query,
-            positionRecords,
-            envelopeDataset,
-            resolveEvalProfile,
-            resolveAnchorsData,
-          });
-          setRealInterpolationResults(results);
-          // Mission 01 UI hook points: confidence / matchType / top-3 (no redesign).
-          if (typeof window !== "undefined") {
-            window.__REAL_INTERPOLATION_TOP3__ = results.slice(0, 3).map((r, i) => ({
-              slotHint: ["S1", "S2", "S3"][i],
-              authoringStrategyId: r.authoringStrategyId,
-              matchType: r.matchType,
-              confidence: r.confidence,
-              strategyRef: r.strategyRef,
-            }));
+          } else {
+            const leafRecords =
+              userLastSearchRecord != null
+                ? [userLastSearchRecord, matchedRecord].filter(Boolean)
+                : [matchedRecord];
+            // Prefer full leaf corpus when cache holds it.
+            const hintShot =
+              userPublishedSearchContext?.shotType ??
+              matchedRecord?.strategies?.S1?.signature?.shotType;
+            const hintSys =
+              userPublishedSearchContext?.systemId ??
+              matchedRecord?.strategies?.S1?.signature?.systemId;
+            let positionRecords = leafRecords;
+            if (hintShot && hintSys) {
+              const { getPublishedLeafCacheEntry } = await import(
+                "./domain/publishedDatasetStore"
+              );
+              const cached = getPublishedLeafCacheEntry(hintShot, hintSys);
+              if (cached?.status === "ready" && cached.records?.length) {
+                positionRecords = cached.records;
+              }
+            }
+            const { results } = runRealInterpolationSearchFlow({
+              query,
+              positionRecords,
+              envelopeDataset,
+              resolveEvalProfile,
+              resolveAnchorsData,
+              // Existing Builder DI — App owns dependency; no window Builder global.
+              buildTrajectory,
+              buildTrajectoryInput: (riResult) =>
+                buildRealInterpolationTrajectoryBuildInput(
+                  riResult,
+                  riTrajectoryContextRef.current
+                ),
+            });
+            setRealInterpolationResults(results);
+            setRiUiSelectedIndex(null);
+            // Mission 01 UI hook points: confidence / matchType / top-3 (no redesign).
+            if (typeof window !== "undefined") {
+              window.__REAL_INTERPOLATION_TOP3__ = results.slice(0, 3).map((r, i) => ({
+                slotHint: ["S1", "S2", "S3"][i],
+                authoringStrategyId: r.authoringStrategyId,
+                matchType: r.matchType,
+                confidence: r.confidence,
+                strategyRef: r.strategyRef,
+              }));
+            }
           }
         } catch (err) {
           console.warn("[RealInterpolation] search failed", err);
           setRealInterpolationResults([]);
+          setRiUiSelectedIndex(null);
+          if (typeof window !== "undefined") {
+            window.__REAL_INTERPOLATION_TOP3__ = [];
+          }
         }
       }
     } finally {
@@ -2496,6 +2567,39 @@ function handleJoyPadPointerCancel(e) {
     onUserStrategySlotPickRegister,
   ]);
 
+  /** Minimal RI selection → existing activateStrategySlot (no Top-3 UI redesign). */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!REAL_INTERPOLATION_SEARCH_ENABLED || appMode !== "USER") {
+      if (typeof window.__REAL_INTERPOLATION_ACTIVATE__ !== "undefined") {
+        delete window.__REAL_INTERPOLATION_ACTIVATE__;
+      }
+      return;
+    }
+    window.__REAL_INTERPOLATION_ACTIVATE__ = (arg) => {
+      let result = null;
+      let slotHint = null;
+      if (typeof arg === "number") {
+        result = realInterpolationResultsRef.current[arg] ?? null;
+        slotHint = ["S1", "S2", "S3"][arg] ?? null;
+      } else if (arg && typeof arg === "object") {
+        if (typeof arg.index === "number") {
+          result = realInterpolationResultsRef.current[arg.index] ?? null;
+          slotHint =
+            arg.slotHint ?? ["S1", "S2", "S3"][arg.index] ?? null;
+        } else {
+          result = arg.result ?? arg;
+          slotHint = arg.slotHint ?? null;
+        }
+      }
+      if (!result) return false;
+      return activateRealInterpolationCandidate(result, slotHint);
+    };
+    return () => {
+      delete window.__REAL_INTERPOLATION_ACTIVATE__;
+    };
+  }, [appMode, REAL_INTERPOLATION_SEARCH_ENABLED, actions]);
+
   useEffect(() => {
     if (!userRailActions) return;
     if (appMode === "USER") {
@@ -2545,6 +2649,25 @@ function handleJoyPadPointerCancel(e) {
     slotRenderShotTypes,
     userLastSearchRecord,
   ]);
+
+  /** RI UI surface — consume engine Top-3 as-is (no rerank / no confidence recompute). */
+  const realInterpolationUiSurface = useMemo(
+    () => buildRealInterpolationUiSurface(realInterpolationResults),
+    [realInterpolationResults]
+  );
+
+  const handleRealInterpolationUiSelect = useCallback(
+    (index) => {
+      const result = realInterpolationResultsRef.current[index];
+      if (!result) return;
+      const slotHint = ["S1", "S2", "S3"][index] ?? null;
+      const ok = activateRealInterpolationCandidate(result, slotHint);
+      if (ok) setRiUiSelectedIndex(index);
+    },
+    // activateRealInterpolationCandidate closes over actions/slot hydrate (stable enough via ref/actions)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [actions]
+  );
 
   const strategyCountMap = useMemo(
     () => strategyCountMapFromButtons(strategyButtons),
@@ -3772,6 +3895,26 @@ function handlePointerCancel(e) {
     return { hp: { x: hp.x, y: hp.y }, side };
   })();
 
+  // Snapshot for RI search → existing buildTrajectory DI (same fields as USER path).
+  riTrajectoryContextRef.current = {
+    anchors,
+    anchorsBase,
+    rawAnchors,
+    resolveAnchorCtx,
+    targetColor,
+    adminState,
+    currentTip,
+    c2ManualHint,
+    thicknessForCalc,
+    shotPattern: view.pattern,
+    hitTolerance: HIT_TOLERANCE,
+    ballDiameterRg: BALL_DIAMETER_RG,
+    ballRadiusRg: BALL_RADIUS_RG,
+    curveEps: CURVE_EPS,
+    baseSysValues: resolvedSlotBaseSysValues,
+    displayCapOpts: c2OverridePoint ? { skipSameRail: true } : undefined,
+  };
+
   const trajectoryBuild = buildTrajectory({
     anchors,
     anchorsBase,
@@ -4585,6 +4728,16 @@ function handlePointerCancel(e) {
         <div className="table-area-inner">
           {tableSVG}
         </div>
+      {appMode === "USER" &&
+      realInterpolationUiSurface.candidates.length > 0 ? (
+        <RealInterpolationPanel
+          surface={realInterpolationUiSurface}
+          selectedIndex={riUiSelectedIndex}
+          onSelect={handleRealInterpolationUiSelect}
+          formatMatchType={formatRiMatchTypeLabel}
+          formatConfidence={formatRiConfidenceLabel}
+        />
+      ) : null}
       {showHistoryModal && (
         <WorkspaceHistoryModal
           history={workspaceHistory}

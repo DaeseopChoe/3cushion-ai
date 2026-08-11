@@ -56,8 +56,24 @@ export function applyCalculatorBridge(
 
     if (deps.buildTrajectory && deps.buildTrajectoryInput) {
       try {
-        const traj = deps.buildTrajectory(deps.buildTrajectoryInput(r));
-        app = { ...app, trajectory: traj };
+        const builderInput = deps.buildTrajectoryInput(r);
+        // null/undefined → skip Builder (fail-closed; no fake trajectory)
+        if (builderInput == null) {
+          app = {
+            ...app,
+            trajectory: null,
+            diagnostics: {
+              ...app.diagnostics,
+              reasons: [
+                ...(app.diagnostics?.reasons ?? []),
+                "builder_skip:invalid_input",
+              ],
+            },
+          };
+        } else {
+          const traj = deps.buildTrajectory(builderInput);
+          app = { ...app, trajectory: traj };
+        }
       } catch (e) {
         const reason = e instanceof Error ? e.message : String(e);
         app = {
