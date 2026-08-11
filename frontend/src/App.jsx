@@ -1101,8 +1101,6 @@ export default function App({
     setIsTargetSelected(false);
   }
 
-  function emitStrategyPickTrace(_message, _slotId, _phase, _hypothesisId = "Q3") {}
-
   function logAdminSearchTargetState(phase, extra = {}) {
     const slot = shotEditor.slots[shotEditor.activeSlot];
     const payload = {
@@ -2520,11 +2518,9 @@ function handleJoyPadPointerCancel(e) {
     }
     const pickStrategySlot = (slotId) => {
       if (!USER_STRATEGY_SLOT_IDS.includes(slotId)) return;
-      emitStrategyPickTrace("STRATEGY_PICK_BEFORE", slotId, "before");
       setOverlayContent(null);
       setOverlayState({ open: false, type: null });
       activateStrategySlot(slotId);
-      emitStrategyPickTrace("STRATEGY_PICK_AFTER", slotId, "after");
     };
     onUserStrategySlotPickRegister?.(pickStrategySlot);
     return () => onUserStrategySlotPickRegister?.(null);
