@@ -167,9 +167,15 @@ Current Status
   ✅ Phase 5 Mission 01 — Real Interpolation COMPLETE (core engine)
   ✅ Product Envelope Static Publisher (Task #4) COMPLETE
   ✅ Phase 5 Search Quality Follow-on Task #5 COMPLETE (Production RI E2E)
+  ✅ Phase 5 Mission 02 — Dead Code Cleanup COMPLETE
+      · Closure: COMPLETE WITH DEFERRED ITEMS
+      · Cleanup Exit: EXIT-AFTER-#4
+      · Code baseline (pre-docs-sync): main · 8bf90b648cfb73752abc0d4af8353aab2ce8998f
+        · origin/main identical · ahead/behind 0/0 · working tree clean
 
 Next Track
-  Phase 5 Mission 02 — Dead Code Cleanup
+  Sample System Validation
+  · Readiness: READY FOR SAMPLE SYSTEM VALIDATION
   · Product / Platform Carry (Display Boundary · STEP9 · Known Issues)
 ```
 
@@ -184,10 +190,12 @@ Next Track
 | **Phase 5 Mission 01 Real Interpolation** | ✅ **COMPLETED** (core engine · `frontend/src/domain/realInterpolation/`) |
 | **Product Envelope Static Publisher** | ✅ **COMPLETED** (`690d6fe`) |
 | **Phase 5 Search Quality Follow-on Task #5** | ✅ **COMPLETED** (`282c859` · Production RI E2E · Push done) |
+| **Phase 5 Mission 02 Dead Code Cleanup** | ✅ **COMPLETED** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
 | **Product Pipeline Tests** | **21 PASS** (export · package · deploy) |
-| **Next Track** | **Phase 5 Mission 02 — Dead Code Cleanup** |
+| **Next Track** | **Sample System Validation** |
+| **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
 ### 구현 완료 범위
 
 | ✓ | Phase / Layer | Path |
@@ -230,7 +238,8 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
 
 ### Primary
 
-- **Phase 5 Mission 02 — Dead Code Cleanup** — **NEXT**
+- **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
+- **Phase 5 Mission 02 — Dead Code Cleanup** — ✅ **COMPLETE** (EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS)
 - **Phase 5 Mission 01 Real Interpolation** — ✅ **COMPLETE** (core engine)
 - **Product Envelope Static Publisher (Task #4)** — ✅ **COMPLETE**
 - **Phase 5 Search Quality Follow-on Task #5** — ✅ **COMPLETE** (Production RI E2E)
@@ -239,6 +248,24 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
   - STEP9 Phase 4 Pilot
   - Known Issues OPEN-01 · OPEN-02 · OPEN-05
   - USER Overlay 통합 검증
+
+### Session Guardrails (Mission 02 closed)
+
+- Do **NOT** reopen Cleanup #1–#4.
+- Do **NOT** automatically remove deferred candidates (N3–N15).
+- Do **NOT** alter locked Search / RI / Slot / Calculator / Envelope / Publisher contracts as “cleanup”.
+- Design / run **Sample System Validation** first.
+- Deferred cleanup: revisit only after validation results or a separate maintenance / design decision.
+
+### Phase 5 Mission 02 — Dead Code Cleanup (Complete)
+
+Cite: `HISTORY/PROJECT_LOG_2026-08.md` (Mission 02 Final Closure) · MASTER Status
+
+- Cleanup #1–#4 complete — temporary telemetry / no-op trace scaffolding removed
+- Protected product / validation paths preserved (`SNAP_RESULT` / `SNAP_OUTPUT` kept)
+- Closure: **COMPLETE WITH DEFERRED ITEMS** · Exit: **EXIT-AFTER-#4**
+- Code baseline (docs sync prior): `8bf90b648cfb73752abc0d4af8353aab2ce8998f` · `main` == `origin/main` · 0/0 · clean
+- Deferred: optional hygiene · defer-until-validation · design-decision · KEEP — **no Mission 02 blocker**
 
 ### Phase 5 Search Quality Follow-on — Task #5 (Complete)
 
@@ -350,14 +377,16 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : Phase 5 Search Quality Follow-on — Task #5 COMPLETE
-Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 COMPLETE · Mission 01 COMPLETE
-Current Done   : Task #4 Envelope publisher · Task #5 Production RI E2E (Steps 1–5) · docs sync
-Current Status : Task #5 COMPLETE · Commit/Push COMPLETE (282c859)
-Next Session   : Phase 5 Mission 02 — Dead Code Cleanup
-Commit         : 690d6fe (publisher) · 282c859 (Task #5) · main == origin/main
+Session ID     : Phase 5 Mission 02 — Dead Code Cleanup COMPLETE
+Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 COMPLETE · Mission 01 COMPLETE · Task #5 COMPLETE
+Current Done   : Mission 02 Cleanup #1–#4 · Final Closure Verification · docs sync (this handoff)
+Current Status : Mission 02 COMPLETE WITH DEFERRED ITEMS · EXIT-AFTER-#4
+Code baseline  : 8bf90b648cfb73752abc0d4af8353aab2ce8998f (pre-docs-sync · main == origin/main · 0/0 · clean)
+Next Session   : Sample System Validation
+Readiness      : READY FOR SAMPLE SYSTEM VALIDATION
+Commit         : … · 282c859 (Task #5) · 8bf90b6 (Cleanup #4) · docs sync uncommitted until requested
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-11 · Phase 5 Task #5 Production Real Interpolation*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-11 · Phase 5 Mission 02 Dead Code Cleanup COMPLETE*

@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.64  
+Version: 1.65  
 Last Updated: 2026-08-11  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -49,8 +49,10 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Mission 01** | ✅ **Real Interpolation COMPLETE** (core engine · separate layer · D3-A) |
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
-| **Current Mission** | Phase 5 Search Quality Follow-on **Task #5 COMPLETE** |
-| **Next Track** | **Phase 5 Mission 02 — Dead Code Cleanup** |
+| **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
+| **Current Mission** | Phase 5 Mission 02 — Dead Code Cleanup **COMPLETE** |
+| **Next Track** | **Sample System Validation** |
+| **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
 | **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
@@ -88,6 +90,20 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Commit/Push** | `282c859` · `feat(search): integrate production real interpolation flow` | ✅ |
 
 **Final Integration Verification:** Vitest **76 PASS** · Phase 3 **12** · Search **4** · Publisher **11** · Architecture/SSOT audit PASS · Unexpected **0**.
+
+### Phase 5 Mission 02 — Dead Code Cleanup (Complete)
+
+| Field | Value |
+|-------|--------|
+| **Status** | ✅ **COMPLETE** |
+| **Closure** | **COMPLETE WITH DEFERRED ITEMS** |
+| **Cleanup Exit** | **EXIT-AFTER-#4** |
+| **Code baseline** | `8bf90b6` · `chore(cleanup): remove temporary snap agent telemetry` |
+| **Scope** | Cleanup #1–#4 complete — temporary telemetry / no-op trace scaffolding removed; protected product / validation paths preserved |
+| **Deferred** | Optional hygiene · defer-until-validation · design-decision · KEEP — **no Mission 02 blocker**; do not auto-resume Dead Code Cleanup |
+| **Next Track** | **Sample System Validation** · **READY FOR SAMPLE SYSTEM VALIDATION** |
+
+Detail: `HISTORY/PROJECT_LOG_2026-08.md` (Mission 02 Final Closure).
 
 ---
 
@@ -342,7 +358,7 @@ Architecture Review
 | **Search Engine Architecture** | **Complete** — Phase 1 Foundation ✅ · Phase 2 Dataset Generator ✅ · Phase 3 Search Engine Enhancement ✅ |
 | **Phase 4 Foundation** | ✅ **COMPLETED** — Project Constitution · GLOSSARY · Session / Documentation Governance · Handoff alignment |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** — Mission 01–03 · Mission 04 ABSORBED |
-| **Next Phase** | **Phase 5 Mission 02 — Dead Code Cleanup** (Search Quality Follow-on Task #5 COMPLETE) |
+| **Next Phase** | **Sample System Validation** (Phase 5 Mission 02 Dead Code Cleanup COMPLETE) |
 
 ### Search Engine Phase Map (Complete)
 
@@ -437,7 +453,7 @@ Phase 3에서 Search 품질·성능 Enhancement Engine을 구현하고 Runtime�
 **품질 보고서:** `search/quality/SEARCH_QUALITY_REPORT.md`  
 **세션 이관:** `CURSOR_SESSION_HANDOFF.md`
 
-**Next Track:** **Phase 5 Mission 02 — Dead Code Cleanup**
+**Next Track:** **Sample System Validation**
 
 ### 핵심 설계 원칙
 
@@ -606,11 +622,12 @@ Production Search 장애 발생 시 점검 순서:
 | **Phase 3 Search Engine Enhancement** | **Complete** — Mission 35~42 |
 | **Phase 4 Foundation** | ✅ **COMPLETED** |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** |
-| **Next** | **Phase 5 Mission 02 — Dead Code Cleanup** |
+| **Next** | **Sample System Validation** |
 
 > Phase 3 Enhancement 로드맵(Spatial Index → … → Quality Validation)은 **전부 완료**되었다.  
 > Phase 4 Foundation · Mission 01–03 COMPLETED · Mission 04 ABSORBED · **Phase 4 Product Pipeline COMPLETE**.  
-> Phase 4 Product Pipeline Official Name: `GLOSSARY_SSOT` §5.2.
+> Phase 4 Product Pipeline Official Name: `GLOSSARY_SSOT` §5.2.  
+> Phase 5 Mission 02 Dead Code Cleanup ✅ COMPLETE (EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS).
 
 ---
 
@@ -1469,7 +1486,9 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 >
 > **Phase 5 Search Quality Follow-on Task #5:** ✅ **COMPLETE** — Production RI E2E · `282c859` · Push done.
 >
-> **Next Track:** **Phase 5 Mission 02 — Dead Code Cleanup**.
+> **Phase 5 Mission 02 — Dead Code Cleanup:** ✅ **COMPLETE** — Cleanup #1–#4 · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS** · baseline `8bf90b6`.
+>
+> **Next Track:** **Sample System Validation** · **READY FOR SAMPLE SYSTEM VALIDATION**.
 >
 > **병행 Carry:** Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · System Authoring 준비 · Product / Platform Carry.
 >
@@ -1635,10 +1654,12 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 - **Phase 5 Mission 01 — Real Interpolation** — ✅ **COMPLETE** (core engine)
 - **Product Envelope Static Publisher (Task #4)** — ✅ **COMPLETE** (`690d6fe`)
 - **Phase 5 Search Quality Follow-on · Task #5** — ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done)
-- **Phase 5 Mission 02 — Dead Code Cleanup** — **NEXT**
+- **Phase 5 Mission 02 — Dead Code Cleanup** — ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**)
+- **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
 - Official Search Enhancement Pipeline: `GLOSSARY_SSOT` §5.3
 - Terminology: `작업관리/GLOSSARY_SSOT.md` · Session ops: `CURSOR_SESSION_HANDOFF.md`
 - Architecture SSOT: `Architecture/` (**Freeze 유지 · 내용 수정 금지**)
+- Deferred cleanup (N3–N15): optional / deferred / design / KEEP — **not** auto-resumed as Mission 02
 
 ### 최우선 (Phase 4 Product Pipeline) — Complete
 
@@ -1718,7 +1739,8 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 ### P0 — Next Track
 
-- **Phase 5 Mission 02 — Dead Code Cleanup** — **NEXT**
+- **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
+- Phase 5 Mission 02 Dead Code Cleanup: ✅ COMPLETE (`8bf90b6` · EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS)
 - Phase 5 Search Quality Follow-on Task #5: ✅ COMPLETE (`282c859`)
 - Phase 5 Mission 01 Real Interpolation: ✅ COMPLETE
 - Phase 5 Preparation (Cue-Only Edit Snap): ✅ COMPLETED
