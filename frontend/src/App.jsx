@@ -1362,7 +1362,7 @@ export default function App({
 });
 
   /** 볼 더블클릭 — setTargetColor / patchSlotRuntimeMeta SSOT (Role Lock 전용) */
-  function applyTargetFromBallId(ballId, traceMessage) {
+  function applyTargetFromBallId(ballId) {
     // Target Lock: once selected for this input session, never reassign via DoubleClick
     if (isTargetSelected) return;
 
@@ -1542,7 +1542,7 @@ export default function App({
     }
 
     // Target unlocked: first object-ball DoubleClick assigns Target Role
-    applyTargetFromBallId(ballId, "TARGET_SELECTED_BY_DOUBLECLICK");
+    applyTargetFromBallId(ballId);
   }
   function handleWorkspaceLocalStorageCleanup() {
     if (workspaceCleanupMode === WORKSPACE_CLEANUP_CLEAR_ALL) {
