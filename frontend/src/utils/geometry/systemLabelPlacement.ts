@@ -84,24 +84,6 @@ export function snapToLayer(
       rail,
       output: coord,
     });
-    // #region agent log
-    fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "75c16c",
-      },
-      body: JSON.stringify({
-        sessionId: "75c16c",
-        runId: "snap-debug-pre",
-        hypothesisId: "H2",
-        location: "systemLabelPlacement.ts:snapToLayer:no-rail",
-        message: "snapToLayer bypassed because rail not detected",
-        data: { coord, space, eps, rail: null },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     console.log("[SNAP_OUTPUT]", coord);
     return coord;
   }
@@ -175,25 +157,6 @@ export function snapToLayer(
     output: next,
   });
   console.log("[SNAP_OUTPUT]", next);
-
-  // #region agent log
-  fetch("http://127.0.0.1:7263/ingest/2d7c02db-24bd-4dad-8e7a-c7f7bce1b5b1", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "75c16c",
-    },
-    body: JSON.stringify({
-      sessionId: "75c16c",
-      runId: "snap-debug-pre",
-      hypothesisId: "H2",
-      location: "systemLabelPlacement.ts:snapToLayer:snapped",
-      message: "snapToLayer applied",
-      data: { coord, space, eps, rail, snapped: next },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   return next;
 }
