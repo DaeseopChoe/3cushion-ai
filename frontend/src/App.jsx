@@ -1114,25 +1114,6 @@ export default function App({
     console.log("[ADMIN_SEARCH_TARGET]", payload);
   }
 
-  function buildAdminTargetStateSnapshot(slotId = shotEditor.activeSlot) {
-    const slot = shotEditor.slots[slotId];
-    return {
-      targetColor: targetColor ?? null,
-      isTargetSelected,
-      slotRuntimeMetaTargetBall: slot?.draft?.targetBall ?? null,
-      draftTargetBall: slot?.draft?.targetBall ?? null,
-      appliedTargetBall: slot?.applied?.targetBall ?? null,
-      adminStateTargetBall: null,
-      adminStateTargetBallNote: "adminState has no targetBall field",
-      activeSlot: slotId,
-      hasDraft: !!slot?.draft,
-      dragStateBallId: dragState.ballId ?? null,
-      joystickVisible: dragState.joystickVisible ?? false,
-    };
-  }
-
-  function emitAdminTargetStateTrace(_message, _hypothesisId, _extra = {}) {}
-
   const canUseSystemControls =
     appMode === "ADMIN" && isAdminInputSessionActive && isAdminTargetReady();
 
@@ -1386,21 +1367,7 @@ export default function App({
     if (isTargetSelected) return;
 
     const slotId = shotEditor.activeSlot;
-    const before = buildAdminTargetStateSnapshot(slotId);
     const ballColor = colorForSlotId(ballId);
-    emitAdminTargetStateTrace(traceMessage, "H1_H2", {
-      ballId,
-      ballColor,
-      targetColor_before: before.targetColor,
-      targetColor_after: ballColor,
-      isTargetSelected_before: before.isTargetSelected,
-      isTargetSelected_after: ballColor ? true : before.isTargetSelected,
-      slotRuntimeMetaTargetBall_before: before.slotRuntimeMetaTargetBall,
-      draftTargetBall_before: before.draftTargetBall,
-      appliedTargetBall_before: before.appliedTargetBall,
-      adminStateTargetBall_before: before.adminStateTargetBall,
-      patchWillApplyToDraft: before.hasDraft,
-    });
     if (!ballColor) return;
     stopJoystick();
     setTargetColor(ballColor);
@@ -1413,20 +1380,6 @@ export default function App({
       dragging: false,
     }));
     beginAdminInputSession();
-    const afterSync = buildAdminTargetStateSnapshot(slotId);
-    emitAdminTargetStateTrace(`${traceMessage}_SYNC`, "H1", {
-      ballId,
-      targetColor_after: ballColor,
-      draftTargetBall_after_sync: afterSync.draftTargetBall,
-      slotRuntimeMetaTargetBall_after_sync: afterSync.slotRuntimeMetaTargetBall,
-      note: "React/slot state may update next frame; see POST_FRAME",
-    });
-    requestAnimationFrame(() => {
-      emitAdminTargetStateTrace(`${traceMessage}_POST_FRAME`, "H1_H3", {
-        ballId,
-        ...buildAdminTargetStateSnapshot(slotId),
-      });
-    });
   }
 
   const svgRef = useRef(null);
