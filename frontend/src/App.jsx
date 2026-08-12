@@ -1481,9 +1481,18 @@ export default function App({
     e.preventDefault();
     e.stopPropagation();
     stopFineCtrl();
+    window.getSelection()?.removeAllRanges();
   }
 
   function handleFineCenterPointer(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "pointerup" || e.type === "pointercancel") {
+      window.getSelection()?.removeAllRanges();
+    }
+  }
+
+  function handleFineContextMenu(e) {
     e.preventDefault();
     e.stopPropagation();
   }
@@ -4736,28 +4745,47 @@ function handlePointerCancel(e) {
     { id: "right", dirX: 1, dirY: 0,  x: fcx + FINE_CTRL_ZONE_INNER_PX, y: fcy - FINE_CTRL_ZONE_INNER_PX, w: FINE_CTRL_ZONE_OUTER_PX - FINE_CTRL_ZONE_INNER_PX, h: FINE_CTRL_ZONE_INNER_PX * 2 },
   ];
 
+  const fineHitStyle = {
+    pointerEvents: "all",
+    touchAction: "none",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTouchCallout: "none",
+  };
+
   return (
-    <g style={{ pointerEvents: "none" }}>
+    <g
+      style={{
+        pointerEvents: "none",
+        touchAction: "none",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
+      }}
+      onContextMenu={handleFineContextMenu}
+    >
       <rect
         x={fcx - FINE_CTRL_ZONE_INNER_PX}
         y={fcy - FINE_CTRL_ZONE_INNER_PX}
         width={FINE_CTRL_ZONE_INNER_PX * 2}
         height={FINE_CTRL_ZONE_INNER_PX * 2}
         fill="transparent"
-        style={{ pointerEvents: "all" }}
+        style={fineHitStyle}
         onPointerDown={handleFineCenterPointer}
         onPointerUp={handleFineCenterPointer}
         onPointerCancel={handleFineCenterPointer}
+        onContextMenu={handleFineContextMenu}
       />
       {zones.map((z) => (
         <rect
           key={z.id}
           x={z.x} y={z.y} width={z.w} height={z.h}
           fill="transparent"
-          style={{ pointerEvents: "all", cursor: "pointer" }}
+          style={{ ...fineHitStyle, cursor: "pointer" }}
           onPointerDown={(e) => handleFineArrowDown(e, z.dirX, z.dirY)}
           onPointerUp={handleFineArrowUp}
           onPointerCancel={handleFineArrowUp}
+          onContextMenu={handleFineContextMenu}
         />
       ))}
       <text
