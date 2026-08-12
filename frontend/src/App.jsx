@@ -73,6 +73,8 @@ import { useSysLabelScale } from "./renderer/labels/labelScalePolicy";
 import {
   JOYSTICK_BASE_R_PX,
   JOYSTICK_KNOB_R_PX,
+  FINE_CTRL_ZONE_INNER_PX,
+  FINE_CTRL_ZONE_OUTER_PX,
   computeJoystickCenterRg,
   computeFineControllerCenterRg,
   isPointerOnJoystick,
@@ -1479,6 +1481,11 @@ export default function App({
     e.preventDefault();
     e.stopPropagation();
     stopFineCtrl();
+  }
+
+  function handleFineCenterPointer(e) {
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   // KD-Tree 인덱스 (dataset 변경 시 rebuild; USER strategyCountMap 등)
@@ -4714,11 +4721,6 @@ function handlePointerCancel(e) {
   const arrowOffset = 32;
   const coordX = bp.x.toFixed(1);
   const coordY = bp.y.toFixed(1);
-  // Non-overlapping plus-layout touch zones (SVG px). Visual arrows unchanged.
-  // INNER < up/down arrow offset (32) so glyphs stay in their zone.
-  // OUTER ≈ 3× prior hitR=22 usable reach from the inner split.
-  const ZONE_INNER = 24;
-  const ZONE_OUTER = 120;
 
   const arrows = [
     { id: "up",    dirX: 0, dirY: 1,  ox: 0, oy: -arrowOffset, label: "▲" },
@@ -4728,14 +4730,25 @@ function handlePointerCancel(e) {
   ];
 
   const zones = [
-    { id: "up",    dirX: 0, dirY: 1,  x: fcx - ZONE_OUTER, y: fcy - ZONE_OUTER, w: ZONE_OUTER * 2, h: ZONE_OUTER - ZONE_INNER },
-    { id: "down",  dirX: 0, dirY: -1, x: fcx - ZONE_OUTER, y: fcy + ZONE_INNER, w: ZONE_OUTER * 2, h: ZONE_OUTER - ZONE_INNER },
-    { id: "left",  dirX: -1, dirY: 0, x: fcx - ZONE_OUTER, y: fcy - ZONE_INNER, w: ZONE_OUTER - ZONE_INNER, h: ZONE_INNER * 2 },
-    { id: "right", dirX: 1, dirY: 0,  x: fcx + ZONE_INNER, y: fcy - ZONE_INNER, w: ZONE_OUTER - ZONE_INNER, h: ZONE_INNER * 2 },
+    { id: "up",    dirX: 0, dirY: 1,  x: fcx - FINE_CTRL_ZONE_OUTER_PX, y: fcy - FINE_CTRL_ZONE_OUTER_PX, w: FINE_CTRL_ZONE_OUTER_PX * 2, h: FINE_CTRL_ZONE_OUTER_PX - FINE_CTRL_ZONE_INNER_PX },
+    { id: "down",  dirX: 0, dirY: -1, x: fcx - FINE_CTRL_ZONE_OUTER_PX, y: fcy + FINE_CTRL_ZONE_INNER_PX, w: FINE_CTRL_ZONE_OUTER_PX * 2, h: FINE_CTRL_ZONE_OUTER_PX - FINE_CTRL_ZONE_INNER_PX },
+    { id: "left",  dirX: -1, dirY: 0, x: fcx - FINE_CTRL_ZONE_OUTER_PX, y: fcy - FINE_CTRL_ZONE_INNER_PX, w: FINE_CTRL_ZONE_OUTER_PX - FINE_CTRL_ZONE_INNER_PX, h: FINE_CTRL_ZONE_INNER_PX * 2 },
+    { id: "right", dirX: 1, dirY: 0,  x: fcx + FINE_CTRL_ZONE_INNER_PX, y: fcy - FINE_CTRL_ZONE_INNER_PX, w: FINE_CTRL_ZONE_OUTER_PX - FINE_CTRL_ZONE_INNER_PX, h: FINE_CTRL_ZONE_INNER_PX * 2 },
   ];
 
   return (
     <g style={{ pointerEvents: "none" }}>
+      <rect
+        x={fcx - FINE_CTRL_ZONE_INNER_PX}
+        y={fcy - FINE_CTRL_ZONE_INNER_PX}
+        width={FINE_CTRL_ZONE_INNER_PX * 2}
+        height={FINE_CTRL_ZONE_INNER_PX * 2}
+        fill="transparent"
+        style={{ pointerEvents: "all" }}
+        onPointerDown={handleFineCenterPointer}
+        onPointerUp={handleFineCenterPointer}
+        onPointerCancel={handleFineCenterPointer}
+      />
       {zones.map((z) => (
         <rect
           key={z.id}
@@ -4751,7 +4764,7 @@ function handlePointerCancel(e) {
         x={fcx} y={fcy}
         textAnchor="middle" dominantBaseline="central"
         fill="rgba(255,255,255,0.85)"
-        fontSize="17" fontWeight="400"
+        fontSize="22" fontWeight="400"
         style={{ pointerEvents: "none", userSelect: "none" }}
       >({coordX}, {coordY})</text>
       {arrows.map((a) => (

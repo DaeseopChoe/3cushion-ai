@@ -55,9 +55,11 @@ export function computeJoystickCenterRg(
   };
 }
 
-/** Fine Controller 시각 크기 (SVG viewBox px). */
-export const FINE_CTRL_HALF_W_PX = 70;
-export const FINE_CTRL_HALF_H_PX = 55;
+/** Fine Controller directional hit-zone (SVG viewBox px) — Render/Placement 공용. */
+export const FINE_CTRL_ZONE_INNER_PX = 24;
+export const FINE_CTRL_ZONE_OUTER_PX = 120;
+/** Joystick hit boundary와 Fine hit boundary 사이 최소 빈 공간 (Rg). */
+export const FINE_CTRL_INTERACTION_GAP_RG = 3;
 
 /** Fine Controller 중심 (Rg). Joystick 너머 같은 Ball→Center vector를 따른다. */
 export function computeFineControllerCenterRg(
@@ -75,12 +77,17 @@ export function computeFineControllerCenterRg(
     len = 1;
   }
 
-  const joystickOffset = ballRadiusRg + joystickHitRadiusRg(scale);
-  const fineOffset = joystickOffset + JOYSTICK_BASE_R_PX / scale + FINE_CTRL_HALF_H_PX / scale;
+  const ux = dx / len;
+  const uy = dy / len;
+  const joystickExtent = joystickHitRadiusRg(scale);
+  const joystickOffset = ballRadiusRg + joystickExtent;
+  const fineInwardRg = (FINE_CTRL_ZONE_OUTER_PX / scale) * (Math.abs(ux) + Math.abs(uy));
+  const fineOffset =
+    joystickOffset + joystickExtent + FINE_CTRL_INTERACTION_GAP_RG + fineInwardRg;
 
   return {
-    x: clampNum(ballPos.x + (dx / len) * fineOffset, CLAMP_MIN_X, CLAMP_MAX_X),
-    y: clampNum(ballPos.y + (dy / len) * fineOffset, CLAMP_MIN_Y, CLAMP_MAX_Y),
+    x: clampNum(ballPos.x + ux * fineOffset, CLAMP_MIN_X, CLAMP_MAX_X),
+    y: clampNum(ballPos.y + uy * fineOffset, CLAMP_MIN_Y, CLAMP_MAX_Y),
   };
 }
 
