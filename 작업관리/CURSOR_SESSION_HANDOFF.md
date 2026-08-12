@@ -170,11 +170,14 @@ Current Status
   ✅ Phase 5 Mission 02 — Dead Code Cleanup COMPLETE
       · Closure: COMPLETE WITH DEFERRED ITEMS
       · Cleanup Exit: EXIT-AFTER-#4
-      · Code baseline (pre-docs-sync): main · 8bf90b648cfb73752abc0d4af8353aab2ce8998f
-        · origin/main identical · ahead/behind 0/0 · working tree clean
+      · Code baseline (Mission 02): main · 8bf90b648cfb73752abc0d4af8353aab2ce8998f
+  ✅ USER Overlay Centering SSOT COMPLETE (2026-08-12)
+      · Root Cause B+C · Panel ResizeObserver · 브라우저 검증 · build PASS
+      · Code + docs sync uncommitted · Commit/Push 대기
 
 Next Track
-  Sample System Validation
+  1) USER Overlay Centering — docs sync 확인 → Commit → Push
+  2) Sample System Validation
   · Readiness: READY FOR SAMPLE SYSTEM VALIDATION
   · Product / Platform Carry (Display Boundary · STEP9 · Known Issues)
 ```
@@ -191,10 +194,11 @@ Next Track
 | **Product Envelope Static Publisher** | ✅ **COMPLETED** (`690d6fe`) |
 | **Phase 5 Search Quality Follow-on Task #5** | ✅ **COMPLETED** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 Dead Code Cleanup** | ✅ **COMPLETED** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
+| **USER Overlay Centering SSOT** | ✅ **COMPLETED** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
 | **Product Pipeline Tests** | **21 PASS** (export · package · deploy) |
-| **Next Track** | **Sample System Validation** |
+| **Next Track** | **Commit Centering** → **Sample System Validation** |
 | **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
 ### 구현 완료 범위
 
@@ -238,7 +242,8 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
 
 ### Primary
 
-- **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
+- **USER Overlay Centering SSOT** — ✅ **COMPLETE** · docs sync → **Commit** → **Push** (사용자 요청 시)
+- **Sample System Validation** — **NEXT** (after Centering commit) · **READY FOR SAMPLE SYSTEM VALIDATION**
 - **Phase 5 Mission 02 — Dead Code Cleanup** — ✅ **COMPLETE** (EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS)
 - **Phase 5 Mission 01 Real Interpolation** — ✅ **COMPLETE** (core engine)
 - **Product Envelope Static Publisher (Task #4)** — ✅ **COMPLETE**
@@ -247,7 +252,38 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
   - Display Boundary Continuation / CASE A / Corrected Cap · Handle Drag
   - STEP9 Phase 4 Pilot
   - Known Issues OPEN-01 · OPEN-02 · OPEN-05
-  - USER Overlay 통합 검증
+  - USER Overlay 기타 통합 (HPT Polish 등) — Centering 외
+
+### USER Overlay Centering SSOT (2026-08-12) — Complete
+
+Cite: `HISTORY/PROJECT_LOG_2026-08.md` · `OVERLAY_LAYOUT_SSOT_v1.2.md` §8 · MASTER v1.66
+
+**증상:** 동일 Overlay라도 진입 경로에 따라 기하 중심이 table-area center와 불일치  
+(F5→AI 위 · Zoom In 중앙 · Zoom Out 아래 · CALC→AI 아래 · HPT→AI 중앙)
+
+**분석:** Ask 재분석으로 Root Cause **B+C** 확정  
+- **B** stale panel dimensions  
+- **C** content reflow timing  
+- 1차 dragOffset/reset patch만으로는 해결 불가 (부차 보완일 뿐 · **최종 주원인 아님**)
+
+**수정:** `UserOverlayShell.jsx` only  
+- live panel box · **Panel ResizeObserver** + Table ResizeObserver  
+- Centering SSOT: `(table − currentPanel) / 2 + temporary dragOffset`  
+- Open/Switch/Zoom → `dragOffset=0` · Panel RO는 offset 유지  
+- Zoom = 항상 **table-area center** (이전 시각 중심 유지 폐기)  
+- `index.css` 최종 **미수정** · widthRatio 0.42/0.62 **미변경** · DisplayModel/SYS **미변경**
+
+**검증:** 실제 브라우저 **정상** · `npm run build` **PASS** · repo lint 기존 이슈만  
+**Git:** 코드+문서 **미커밋** · **Push 안 함**
+
+**다음 단계 (즉시):**
+
+```text
+관련 문서 동기화 완료 확인
+  → git diff / status 확인
+  → Commit
+  → Push
+```
 
 ### Session Guardrails (Mission 02 closed)
 
@@ -345,12 +381,14 @@ SearchResult
 
 ## 4. In Progress / Carry (병행 트랙)
 
+- **USER Overlay Centering SSOT** — ✅ 구현·브라우저 검증·docs sync 완료 · **Commit/Push Carry**
 - **Authoring normalization Carry (Active):** Cue-Only Edit Snap · Exact Position Replacement — see §3 Phase 5 Preparation · GLOSSARY
 - Product: Display Boundary Continuation / CASE A / Corrected Cap · Handle Drag 잔여
+  - Note: `DISPLAY_BOUNDARY_POLICY_SSOT.md` §15 D-DBP-17 “Center Preserve” 문구는 Centering SSOT(Zoom→table-area center)와 어긋날 수 있음 — **후속 문서 정합 후보** (본 Centering 커밋 범위 외)
 - Platform: STEP9 Phase 4 Pilot (Frozen Platform Consume)
 - Known Issues OPEN-01 · OPEN-02 — P0 조사 중
 - OPEN-05 — Known Issue · Low Priority
-- USER Overlay 통합 검증 — 미완료 carry
+- USER Overlay 기타 통합 (HPT Polish 등) — Centering 외 carry
 
 ---
 
@@ -377,16 +415,17 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : Phase 5 Mission 02 — Dead Code Cleanup COMPLETE
-Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 COMPLETE · Mission 01 COMPLETE · Task #5 COMPLETE
-Current Done   : Mission 02 Cleanup #1–#4 · Final Closure Verification · docs sync (this handoff)
-Current Status : Mission 02 COMPLETE WITH DEFERRED ITEMS · EXIT-AFTER-#4
-Code baseline  : 8bf90b648cfb73752abc0d4af8353aab2ce8998f (pre-docs-sync · main == origin/main · 0/0 · clean)
-Next Session   : Sample System Validation
-Readiness      : READY FOR SAMPLE SYSTEM VALIDATION
-Commit         : … · 282c859 (Task #5) · 8bf90b6 (Cleanup #4) · docs sync uncommitted until requested
+Session ID     : USER Overlay Centering SSOT COMPLETE + docs sync
+Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 COMPLETE · Mission 01/02 · Task #5 COMPLETE
+Current Done   : Centering Root Cause B+C · Panel ResizeObserver · 브라우저 검증 · build PASS · docs sync
+Current Status : Centering COMPLETE · awaiting Commit/Push
+Code change    : frontend/src/components/common/UserOverlayShell.jsx (uncommitted)
+Docs           : MASTER v1.66 · LOG · HANDOFF · OVERLAY_LAYOUT §8 · Frontend Baseline
+Next Session   : Commit Centering (+docs) → Push → Sample System Validation
+Readiness      : READY FOR SAMPLE SYSTEM VALIDATION (after Centering commit)
+Commit         : NOT done · Push NOT done
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-11 · Phase 5 Mission 02 Dead Code Cleanup COMPLETE*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-12 · USER Overlay Centering SSOT COMPLETE (docs sync · awaiting Commit)*

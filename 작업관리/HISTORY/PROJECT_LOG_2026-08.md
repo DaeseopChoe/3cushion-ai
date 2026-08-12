@@ -1,8 +1,97 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.24  
+Version : v1.25  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-12 (USER Overlay Centering SSOT — COMPLETE · 브라우저 검증)
+
+## 제목
+
+**USER Overlay Centering SSOT — Panel ResizeObserver / live dimensions Fix**
+
+## Status
+
+**Completed** · 실제 브라우저 검증 **PASS** · `npm run build` **PASS** · 문서 동기화 (본 항목) · **Commit/Push 대기**
+
+## Purpose
+
+USER AI / HPT / CALC Overlay가 진입 경로에 따라 **table-area 기하 중심**에서 위/아래로 어긋나던 문제를 해결한다.  
+UX 불변조건: Drag 중이 아니면 `overlayCenter === tableAreaCenter`.
+
+## Timeline (사실 순서)
+
+1. Overlay 위치 불일치 발견 (F5→AI 위 · Zoom In 중앙 · Zoom Out 아래 · CALC→AI 아래 · HPT→AI 중앙)
+2. 최초 분석: dragOffset / reset timing 의심 → 1차 centering patch (offsetRef · useLayoutEffect reset · Zoom→table center)
+3. 브라우저에서 **일부 경로 문제 지속** (특히 최초 Open · Zoom Out · CALC→AI)
+4. runtime `UserOverlayShell` 단일 연결 재검증 (별도 Shell / App 위치 오버라이드 아님)
+5. 경로별 재현 비교 (widthRatio 0.62→0.42 vs 0.42→0.42)
+6. Ask 재분석
+7. **Root Cause 확정: B + C**
+   - **B** stale panel dimensions
+   - **C** content reflow timing  
+   - ※ **dragOffset 자체는 최종 주원인이 아님** (부차·기존 보완)
+8. Panel ResizeObserver + live `offsetWidth`/`offsetHeight` 기반 placement 수정
+9. `npm run build` PASS · repo lint는 기존 unused 등 (Shell 신규 이슈 없음)
+10. **실제 브라우저에서 정상 동작 확인** (사용자 검증)
+
+## Root Cause (최종)
+
+Placement가 panel 최종 height 확정 전에 한 번 계산된 뒤, width/font/max-height/text wrapping/reflow로 실제 height가 변해도 재계산되지 않음.  
+기존 ResizeObserver는 **table-area만** 관찰.
+
+```text
+dCy ≈ (h_actual − h_assumed) / 2
+```
+
+## Fix (코드)
+
+| Item | Value |
+|------|--------|
+| File | `frontend/src/components/common/UserOverlayShell.jsx` **only** |
+| `index.css` | **최종 미수정** |
+| Measurement | `readPanelBox()` → live DOM box |
+| SSOT | `updatePanelPlacement()` — `(table − currentPanel) / 2 + dragOffset` |
+| Panel ResizeObserver | size 변화 → placement 재계산 · **dragOffset 유지** |
+| Table ResizeObserver | 유지 · dragOffset 보존 + clamp |
+| Reset | Open / Re-open / Switch / Zoom / layout·size → `dragOffset = 0` |
+| Width policy | AI/HPT `0.42` · CALC `0.62` **미변경** |
+| Out of scope | DisplayModel · Projection · SYS · Content · Toolbar · App.jsx |
+
+## Policies recorded
+
+- Center 기준 = **`.table-area` 기하 중심** (viewport / Stage 아님)
+- Drag = temporary center-relative offset (삭제 아님)
+- Zoom = table-area center (이전 시각 중심 유지 폐기)
+- Overlay Switch = `dragOffset=0` + Panel RO 재수렴 (CALC→AI 포함)
+
+## Verification
+
+| Check | Result |
+|-------|--------|
+| 실제 브라우저 (Open / Zoom / Switch / CALC→AI / HPT→AI / Drag 후 reset) | **PASS** |
+| `npm run build` | **PASS** |
+| UserOverlayShell IDE lint | clean |
+| repo `npm run lint` | 기존 다수 (본 변경 신규 아님) |
+| Commit / Push | **NOT done** |
+
+## Docs sync (same session · docs-only follow-up)
+
+- `PROJECT_MASTER_INDEX.md` v1.66
+- `CURSOR_SESSION_HANDOFF.md`
+- `OVERLAY_LAYOUT_SSOT_v1.2.md` §8 Centering SSOT
+- `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` USER Overlay Layout
+- 본 LOG 항목
+
+## Next
+
+문서 동기화 확인 → `git diff` / `status` → **Commit** → **Push** (사용자 요청 시)
+
+## Verdict
+
+**CENTERING SSOT COMPLETE · BROWSER VERIFIED · AWAITING COMMIT**
 
 ---
 

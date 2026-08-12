@@ -386,12 +386,15 @@ USER Overlay(AI · 타점 · 계산)의 **공통 Layout 규약**은 별도 SSOT�
 | Item | Value |
 |------|-------|
 | Document | `작업관리/OVERLAY_LAYOUT_SSOT_v1.2.md` |
-| Status | Confirmed v1.2 (Last Updated 2026-07-28) |
-| Container | `.table-area` |
+| Status | Confirmed v1.2 (Last Updated **2026-08-12** · Centering SSOT) |
+| Container | `.table-area` (viewport / Stage 전체 center **아님**) |
+| Positioning SSOT | **`UserOverlayShell`만** |
 | Size | Ratio (`tableW × overlayWidthRatio`) · AI/HPT `0.42` · CALC `0.62` |
 | Height | `auto` + maxHeight ratio · Content scroll only past cap |
 | Surface | glassDark (**Default USER Overlay**) |
-| Position | Center default + Drag + Clamp · No persistence |
+| Position | **table-area 기하 중심** + temporary `dragOffset` + Clamp · No persistence |
+| Measurement | **current/live panel DOM** dimensions (`offsetWidth` / `offsetHeight`) |
+| Observers | **Table ResizeObserver** (table-area) · **Panel ResizeObserver** (panel reflow) — 동일 Centering SSOT |
 | Close | Close(X) 없음 · 외부 터치 닫기 |
 | Layers | Overlay Shell → Content Layer → (AI \| HPT \| 계산) |
 
@@ -399,19 +402,29 @@ USER Overlay(AI · 타점 · 계산)의 **공통 Layout 규약**은 별도 SSOT�
 
 | Layer | Owns |
 |------|------|
-| **Shell** | surface · ratio · typography scale · padding · drag · clamp · center |
-| **Content** | text · image · svg · DisplayModel projection (read-only) |
-| **Toolbar (CALC)** | Shell 밖 Controller · Drag 제외 |
+| **Shell (`UserOverlayShell`)** | surface · ratio · typography scale · padding · drag · clamp · **Centering SSOT** · live panel measurement · Panel/Table ResizeObserver · Reading Mode positioning |
+| **Content** | text · image · svg · DisplayModel projection (read-only) · **position 금지** |
+| **Toolbar (CALC)** | Shell 밖 Controller · Drag 제외 · **Centering SSOT 아님** |
 
 ### Architecture Shape
 
 ```text
-Overlay Layout Layer (SSOT)
-  ↓
-AI / HPT / Calculation
-  ↓
-Content Components
+App
+  → .table-area
+    → UserOverlayShell   (layout · centering · dragOffset · measure · RO)
+      → AI | HPT | CALC Content   (표시만 · 위치 비결정)
 ```
+
+### Centering invariant (2026-08-12)
+
+```text
+Normal:   overlayCenter === tableAreaCenter
+Drag:     overlayCenter = tableAreaCenter + temporary dragOffset
+Reset:    Open / Re-open / Switch / Zoom / layout·size → dragOffset = 0
+```
+
+Zoom In/Out은 항상 **table-area center** (이전 시각 중심 유지 금지).  
+Root Cause 해결: stale panel dimensions + content reflow → Panel ResizeObserver.
 
 ### Rules
 
@@ -420,6 +433,7 @@ Content Components
 - Content는 Shell max token을 preferred width로 재사용하지 않는다.
 - 본 Baseline은 폴더·상태 계층 SSOT를 유지한다. Overlay Layout 상세는 위 문서를 Consume한다.
 - v1.2에서 Shell→Content 분리, 전체 Surface Drag, Dark Glass 기본값이 공식 확정되었다.
+- 2026-08-12 Centering SSOT는 DisplayModel / Projection / SYS Engine을 변경하지 않는다.
 
 ---
 
@@ -479,7 +493,7 @@ App
 | DisplayModel | 최종 표현 구조 생성 (`buildSysCalcDisplayModel`) |
 | USER Projection | 공개 Block 선택 |
 | Viewer | 순수 렌더 |
-| Shell | Layout / Surface / Drag |
+| Shell | Layout / Surface / Drag / **Centering SSOT** / live measure / Panel·Table RO |
 
 ### AI / HPT
 

@@ -1,6 +1,8 @@
 /**
- * USER Overlay Shell — Layout Layer (Overlay Layout SSOT v1.1 + Reading Mode §15).
+ * USER Overlay Shell — Layout Layer (Overlay Layout SSOT v1.2 + Reading Mode).
  * Owns size / surface / position / drag / clamp / backdrop-close / Reading Mode.
+ * Centering SSOT: table-area center + temporary dragOffset;
+ * panel ResizeObserver re-places on live DOM box after transition/reflow.
  * Close (X) removed — outside tap closes. Must not embed Content semantics.
  */
 
@@ -136,8 +138,16 @@ export default function UserOverlayShell({
   const suppressBackdropClickRef = useRef(false);
   const offsetRef = useRef(offset);
   offsetRef.current = offset;
-  /** Reading toggle only — capture rect before size change to keep center. */
-  const readingCenterSnapshotRef = useRef(null);
+
+  /** Temporary drag offset → table-area center (pre-paint). */
+  const resetDragOffsetToCenter = useCallback(() => {
+    const zero = { x: 0, y: 0 };
+    offsetRef.current = zero;
+    setOffset(zero);
+    setIsDragging(false);
+    dragRef.current = null;
+    suppressBackdropClickRef.current = false;
+  }, []);
 
   const setBackdropNode = useCallback((node) => {
     backdropRef.current = node;
@@ -177,20 +187,20 @@ export default function UserOverlayShell({
 
   const layoutReady = tableSize.width > 0 && tableSize.height > 0;
 
-  /** Fixed-width shells: use target metrics width (not mid-transition offsetWidth). */
-  const panelLayoutWidth = useCallback(() => {
-    const panel = panelRef.current;
-    if (!panel) return 0;
-    if (!useFitContent && layoutReady && metrics.widthPx > 0) {
-      return metrics.widthPx;
-    }
-    return panel.offsetWidth;
-  }, [useFitContent, layoutReady, metrics.widthPx]);
-
   const measureTable = useCallback(() => {
     const backdrop = backdropRef.current;
     const tableArea = backdrop?.closest(".table-area") ?? backdrop;
     setTableSize(readTableAreaSize(tableArea));
+  }, []);
+
+  /** Live border-box — must match what ResizeObserver converges to after reflow. */
+  const readPanelBox = useCallback(() => {
+    const panel = panelRef.current;
+    if (!panel) return { width: 0, height: 0 };
+    return {
+      width: panel.offsetWidth || 0,
+      height: panel.offsetHeight || 0,
+    };
   }, []);
 
   const clampOffset = useCallback(
@@ -201,8 +211,8 @@ export default function UserOverlayShell({
 
       const tableArea = backdrop.closest(".table-area") ?? backdrop;
       const tableRect = tableArea.getBoundingClientRect();
-      const pw = panelLayoutWidth() || panel.offsetWidth;
-      const ph = panel.offsetHeight;
+      const { width: pw, height: ph } = readPanelBox();
+      if (pw <= 0 || ph <= 0) return { x: snapPx(x), y: snapPx(y) };
       const inset = metrics.insetPx;
 
       const baseLeft = tableRect.left + (tableRect.width - pw) / 2;
@@ -232,16 +242,22 @@ export default function UserOverlayShell({
         y: snapPx(top - baseTop),
       };
     },
-    [metrics.insetPx, panelLayoutWidth]
+    [metrics.insetPx, readPanelBox]
   );
 
+  /**
+   * Centering SSOT:
+   * left/top = (backdrop − currentPanelBox) / 2 + dragOffset
+   * Uses live DOM size so transition/reflow can re-converge via panel RO.
+   */
   const updatePanelPlacement = useCallback(() => {
     const panel = panelRef.current;
     const backdrop = backdropRef.current;
     if (!panel || !backdrop) return;
 
-    const pw = panelLayoutWidth() || panel.offsetWidth;
-    const ph = panel.offsetHeight;
+    const { width: pw, height: ph } = readPanelBox();
+    if (pw <= 0 || ph <= 0) return;
+
     const bw = backdrop.clientWidth;
     const bh = backdrop.clientHeight;
     const { x, y } = offsetRef.current;
@@ -250,7 +266,10 @@ export default function UserOverlayShell({
       left: snapPx((bw - pw) / 2 + x),
       top: snapPx((bh - ph) / 2 + y),
     });
-  }, [panelLayoutWidth]);
+  }, [readPanelBox]);
+
+  const updatePanelPlacementRef = useRef(updatePanelPlacement);
+  updatePanelPlacementRef.current = updatePanelPlacement;
 
   const windowMoveRef = useRef(null);
   const windowUpRef = useRef(null);
@@ -265,23 +284,29 @@ export default function UserOverlayShell({
     }
   }, []);
 
-  // Close → reopen / kind switch: Center + Reading OFF (no persistence).
-  useEffect(() => {
-    if (!open) {
-      setReadingMode(false);
-      return;
-    }
-    setOffset({ x: 0, y: 0 });
-    setIsDragging(false);
+  /**
+   * Centering SSOT (pre-paint):
+   * Open / Re-open / Switch / size token change → dragOffset=0 + Reading OFF.
+   * Close also clears dragOffset so Re-open never reuses it.
+   */
+  useLayoutEffect(() => {
+    resetDragOffsetToCenter();
     setReadingMode(false);
-    dragRef.current = null;
-    suppressBackdropClickRef.current = false;
-  }, [open, layoutKey, sizeVariant, widthRatio]);
+  }, [open, layoutKey, sizeVariant, widthRatio, resetDragOffsetToCenter]);
+
+  /**
+   * Reading Zoom In/Out → discard drag; place new size at table-area center.
+   * (Does not toggle readingMode — only reacts to it.)
+   */
+  useLayoutEffect(() => {
+    if (!open) return;
+    resetDragOffsetToCenter();
+  }, [open, readingMode, resetDragOffsetToCenter]);
 
   useLayoutEffect(() => {
     if (!open) return;
     measureTable();
-  }, [open, layoutKey, sizeVariant, widthRatio, measureTable]);
+  }, [open, layoutKey, sizeVariant, widthRatio, readingMode, measureTable]);
 
   useEffect(() => {
     if (!open) return;
@@ -290,67 +315,65 @@ export default function UserOverlayShell({
     const tableArea = backdrop?.closest(".table-area") ?? backdrop;
     if (!tableArea) return undefined;
 
-    const onResize = () => {
+    const onTableResize = () => {
       measureTable();
-      setOffset((prev) => clampOffset(prev.x, prev.y));
+      // Keep temporary dragOffset; re-clamp + re-place with current panel box.
+      setOffset((prev) => {
+        const next = clampOffset(prev.x, prev.y);
+        offsetRef.current = next;
+        return next;
+      });
+      updatePanelPlacementRef.current();
     };
 
-    window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onResize);
+    window.addEventListener("resize", onTableResize);
+    window.addEventListener("orientationchange", onTableResize);
 
-    let ro = null;
+    let tableRo = null;
     if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(onResize);
-      ro.observe(tableArea);
+      tableRo = new ResizeObserver(onTableResize);
+      tableRo.observe(tableArea);
     }
 
     return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-      ro?.disconnect();
+      window.removeEventListener("resize", onTableResize);
+      window.removeEventListener("orientationchange", onTableResize);
+      tableRo?.disconnect();
     };
   }, [open, measureTable, clampOffset]);
 
+  /**
+   * Panel box RO — content / width / font / max-height / wrapping reflow.
+   * Does NOT reset dragOffset (pure re-place: center + current offset).
+   */
+  useEffect(() => {
+    if (!open) return undefined;
+    const panel = panelRef.current;
+    if (!panel || typeof ResizeObserver === "undefined") return undefined;
+
+    let lastW = -1;
+    let lastH = -1;
+    const panelRo = new ResizeObserver(() => {
+      const { width: w, height: h } = readPanelBox();
+      if (w <= 0 || h <= 0) return;
+      if (w === lastW && h === lastH) return;
+      lastW = w;
+      lastH = h;
+      updatePanelPlacementRef.current();
+    });
+    panelRo.observe(panel);
+
+    // Initial sync after mount / open (covers first paint before first RO tick).
+    updatePanelPlacementRef.current();
+
+    return () => panelRo.disconnect();
+  }, [open, layoutKey, readingMode, children, readPanelBox]);
+
+  // Placement after offset reset in the same layout pass (uses offsetRef).
   useLayoutEffect(() => {
     if (!open || !draggable) return;
     updatePanelPlacement();
-  }, [open, draggable, offset, tableSize, metrics, updatePanelPlacement, children]);
-
-  /**
-   * Reading Mode toggle only — keep visual center while size changes.
-   * Drag / clamp formula / pointer handlers are unchanged; only offset is
-   * recomputed from the pre-toggle center, then passed through existing clamp.
-   */
-  useLayoutEffect(() => {
-    if (!open) return;
-    const snapshot = readingCenterSnapshotRef.current;
-    if (!snapshot) return;
-    readingCenterSnapshotRef.current = null;
-
-    const panel = panelRef.current;
-    const backdrop = backdropRef.current;
-    if (!panel || !backdrop) return;
-
-    const centerX = snapshot.left + snapshot.width / 2;
-    const centerY = snapshot.top + snapshot.height / 2;
-    const newW = panelLayoutWidth() || panel.offsetWidth;
-    const newH = panel.offsetHeight || snapshot.height;
-    const bw = backdrop.clientWidth;
-    const bh = backdrop.clientHeight;
-
-    const newLeft = centerX - newW / 2;
-    const newTop = centerY - newH / 2;
-    const nextX = newLeft - (bw - newW) / 2;
-    const nextY = newTop - (bh - newH) / 2;
-    const clamped = clampOffset(nextX, nextY);
-
-    offsetRef.current = clamped;
-    setOffset(clamped);
-    setPanelPlacement({
-      left: snapPx((bw - newW) / 2 + clamped.x),
-      top: snapPx((bh - newH) / 2 + clamped.y),
-    });
-  }, [open, readingMode, panelLayoutWidth, clampOffset]);
+  }, [open, draggable, offset, tableSize, metrics, updatePanelPlacement, children, readingMode]);
 
   useEffect(() => {
     windowMoveRef.current = (e) => {
@@ -423,15 +446,7 @@ export default function UserOverlayShell({
 
   const handleReadingToggle = (e) => {
     e.stopPropagation();
-    const panel = panelRef.current;
-    if (panel) {
-      readingCenterSnapshotRef.current = {
-        left: panel.offsetLeft,
-        top: panel.offsetTop,
-        width: panel.offsetWidth,
-        height: panel.offsetHeight,
-      };
-    }
+    // Size change → table-area center (drag discarded via readingMode layout effect).
     setReadingMode((prev) => !prev);
   };
 
@@ -473,10 +488,11 @@ export default function UserOverlayShell({
     left: `${panelPlacement.left}px`,
     top: `${panelPlacement.top}px`,
     visibility: layoutReady ? "visible" : "hidden",
-    // left/top transition with size → Reading expand stays centered; drag disables.
+    // Position snaps to table-area center (no left/top slide from stale drag).
+    // Size/typography may still ease.
     transition: isDragging
       ? "none"
-      : "width 165ms ease-out, max-width 165ms ease-out, max-height 165ms ease-out, left 165ms ease-out, top 165ms ease-out, font-size 165ms ease-out, padding 165ms ease-out",
+      : "width 165ms ease-out, max-width 165ms ease-out, max-height 165ms ease-out, font-size 165ms ease-out, padding 165ms ease-out",
     ...(useFitContent
       ? { maxWidth: layoutReady ? `${metrics.widthPx}px` : undefined }
       : {

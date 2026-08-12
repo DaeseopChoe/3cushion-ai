@@ -4,11 +4,13 @@
 **Scope:** USER Overlays only (AI · 타점/HPT · 계산/Calculation)  
 **Out of scope:** Admin Overlays, Runtime, Formula, Dataset, Calculator Engine  
 **Container SSOT:** `.table-area`  
-**Last Updated:** 2026-07-28  
+**Positioning SSOT:** `UserOverlayShell`  
+**Last Updated:** 2026-08-12  
 
 > 본 문서는 사용자 Overlay의 **공통 Shell 규약**이다.  
 > v1.2는 AI Overlay 실사용 검증 결과를 공통 USER Overlay SSOT로 승격한 버전이다.  
 > 2026-07-28: USER Overlay Standard · Close/Toolbar · AI/HPT/CALC mapping · Shell/Content 역할을 증분 반영한다.  
+> 2026-08-12: **Centering SSOT** — live panel dimensions · Panel/Table ResizeObserver · dragOffset 정책 · 브라우저 검증 완료.  
 > (과거 v1.2 Decision Summary는 유지한다.)
 
 ---
@@ -39,7 +41,8 @@ AI Overlay에서 검증된 다음 항목이 USER Overlay 공통 기준이다.
 | Typography | table-area scale token |
 | Padding | Shell padding token |
 | Drag | Full Surface Drag |
-| Position | Center open · Clamp · **No persistence** |
+| Position | **table-area 기하 중심** · temporary dragOffset · Clamp · **No persistence** |
+| Centering | Drag 제외 안정 상태: `overlayCenter === tableAreaCenter` |
 | Close | **Close(X) 없음** · 외부 터치 닫기 |
 | Height | `auto` · maxHeight ratio cap |
 
@@ -262,19 +265,121 @@ Close(X) = not present
 
 ---
 
-## 8. Position Rule
+## 8. Position Rule (Centering SSOT)
 
-### Default
-**Center** of `.table-area`
+### Positioning container
+
+**`.table-area`의 기하 중심**만 사용한다.
+
+- **아님:** viewport center
+- **아님:** Stage 전체 center
+
+### Positioning SSOT
+
+**`UserOverlayShell`** 하나가 위치·측정·observer·dragOffset을 소유한다.  
+AI / HPT / CALC Content와 Calculation Toolbar는 위치를 결정하지 않는다.
+
+### Centering invariant
+
+```text
+Normal (no drag, stable):
+  overlayCenter === tableAreaCenter
+
+Drag (temporary):
+  overlayCenter = tableAreaCenter + temporary dragOffset
+
+Reset event (Open / Re-open / Overlay Switch / Zoom In/Out / layout·size token change):
+  dragOffset = {0, 0}
+  → place with current/live panel dimensions at table-area center
+```
+
+목표 (drag 없는 안정 상태): `|dCx| ≤ 1px`, `|dCy| ≤ 1px` (pixel snapping 허용).
+
+### Placement formula
+
+```text
+left = (tableWidth  - currentPanelWidth)  / 2 + dragOffset.x
+top  = (tableHeight - currentPanelHeight) / 2 + dragOffset.y
+```
+
+`currentPanelWidth` / `currentPanelHeight` = **현재 live DOM** (`offsetWidth` / `offsetHeight`).  
+stale / transition 중간 height를 최종 placement로 고정하지 않는다.
+
+### Measurement
+
+| Source | Role |
+|--------|------|
+| `.table-area` rect / client size | container size |
+| panel live DOM box | current panel width/height for placement |
+
+Width **policy** (ratio token → target CSS width)는 유지한다:
+
+| Overlay | widthRatio |
+|---------|------------|
+| AI / HPT | `0.42` |
+| CALC | `0.62` |
+
+Centering SSOT와 width policy는 별개다. widthRatio를 바꾸지 않는다.
+
+### Observer 구조
+
+```text
+Table ResizeObserver (.table-area)
+  → table size 변화 → 동일 Centering SSOT로 placement 재계산
+  → temporary dragOffset 보존 (+ clamp)
+
+Panel ResizeObserver (UserOverlayShell panel)
+  → content / width transition / font / max-height / wrapping / reflow
+  → 동일 updatePanelPlacement 경로
+  → temporary dragOffset 보존 (RO 자체가 dragOffset=0 금지)
+```
+
+### Root Cause (2026-08-12 · 해결됨)
+
+진입 경로에 따라 vertical center가 어긋나던 주원인:
+
+| ID | Cause |
+|----|--------|
+| **B** | stale panel dimensions — 최종 height 확정 전 snapshot으로 placement 고정 |
+| **C** | content reflow timing — width/font/max-height/text wrapping 후에도 재계산 없음 |
+
+기존 Table ResizeObserver만으로는 panel reflow를 감지하지 못했다.  
+**Panel ResizeObserver**로 live box 기준 재배치하여 해결. (`index.css` 최종 미수정.)
+
+### Drag policy
+
+- Drag는 **삭제되지 않음** — 사용 중 **temporary center-relative offset** 허용
+- Pure panel reflow / Panel RO → **dragOffset 유지** + current box로 재배치
+- Open / Re-open / Overlay Switch / Zoom / layout·size 변경 → **dragOffset = 0**
+
+### Reading Mode / Zoom
+
+Zoom In / Zoom Out 기준은 항상 **table-area center**다.  
+“이전 시각 중심 유지” 방식은 사용하지 않는다.
+
+```text
+Zoom In  → dragOffset = 0 → enlarged live panel → table-area center
+Zoom Out → dragOffset = 0 → reduced live panel  → table-area center
+```
+
+### Overlay Switch
+
+AI ↔ HPT ↔ CALC는 동일 Shell Centering SSOT.
+
+```text
+Switch → dragOffset = 0
+      → new content live size (transition/reflow 포함)
+      → Panel RO가 placement 재수렴
+```
+
+특히 `CALC (0.62) → AI (0.42)` 경로에서도 최종 AI panel center = table-area center.
 
 ### Lifecycle
 
-- Open → 항상 Center에서 시작
-- Drag 가능
-- Close → offset 저장 금지
-- Session 저장 금지
-- LocalStorage 저장 금지
-- Runtime cache 저장 금지
+- Open / Re-open → Center (`dragOffset = 0`)
+- Drag 가능 (temporary)
+- Close → offset 저장 금지 · Re-open 시 재사용 금지
+- Session / LocalStorage / Runtime cache 저장 금지
 
 ### Clamp
 
@@ -282,6 +387,14 @@ Close(X) = not present
 overlay must remain inside table-area inset
 clampInsetRatio = 0.02
 ```
+
+`dragOffset = 0`인 정상 center 상태에서 clamp가 center placement를 변형해서는 안 된다.  
+Panel이 table-area보다 큰 특수 상황만 기존 안전 정책 유지.
+
+### Verification (2026-08-12)
+
+실제 브라우저 검증 **완료** (최초 AI Open · Zoom In/Out · Overlay Switch · CALC→AI · HPT→AI · Drag 후 Switch/Zoom).  
+`npm run build` **PASS**. Commit/Push는 별도 단계.
 
 ---
 
@@ -343,8 +456,8 @@ Content는 **자기 내부 레이아웃과 렌더링만** 담당한다.
 
 | Layer | Owns |
 |-------|------|
-| **Shell** | Layout · Ratio · Surface · Typography scale · Padding · Drag · Clamp · Center |
-| **Content** | 표시 정보만 · Width SSOT 금지 · Shell max token preferred width 재사용 금지 |
+| **Shell** | Layout · Ratio · Surface · Typography scale · Padding · Drag · Clamp · **Centering SSOT** · live panel measurement · Table/Panel ResizeObserver |
+| **Content** | 표시 정보만 · Width SSOT 금지 · Shell max token preferred width 재사용 금지 · **position 금지** |
 
 ---
 
@@ -391,7 +504,7 @@ bridge token은 기존 content와의 연결용이다.
 
 ---
 
-## 12. Implementation Status (2026-07-28)
+## 12. Implementation Status (2026-08-12)
 
 ### 완료
 
@@ -400,17 +513,18 @@ bridge token은 기존 content와의 연결용이다.
 - Typography Rule
 - Glass Dark Surface
 - Drag Rule
-- Center Rule
+- Center Rule → **Centering SSOT** (live panel box · Panel RO)
 - Clamp Rule
 - Close Rule (X 제거)
 - AI Overlay 적용
 - HPT Overlay AI Shell mapping
 - Calculation Overlay + Toolbar + DisplayModel Viewer
+- **Centering SSOT 브라우저 검증 완료** (2026-08-12)
 
 ### 보류 / 예정
 
 - HPT Content 크기 독립 · SVG intrinsic bounds / viewBox (UX Polish)
-- USER Overlay 최종 통합 검증
+- USER Overlay 기타 통합 항목 (Centering 외)
 
 ---
 
@@ -434,6 +548,18 @@ v1.2에서 공식 확정된 사항:
 11. AI / HPT Shell mapping = `widthRatio 0.42` · CALC = `0.62`.
 12. Calculation Toolbar는 Shell 밖 Controller.
 13. HPT Content/Shell 크기 독립은 Polish 보류.
+
+### 2026-08-12 Incremental Decisions (Centering SSOT)
+
+14. Center 기준 = **`.table-area` 기하 중심** (viewport / Stage 전체 아님).
+15. Positioning SSOT = **`UserOverlayShell`만** (Content / Toolbar 비소유).
+16. Placement는 **current/live panel DOM dimensions** 기준.
+17. **Table ResizeObserver** + **Panel ResizeObserver** — 동일 Centering SSOT 경로.
+18. Panel RO는 **dragOffset을 리셋하지 않음** (pure re-place).
+19. Open / Re-open / Switch / Zoom / layout·size 변경 → `dragOffset = 0`.
+20. Zoom In/Out = table-area center 재배치 (이전 시각 중심 유지 금지).
+21. Root Cause B+C (stale panel dimensions + content reflow) → Panel RO로 해결.
+22. widthRatio 정책(0.42 / 0.62) · DisplayModel / SYS **미변경**.
 
 ---
 

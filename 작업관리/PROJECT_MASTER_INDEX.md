@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.65  
-Last Updated: 2026-08-11  
+Version: 1.66  
+Last Updated: 2026-08-12  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -53,6 +53,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Current Mission** | Phase 5 Mission 02 — Dead Code Cleanup **COMPLETE** |
 | **Next Track** | **Sample System Validation** |
 | **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
+| **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
 | **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
@@ -940,7 +941,7 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 #### UI 스타일 (Calculation)
 
 - Glass Dark Common Shell
-- Full Surface Drag · Center / Clamp · 위치 저장 없음
+- Full Surface Drag · **table-area 기하 중심** / Clamp · 위치 저장 없음
 - Close(X) 없음 · 외부 터치 닫기
 - Toolbar는 Shell 밖 · Drag 제외
 - 일반 내용은 자연 높이 · 극단 길이만 body scroll
@@ -974,7 +975,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 - SSOT: `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` **v1.4**
 - Flow: Builder → **Display Cap** → **Display Boundary** → **Overlay Attach** → Render
 - **Phase 2A:** `trajectoryExtensionOverlayVisibility.ts` — USER baseline CASE B 미부착 · corrected/ADMIN 부착 · Runtime 유지
-- **Reading Mode (§15):** USER Overlay Shell · Original Aspect · Center Preserve · `ReadingFontScale=1.45` · **Completed**
+- **Reading Mode (§15):** USER Overlay Shell · Original Aspect · Zoom → **table-area center** (`dragOffset=0`) · `ReadingFontScale=1.45` · **Completed**
 - **C2 Reflection Rail Handle (§16):** ADMIN only · rail+t Override · Cap `skipSameRail` · **Completed**
 - **Extension ≠ Difference** · Extension Runtime은 Boundary 입력이 아님
 - **Baseline · Corrected 공통 Minimum Guarantee (C4)** · Continuation은 C4 이후만
@@ -984,7 +985,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 |------|------|
 | Reading Mode UX | **Completed** |
 | Reading Mode Original Aspect | **Completed** |
-| Reading Mode Center Preserve | **Completed** |
+| Reading Mode Zoom → table-area center | **Completed** (Centering SSOT · 이전 시각 중심 유지 폐기) |
 | C2 Reflection Rail Handle | **Completed** |
 | Reflection Override Persist (`{rail,t}`) | **Completed** |
 | Display Cap Corner Override (`skipSameRail`) | **Completed** |
@@ -1056,7 +1057,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | USER 계산 | `components/user/UserCalculationPanel.jsx`, `components/user/UserCalcToolbar.jsx`, `overlay/utils/sysCalcDisplayModel.ts`, `App.jsx` (`trajectoryCardSource`, `trajectoryShowAxisValues`, `calcOverlayVisible`) |
 | USER 쿠션 포인트 | `components/table/SystemValueLabels.jsx`, `components/table/LabelText.jsx`, `config/tableConfig.ts` — Calculation Toolbar 토글로 노출 |
 | Overlay 반응형 CSS | `frontend/src/index.css` — `--overlay-scale`, `--ai-scale`, `--overlay-svg-scale` (bridge token 유지, **Layout SSOT는 Ratio/Surface token 기준**) |
-| **Overlay Layout SSOT** | `OVERLAY_LAYOUT_SSOT_v1.2.md` — USER Overlay 공통 Shell 규약 (**Confirmed v1.2**, Consume) · Reading Mode UX → `DISPLAY_BOUNDARY_POLICY_SSOT.md` **§15** (v1.4 · **Implemented**) |
+| **Overlay Layout SSOT** | `OVERLAY_LAYOUT_SSOT_v1.2.md` — USER Overlay 공통 Shell 규약 (**Confirmed v1.2**, Consume) · **Centering SSOT** (live panel · Panel/Table RO · 2026-08-12) · Reading Mode UX → `DISPLAY_BOUNDARY_POLICY_SSOT.md` **§15** (v1.4 · **Implemented**) |
 
 ---
 
@@ -1075,7 +1076,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | USER HP/T UI | `frontend/src/components/user/UserHptPanel.jsx` |
 | USER 쿠션 포인트 | `frontend/src/components/table/SystemValueLabels.jsx` — Toolbar `쿠션 포인트` 토글로 제어 |
 | USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · HPT · CALC) |
-| USER Overlay Shell | `frontend/src/components/common/UserOverlayShell.jsx` — 공통 Layout Layer (Ratio · Surface · Drag · Clamp · Close 없음) |
+| USER Overlay Shell | `frontend/src/components/common/UserOverlayShell.jsx` — 공통 Layout Layer · **Centering SSOT** (Ratio · Surface · Drag · Clamp · live panel measure · Panel/Table ResizeObserver · Close 없음) |
 | Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`USER_FUNC_IDS`, `onUserFuncButtonSelect`) |
 | ADMIN AI | `frontend/src/App.jsx` `AiOverlay` |
 | 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.modal-panel--user-hpt`, `.modal-panel--user-calc`, `.user-calc-toolbar`) |
@@ -1129,18 +1130,37 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 - **Interaction SSOT** — `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Pointer Capture Timing (D-INTERACT-01~03)
 - **변경 파일:** `frontend/src/App.jsx` (`handlePointerDown` · `handlePointerMove`) · **상세:** `HISTORY/PROJECT_LOG_2026-07.md` 2026-07-30
 
-### USER Overlay UX Phase (2026-07)
+### USER Overlay UX Phase (2026-07 · Centering 2026-08-12)
 
 | Item | Status |
 |------|--------|
-| **Overlay Layout SSOT** | **v1.2 Confirmed** (+ 2026-07-28 incremental rules) |
+| **Overlay Layout SSOT** | **v1.2 Confirmed** (+ 2026-07-28 · **Centering SSOT 2026-08-12**) |
 | **USER Overlay Common Shell** | **Implemented** · Close(X) 없음 · 외부 터치 닫기 |
+| **USER Overlay Centering SSOT** | ✅ **COMPLETE** — Root Cause B+C · Panel ResizeObserver · 브라우저 검증 · build PASS · **Commit/Push 대기** |
 | **USER Projection Rule** | **Official** — DisplayModel Viewer |
 | **AI Overlay** | **Completed** · 기준 UX / 기준 Shell (`widthRatio 0.42`) |
 | **HPT Overlay** | **Common Shell 적용 완료** · AI Shell 규격 · 공 크기 독립은 **Polish 보류** |
 | **Calculation Overlay** | **Completed** · Common Shell + Toolbar + DisplayModel Viewer · `widthRatio 0.62` |
 | **좌측 메뉴** | `동선` → **`계산`** |
-| **최종 통합 검증** | **Pending** |
+| **Centering 통합 검증** | ✅ **COMPLETE** (실제 브라우저) |
+| **기타 통합 검증** | **Pending** (HPT Polish 등) |
+
+### USER Overlay Centering SSOT (2026-08-12) — Summary
+
+| Field | Value |
+|-------|--------|
+| **Status** | ✅ **COMPLETE** · 실제 브라우저 검증 완료 · `npm run build` PASS |
+| **Root Cause** | **B** stale panel dimensions + **C** content reflow timing (dragOffset은 부차) |
+| **Fix** | `UserOverlayShell` — live panel box · **Panel ResizeObserver** + Table ResizeObserver · 동일 Centering SSOT |
+| **Invariant** | Drag 제외 안정 상태: `overlayCenter === tableAreaCenter` (`.table-area` 기하 중심) |
+| **Reset** | Open / Re-open / Switch / Zoom / layout·size → `dragOffset = 0` |
+| **Drag** | temporary center-relative offset 유지 · Panel RO는 offset 리셋 금지 |
+| **Zoom** | 항상 table-area center (이전 시각 중심 유지 폐기) |
+| **Width policy** | AI/HPT `0.42` · CALC `0.62` **미변경** |
+| **Code** | `frontend/src/components/common/UserOverlayShell.jsx` only · `index.css` 최종 미수정 |
+| **Out of scope** | DisplayModel · Projection · SYS · Content · Toolbar · App positioning |
+| **Git** | **Commit/Push 대기** (코드+문서 미커밋) |
+| **SSOT** | `OVERLAY_LAYOUT_SSOT_v1.2.md` §8 · Detail: `HISTORY/PROJECT_LOG_2026-08.md` |
 
 ### 완료
 
@@ -1332,6 +1352,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 - **Runtime Contract SSOT 완성 (2026-08-01)** — `buildSlotDraftWithUpdatedSys()` legacy `profile` dangling reference 제거 · SYS Apply 백지화(`ReferenceError` → React root unmount) 해결 · Contract에서 해석된 `formulaExpr` 재사용 · Build/Lint PASS · Regression 없음 (`abeca84`)
 - **ADMIN Overlay Native Selection 처리 (2026-08-01)** — ModalShell `open` 전환 시 1회 native Selection 초기화 · 새로고침 후 첫 SYS Overlay 파란 highlight 해결 · Pointer Capture / preventDefault / user-select CSS 비변경 · Overlay SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Overlay Native Selection) (`7ef9601`)
 - **Trajectory Extension (2026-08-03~04) — Task Closed** — 독립 Overlay · Role SSOT · Target Lock + DoubleClick Projection · SAVE/`StrategyEntry.trajectoryExtensions` · Hydrate whitelist · ADMIN/USER 적색 stroke · **`activateStrategySlot()`** 로 USER Search ↔ Strategy Pick Runtime 경로 통합 · Search 전용 Hydrate 없음 · SAVE → Export → Published → Search/Recall → Render 파이프라인 완료 · SSOT `TRAJECTORY_EXTENSION_SSOT.md` v1.4
+- **USER Overlay Centering SSOT (2026-08-12) — COMPLETE** — Root Cause B+C (stale panel dimensions + content reflow) · Panel ResizeObserver · table-area center invariant · Open/Switch/Zoom reset · Drag temporary offset 유지 · 브라우저 검증 · build PASS · **Commit/Push 대기** · `UserOverlayShell.jsx` · `OVERLAY_LAYOUT_SSOT_v1.2.md` §8
 
 ### 진행 중
 
@@ -1817,17 +1838,18 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `3_SYSTEM_ARCHITECTURE.md` | 계산·데이터 계층 |
 | `4_CALCULATION_RULES.md` | 수식·보정 규칙 |
 | `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` | Frontend 구조·레이어 기준선 · **Pointer Capture Timing Interaction SSOT (2026-07-30)** · **Overlay Native Selection Interaction SSOT (2026-08-01)** |
-| `OVERLAY_LAYOUT_SSOT_v1.2.md` | **USER Overlay Layout SSOT v1.2 (Confirmed)** — Shell/Content · Dark Glass · Ratio · Drag · Position |
+| `OVERLAY_LAYOUT_SSOT_v1.2.md` | **USER Overlay Layout SSOT v1.2 (Confirmed)** — Shell/Content · Dark Glass · Ratio · Drag · **Centering SSOT** (Panel/Table RO · 2026-08-12) |
 | `SESSION_TRANSFER/APP_USER_SEARCH_FLOW.md` | USER Search 흐름 |
 
 ---
 
 ## USER Overlay (요약)
 
-> **Layout SSOT:** `OVERLAY_LAYOUT_SSOT_v1.2.md` (Confirmed).  
-> **기준 UX:** AI Overlay — Glass Dark · table-area Ratio · Typography · Padding · Full Surface Drag · Center/Clamp · Close(X) 없음 · 외부 터치 닫기 · 위치 저장 없음.  
+> **Layout SSOT:** `OVERLAY_LAYOUT_SSOT_v1.2.md` (Confirmed · Centering SSOT 2026-08-12).  
+> **기준 UX:** AI Overlay — Glass Dark · table-area Ratio · Typography · Padding · Full Surface Drag · **table-area 기하 중심**/Clamp · Close(X) 없음 · 외부 터치 닫기 · 위치 저장 없음.  
+> **Centering:** `UserOverlayShell` SSOT · live panel dimensions · Panel + Table ResizeObserver · Drag = temporary dragOffset · Open/Switch/Zoom → `dragOffset=0` · 브라우저 검증 완료 · **Commit/Push 대기**.  
 > **Projection Rule:** USER = ADMIN DisplayModel 투영 Viewer.  
-> Progress = AI 완료 · HPT Shell 완료(Polish 보류) · Calculation Shell+Viewer 완료 · 통합 검증 예정.  
+> Progress = AI 완료 · HPT Shell 완료(Polish 보류) · Calculation Shell+Viewer 완료 · **Centering 검증 완료** · 기타 통합(HPT Polish 등) 예정.  
 > `--overlay-scale` / `--ai-scale` / `--overlay-svg-scale`는 bridge token이며, 장기 SSOT는 Ratio/Surface/Typography token이다.
 
 ```
@@ -1851,7 +1873,7 @@ backdrop / outside tap → overlayContent = null (Close X 없음)
 - table-area 기준 Ratio
 - Typography / Padding token
 - Full Surface Drag
-- Center / Clamp
+- **table-area 기하 중심** / Clamp (Centering SSOT)
 - Close(X) 없음 · 외부 터치 닫기
 - 위치 저장 없음
 
