@@ -174,9 +174,12 @@ Current Status
   ✅ USER Overlay Centering SSOT COMPLETE (2026-08-12)
       · Root Cause B+C · Panel ResizeObserver · 브라우저 검증 · build PASS
       · Code + docs sync uncommitted · Commit/Push 대기
+  ✅ Ball Fine Position Controller COMPLETE (2026-08-12)
+      · Joystick + Fine Controller · 0.1 Rg tap/long-press · dismissal lifecycle
+      · Admin/User runtime verification PASS · **Commit/Push 대기**
 
 Next Track
-  1) USER Overlay Centering — docs sync 확인 → Commit → Push
+  1) Ball Fine Position Controller + USER Overlay Centering — Commit → Push
   2) Sample System Validation
   · Readiness: READY FOR SAMPLE SYSTEM VALIDATION
   · Product / Platform Carry (Display Boundary · STEP9 · Known Issues)
@@ -195,10 +198,11 @@ Next Track
 | **Phase 5 Search Quality Follow-on Task #5** | ✅ **COMPLETED** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 Dead Code Cleanup** | ✅ **COMPLETED** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETED** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
+| **Ball Fine Position Controller** | ✅ **COMPLETED** (2026-08-12 · Admin/User runtime 검증 PASS · **Commit/Push 대기**) |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
 | **Product Pipeline Tests** | **21 PASS** (export · package · deploy) |
-| **Next Track** | **Commit Centering** → **Sample System Validation** |
+| **Next Track** | **Commit (Centering + Fine Controller)** → **Sample System Validation** |
 | **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
 ### 구현 완료 범위
 
@@ -242,8 +246,9 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
 
 ### Primary
 
+- **Ball Fine Position Controller** — ✅ **COMPLETE** · Admin/User runtime 검증 PASS · **Commit/Push 대기**
 - **USER Overlay Centering SSOT** — ✅ **COMPLETE** · docs sync → **Commit** → **Push** (사용자 요청 시)
-- **Sample System Validation** — **NEXT** (after Centering commit) · **READY FOR SAMPLE SYSTEM VALIDATION**
+- **Sample System Validation** — **NEXT** (after commit) · **READY FOR SAMPLE SYSTEM VALIDATION**
 - **Phase 5 Mission 02 — Dead Code Cleanup** — ✅ **COMPLETE** (EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS)
 - **Phase 5 Mission 01 Real Interpolation** — ✅ **COMPLETE** (core engine)
 - **Product Envelope Static Publisher (Task #4)** — ✅ **COMPLETE**
@@ -253,6 +258,26 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
   - STEP9 Phase 4 Pilot
   - Known Issues OPEN-01 · OPEN-02 · OPEN-05
   - USER Overlay 기타 통합 (HPT Polish 등) — Centering 외
+
+### Ball Fine Position Controller (2026-08-12) — Complete
+
+Cite: `HISTORY/PROJECT_LOG_2026-08.md` · `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Ball Fine Position Controller · MASTER v1.67
+
+**목적:** Ball physical center coordinate 확인 · Drag/Joystick 대략 이동 + 방향키 0.1 Rg 미세조정 · Sample System Validation / 실사용 Ball positioning 지원.
+
+**UI:** Ball 선택 시 Joystick + Fine Controller 함께 표시 · `▲ ◀ (x.x, y.y) ▶ ▼` · coordinate fontSize **17** · arrow fontSize **15** · hitR **22**.
+
+**동작:** Tap = pointerdown 즉시 0.1 · Hold ≥1.5s → 150ms repeat · Long Press 진입 시 double-step 없음 · fine nudge 축만 `Math.round(v*10)/10` · 기존 boundary clamp 재사용.
+
+**Placement:** Ball → Joystick → Fine Controller → Table Center · `computeFineControllerCenterRg()` (`joystickInteractionPolicy.ts`).
+
+**Dismissal:** `hideBallPositionController()` — positioning 외 UI action 시 `joystickVisible=false` · Fine Controller timer/interval 정리 · 별도 visibility state 없음.
+
+**검증:** Admin UI **PASS** · User UI **PASS** (사용자 직접 runtime 확인) · Vercel/mobile production 검증은 별도 단계.
+
+**Git:** `9678b69` 이후 미커밋 · **Push 안 함**
+
+**다음 세션:** Fine Controller 재설계/재구현 **금지** · Sample System Validation 계속.
 
 ### USER Overlay Centering SSOT (2026-08-12) — Complete
 
@@ -381,6 +406,7 @@ SearchResult
 
 ## 4. In Progress / Carry (병행 트랙)
 
+- **Ball Fine Position Controller** — ✅ 구현·Admin/User runtime 검증·docs sync 완료 · **Commit/Push Carry**
 - **USER Overlay Centering SSOT** — ✅ 구현·브라우저 검증·docs sync 완료 · **Commit/Push Carry**
 - **Authoring normalization Carry (Active):** Cue-Only Edit Snap · Exact Position Replacement — see §3 Phase 5 Preparation · GLOSSARY
 - Product: Display Boundary Continuation / CASE A / Corrected Cap · Handle Drag 잔여
@@ -415,17 +441,21 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : USER Overlay Centering SSOT COMPLETE + docs sync
+Session ID     : Ball Fine Position Controller COMPLETE + docs sync
 Baseline       : Architecture Freeze · GLOSSARY_SSOT · Phase 4 COMPLETE · Mission 01/02 · Task #5 COMPLETE
-Current Done   : Centering Root Cause B+C · Panel ResizeObserver · 브라우저 검증 · build PASS · docs sync
-Current Status : Centering COMPLETE · awaiting Commit/Push
-Code change    : frontend/src/components/common/UserOverlayShell.jsx (uncommitted)
-Docs           : MASTER v1.66 · LOG · HANDOFF · OVERLAY_LAYOUT §8 · Frontend Baseline
-Next Session   : Commit Centering (+docs) → Push → Sample System Validation
-Readiness      : READY FOR SAMPLE SYSTEM VALIDATION (after Centering commit)
+                 · pre–Fine Controller HEAD: 9678b69d0f82b82a685de86cb42eec07e18cb53f
+Current Done   : Fine Controller (tap/long-press · placement · dismissal) · Admin/User runtime PASS · docs sync
+                 · Centering (prior) · Panel ResizeObserver · 브라우저 검증 · build PASS
+Current Status : Fine Controller COMPLETE · Centering COMPLETE · awaiting Commit/Push
+Code change    : frontend/src/App.jsx · frontend/src/interaction/joystickInteractionPolicy.ts (uncommitted)
+                 · frontend/src/components/common/UserOverlayShell.jsx (uncommitted, prior)
+Docs           : MASTER v1.67 · LOG · HANDOFF · Frontend Baseline §Ball Fine Position Controller
+Next Session   : Commit (Fine Controller + Centering +docs) → Push → Sample System Validation
+Readiness      : READY FOR SAMPLE SYSTEM VALIDATION (after commit)
 Commit         : NOT done · Push NOT done
+Guardrail      : Do NOT redesign/reimplement Fine Controller
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-12 · USER Overlay Centering SSOT COMPLETE (docs sync · awaiting Commit)*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-12 · Ball Fine Position Controller COMPLETE (docs sync · awaiting Commit)*

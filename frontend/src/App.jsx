@@ -74,6 +74,7 @@ import {
   JOYSTICK_BASE_R_PX,
   JOYSTICK_KNOB_R_PX,
   computeJoystickCenterRg,
+  computeFineControllerCenterRg,
   isPointerOnJoystick,
 } from "./interaction/joystickInteractionPolicy";
 import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRenderModel";
@@ -1413,6 +1414,68 @@ export default function App({
   const JOYSTICK_STEP = 0.1; // Rg
   const JOYSTICK_REPEAT_MS = 60;
 
+  const FINE_CTRL_LONG_PRESS_MS = 1500;
+  const FINE_CTRL_REPEAT_MS = 150;
+  const fineCtrlTimerRef = useRef(null);
+  const fineCtrlIntervalRef = useRef(null);
+
+  function fineNudgeBall(ballId, dx, dy) {
+    if (!ballId) return;
+    setBallsState((prev) => {
+      const cur = prev?.[ballId];
+      if (!cur) return prev;
+      let minX = 0.5, maxX = 79.5, minY = 0.5, maxY = 39.5;
+      if (ballId === "impact" && impactMode === "FREE") {
+        minX = -CUSHION_RG; maxX = 80 + CUSHION_RG;
+        minY = -CUSHION_RG; maxY = 40 + CUSHION_RG;
+      }
+      const next = {
+        x: clamp(dx !== 0 ? Math.round((cur.x + dx) * 10) / 10 : cur.x, minX, maxX),
+        y: clamp(dy !== 0 ? Math.round((cur.y + dy) * 10) / 10 : cur.y, minY, maxY),
+      };
+      return { ...prev, [ballId]: next };
+    });
+    invalidateSavedAndRecalledForBallId(ballId);
+  }
+
+  function hideBallPositionController() {
+    stopJoystick();
+    stopFineCtrl();
+    setDragState((s) => ({ ...s, joystickVisible: false }));
+  }
+
+  function stopFineCtrl() {
+    if (fineCtrlTimerRef.current != null) {
+      window.clearTimeout(fineCtrlTimerRef.current);
+      fineCtrlTimerRef.current = null;
+    }
+    if (fineCtrlIntervalRef.current != null) {
+      window.clearInterval(fineCtrlIntervalRef.current);
+      fineCtrlIntervalRef.current = null;
+    }
+  }
+
+  function handleFineArrowDown(e, dx, dy) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = dragState.ballId;
+    if (!id) return;
+    stopFineCtrl();
+    fineNudgeBall(id, dx, dy);
+    fineCtrlTimerRef.current = window.setTimeout(() => {
+      fineCtrlTimerRef.current = null;
+      fineCtrlIntervalRef.current = window.setInterval(() => {
+        fineNudgeBall(id, dx, dy);
+      }, FINE_CTRL_REPEAT_MS);
+    }, FINE_CTRL_LONG_PRESS_MS);
+  }
+
+  function handleFineArrowUp(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    stopFineCtrl();
+  }
+
   // KD-Tree 인덱스 (dataset 변경 시 rebuild; USER strategyCountMap 등)
   const kdIndexRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -1705,6 +1768,7 @@ export default function App({
   /** 우측 ADMIN Search (published) — SRCH-002 → adminSearchFlow.runAdminSearch */
   async function handlePositionRecall() {
     if (appMode !== "ADMIN") return;
+    hideBallPositionController();
     await runAdminSearch({
       ballsState,
       adminState,
@@ -2282,6 +2346,8 @@ function handleJoyPadPointerCancel(e) {
     
     if (!currentButtonId) return;
 
+    hideBallPositionController();
+
     // 코칭 버튼 처리
     if (currentButtonId === "COACH") {
       setShowCoaching(true);
@@ -2306,6 +2372,9 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     if (appMode !== "ADMIN") return;
     if (!currentButtonId) return;
+
+    hideBallPositionController();
+
     if (!isAdminInputSessionActive || !isAdminTargetReady()) return;
 
     if (currentButtonId === "SYS") openOverlay("SYS");
@@ -3945,6 +4014,7 @@ function handlePointerCancel(e) {
 
   const handleTrajectoryExtensionClick = () => {
     if (!canClickTrajectoryExtension) return;
+    hideBallPositionController();
     const slotId = shotEditor.activeSlot ?? "S1";
     const nodes = correctedPathNodes ?? [];
     if (extensionDraftCount === 0) {
@@ -4626,6 +4696,56 @@ function handlePointerCancel(e) {
     </g>
   );
 })()}
+      {dragState.joystickVisible &&
+        canEditPosition &&
+        dragState.ballId &&
+        balls[dragState.ballId] && (() => {
+  const bp = balls[dragState.ballId];
+  const fc = computeFineControllerCenterRg(bp, BALL_RADIUS_RG, SCALE);
+  const fp = toPx({ x: fc.x, y: fc.y }, SCALE, TABLE_H);
+  const fcx = fp.x + PADDING;
+  const fcy = fp.y + PADDING;
+  const arrowSize = 15;
+  const arrowOffset = 32;
+  const hitR = 22;
+  const coordX = bp.x.toFixed(1);
+  const coordY = bp.y.toFixed(1);
+
+  const arrows = [
+    { id: "up",    dx: 0, dy: 0.1,  ox: 0, oy: -arrowOffset, label: "▲" },
+    { id: "down",  dx: 0, dy: -0.1, ox: 0, oy: arrowOffset,  label: "▼" },
+    { id: "left",  dx: -0.1, dy: 0, ox: -arrowOffset * 1.8, oy: 0, label: "◀" },
+    { id: "right", dx: 0.1, dy: 0,  ox: arrowOffset * 1.8, oy: 0,  label: "▶" },
+  ];
+
+  return (
+    <g style={{ pointerEvents: "none" }}>
+      <text
+        x={fcx} y={fcy}
+        textAnchor="middle" dominantBaseline="central"
+        fill="rgba(255,255,255,0.85)"
+        fontSize="17" fontWeight="400"
+        style={{ pointerEvents: "none", userSelect: "none" }}
+      >({coordX}, {coordY})</text>
+      {arrows.map((a) => (
+        <g key={a.id} style={{ pointerEvents: "all", cursor: "pointer" }}
+          onPointerDown={(e) => handleFineArrowDown(e, a.dx, a.dy)}
+          onPointerUp={handleFineArrowUp}
+          onPointerCancel={handleFineArrowUp}
+        >
+          <circle cx={fcx + a.ox} cy={fcy + a.oy} r={hitR} fill="transparent" />
+          <text
+            x={fcx + a.ox} y={fcy + a.oy}
+            textAnchor="middle" dominantBaseline="central"
+            fill="rgba(255,255,255,0.8)"
+            fontSize={arrowSize} fontWeight="400"
+            style={{ pointerEvents: "none", userSelect: "none" }}
+          >{a.label}</text>
+        </g>
+      ))}
+    </g>
+  );
+})()}
      </svg>
   );
 
@@ -4969,7 +5089,7 @@ function handlePointerCancel(e) {
             <button
               type="button"
               className="control-button"
-              onClick={() => setShowSystemGrid((prev) => !prev)}
+              onClick={() => { hideBallPositionController(); setShowSystemGrid((prev) => !prev); }}
               style={{
                 backgroundColor: showSystemGrid ? '#10b981' : '#64748b',
                 color: 'white',
@@ -4980,7 +5100,7 @@ function handlePointerCancel(e) {
             <button
               type="button"
               className={`control-button${showBaseLine ? " active" : ""}`}
-              onClick={() => setShowBaseLine((v) => !v)}
+              onClick={() => { hideBallPositionController(); setShowBaseLine((v) => !v); }}
               style={{
                 backgroundColor: showBaseLine ? "#FFD700" : "#64748b",
                 color: showBaseLine ? "#1f2937" : "white",
@@ -5018,7 +5138,7 @@ function handlePointerCancel(e) {
             <button
               type="button"
               className="control-button"
-              onClick={() => setShowHistoryModal(true)}
+              onClick={() => { hideBallPositionController(); setShowHistoryModal(true); }}
               style={{ backgroundColor: '#6366f1', color: 'white' }}
             >
               History
@@ -5027,7 +5147,7 @@ function handlePointerCancel(e) {
               type="button"
               disabled={!canUseSystemControls}
               className={`control-button save-btn${isSaved ? " active" : ""}`}
-              onClick={() => handleCanonicalRightPanelSave()}
+              onClick={() => { hideBallPositionController(); handleCanonicalRightPanelSave(); }}
               style={{
                 opacity: canUseSystemControls ? 1 : 0.45,
                 cursor: canUseSystemControls ? "pointer" : "not-allowed",
@@ -5044,7 +5164,7 @@ function handlePointerCancel(e) {
             <button
               type="button"
               className="control-button"
-              onClick={() => setWorkspaceCleanupOpen((open) => !open)}
+              onClick={() => { hideBallPositionController(); setWorkspaceCleanupOpen((open) => !open); }}
               style={{
                 backgroundColor: workspaceCleanupOpen ? "#334155" : "#475569",
                 color: "#e2e8f0",

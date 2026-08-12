@@ -1,8 +1,140 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.25  
+Version : v1.26  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-12 (Ball Fine Position Controller — COMPLETE · Admin/User runtime 검증)
+
+## 제목
+
+**Ball Fine Position Controller — Joystick + Fine Controller temporary Ball Position Controller**
+
+## Status
+
+**Completed** · Admin UI runtime 검증 **PASS** · User UI runtime 검증 **PASS** · 문서 동기화 (본 항목) · **Commit/Push 대기**
+
+## Purpose
+
+Sample System Validation 및 실사용 Ball positioning 정확도를 높이기 위해, 기존 Ball drag / Joystick에 Fine Position Controller를 추가한다.
+
+- Ball physical center coordinate 확인
+- Drag/Joystick으로 대략 이동 + 방향키로 0.1 Rg 미세조정
+- 계산 시스템이 **아님** — Ball positioning UI only
+- Search / RI / Slot / Calculator / Anchor / Trajectory / Envelope / Publisher **미변경**
+
+## Timeline (사실 순서)
+
+1. Ask 분석 — GO 판정 · `App.jsx` + `joystickInteractionPolicy.ts` 최소 변경 경로 확정
+2. 초기 구현 — Joystick visibility 종속 · `fineNudgeBall()` · tap/long-press · placement helper
+3. Visual 2× 확대 시도 — 좌표/화살표 과대 → **1.5× 수준으로 최종 조정**
+4. Dismissal lifecycle 추가 — `hideBallPositionController()` · positioning 외 UI action 시 숨김
+5. Admin UI runtime 검증 **PASS** (사용자 직접 확인)
+6. User UI runtime 검증 **PASS** (사용자 직접 확인)
+7. 문서 동기화 (본 항목)
+
+## UX (최종)
+
+```text
+             ▲
+       ◀  (x.x, y.y)  ▶
+             ▼
+```
+
+| Item | Value |
+|------|--------|
+| coordinate fontSize | **17** |
+| arrow fontSize | **15** |
+| fontWeight | **400** |
+| arrow offset up/down | **32** px |
+| arrow offset left/right | **32 × 1.8 = 57.6** px |
+| touch hitR | **22** (~44px diameter) |
+| `FINE_CTRL_HALF_H_PX` | **55** |
+| coordinate | Ball physical center · `(x.x, y.y)` · read-only · 1 decimal |
+
+## Fine adjustment 동작
+
+| Action | Behavior |
+|--------|----------|
+| ▶ | x +0.1 |
+| ◀ | x -0.1 |
+| ▲ | y +0.1 |
+| ▼ | y -0.1 |
+| Tap | pointerdown 즉시 0.1 · release <1.5s → 추가 이동 없음 |
+| Long Press | ≥1.5s Hold → 150ms repeat · 진입 시 double-step 없음 |
+| Precision | fine nudge 축만 `Math.round(value * 10) / 10` · Drag/Joystick precision 유지 |
+| Boundary | 기존 `nudgeBall` clamp 재사용 · x [0.5, 79.5] y [0.5, 39.5] (impact FREE mode 별도) |
+
+## Placement
+
+```text
+Ball → Joystick → Fine Controller → Table Center
+```
+
+- `computeFineControllerCenterRg()` — `joystickInteractionPolicy.ts`
+- Ball → Table Center vector 재사용 · Joystick보다 Table Center 방향 안쪽
+- 별도 독립 geometry system 없음
+
+## Visibility / Dismissal
+
+Joystick + Fine Controller = 하나의 temporary Ball Position Controller.
+
+| Event | Result |
+|-------|--------|
+| Ball 선택 | Joystick + Fine Controller 표시 |
+| 다른 Ball 선택 | 새 Ball 기준 controller 이동/표시 |
+| 빈 당구대 터치 | 즉시 숨김 |
+| positioning 외 UI action | `hideBallPositionController()` → 숨김 |
+| Ball drag / Joystick drag / Fine Tap / Long Press | 유지 |
+
+Dismissal 구현:
+- `hideBallPositionController()` — `stopJoystick()` + `stopFineCtrl()` + `joystickVisible=false`
+- `currentButtonId` useEffect (USER/ADMIN)
+- `handlePositionRecall` · `handleTrajectoryExtensionClick`
+- right-panel buttons (Grid · 기준선 · History · SAVE · Data 정리)
+- 기존: empty table tap · `handleSelectAdminButton`
+
+## Implementation (코드)
+
+| File | Role |
+|------|------|
+| `frontend/src/App.jsx` | `fineNudgeBall` · `hideBallPositionController` · Fine Controller SVG render · dismissal hooks |
+| `frontend/src/interaction/joystickInteractionPolicy.ts` | `computeFineControllerCenterRg()` · `FINE_CTRL_HALF_H_PX` |
+
+## Verification
+
+| Check | Result |
+|-------|--------|
+| Admin UI — Ball 선택 · 0.1 이동 · 좌표 표시 · placement · dismissal | **PASS** (사용자 runtime) |
+| User UI — 동일 동작 | **PASS** (사용자 runtime) |
+| Search / RI / Calculator / Trajectory 영향 | **none** |
+| Vercel / mobile production | **not verified** (별도 단계) |
+| Commit / Push | **NOT done** |
+
+## Git
+
+| Item | Value |
+|------|--------|
+| Pre-implementation baseline | `9678b69d0f82b82a685de86cb42eec07e18cb53f` |
+| Branch | `main` |
+| Working tree | Fine Controller + Centering + docs **uncommitted** |
+
+## Docs sync (same session · docs-only follow-up)
+
+- `PROJECT_MASTER_INDEX.md` v1.67
+- `CURSOR_SESSION_HANDOFF.md`
+- `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Ball Fine Position Controller
+- 본 LOG 항목
+
+## Next
+
+문서 동기화 확인 → `git diff` / `status` → **Commit** → **Push** (사용자 요청 시) → **Sample System Validation** 계속
+
+## Verdict
+
+**FINE POSITION CONTROLLER COMPLETE · ADMIN/USER RUNTIME VERIFIED · AWAITING COMMIT**
 
 ---
 

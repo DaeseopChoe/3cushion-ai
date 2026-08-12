@@ -607,3 +607,80 @@ panel DOM 삽입 → highlight 없음
 - Selection 초기화 로직을 drag-state 초기화 effect 등 다른 관심사에 병합
 
 > **상세 이력:** `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-01 (D-OVLSEL-01~02)
+
+---
+
+## Ball Fine Position Controller (Interaction SSOT) — 2026-08-12
+
+Ball 선택 시 표시되는 Joystick + Fine Position Controller의 **placement · fine nudge · visibility/dismissal** 계약을 고정하는 SSOT이다. 계산 시스템이 아니며 Ball positioning UI only다.
+
+### 배경
+
+Sample System Validation 및 실사용 Ball positioning에서 Drag/Joystick만으로는 0.1 Rg 단위 정밀 조정이 어렵다. 기존 `nudgeBall()` / `dragState.joystickVisible` / `joystickInteractionPolicy` 인프라를 재사용하여 최소 변경으로 Fine Controller를 추가하였다.
+
+### UI (최종 visual)
+
+```text
+             ▲
+       ◀  (x.x, y.y)  ▶
+             ▼
+```
+
+| Item | Value |
+|------|--------|
+| coordinate fontSize | 17 |
+| arrow fontSize | 15 |
+| fontWeight | 400 |
+| arrow offset up/down | 32 px |
+| arrow offset left/right | 32 × 1.8 px |
+| touch hitR | 22 (~44px diameter) |
+| coordinate | Ball physical center · `(x.x, y.y)` · read-only · 1 decimal |
+
+### Placement
+
+```text
+Ball → Joystick → Fine Controller → Table Center
+```
+
+- `computeFineControllerCenterRg()` — `joystickInteractionPolicy.ts`
+- Ball → Table Center vector는 `computeJoystickCenterRg()`와 동일 SSOT
+- Joystick placement 자체는 변경하지 않음
+
+### Fine nudge 동작
+
+| Direction | Delta |
+|-----------|-------|
+| ▶ | x +0.1 |
+| ◀ | x -0.1 |
+| ▲ | y +0.1 |
+| ▼ | y -0.1 |
+
+- Tap: pointerdown 즉시 0.1 · release <1.5s → 추가 이동 없음
+- Long Press: ≥1.5s → 150ms repeat · 진입 시 double-step 없음
+- fine nudge 축만 `Math.round(value * 10) / 10` · Drag/Joystick full precision 유지
+- boundary: 기존 clamp 재사용
+
+### Visibility / Dismissal
+
+Joystick + Fine Controller = 하나의 temporary Ball Position Controller.
+
+- visibility: `dragState.joystickVisible` (Fine Controller는 별도 state 없음)
+- dismissal: `hideBallPositionController()` — `stopJoystick()` + `stopFineCtrl()` + `joystickVisible=false`
+- positioning 중 유지: Ball drag · Joystick drag · Fine Tap · Fine Long Press
+- positioning 외 action 시 숨김: 빈 당구대 · function buttons · overlay/panel · right-panel actions
+
+### 코드 SSOT
+
+| 파일 | 책임 |
+|------|------|
+| `frontend/src/App.jsx` | `fineNudgeBall` · `hideBallPositionController` · Fine Controller render · dismissal hooks |
+| `frontend/src/interaction/joystickInteractionPolicy.ts` | `computeFineControllerCenterRg()` · `FINE_CTRL_HALF_H_PX` |
+
+### 금지
+
+- Search / RI / Slot / Calculator / Anchor / Trajectory / Envelope / Publisher 계약 변경
+- 별도 visibility system 신설
+- Fine Controller가 sys / anchor / trajectory를 계산하는 구조
+- Ball coordinate 의미 변경 (physical center SSOT 유지)
+
+> **상세 이력:** `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-12 (Ball Fine Position Controller)

@@ -55,6 +55,35 @@ export function computeJoystickCenterRg(
   };
 }
 
+/** Fine Controller 시각 크기 (SVG viewBox px). */
+export const FINE_CTRL_HALF_W_PX = 70;
+export const FINE_CTRL_HALF_H_PX = 55;
+
+/** Fine Controller 중심 (Rg). Joystick 너머 같은 Ball→Center vector를 따른다. */
+export function computeFineControllerCenterRg(
+  ballPos: PointRg,
+  ballRadiusRg: number,
+  scale: number
+): PointRg {
+  let dx = TABLE_CENTER_RG.x - ballPos.x;
+  let dy = TABLE_CENTER_RG.y - ballPos.y;
+  let len = Math.hypot(dx, dy);
+
+  if (len < 1e-6) {
+    dx = 0;
+    dy = -1;
+    len = 1;
+  }
+
+  const joystickOffset = ballRadiusRg + joystickHitRadiusRg(scale);
+  const fineOffset = joystickOffset + JOYSTICK_BASE_R_PX / scale + FINE_CTRL_HALF_H_PX / scale;
+
+  return {
+    x: clampNum(ballPos.x + (dx / len) * fineOffset, CLAMP_MIN_X, CLAMP_MAX_X),
+    y: clampNum(ballPos.y + (dy / len) * fineOffset, CLAMP_MIN_Y, CLAMP_MAX_Y),
+  };
+}
+
 /** pointer(Rg)가 Pad 안쪽인지 — 볼 hit-test보다 우선 판정. */
 export function isPointerOnJoystick(
   pointerRg: PointRg | null | undefined,

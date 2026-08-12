@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.66  
+Version: 1.67  
 Last Updated: 2026-08-12  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -54,6 +54,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Next Track** | **Sample System Validation** |
 | **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
+| **Ball Fine Position Controller** | ✅ **COMPLETE** (2026-08-12 · Admin/User runtime 검증 PASS · **Commit/Push 대기**) |
+| **Git baseline (pre–Fine Controller)** | `9678b69d0f82b82a685de86cb42eec07e18cb53f` |
 | **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
@@ -1162,6 +1164,20 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | **Git** | **Commit/Push 대기** (코드+문서 미커밋) |
 | **SSOT** | `OVERLAY_LAYOUT_SSOT_v1.2.md` §8 · Detail: `HISTORY/PROJECT_LOG_2026-08.md` |
 
+### Ball Fine Position Controller (2026-08-12) — Summary
+
+| Field | Value |
+|-------|--------|
+| **Status** | ✅ **COMPLETE** · Admin/User runtime 검증 **PASS** |
+| **Purpose** | Ball physical center coordinate 확인 · 0.1 Rg 미세조정 · Sample System Validation / 실사용 Ball positioning 지원 |
+| **Scope** | Ball positioning UI only — Search / RI / Slot / Calculator / Anchor / Trajectory / Envelope / Publisher **미변경** |
+| **UI** | Joystick과 함께 표시 · `▲ ◀ (x.x, y.y) ▶ ▼` · coordinate fontSize **17** · arrow fontSize **15** · hitR **22** |
+| **Placement** | Ball → Joystick → Fine Controller → Table Center · `computeFineControllerCenterRg()` |
+| **Dismissal** | `hideBallPositionController()` · `dragState.joystickVisible` 종속 · positioning 외 UI action 시 숨김 |
+| **Code** | `frontend/src/App.jsx` · `frontend/src/interaction/joystickInteractionPolicy.ts` |
+| **Git** | **Commit/Push 대기** (baseline `9678b69` 이후 미커밋) |
+| **SSOT** | `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Ball Fine Position Controller · Detail: `HISTORY/PROJECT_LOG_2026-08.md` |
+
 ### 완료
 
 - **Search Engine Foundation Phase (2026-08-06)** — Schema · Models · Validation · Loader · Membership · Resolve · Runtime · Session · Strategy Repository · Strategy Engine · Modal Engine · Geometry Engine(Context) **완료** · Architecture Freeze 유지 · Commit 없음
@@ -1353,6 +1369,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 - **ADMIN Overlay Native Selection 처리 (2026-08-01)** — ModalShell `open` 전환 시 1회 native Selection 초기화 · 새로고침 후 첫 SYS Overlay 파란 highlight 해결 · Pointer Capture / preventDefault / user-select CSS 비변경 · Overlay SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Overlay Native Selection) (`7ef9601`)
 - **Trajectory Extension (2026-08-03~04) — Task Closed** — 독립 Overlay · Role SSOT · Target Lock + DoubleClick Projection · SAVE/`StrategyEntry.trajectoryExtensions` · Hydrate whitelist · ADMIN/USER 적색 stroke · **`activateStrategySlot()`** 로 USER Search ↔ Strategy Pick Runtime 경로 통합 · Search 전용 Hydrate 없음 · SAVE → Export → Published → Search/Recall → Render 파이프라인 완료 · SSOT `TRAJECTORY_EXTENSION_SSOT.md` v1.4
 - **USER Overlay Centering SSOT (2026-08-12) — COMPLETE** — Root Cause B+C (stale panel dimensions + content reflow) · Panel ResizeObserver · table-area center invariant · Open/Switch/Zoom reset · Drag temporary offset 유지 · 브라우저 검증 · build PASS · **Commit/Push 대기** · `UserOverlayShell.jsx` · `OVERLAY_LAYOUT_SSOT_v1.2.md` §8
+- **Ball Fine Position Controller (2026-08-12) — COMPLETE** — Joystick + Fine Controller temporary Ball Position Controller · 0.1 Rg tap/long-press · placement `computeFineControllerCenterRg()` · `hideBallPositionController()` dismissal lifecycle · Admin/User runtime 검증 PASS · Search/RI/Calculator/Trajectory **미변경** · **Commit/Push 대기** · `App.jsx` · `joystickInteractionPolicy.ts`
 
 ### 진행 중
 
