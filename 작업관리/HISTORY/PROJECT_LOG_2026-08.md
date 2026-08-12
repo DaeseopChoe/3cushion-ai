@@ -1,8 +1,90 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.27  
+Version : v1.28  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-12 (Ball Fine Position Controller — Mobile Production Final PASS · CLOSED)
+
+## 제목
+
+**Ball Fine Position Controller — Mobile Production Final Verification PASS**
+
+## Status
+
+**CLOSED / COMPLETE** · Desktop Local **PASS** · Mobile Production **PASS** · Admin **PASS** · User **PASS**
+
+## Purpose
+
+Ball Fine Position Controller UI 작업의 스마트폰 Production 실기기 최종 검증이 사용자에 의해 완료되었다.  
+본 항목은 코드 변경이 아니라 **최종 PASS 기록**이다.
+
+## Final contract (verified)
+
+| Item | Value |
+|------|--------|
+| Tap | **0.1** |
+| Long Press threshold | **1.0s** |
+| Hold repeat | **0.2** / **150ms** |
+| Acceleration | **none** |
+| Release / cancel | 즉시 정지 |
+| Fine ↔ Joystick interaction gap | **3 Rg** |
+| CENTER | protected dead zone · 터치 시 Controller 유지 · dismiss 없음 |
+| Coordinate fontSize | **22** |
+| Touch zones | enlarged mobile directional zones · Joystick과 충돌 없음 |
+| Joystick drag | 정상 |
+| Fine 외부 터치 | 정상 dismiss |
+| Admin / User | 동일 동작 |
+
+## Mobile WebKit fix (final)
+
+Production 스마트폰에서 Fine 방향키 Long Press 중 native text-selection / callout이 발생했다.
+
+| Item | Fact |
+|------|------|
+| Scope | Fine Controller **only** |
+| Applied | `touchAction: none` · `userSelect: none` · `WebkitUserSelect: none` · `WebkitTouchCallout: none` |
+| Context menu | Fine-scoped `preventDefault` |
+| Selection cleanup | Fine `pointerup` / `pointercancel`에서만 `getSelection()?.removeAllRanges()` |
+| Global selection policy | **미변경** |
+| `mobile-layout.css` | 재활성화 **없음** |
+| Smartphone re-verification | **PASS** — 「계산」 및 rail 텍스트 shading 없음 · blue selection handles 없음 · native callout 없음 |
+
+## Production
+
+| Item | Value |
+|------|--------|
+| Commit | `1eaf76c0102071893c2bc561cfe72d972d53b55f` |
+| Message | `fix(ui): prevent mobile long-press selection in Fine Controller` |
+| Branch | `main` · `origin/main` · ahead/behind **0/0** |
+| Deploy | Vercel production bundle match (`index-CAxrNnCC.js`) |
+
+## Verification
+
+| Check | Result |
+|-------|--------|
+| Desktop Local | **PASS** |
+| Mobile Production (smartphone, user) | **PASS** |
+| Admin | **PASS** |
+| User | **PASS** |
+
+## Explicit Non-Claims
+
+- 본 항목에서 코드 수정 **없음**
+- Search / RI / Slot / Calculator / Anchor / Trajectory / Envelope / Publisher **미변경**
+- Fine Controller 재설계/재구현 **없음** (완료된 UI 계약)
+
+## Next
+
+**Sample System Validation** · **READY FOR SAMPLE SYSTEM VALIDATION**
+
+Fine Controller는 완료된 UI 계약이다. 새로운 명시적 요구가 없는 한 재설계/재구현하지 않는다.
+
+## Verdict
+
+**BALL FINE POSITION CONTROLLER COMPLETE · DESKTOP PASS · MOBILE PRODUCTION PASS · ADMIN/USER PASS · CLOSED**
 
 ---
 

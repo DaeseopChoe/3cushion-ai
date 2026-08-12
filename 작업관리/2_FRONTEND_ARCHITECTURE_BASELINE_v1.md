@@ -628,22 +628,25 @@ Sample System Validation 및 실사용 Ball positioning에서 Drag/Joystick만�
 
 | Item | Value |
 |------|--------|
-| coordinate fontSize | 17 |
+| coordinate fontSize | 22 |
 | arrow fontSize | 15 |
 | fontWeight | 400 |
 | arrow offset up/down | 32 px |
 | arrow offset left/right | 32 × 1.8 px |
 | touch hitR | (replaced) non-overlapping 4-direction zones |
 | ZONE_INNER / ZONE_OUTER | 24 / 120 SVG px |
+| CENTER | protected dead zone (INNER×2) · no nudge · no dismiss |
+| Interaction gap | 3 Rg (Joystick hit boundary ↔ Fine hit boundary) |
 | coordinate | Ball physical center · `(x.x, y.y)` · read-only · 1 decimal |
 
 ### Placement
 
 ```text
-Ball → Joystick → Fine Controller → Table Center
+Ball → Joystick → 3 Rg empty gap → Fine Controller → Table Center
 ```
 
 - `computeFineControllerCenterRg()` — `joystickInteractionPolicy.ts`
+- `FINE_CTRL_INTERACTION_GAP_RG = 3`
 - Ball → Table Center vector는 `computeJoystickCenterRg()`와 동일 SSOT
 - Joystick placement 자체는 변경하지 않음
 
@@ -674,7 +677,7 @@ Visual 화살표/좌표 크기·위치는 유지한다. 실제 입력은 중앙 
 - UP/DOWN: `y`가 INNER 밖, 폭 `2×OUTER`
 - LEFT/RIGHT: `x`가 INNER 밖, 높이 `2×INNER`
 - 네 zone은 서로 overlap하지 않음
-- 중앙 dead square는 coordinate text (`pointerEvents="none"`)
+- CENTER: INNER×2 protected dead zone — 이벤트 swallow · nudge 없음 · Controller 유지 · dismiss 없음
 - zone 안 pointerdown: stopPropagation / preventDefault / optional pointer capture → table dismiss 차단
 - zone 밖 당구대: 기존 dismiss
 
@@ -687,12 +690,29 @@ Joystick + Fine Controller = 하나의 temporary Ball Position Controller.
 - positioning 중 유지: Ball drag · Joystick drag · Fine Tap · Fine Long Press
 - positioning 외 action 시 숨김: 빈 당구대 · function buttons · overlay/panel · right-panel actions
 
+### Mobile native gesture policy (Fine scope only)
+
+iOS/WebKit Long Press text-selection / callout 억제는 **Fine Controller 범위에만** 적용한다. 전역 selection 정책이 아니다.
+
+| Property / action | Value |
+|-------------------|--------|
+| `touchAction` | `"none"` |
+| `userSelect` | `"none"` |
+| `WebkitUserSelect` | `"none"` |
+| `WebkitTouchCallout` | `"none"` |
+| `contextmenu` | Fine-scoped `preventDefault` |
+| Selection cleanup | Fine `pointerup` / `pointercancel`에서만 `window.getSelection()?.removeAllRanges()` |
+
+금지: 전역 `selectstart` · 전역 `user-select` 변경 · `mobile-layout.css` 재활성화 · Stage.jsx / rail 버튼 특수 패치.
+
 ### 코드 SSOT
 
 | 파일 | 책임 |
 |------|------|
-| `frontend/src/App.jsx` | `fineNudgeBall` · `hideBallPositionController` · Fine Controller render · dismissal hooks |
-| `frontend/src/interaction/joystickInteractionPolicy.ts` | `computeFineControllerCenterRg()` · `FINE_CTRL_HALF_H_PX` |
+| `frontend/src/App.jsx` | `fineNudgeBall` · `hideBallPositionController` · Fine Controller render · dismissal hooks · Fine-scoped WebKit suppression |
+| `frontend/src/interaction/joystickInteractionPolicy.ts` | `computeFineControllerCenterRg()` · `FINE_CTRL_ZONE_*` · `FINE_CTRL_INTERACTION_GAP_RG` |
+
+Production: `1eaf76c0102071893c2bc561cfe72d972d53b55f` · Desktop / Mobile Production / Admin/User **PASS** · **COMPLETE**.
 
 ### 금지
 

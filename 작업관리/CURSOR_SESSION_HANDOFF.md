@@ -175,12 +175,12 @@ Current Status
       · Root Cause B+C · Panel ResizeObserver · 브라우저 검증 · build PASS
       · Code + docs sync uncommitted · Commit/Push 대기
   ✅ Ball Fine Position Controller COMPLETE (2026-08-12)
-      · Release: 6fce0b4 · Admin/User PASS · Production mobile initial PASS
-      · Mobile UX adjustment (Hold 1.0s / 0.2 step · expanded zones) — uncommitted · final verification PENDING
+      · Production: 1eaf76c0102071893c2bc561cfe72d972d53b55f
+      · Desktop PASS · Mobile Production PASS · Admin PASS · User PASS
+      · Closed UI contract — do not redesign without a new explicit request
 
 Next Track
-  1) Fine Controller Mobile UX adjustment — local verify → Commit → Push (사용자 승인 시)
-  2) Sample System Validation
+  Sample System Validation
   · Readiness: READY FOR SAMPLE SYSTEM VALIDATION
   · Product / Platform Carry (Display Boundary · STEP9 · Known Issues)
 ```
@@ -198,11 +198,11 @@ Next Track
 | **Phase 5 Search Quality Follow-on Task #5** | ✅ **COMPLETED** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 Dead Code Cleanup** | ✅ **COMPLETED** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETED** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
-| **Ball Fine Position Controller** | ✅ **COMPLETED** (2026-08-12 · Admin/User runtime 검증 PASS · **Commit/Push 대기**) |
+| **Ball Fine Position Controller** | ✅ **COMPLETED** (2026-08-12 · Desktop PASS · Mobile Production PASS · Admin/User PASS · `1eaf76c`) |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
 | **Product Pipeline Tests** | **21 PASS** (export · package · deploy) |
-| **Next Track** | **Commit (Centering + Fine Controller)** → **Sample System Validation** |
+| **Next Track** | **Sample System Validation** |
 | **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
 ### 구현 완료 범위
 
@@ -246,9 +246,9 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
 
 ### Primary
 
-- **Ball Fine Position Controller** — ✅ **COMPLETE** (`6fce0b4`) · Production mobile initial PASS · Mobile UX adjustment **uncommitted / PENDING**
+- **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c`) · Desktop PASS · Mobile Production PASS · Admin/User PASS
 - **USER Overlay Centering SSOT** — ✅ **COMPLETE** · docs sync → **Commit** → **Push** (사용자 요청 시)
-- **Sample System Validation** — **NEXT** (after commit) · **READY FOR SAMPLE SYSTEM VALIDATION**
+- **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
 - **Phase 5 Mission 02 — Dead Code Cleanup** — ✅ **COMPLETE** (EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS)
 - **Phase 5 Mission 01 Real Interpolation** — ✅ **COMPLETE** (core engine)
 - **Product Envelope Static Publisher (Task #4)** — ✅ **COMPLETE**
@@ -261,25 +261,27 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
 
 ### Ball Fine Position Controller (2026-08-12) — Complete
 
-Cite: `HISTORY/PROJECT_LOG_2026-08.md` · `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Ball Fine Position Controller · MASTER v1.67
+Cite: `HISTORY/PROJECT_LOG_2026-08.md` · `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Ball Fine Position Controller · MASTER v1.69
 
 **목적:** Ball physical center coordinate 확인 · Drag/Joystick 대략 이동 + 방향키 0.1 Rg 미세조정 · Sample System Validation / 실사용 Ball positioning 지원.
 
-**UI:** Ball 선택 시 Joystick + Fine Controller 함께 표시 · `▲ ◀ (x.x, y.y) ▶ ▼` · coordinate fontSize **17** · arrow fontSize **15** · visual 유지.
+**UI:** Ball 선택 시 Joystick + Fine Controller 함께 표시 · `▲ ◀ (x.x, y.y) ▶ ▼` · coordinate fontSize **22** · arrow fontSize **15**.
 
-**동작:** Tap = pointerdown 즉시 **0.1** · Hold ≥**1.0s** → **0.2** / **150ms** repeat · Long Press 진입 시 double-step 없음 · fine nudge 축만 `Math.round(v*10)/10` · 기존 boundary clamp 재사용.
+**동작:** Tap = pointerdown 즉시 **0.1** · Hold ≥**1.0s** → **0.2** / **150ms** repeat · acceleration 없음 · Long Press 진입 시 double-step 없음 · fine nudge 축만 `Math.round(v*10)/10` · 기존 boundary clamp 재사용.
 
-**Touch:** Non-overlapping 4-direction zones (ZONE_INNER **24** · ZONE_OUTER **120**) · 화살표 visual 미변경 · 원형 hitR=22 폐기.
+**Touch:** Non-overlapping 4-direction zones (ZONE_INNER **24** · ZONE_OUTER **120**) · CENTER protected dead zone · 화살표 visual 미변경.
 
-**Placement:** Ball → Joystick → Fine Controller → Table Center · `computeFineControllerCenterRg()` (`joystickInteractionPolicy.ts`).
+**Placement:** Ball → Joystick → **3 Rg** gap → Fine Controller → Table Center · `computeFineControllerCenterRg()` (`joystickInteractionPolicy.ts`).
 
-**Dismissal:** `hideBallPositionController()` — positioning 외 UI action 시 `joystickVisible=false` · Fine Controller timer/interval 정리 · 별도 visibility state 없음.
+**Dismissal:** `hideBallPositionController()` — positioning 외 UI action 시 `joystickVisible=false` · Fine Controller timer/interval 정리 · CENTER 터치는 dismiss 없음 · 별도 visibility state 없음.
 
-**검증:** Admin UI **PASS** · User UI **PASS** · Production mobile initial **PASS** · Mobile UX adjustment final **PENDING**
+**Mobile WebKit:** Fine scope only — `touchAction` / `userSelect` / `WebkitUserSelect` / `WebkitTouchCallout` none · scoped contextmenu · Fine pointerup/cancel selection cleanup. 전역 selection 정책 미변경.
 
-**Git:** Release `6fce0b4` · Mobile UX adjustment **uncommitted** · **Push 안 함**
+**검증:** Desktop Local **PASS** · Mobile Production **PASS** · Admin **PASS** · User **PASS**
 
-**다음 세션:** Fine Controller 재설계/재구현 **금지** · 로컬 확인 후 사용자 승인 시 Commit/Push · Sample System Validation 계속.
+**Git:** Production `1eaf76c0102071893c2bc561cfe72d972d53b55f` · `fix(ui): prevent mobile long-press selection in Fine Controller`
+
+**Guardrail:** Ball Fine Position Controller는 완료된 UI 계약이다. 새로운 명시적 요구가 없는 한 재설계/재구현하지 않는다. 다음 세션의 목적은 Fine Controller 추가 수정이 아니다.
 
 ### USER Overlay Centering SSOT (2026-08-12) — Complete
 
@@ -408,7 +410,7 @@ SearchResult
 
 ## 4. In Progress / Carry (병행 트랙)
 
-- **Ball Fine Position Controller** — ✅ 구현·Admin/User runtime 검증·docs sync 완료 · **Commit/Push Carry**
+- **Ball Fine Position Controller** — ✅ **COMPLETE** · Desktop / Mobile Production / Admin/User PASS · production `1eaf76c` · **closed** (재설계 금지)
 - **USER Overlay Centering SSOT** — ✅ 구현·브라우저 검증·docs sync 완료 · **Commit/Push Carry**
 - **Authoring normalization Carry (Active):** Cue-Only Edit Snap · Exact Position Replacement — see §3 Phase 5 Preparation · GLOSSARY
 - Product: Display Boundary Continuation / CASE A / Corrected Cap · Handle Drag 잔여
@@ -437,24 +439,23 @@ SearchResult
 - pointerdown Capture 복귀 금지 · Overlay Selection 우회 금지
 - 계산 Trajectory(C1~C6) Builder/Formula 무단 수정 금지
 - Search 전용 Hydrate 신설 금지 — `activateStrategySlot` 재사용
+- Ball Fine Position Controller는 완료된 UI 계약 — 새로운 명시적 요구 없이 재설계/재구현 금지
 
 ---
 
 ## 6. Current Session Card
 
 ```text
-Session ID     : Fine Controller Mobile UX adjustment (Hold 1.0s / 0.2 · expanded zones)
-Baseline       : main · 6fce0b472b1ed5b8ab2454f501ff99540f68a76f · origin/main 0/0
-Current Done   : Tap 0.1 / Hold 0.2 @ 1.0s / 150ms · non-overlapping 4-direction zones
-Current Status : implemented · local verify pending · Commit/Push NOT done
-Code change    : frontend/src/App.jsx (uncommitted)
-Docs           : MASTER v1.68 · LOG · HANDOFF · Frontend Baseline
-Next Session   : user local verify → Commit → Push → Sample System Validation
-Readiness      : READY FOR SAMPLE SYSTEM VALIDATION (after this UX release)
-Commit         : NOT done · Push NOT done
-Guardrail      : Do NOT redesign/reimplement Fine Controller · Joystick unchanged
+Session ID     : Ball Fine Position Controller — Mobile Production Final PASS / session close
+Baseline       : main · 1eaf76c0102071893c2bc561cfe72d972d53b55f · origin/main 0/0
+Current Status : COMPLETE · Desktop PASS · Mobile Production PASS · Admin PASS · User PASS
+Code change    : none (documentation finalization only)
+Docs           : MASTER v1.69 · LOG v1.28 · HANDOFF · Frontend Baseline
+Next Session   : Sample System Validation
+Readiness      : READY FOR SAMPLE SYSTEM VALIDATION
+Guardrail      : Fine Controller is a closed UI contract — do not redesign/reimplement
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-12 · Fine Controller Mobile UX adjustment (uncommitted · final verification PENDING)*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-12 · Ball Fine Position Controller COMPLETE · Next Track Sample System Validation*

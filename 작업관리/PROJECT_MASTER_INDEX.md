@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.68  
+Version: 1.69  
 Last Updated: 2026-08-12  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -54,7 +54,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Next Track** | **Sample System Validation** |
 | **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
-| **Ball Fine Position Controller** | ✅ **COMPLETE** (`6fce0b4` · Admin/User PASS · Production mobile initial PASS · **Mobile UX adjustment PENDING**) |
+| **Ball Fine Position Controller** | ✅ **COMPLETE** (`1eaf76c` · Desktop PASS · Mobile Production PASS · Admin/User PASS) |
 | **Git baseline (pre–Fine Controller)** | `9678b69d0f82b82a685de86cb42eec07e18cb53f` |
 | **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
@@ -1168,17 +1168,18 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 | Field | Value |
 |-------|--------|
-| **Status** | ✅ **COMPLETE** · Admin/User runtime 검증 **PASS** |
+| **Status** | ✅ **COMPLETE** · Desktop **PASS** · Mobile Production **PASS** · Admin/User **PASS** |
 | **Purpose** | Ball physical center coordinate 확인 · 0.1 Rg 미세조정 · Sample System Validation / 실사용 Ball positioning 지원 |
 | **Scope** | Ball positioning UI only — Search / RI / Slot / Calculator / Anchor / Trajectory / Envelope / Publisher **미변경** |
-| **UI** | Joystick과 함께 표시 · `▲ ◀ (x.x, y.y) ▶ ▼` · coordinate fontSize **17** · arrow fontSize **15** |
+| **UI** | Joystick과 함께 표시 · `▲ ◀ (x.x, y.y) ▶ ▼` · coordinate fontSize **22** · arrow fontSize **15** |
 | **Tap / Hold** | Tap **0.1** · Long Press threshold **1.0s** · Hold repeat **0.2** / **150ms** · no acceleration · no double-step |
-| **Touch** | Non-overlapping 4-direction zones · ZONE_INNER **24** · ZONE_OUTER **120** (visual size unchanged) |
-| **Placement** | Ball → Joystick → Fine Controller → Table Center · `computeFineControllerCenterRg()` |
-| **Dismissal** | `hideBallPositionController()` · `dragState.joystickVisible` 종속 · positioning 외 UI action 시 숨김 |
+| **Touch** | Non-overlapping 4-direction zones · ZONE_INNER **24** · ZONE_OUTER **120** · CENTER protected dead zone |
+| **Placement** | Ball → Joystick → **3 Rg** gap → Fine Controller → Table Center · `computeFineControllerCenterRg()` |
+| **Dismissal** | `hideBallPositionController()` · `dragState.joystickVisible` 종속 · positioning 외 UI action 시 숨김 · CENTER 터치는 dismiss 없음 |
+| **Mobile WebKit** | Fine-scoped only: `touchAction` / `userSelect` / `WebkitUserSelect` / `WebkitTouchCallout` none · scoped contextmenu · Fine pointerup/cancel selection cleanup · **전역 selection 정책 미변경** |
 | **Code** | `frontend/src/App.jsx` · `frontend/src/interaction/joystickInteractionPolicy.ts` |
-| **Git** | Release `6fce0b4` · Mobile UX adjustment **uncommitted** |
-| **Verification** | Admin/User runtime **PASS** · Production mobile initial **PASS** · Mobile UX final **PENDING** |
+| **Git** | Production `1eaf76c0102071893c2bc561cfe72d972d53b55f` · `fix(ui): prevent mobile long-press selection in Fine Controller` |
+| **Verification** | Desktop Local **PASS** · Mobile Production **PASS** · Admin **PASS** · User **PASS** |
 | **SSOT** | `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Ball Fine Position Controller · Detail: `HISTORY/PROJECT_LOG_2026-08.md` |
 
 ### 완료
@@ -1372,7 +1373,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 - **ADMIN Overlay Native Selection 처리 (2026-08-01)** — ModalShell `open` 전환 시 1회 native Selection 초기화 · 새로고침 후 첫 SYS Overlay 파란 highlight 해결 · Pointer Capture / preventDefault / user-select CSS 비변경 · Overlay SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Overlay Native Selection) (`7ef9601`)
 - **Trajectory Extension (2026-08-03~04) — Task Closed** — 독립 Overlay · Role SSOT · Target Lock + DoubleClick Projection · SAVE/`StrategyEntry.trajectoryExtensions` · Hydrate whitelist · ADMIN/USER 적색 stroke · **`activateStrategySlot()`** 로 USER Search ↔ Strategy Pick Runtime 경로 통합 · Search 전용 Hydrate 없음 · SAVE → Export → Published → Search/Recall → Render 파이프라인 완료 · SSOT `TRAJECTORY_EXTENSION_SSOT.md` v1.4
 - **USER Overlay Centering SSOT (2026-08-12) — COMPLETE** — Root Cause B+C (stale panel dimensions + content reflow) · Panel ResizeObserver · table-area center invariant · Open/Switch/Zoom reset · Drag temporary offset 유지 · 브라우저 검증 · build PASS · **Commit/Push 대기** · `UserOverlayShell.jsx` · `OVERLAY_LAYOUT_SSOT_v1.2.md` §8
-- **Ball Fine Position Controller (2026-08-12) — COMPLETE** — Joystick + Fine Controller temporary Ball Position Controller · 0.1 Rg tap/long-press · placement `computeFineControllerCenterRg()` · `hideBallPositionController()` dismissal lifecycle · Admin/User runtime 검증 PASS · Search/RI/Calculator/Trajectory **미변경** · **Commit/Push 대기** · `App.jsx` · `joystickInteractionPolicy.ts`
+- **Ball Fine Position Controller (2026-08-12) — COMPLETE** — Joystick + Fine Controller temporary Ball Position Controller · Tap 0.1 · Hold 1.0s · 0.2/150ms · 3 Rg gap · CENTER dead zone · fontSize 22 · Fine-scoped WebKit selection/callout suppression · Desktop / Mobile Production / Admin/User **PASS** · Search/RI/Calculator/Trajectory **미변경** · production `1eaf76c` · `App.jsx` · `joystickInteractionPolicy.ts`
 
 ### 진행 중
 
@@ -1696,6 +1697,7 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 - **Product Envelope Static Publisher (Task #4)** — ✅ **COMPLETE** (`690d6fe`)
 - **Phase 5 Search Quality Follow-on · Task #5** — ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done)
 - **Phase 5 Mission 02 — Dead Code Cleanup** — ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**)
+- **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c` · Desktop / Mobile Production / Admin/User PASS)
 - **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
 - Official Search Enhancement Pipeline: `GLOSSARY_SSOT` §5.3
 - Terminology: `작업관리/GLOSSARY_SSOT.md` · Session ops: `CURSOR_SESSION_HANDOFF.md`
@@ -1780,6 +1782,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 ### P0 — Next Track
 
+- **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c` · Desktop / Mobile Production / Admin/User PASS)
 - **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
 - Phase 5 Mission 02 Dead Code Cleanup: ✅ COMPLETE (`8bf90b6` · EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS)
 - Phase 5 Search Quality Follow-on Task #5: ✅ COMPLETE (`282c859`)
