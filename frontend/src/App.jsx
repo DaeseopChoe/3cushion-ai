@@ -78,6 +78,7 @@ import {
   computeJoystickCenterRg,
   computeFineControllerCenterRg,
   isPointerOnJoystick,
+  resolveFineControllerHit,
 } from "./interaction/joystickInteractionPolicy";
 import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRenderModel";
 import { buildBaselineHandleModel } from "./renderer/trajectory/baselineHandleModel";
@@ -1422,6 +1423,12 @@ export default function App({
   const FINE_CTRL_REPEAT_MS = 150;
   const fineCtrlTimerRef = useRef(null);
   const fineCtrlIntervalRef = useRef(null);
+  /** Fine interaction via SVG coordinate hit (Ball miss 이후만). DOM Fine hit는 Ball dblclick을 가로채지 않음. */
+  const finePtrRef = useRef({
+    active: false,
+    pointerId: null,
+    kind: null,
+  });
 
   function fineNudgeBall(ballId, dx, dy) {
     if (!ballId) return;
@@ -1445,6 +1452,7 @@ export default function App({
   function hideBallPositionController() {
     stopJoystick();
     stopFineCtrl();
+    finePtrRef.current = { active: false, pointerId: null, kind: null };
     setDragState((s) => ({ ...s, joystickVisible: false }));
   }
 
@@ -1459,36 +1467,57 @@ export default function App({
     }
   }
 
-  function handleFineArrowDown(e, dirX, dirY) {
+  function isFinePtr(e) {
+    return (
+      finePtrRef.current.active &&
+      finePtrRef.current.pointerId === e?.pointerId
+    );
+  }
+
+  /** Fine-only hit (Ball miss 이후). Capture는 directional만 — Ball pointerdown capture SSOT와 분리. */
+  function beginFineInteraction(e, fineHit) {
     e.preventDefault();
-    e.stopPropagation();
-    if (e.currentTarget?.setPointerCapture && e.pointerId != null) {
-      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+    finePtrRef.current = {
+      active: true,
+      pointerId: e.pointerId,
+      kind: fineHit.kind,
+    };
+
+    if (fineHit.kind === "center") {
+      return;
     }
+
+    if (svgRef.current && e.pointerId != null) {
+      try {
+        svgRef.current.setPointerCapture(e.pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+
     const id = dragState.ballId;
     if (!id) return;
     stopFineCtrl();
-    fineNudgeBall(id, dirX * FINE_TAP_STEP, dirY * FINE_TAP_STEP);
+    fineNudgeBall(id, fineHit.dirX * FINE_TAP_STEP, fineHit.dirY * FINE_TAP_STEP);
     fineCtrlTimerRef.current = window.setTimeout(() => {
       fineCtrlTimerRef.current = null;
       fineCtrlIntervalRef.current = window.setInterval(() => {
-        fineNudgeBall(id, dirX * FINE_HOLD_STEP, dirY * FINE_HOLD_STEP);
+        fineNudgeBall(id, fineHit.dirX * FINE_HOLD_STEP, fineHit.dirY * FINE_HOLD_STEP);
       }, FINE_CTRL_REPEAT_MS);
     }, FINE_CTRL_LONG_PRESS_MS);
   }
 
-  function handleFineArrowUp(e) {
-    e.preventDefault();
-    e.stopPropagation();
+  function endFineInteraction(_e) {
     stopFineCtrl();
+    const pid = finePtrRef.current.pointerId;
+    finePtrRef.current = { active: false, pointerId: null, kind: null };
     window.getSelection()?.removeAllRanges();
-  }
-
-  function handleFineCenterPointer(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "pointerup" || e.type === "pointercancel") {
-      window.getSelection()?.removeAllRanges();
+    if (svgRef.current && pid != null) {
+      try {
+        svgRef.current.releasePointerCapture(pid);
+      } catch (_) {
+        /* ignore */
+      }
     }
   }
 
@@ -1529,6 +1558,8 @@ export default function App({
 
   function clearBallPointerInteractionState() {
     stopJoystick();
+    stopFineCtrl();
+    finePtrRef.current = { active: false, pointerId: null, kind: null };
     joyDragRef.current = {
       active: false,
       pointerId: null,
@@ -3426,7 +3457,7 @@ function handlePointerDown(e) {
   if (!svgRef.current) return;
   const pointerRgEarly = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
 
-  // Priority: Extension Handle → C2 Handle → Baseline Handle → Joystick → Ball
+  // Priority: Extension → C2 → Baseline → Joystick → Ball → Fine → Empty dismiss
   if (
     pointerRgEarly &&
     tryStartExtensionHandleDrag(
@@ -3513,10 +3544,29 @@ function handlePointerDown(e) {
     }
   }
 
-  // Empty space: clear selection only when a ball was already selected
+  // Empty space / Fine-only: Ball miss 이후에만 Fine 좌표 hit (Ball > Fine)
   if (!closestBall) {
+    if (
+      dragState.joystickVisible &&
+      dragState.ballId &&
+      balls[dragState.ballId]
+    ) {
+      const fineHit = resolveFineControllerHit(
+        pointerRg,
+        balls[dragState.ballId],
+        BALL_RADIUS_RG,
+        SCALE
+      );
+      if (fineHit) {
+        beginFineInteraction(e, fineHit);
+        return;
+      }
+    }
+
     if (dragState.joystickVisible) {
       stopJoystick();
+      stopFineCtrl();
+      finePtrRef.current = { active: false, pointerId: null, kind: null };
       joyDragRef.current = {
         active: false,
         pointerId: null,
@@ -3540,7 +3590,9 @@ function handlePointerDown(e) {
     return;
   }
 
-  // Ball hit: select / switch immediately (one-touch ball→ball)
+  // Ball hit: select / switch immediately (one-touch ball→ball) — Fine보다 우선
+  stopFineCtrl();
+  finePtrRef.current = { active: false, pointerId: null, kind: null };
   if (dragState.joystickVisible) {
     stopJoystick();
   }
@@ -3741,6 +3793,12 @@ function handlePointerUp(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
 
+  if (isFinePtr(e)) {
+    e.preventDefault();
+    endFineInteraction(e);
+    return;
+  }
+
   if (isJoyDragPointer(e)) {
     endJoyDrag(e, svgRef.current);
     return;
@@ -3753,6 +3811,7 @@ function handlePointerUp(e) {
 
   if (!dragState.dragging || !dragState.ballId) return;
   stopJoystick();
+  stopFineCtrl();
 
   const draggedBall = { ...balls[dragState.ballId] };
   const otherBalls = Object.entries(balls)
@@ -3816,11 +3875,16 @@ function handlePointerUp(e) {
 }
 
 function handlePointerCancel(e) {
+  if (isFinePtr(e)) {
+    endFineInteraction(e);
+    return;
+  }
   if (endC2HandleDrag(e)) return;
   if (endCoBaselineDraftDrag(e)) return;
   if (endC1BaselineDraftDrag(e)) return;
   if (endExtensionHandleDrag(e)) return;
   stopJoystick();
+  stopFineCtrl();
   // cancel은 드래그 종료로 처리
   handlePointerUp(e);
 }
@@ -4746,7 +4810,8 @@ function handlePointerCancel(e) {
   ];
 
   const fineHitStyle = {
-    pointerEvents: "all",
+    // DOM hit 비활성 — Fine은 SVG 좌표 hit (Ball miss 이후). Ball > Fine 보장.
+    pointerEvents: "none",
     touchAction: "none",
     userSelect: "none",
     WebkitUserSelect: "none",
@@ -4771,21 +4836,13 @@ function handlePointerCancel(e) {
         height={FINE_CTRL_ZONE_INNER_PX * 2}
         fill="transparent"
         style={fineHitStyle}
-        onPointerDown={handleFineCenterPointer}
-        onPointerUp={handleFineCenterPointer}
-        onPointerCancel={handleFineCenterPointer}
-        onContextMenu={handleFineContextMenu}
       />
       {zones.map((z) => (
         <rect
           key={z.id}
           x={z.x} y={z.y} width={z.w} height={z.h}
           fill="transparent"
-          style={{ ...fineHitStyle, cursor: "pointer" }}
-          onPointerDown={(e) => handleFineArrowDown(e, z.dirX, z.dirY)}
-          onPointerUp={handleFineArrowUp}
-          onPointerCancel={handleFineArrowUp}
-          onContextMenu={handleFineContextMenu}
+          style={fineHitStyle}
         />
       ))}
       <text

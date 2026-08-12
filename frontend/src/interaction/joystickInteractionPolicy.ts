@@ -106,3 +106,78 @@ export function isPointerOnJoystick(
   const dist = Math.hypot(pointerRg.x - center.x, pointerRg.y - center.y);
   return dist <= joystickHitRadiusRg(scale);
 }
+
+/** Fine Controller hit kind — App render zone 기하와 동일 SSOT. */
+export type FineCtrlHitKind = "center" | "up" | "down" | "left" | "right";
+
+export type FineCtrlHit = {
+  kind: FineCtrlHitKind;
+  dirX: number;
+  dirY: number;
+};
+
+/**
+ * pointer(Rg)가 Fine Controller hit zone 안인지.
+ * Render rect 기하와 동일 (SVG y-down 상대좌표 · non-overlapping plus).
+ *
+ * Hit priority (App): Handles → Joystick → Ball → Fine → Empty.
+ * Ball과 겹치면 App이 Ball을 우선하므로 이 함수는 Ball miss 이후에만 호출한다.
+ */
+export function resolveFineControllerHit(
+  pointerRg: PointRg | null | undefined,
+  selectedBallPos: PointRg | null | undefined,
+  ballRadiusRg: number,
+  scale: number
+): FineCtrlHit | null {
+  if (!pointerRg || !selectedBallPos) return null;
+  if (!Number.isFinite(pointerRg.x) || !Number.isFinite(pointerRg.y)) return null;
+  if (!Number.isFinite(selectedBallPos.x) || !Number.isFinite(selectedBallPos.y)) {
+    return null;
+  }
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+
+  const fc = computeFineControllerCenterRg(
+    selectedBallPos,
+    ballRadiusRg,
+    scale
+  );
+  // SVG viewBox px relative to Fine center (y down) — matches App.jsx zone rects
+  const sx = (pointerRg.x - fc.x) * scale;
+  const sy = (fc.y - pointerRg.y) * scale;
+  const inner = FINE_CTRL_ZONE_INNER_PX;
+  const outer = FINE_CTRL_ZONE_OUTER_PX;
+
+  if (Math.abs(sx) <= inner && Math.abs(sy) <= inner) {
+    return { kind: "center", dirX: 0, dirY: 0 };
+  }
+  if (Math.abs(sx) <= outer && sy >= -outer && sy < -inner) {
+    return { kind: "up", dirX: 0, dirY: 1 };
+  }
+  if (Math.abs(sx) <= outer && sy > inner && sy <= outer) {
+    return { kind: "down", dirX: 0, dirY: -1 };
+  }
+  if (sx >= -outer && sx < -inner && Math.abs(sy) <= inner) {
+    return { kind: "left", dirX: -1, dirY: 0 };
+  }
+  if (sx > inner && sx <= outer && Math.abs(sy) <= inner) {
+    return { kind: "right", dirX: 1, dirY: 0 };
+  }
+  return null;
+}
+
+/** Fine zone 안 여부 (center 포함). */
+export function isPointerOnFineController(
+  pointerRg: PointRg | null | undefined,
+  selectedBallPos: PointRg | null | undefined,
+  ballRadiusRg: number,
+  scale: number
+): boolean {
+  return (
+    resolveFineControllerHit(
+      pointerRg,
+      selectedBallPos,
+      ballRadiusRg,
+      scale
+    ) != null
+  );
+}
