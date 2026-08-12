@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.67  
+Version: 1.68  
 Last Updated: 2026-08-12  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -54,7 +54,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Next Track** | **Sample System Validation** |
 | **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
-| **Ball Fine Position Controller** | ✅ **COMPLETE** (2026-08-12 · Admin/User runtime 검증 PASS · **Commit/Push 대기**) |
+| **Ball Fine Position Controller** | ✅ **COMPLETE** (`6fce0b4` · Admin/User PASS · Production mobile initial PASS · **Mobile UX adjustment PENDING**) |
 | **Git baseline (pre–Fine Controller)** | `9678b69d0f82b82a685de86cb42eec07e18cb53f` |
 | **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
@@ -1171,11 +1171,14 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | **Status** | ✅ **COMPLETE** · Admin/User runtime 검증 **PASS** |
 | **Purpose** | Ball physical center coordinate 확인 · 0.1 Rg 미세조정 · Sample System Validation / 실사용 Ball positioning 지원 |
 | **Scope** | Ball positioning UI only — Search / RI / Slot / Calculator / Anchor / Trajectory / Envelope / Publisher **미변경** |
-| **UI** | Joystick과 함께 표시 · `▲ ◀ (x.x, y.y) ▶ ▼` · coordinate fontSize **17** · arrow fontSize **15** · hitR **22** |
+| **UI** | Joystick과 함께 표시 · `▲ ◀ (x.x, y.y) ▶ ▼` · coordinate fontSize **17** · arrow fontSize **15** |
+| **Tap / Hold** | Tap **0.1** · Long Press threshold **1.0s** · Hold repeat **0.2** / **150ms** · no acceleration · no double-step |
+| **Touch** | Non-overlapping 4-direction zones · ZONE_INNER **24** · ZONE_OUTER **120** (visual size unchanged) |
 | **Placement** | Ball → Joystick → Fine Controller → Table Center · `computeFineControllerCenterRg()` |
 | **Dismissal** | `hideBallPositionController()` · `dragState.joystickVisible` 종속 · positioning 외 UI action 시 숨김 |
 | **Code** | `frontend/src/App.jsx` · `frontend/src/interaction/joystickInteractionPolicy.ts` |
-| **Git** | **Commit/Push 대기** (baseline `9678b69` 이후 미커밋) |
+| **Git** | Release `6fce0b4` · Mobile UX adjustment **uncommitted** |
+| **Verification** | Admin/User runtime **PASS** · Production mobile initial **PASS** · Mobile UX final **PENDING** |
 | **SSOT** | `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Ball Fine Position Controller · Detail: `HISTORY/PROJECT_LOG_2026-08.md` |
 
 ### 완료

@@ -1,8 +1,72 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.26  
+Version : v1.27  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-12 (Ball Fine Position Controller — Mobile UX Adjustment)
+
+## 제목
+
+**Fine Controller Mobile UX — Hold 1.0s / 0.2 step · expanded non-overlapping directional zones**
+
+## Status
+
+**Implemented** · Production mobile initial verification **PASS** (prior) · Mobile UX adjustment final verification **PENDING** · **Commit/Push 대기**
+
+## Purpose
+
+Production 모바일 실기기에서 Fine Controller는 정상 작동하나, (1) Long Press 1.5s/0.1 반복이 느리고 (2) hitR=22 원형 영역이 작아 화살표 밖 터치가 table dismiss로 이어지는 문제를 최소 변경으로 개선한다.
+
+## Changes
+
+| Item | Before | After |
+|------|--------|--------|
+| Tap step | 0.1 | **0.1** (unchanged) |
+| Long Press threshold | 1.5s | **1.0s** |
+| Hold repeat step | 0.1 | **0.2** |
+| Repeat interval | 150ms | **150ms** (unchanged) |
+| Touch target | circle hitR=22 | **4 non-overlapping rects** ZONE_INNER=24 · ZONE_OUTER=120 |
+| Visual | font 17/15 · offsets 32 / 57.6 | **unchanged** |
+| Placement | `computeFineControllerCenterRg` | **unchanged** |
+| Joystick | — | **unchanged** |
+
+## Long Press contract
+
+- pointerdown → Tap **0.1** 1회
+- 1000ms timer expiry → 추가 nudge 없음 · interval 시작만
+- interval first tick → Hold **0.2**
+- no acceleration · pointerup/cancel → 즉시 정지
+
+## Touch-zone geometry (SVG px, center = coordinate)
+
+```text
+UP:    x[-120, +120]  y[-120, -24]   240 × 96
+DOWN:  x[-120, +120]  y[+24, +120]   240 × 96
+LEFT:  x[-120, -24]   y[-24, +24]     96 × 48
+RIGHT: x[+24, +120]   y[-24, +24]     96 × 48
+```
+
+Non-overlap: UP/DOWN occupy |y| > 24; LEFT/RIGHT occupy |x| > 24 and |y| ≤ 24.
+
+## Verification
+
+| Check | Result |
+|-------|--------|
+| Production mobile initial (prior release `6fce0b4`) | **PASS** (user) |
+| Mobile UX adjustment final | **PENDING** |
+| Commit / Push | **NOT done** |
+
+## Files
+
+- `frontend/src/App.jsx` only (code)
+- SSOT: MASTER v1.68 · HANDOFF · Baseline §Fine Controller · 본 LOG
+
+## Verdict
+
+**MOBILE UX ADJUSTMENT IMPLEMENTED · FINAL VERIFICATION PENDING · AWAITING COMMIT**
 
 ---
 

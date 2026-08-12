@@ -1414,7 +1414,9 @@ export default function App({
   const JOYSTICK_STEP = 0.1; // Rg
   const JOYSTICK_REPEAT_MS = 60;
 
-  const FINE_CTRL_LONG_PRESS_MS = 1500;
+  const FINE_TAP_STEP = 0.1;
+  const FINE_HOLD_STEP = 0.2;
+  const FINE_CTRL_LONG_PRESS_MS = 1000;
   const FINE_CTRL_REPEAT_MS = 150;
   const fineCtrlTimerRef = useRef(null);
   const fineCtrlIntervalRef = useRef(null);
@@ -1455,17 +1457,20 @@ export default function App({
     }
   }
 
-  function handleFineArrowDown(e, dx, dy) {
+  function handleFineArrowDown(e, dirX, dirY) {
     e.preventDefault();
     e.stopPropagation();
+    if (e.currentTarget?.setPointerCapture && e.pointerId != null) {
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+    }
     const id = dragState.ballId;
     if (!id) return;
     stopFineCtrl();
-    fineNudgeBall(id, dx, dy);
+    fineNudgeBall(id, dirX * FINE_TAP_STEP, dirY * FINE_TAP_STEP);
     fineCtrlTimerRef.current = window.setTimeout(() => {
       fineCtrlTimerRef.current = null;
       fineCtrlIntervalRef.current = window.setInterval(() => {
-        fineNudgeBall(id, dx, dy);
+        fineNudgeBall(id, dirX * FINE_HOLD_STEP, dirY * FINE_HOLD_STEP);
       }, FINE_CTRL_REPEAT_MS);
     }, FINE_CTRL_LONG_PRESS_MS);
   }
@@ -4707,19 +4712,41 @@ function handlePointerCancel(e) {
   const fcy = fp.y + PADDING;
   const arrowSize = 15;
   const arrowOffset = 32;
-  const hitR = 22;
   const coordX = bp.x.toFixed(1);
   const coordY = bp.y.toFixed(1);
+  // Non-overlapping plus-layout touch zones (SVG px). Visual arrows unchanged.
+  // INNER < up/down arrow offset (32) so glyphs stay in their zone.
+  // OUTER ≈ 3× prior hitR=22 usable reach from the inner split.
+  const ZONE_INNER = 24;
+  const ZONE_OUTER = 120;
 
   const arrows = [
-    { id: "up",    dx: 0, dy: 0.1,  ox: 0, oy: -arrowOffset, label: "▲" },
-    { id: "down",  dx: 0, dy: -0.1, ox: 0, oy: arrowOffset,  label: "▼" },
-    { id: "left",  dx: -0.1, dy: 0, ox: -arrowOffset * 1.8, oy: 0, label: "◀" },
-    { id: "right", dx: 0.1, dy: 0,  ox: arrowOffset * 1.8, oy: 0,  label: "▶" },
+    { id: "up",    dirX: 0, dirY: 1,  ox: 0, oy: -arrowOffset, label: "▲" },
+    { id: "down",  dirX: 0, dirY: -1, ox: 0, oy: arrowOffset,  label: "▼" },
+    { id: "left",  dirX: -1, dirY: 0, ox: -arrowOffset * 1.8, oy: 0, label: "◀" },
+    { id: "right", dirX: 1, dirY: 0,  ox: arrowOffset * 1.8, oy: 0,  label: "▶" },
+  ];
+
+  const zones = [
+    { id: "up",    dirX: 0, dirY: 1,  x: fcx - ZONE_OUTER, y: fcy - ZONE_OUTER, w: ZONE_OUTER * 2, h: ZONE_OUTER - ZONE_INNER },
+    { id: "down",  dirX: 0, dirY: -1, x: fcx - ZONE_OUTER, y: fcy + ZONE_INNER, w: ZONE_OUTER * 2, h: ZONE_OUTER - ZONE_INNER },
+    { id: "left",  dirX: -1, dirY: 0, x: fcx - ZONE_OUTER, y: fcy - ZONE_INNER, w: ZONE_OUTER - ZONE_INNER, h: ZONE_INNER * 2 },
+    { id: "right", dirX: 1, dirY: 0,  x: fcx + ZONE_INNER, y: fcy - ZONE_INNER, w: ZONE_OUTER - ZONE_INNER, h: ZONE_INNER * 2 },
   ];
 
   return (
     <g style={{ pointerEvents: "none" }}>
+      {zones.map((z) => (
+        <rect
+          key={z.id}
+          x={z.x} y={z.y} width={z.w} height={z.h}
+          fill="transparent"
+          style={{ pointerEvents: "all", cursor: "pointer" }}
+          onPointerDown={(e) => handleFineArrowDown(e, z.dirX, z.dirY)}
+          onPointerUp={handleFineArrowUp}
+          onPointerCancel={handleFineArrowUp}
+        />
+      ))}
       <text
         x={fcx} y={fcy}
         textAnchor="middle" dominantBaseline="central"
@@ -4728,20 +4755,14 @@ function handlePointerCancel(e) {
         style={{ pointerEvents: "none", userSelect: "none" }}
       >({coordX}, {coordY})</text>
       {arrows.map((a) => (
-        <g key={a.id} style={{ pointerEvents: "all", cursor: "pointer" }}
-          onPointerDown={(e) => handleFineArrowDown(e, a.dx, a.dy)}
-          onPointerUp={handleFineArrowUp}
-          onPointerCancel={handleFineArrowUp}
-        >
-          <circle cx={fcx + a.ox} cy={fcy + a.oy} r={hitR} fill="transparent" />
-          <text
-            x={fcx + a.ox} y={fcy + a.oy}
-            textAnchor="middle" dominantBaseline="central"
-            fill="rgba(255,255,255,0.8)"
-            fontSize={arrowSize} fontWeight="400"
-            style={{ pointerEvents: "none", userSelect: "none" }}
-          >{a.label}</text>
-        </g>
+        <text
+          key={a.id}
+          x={fcx + a.ox} y={fcy + a.oy}
+          textAnchor="middle" dominantBaseline="central"
+          fill="rgba(255,255,255,0.8)"
+          fontSize={arrowSize} fontWeight="400"
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >{a.label}</text>
       ))}
     </g>
   );

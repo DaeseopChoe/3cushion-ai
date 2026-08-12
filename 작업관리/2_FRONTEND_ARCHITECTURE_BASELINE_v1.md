@@ -633,7 +633,8 @@ Sample System Validation 및 실사용 Ball positioning에서 Drag/Joystick만�
 | fontWeight | 400 |
 | arrow offset up/down | 32 px |
 | arrow offset left/right | 32 × 1.8 px |
-| touch hitR | 22 (~44px diameter) |
+| touch hitR | (replaced) non-overlapping 4-direction zones |
+| ZONE_INNER / ZONE_OUTER | 24 / 120 SVG px |
 | coordinate | Ball physical center · `(x.x, y.y)` · read-only · 1 decimal |
 
 ### Placement
@@ -648,17 +649,34 @@ Ball → Joystick → Fine Controller → Table Center
 
 ### Fine nudge 동작
 
-| Direction | Delta |
-|-----------|-------|
-| ▶ | x +0.1 |
-| ◀ | x -0.1 |
-| ▲ | y +0.1 |
-| ▼ | y -0.1 |
+| Direction | Tap | Hold repeat |
+|-----------|-----|-------------|
+| ▶ | x +0.1 | x +0.2 |
+| ◀ | x -0.1 | x -0.2 |
+| ▲ | y +0.1 | y +0.2 |
+| ▼ | y -0.1 | y -0.2 |
 
-- Tap: pointerdown 즉시 0.1 · release <1.5s → 추가 이동 없음
-- Long Press: ≥1.5s → 150ms repeat · 진입 시 double-step 없음
+- Tap: pointerdown 즉시 **0.1** · release <**1.0s** → 추가 이동 없음
+- Long Press: ≥**1.0s** → **0.2** / **150ms** repeat · 진입 시 double-step 없음 (timer는 interval 시작만)
 - fine nudge 축만 `Math.round(value * 10) / 10` · Drag/Joystick full precision 유지
 - boundary: 기존 clamp 재사용
+
+### Touch zones (2026-08-12 mobile UX)
+
+Visual 화살표/좌표 크기·위치는 유지한다. 실제 입력은 중앙 기준 **non-overlapping plus-layout rect**:
+
+```text
+        [        UP        ]
+[ LEFT ][   (x,y) dead   ][ RIGHT ]
+        [       DOWN       ]
+```
+
+- UP/DOWN: `y`가 INNER 밖, 폭 `2×OUTER`
+- LEFT/RIGHT: `x`가 INNER 밖, 높이 `2×INNER`
+- 네 zone은 서로 overlap하지 않음
+- 중앙 dead square는 coordinate text (`pointerEvents="none"`)
+- zone 안 pointerdown: stopPropagation / preventDefault / optional pointer capture → table dismiss 차단
+- zone 밖 당구대: 기존 dismiss
 
 ### Visibility / Dismissal
 
