@@ -79,10 +79,11 @@ const HARD_THRESHOLD_L1 = 14;
  * ADMIN Published Search Flow (SRCH-002).
  * Published corpus 검색 → Recall 적용 → AdminState hydrate → 표시.
  * appMode guard는 App.jsx 호출 전에 수행.
+ * @returns true when a published record was applied.
  */
 export async function runAdminSearch(
   ctx: AdminSearchFlowContext
-): Promise<void> {
+): Promise<boolean> {
   ctx.clearAdminSearchDisplayRuntime();
 
   console.log(
@@ -102,7 +103,7 @@ export async function runAdminSearch(
 
   if (loadResult.kind === "error") {
     alert(`Search 데이터 로드 오류: ${loadResult.message}`);
-    return;
+    return false;
   }
 
   const publishedRecords = loadResult.kind === "ok" ? loadResult.records : [];
@@ -154,7 +155,7 @@ export async function runAdminSearch(
   if (spatialResult.kind !== "match") {
     alert("해당 데이터 없음");
     ctx.beginAdminInputSession();
-    return;
+    return false;
   }
 
   // Target ball mismatch 1차 확인 → 차단 후 input session 시작
@@ -165,10 +166,10 @@ export async function runAdminSearch(
     )
   ) {
     ctx.beginAdminInputSession();
-    return;
+    return false;
   }
 
-  if (!ctx.beginAdminInputSession()) return;
+  if (!ctx.beginAdminInputSession()) return false;
 
   // applyAdminRecallMatch 로직 인라인 (동일 순서 유지)
   // 2차 mismatch 확인 (App.jsx applyAdminRecallMatch 내부 동작 동일 복제)
@@ -178,7 +179,7 @@ export async function runAdminSearch(
       searchQueryTargetBall
     )
   ) {
-    return;
+    return false;
   }
 
   ctx.applyPositionRecall(spatialResult.record);
@@ -224,4 +225,5 @@ export async function runAdminSearch(
 
   ctx.setAdminTableLayersVisible(true);
   ctx.setShowCoaching(true);
+  return true;
 }

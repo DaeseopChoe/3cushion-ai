@@ -1,10 +1,10 @@
 # Display Boundary Policy SSOT v1.4
 
-**Status:** Active · Phase 1 Cap + Phase 2A Overlay Gate · **Reading Mode Implemented** · **C2 Reflection Rail Handle Implemented** · Corrected Minimum·Continuation·Boundary 잔여  
+**Status:** Active · Phase 1 Cap + Phase 2A Overlay Gate · **Reading Mode Implemented** · **C2 Reflection Rail Handle Implemented** · **same-rail identity nearest-rail (BUG-A) Implemented** · Corrected Minimum·Continuation·Boundary 잔여  
 **Scope:** USER 기준값 / 보정값 Display Layer · USER Overlay Reading Mode · ADMIN C2 Reflection Override (Display)  
-**Out of scope:** Trajectory Extension Runtime redesign · Formula · Search · `activateStrategySlot` · Reflection Engine 수식 변경 · `detectRail` 공통 변경  
+**Out of scope:** Trajectory Extension Runtime redesign · Formula · Search · `activateStrategySlot` · Reflection Engine 수식 변경 · `detectRail` 공통 시그니처/Y-first 순서 변경  
 **Related (Consume · Do Not Modify here):** `TRAJECTORY_EXTENSION_SSOT.md` v1.4 (Task Closed) · `OVERLAY_LAYOUT_SSOT_v1.2.md` (Shell 규약) · `trajectoryPathDisplayPolicy.ts`  
-**Last Updated:** 2026-08-04
+**Last Updated:** 2026-08-17
 
 > 본 문서는 **Display Layer의 단일 제품 정책(SSOT)** 이다.  
 > Trajectory Extension Runtime은 Completed / Freeze이며, 본 문서는 Extension을 재설계하지 않는다.  
@@ -20,6 +20,7 @@
 | v1.2 | **Phase 2A** Overlay Attach/Visibility Gate 구현 상태 · CASE B · CASE A 확장점 |
 | v1.3 | **Reading Mode (Overlay UX)** 정책 · D-DBP-13…15 · 문서 확정 |
 | **v1.4** | Reading Mode **Implemented** · C2 Reflection Rail Handle **Implemented** · Corner Cap skipSameRail · D-DBP-16…18 |
+| **v1.4.1** | **BUG-A:** same-rail **presence** = `detectRail(eps)` · **identity** = `resolveNearestRail` (LEFT/RIGHT tie-break). `detectRail` 함수 자체 미변경. `skipSameRail`은 C2 override 예외로 **유지** (BUG-B와 별개). |
 
 ---
 
@@ -165,6 +166,8 @@ Display Cap은 **하나의 계산 결과**를 사용자에게 **어디까지** �
 | 목적 | 안전 절단 | C4 이후 정상 선회 vs Reverse End **표시** |
 
 same-rail은 Invalid/Chain 계열 안전망으로 유지한다. Continuation과 혼용·동의어로 쓰지 않는다.
+
+**v1.4.1 (BUG-A):** same-rail **identity**는 `detectRail` Y-first EPS band가 아니라 `resolveNearestRail`이다. `detectRail`은 “쿠션 근처 여부”(presence)에만 쓴다. 코너 side-rail C2를 TOP/BOTTOM으로 훔쳐 C1–C2를 거짓 same_rail로 자르지 않는다. 진짜 동일 rail(C4–C5 등) truncation은 유지. 구현: `trajectoryPathDisplayPolicy.ts` · helper: `reflectionEngine.resolveNearestRail`. `detectRail` 공통 함수 본문/호출 순서는 reflection 경로에서 **변경하지 않는다**.
 
 ### 5.4 분기별 Cap
 
@@ -621,9 +624,10 @@ Drag 중에는 transition을 끈다.
 
 Manual Reflection Override가 있으면 Display Cap **sameRail 절단을 수행하지 않는다** (`displayCapOpts.skipSameRail`).
 
-- `detectRail` 공통 함수 **수정 금지**
+- `detectRail` 공통 함수 **수정 금지** (v1.4.1도 동일 — identity만 display-cap에서 nearest-rail)
 - Builder 계산 경로 유지 · Cap 옵션 전달만
 - Corner 근처에서도 C1→C2→C3 표시 유지
+- **BUG-A 수정 후** override/`skipSameRail` 없이도 코너 side-rail C2는 nearest-rail identity로 거짓 same_rail이 나지 않아야 한다. `skipSameRail`을 BUG-A 성공 기준으로 쓰지 말 것 (BUG-B OPEN).
 
 ### 16.4 구현 앵커
 

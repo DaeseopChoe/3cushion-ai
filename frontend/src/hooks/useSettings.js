@@ -283,13 +283,14 @@ export function useSettings({
     [adminState, ballsState, shotEditor, targetColor, setIsSaved]
   );
 
+  /** @returns {boolean} true when snapshot hydrated (caller enables Admin table layers for display). */
   const handleLoadWorkspaceSnapshot = useCallback(
     (id) => {
       const history = loadWorkspaceHistory();
       const snapshot = findSnapshotById(history, id);
       if (!snapshot) {
         alert("스냅샷을 찾을 수 없습니다.");
-        return;
+        return false;
       }
       const s = snapshot.state;
       setAdminState(s.adminState);
@@ -306,6 +307,7 @@ export function useSettings({
       setWorkspaceHistoryVersion((v) => v + 1);
       setIsSaved(false);
       setIsAdminPublishedSearchMatched(false);
+      // View-only after History load — Reset re-opens editable session.
       setIsAdminInputSessionActive(false);
       const restoredTarget = s.targetBall ?? null;
       setTargetColor(restoredTarget);
@@ -328,6 +330,7 @@ export function useSettings({
 
       console.log("📂 Workspace restored:", snapshot.name);
       alert(`복원 완료: ${snapshot.name}`);
+      return true;
     },
     [
       actions,

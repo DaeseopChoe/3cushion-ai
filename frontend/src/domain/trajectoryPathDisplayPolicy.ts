@@ -6,7 +6,7 @@
  * 계산 엔진/SYS 값 생성과 분리 (Display Layer only).
  */
 
-import { detectRail } from "./reflectionEngine";
+import { detectRail, resolveNearestRail } from "./reflectionEngine";
 import { isSegmentHitBall } from "../utils/geometry";
 
 export const PATH_NODE_MARKS = [
@@ -43,11 +43,12 @@ export type TrajectoryDisplayCap = {
 };
 
 export type TrajectoryDisplayCapOptions = {
+  /** Presence band for "on a cushion" (detectRail). Identity uses resolveNearestRail. */
   railEps?: number;
   degenEps?: number;
   /**
    * When true, skip same-rail early cut (ADMIN C2 reflectionOverride path).
-   * detectRail() itself is never modified — Cap policy only.
+   * detectRail() / resolveNearestRail() themselves are never modified — Cap policy only.
    */
   skipSameRail?: boolean;
 };
@@ -87,6 +88,14 @@ function segmentMarkPair(index: number): string {
   return `${from}-${to}`;
 }
 
+/**
+ * Same-rail for display-cap only (BUG-A fix):
+ * 1) detectRail(eps) — both endpoints must be near a cushion (interior → not same-rail)
+ * 2) resolveNearestRail — corner-safe identity (not detectRail Y-first label)
+ *
+ * Side-rail C2 inside EPS_RAIL of TOP/BOTTOM stays LEFT/RIGHT for identity,
+ * so false C1–C2 same_rail cuts no longer fire. True mid-rail C4–C5 still truncates.
+ */
 function isSameRailSegment(
   a: PathPoint,
   b: PathPoint,
@@ -99,9 +108,11 @@ function isSameRailSegment(
     return true;
   }
 
-  const railA = detectRail(a, railEps);
-  const railB = detectRail(b, railEps);
-  return railA != null && railB != null && railA === railB;
+  if (detectRail(a, railEps) == null || detectRail(b, railEps) == null) {
+    return false;
+  }
+
+  return resolveNearestRail(a) === resolveNearestRail(b);
 }
 
 /** pathNodes chain — null/invalid node 이전까지 유효 index. */

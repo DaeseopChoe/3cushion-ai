@@ -9,7 +9,7 @@
  */
 
 import { projectPointToRail } from "../../utils/geometry/rail";
-import type { Rail } from "../reflectionEngine";
+import { resolveNearestRail, type Rail } from "../reflectionEngine";
 
 const RG_W = 80;
 const RG_H = 40;
@@ -103,21 +103,14 @@ export function railTFromPoint(p: RgPoint, rail: Rail): number {
 /**
  * Nearest rail by distance — NOT reflectionEngine.detectRail (EPS=3).
  * Corner ties prefer LEFT/RIGHT so side-rail C2 is not stolen by TOP/BOTTOM.
+ * Delegates to resolveNearestRail (shared with display-cap same_rail).
  */
 export function resolveRailForC2Handle(
   point: RgPoint,
   preferred?: Rail | null
 ): Rail {
   if (preferred && isRail(preferred)) return preferred;
-
-  const candidates: { rail: Rail; d: number; side: number }[] = [
-    { rail: "RIGHT", d: Math.abs(point.x - RG_W), side: 0 },
-    { rail: "LEFT", d: Math.abs(point.x - 0), side: 0 },
-    { rail: "TOP", d: Math.abs(point.y - RG_H), side: 1 },
-    { rail: "BOTTOM", d: Math.abs(point.y - 0), side: 1 },
-  ];
-  candidates.sort((a, b) => a.d - b.d || a.side - b.side);
-  return candidates[0]!.rail;
+  return resolveNearestRail(point);
 }
 
 /** Override → PathPoint for anchors.C2 injection (always edge-clamped). */
@@ -177,4 +170,71 @@ export function hitTestC2Handle(
   const dx = pointerRg.x - handleRg.x;
   const dy = pointerRg.y - handleRg.y;
   return Math.hypot(dx, dy) <= radiusRg;
+}
+
+/** Normalize track id for equality (SYS Apply Track flip detection). */
+export function normalizeTrackId(track: string | null | undefined): string {
+  return track && String(track).trim() ? String(track).trim() : "B2T_L";
+}
+
+/**
+ * Track flip invalidates prior {rail,t} C2 override provenance.
+ * Same track → KEEP override. Different track → CLEAR.
+ */
+export function shouldClearReflectionOverrideOnTrackChange(
+  previousTrack: string | null | undefined,
+  nextTrack: string | null | undefined
+): boolean {
+  return normalizeTrackId(previousTrack) !== normalizeTrackId(nextTrack);
+}
+
+/**
+ * Canonical tip side for C2 reflection (same rule as trajectoryBuilder /
+ * App currentTip): hit_point.x (or hp.x) ≥ 0 → "R", else "L".
+ * Missing / non-finite hp → null (no side-change decision).
+ */
+export type CanonicalTipSide = "L" | "R";
+
+export type HptTipSideSource = {
+  hit_point?: { x?: unknown; y?: unknown } | null;
+  hp?: { x?: unknown; y?: unknown } | null;
+} | null | undefined;
+
+export function canonicalTipSideFromHpt(
+  hpt: HptTipSideSource
+): CanonicalTipSide | null {
+  const hp = hpt?.hit_point ?? hpt?.hp;
+  if (!hp || typeof hp.x !== "number" || !Number.isFinite(hp.x)) return null;
+  return hp.x >= 0 ? "R" : "L";
+}
+
+/**
+ * HP/T tip side L↔R invalidates prior {rail,t} C2 override provenance
+ * (spin / reflection geometry meaning changed). Same side → KEEP.
+ * Unknown side on either side → KEEP (do not expand invalidate scope).
+ */
+export function shouldClearReflectionOverrideOnHptTipSideChange(
+  previousHpt: HptTipSideSource,
+  nextHpt: HptTipSideSource
+): boolean {
+  const prev = canonicalTipSideFromHpt(previousHpt);
+  const next = canonicalTipSideFromHpt(nextHpt);
+  if (prev == null || next == null) return false;
+  return prev !== next;
+}
+
+/** Remove reflectionOverride from a draft/applied layer (other fields kept). */
+export function stripReflectionOverrideFromLayer<
+  T extends { reflectionOverride?: unknown } | null | undefined,
+>(layer: T): T {
+  if (!layer || typeof layer !== "object") return layer;
+  if (!("reflectionOverride" in layer)) return layer;
+  if ((layer as { reflectionOverride?: unknown }).reflectionOverride == null) {
+    return layer;
+  }
+  const { reflectionOverride: _removed, ...rest } = layer as Record<
+    string,
+    unknown
+  >;
+  return rest as T;
 }

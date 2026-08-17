@@ -16,6 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { buildAiAutoCommentFromContext } from "../../domain/userInfoPanelModel";
+import { hasRenderableOutputsResult } from "../../domain/slotSysResolve";
 import { AiAutoCommentDisplay } from "../user/UserAiPanel";
 
 export function ensureLessonItems(items) {
@@ -103,16 +104,27 @@ export function AiOverlay({
   onOpenLessonOrderManage,
 }) {
   const str = strData || data?.str || {};
+  const sysForAutoComment = slotRenderSys ?? sysData;
+  const canShowAutoComment = hasRenderableOutputsResult(sysForAutoComment);
 
   const autoComment = useMemo(
     () =>
-      buildAiAutoCommentFromContext({
-        slotRenderSys: slotRenderSys ?? sysData,
-        resolvedSlotSysValues,
-        resolvedSlotBaseSysValues,
-        str,
-      }),
-    [slotRenderSys, sysData, resolvedSlotSysValues, resolvedSlotBaseSysValues, strData, str]
+      canShowAutoComment
+        ? buildAiAutoCommentFromContext({
+            slotRenderSys: sysForAutoComment,
+            resolvedSlotSysValues,
+            resolvedSlotBaseSysValues,
+            str,
+          })
+        : null,
+    [
+      canShowAutoComment,
+      sysForAutoComment,
+      resolvedSlotSysValues,
+      resolvedSlotBaseSysValues,
+      strData,
+      str,
+    ]
   );
 
   const [selectedLessonId, setSelectedLessonId] = useState(null);
@@ -190,7 +202,7 @@ export function AiOverlay({
           background: "#ffffff",
         }}
       >
-        <AiAutoCommentDisplay model={autoComment} />
+        {autoComment ? <AiAutoCommentDisplay model={autoComment} /> : null}
         {lessons.length > 0 ? (
           <>
             <hr className="ai-comment-divider" />

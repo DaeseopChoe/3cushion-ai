@@ -3,7 +3,8 @@
  * RND-003 / AD-B5-11 — Baseline handle display model.
  *
  * Batch 6 STEP 6-3 (D-010): visibility from Contract flags (App-resolved).
- * No systemId / family / track hardcode. JSX mount remains App/Presentation.
+ * App supplies isBaselineEndpointEditingEnabled; renderer does not inspect
+ * systemId / family / track strings.
  */
 
 import type { TrajectoryBuildResult } from "../../domain/trajectory/trajectoryBuilder";
@@ -36,12 +37,16 @@ export type BaselineHandlePresentationContext = {
   showBaseLine: boolean;
   draftCoRg: { x: number; y: number } | null;
   draftC1Rg: { x: number; y: number } | null;
+  /** Same coord as the yellow CO System Mark (rawAnchorsBase lookup). */
+  markCoRg: { x: number; y: number } | null;
+  /** Same coord as the yellow C1 System Mark (rawAnchorsBase lookup). */
+  markC1Rg: { x: number; y: number } | null;
   draggingMark: BaselineHandleMark | null;
 };
 
 /**
  * Contract-derived visibility flag from App injection hub.
- * App resolves TrajectoryContractView.baselineHandle + track match;
+ * App resolves TrajectoryContractView.baselineHandle (enabled, optional prefix);
  * Renderer does not inspect systemId / family / track strings.
  */
 export type BaselineHandleContractFlags = {
@@ -106,8 +111,8 @@ export function buildBaselineHandleModel(
 ): BaselineHandleModel {
   const layerVisible = isBaselineHandleLayerVisible(ctx, baselineHandleFlags);
 
-  const coEffective = ctx.draftCoRg ?? result.handles.coRg;
-  const c1Effective = ctx.draftC1Rg ?? result.handles.c1Rg;
+  const coEffective = ctx.draftCoRg ?? ctx.markCoRg ?? result.handles.coRg;
+  const c1Effective = ctx.draftC1Rg ?? ctx.markC1Rg ?? result.handles.c1Rg;
 
   return {
     co: buildHandleCircle(

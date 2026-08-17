@@ -103,6 +103,25 @@ export function detectRail(p: Point, eps = EPS_RAIL): Rail | null {
   return null;
 }
 
+/**
+ * Nearest rail by distance — NOT detectRail (EPS band + Y-first order).
+ * Corner ties prefer LEFT/RIGHT so side-rail points near TOP/BOTTOM are not stolen.
+ * Always returns a Rail (unlike detectRail, which may return null).
+ *
+ * Used by: display-cap same_rail, C2 handle rail lock.
+ * Do not replace detectRail inside reflection geometry with this.
+ */
+export function resolveNearestRail(p: Point): Rail {
+  const candidates: { rail: Rail; d: number; side: number }[] = [
+    { rail: "RIGHT", d: Math.abs(p.x - RG_W), side: 0 },
+    { rail: "LEFT", d: Math.abs(p.x - 0), side: 0 },
+    { rail: "TOP", d: Math.abs(p.y - RG_H), side: 1 },
+    { rail: "BOTTOM", d: Math.abs(p.y - 0), side: 1 },
+  ];
+  candidates.sort((a, b) => a.d - b.d || a.side - b.side);
+  return candidates[0]!.rail;
+}
+
 /** from → to 방향 각도 (deg) */
 export function angleDeg(from: Point, to: Point): number {
   const dx = to.x - from.x;

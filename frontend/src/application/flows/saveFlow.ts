@@ -368,7 +368,8 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
         shotType: persistedShotType,
         systemId,
         system_id: systemId,
-        system: ctx.system,
+        // Identity must stay a systemId string — never UI display object (ctx.system).
+        system: systemId,
       },
     }));
     console.log("[SAVE] published leaf context persisted", {

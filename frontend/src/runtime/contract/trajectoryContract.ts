@@ -27,6 +27,11 @@ export type RenderView = {
 
 export type BaselineHandleView = {
   enabled: boolean;
+  /**
+   * Optional track-id prefix filter.
+   * null / "" = every track of this system (baseline endpoint editing is a
+   * system capability, not a B2T-only switch).
+   */
   requireTrackPrefix: string | null;
 };
 
@@ -74,8 +79,22 @@ function resolveBaselineHandle(contract: SystemContract): BaselineHandleView {
   const family = contract.identity.family;
   return {
     enabled: family === "5_half",
-    requireTrackPrefix: family === "5_half" ? "B2T" : null,
+    requireTrackPrefix: null,
   };
+}
+
+/**
+ * System capability: baseline CO/C1 endpoint editing is available on this track.
+ * Does not encode B2T vs T2B in callers — prefix is only honored when set.
+ */
+export function isBaselineEndpointEditingEnabled(
+  baselineHandle: BaselineHandleView | null | undefined,
+  track: string | null | undefined
+): boolean {
+  if (!baselineHandle?.enabled) return false;
+  const prefix = baselineHandle.requireTrackPrefix;
+  if (prefix == null || prefix === "") return true;
+  return typeof track === "string" && track.startsWith(prefix);
 }
 
 /** Pure extractor — projection only (AD-B6-09). No I/O. */

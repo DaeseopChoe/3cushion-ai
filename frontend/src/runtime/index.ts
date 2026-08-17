@@ -27,7 +27,10 @@ export type {
   BaselineHandleView,
 } from "./contract/trajectoryContract";
 
-export { extractTrajectoryContractView } from "./contract/trajectoryContract";
+export {
+  extractTrajectoryContractView,
+  isBaselineEndpointEditingEnabled,
+} from "./contract/trajectoryContract";
 
 export {
   getSystemContract,

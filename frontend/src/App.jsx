@@ -10,6 +10,9 @@ import {
   buildSlotRuntimePayload,
   extractSlotRuntimeMeta,
   extractSlotTargetBall,
+  DEFAULT_SLOT_AI,
+  DEFAULT_SLOT_HPT,
+  DEFAULT_SLOT_STR,
 } from "./domain/slotRuntimeHydrate";
 import {
   buildStrategyButtonsFromRuntime,
@@ -22,6 +25,10 @@ import {
   getSysUseSn,
   isFiveHalfSystemId,
 } from "./domain/system/systemIdentity";
+import {
+  readUiModePreference,
+  writeUiModePreference,
+} from "./domain/uiModePreference";
 import {
   buildEffectiveRenderSysValues,
   computeSysOverlayValues,
@@ -44,6 +51,7 @@ import { SysOverlay } from "./components/overlays/SysOverlay";
 import {
   getSystemContract,
   extractTrajectoryContractView,
+  isBaselineEndpointEditingEnabled,
 } from "./runtime";
 import { supplyReflectionSafety } from "./domain/trajectory/reflectionPolicy";
 import { bindDomainContractSupply } from "./domain/runtimeContractSupply";
@@ -87,10 +95,9 @@ import { buildTrajectoryPathAttrModel } from "./renderer/trajectory/trajectoryPa
 import { buildSystemAxisLabelModel } from "./renderer/labels/systemAxisLabelModel";
 import { buildRgAnchors } from "./renderer/trajectory/anchorConversionModel";
 import {
-  c1ArrivalRailForTrack,
-  coDepartureRailForTrack,
-  projectPointToRail,
-} from "./utils/geometry/rail";
+  projectPointerToMarkAxis,
+  readBaselineHandleCoord,
+} from "./domain/trajectory/baselineMarkAxisSnap";
 import {
   computeThicknessFromImpact,
   snapImpactToOrbit,
@@ -134,6 +141,16 @@ import {
 } from "./domain/anchorCoordinateEngine";
 import { buildTrajectory } from "./domain/trajectory/trajectoryBuilder";
 import {
+  createSysApplyCutDiagSession,
+  logSysApplyOrdering,
+  maybeLogSysApplyCutRender,
+} from "./debug/sysApplyTrajectoryCutDiag";
+import {
+  createHptTrajectoryDiagSession,
+  logHptTrajectoryDiagApply,
+  maybeLogHptTrajectoryDiagRender,
+} from "./debug/hptTrajectoryDiag";
+import {
   appendExtension1Draft,
   appendExtension2Draft,
   buildRevealPathNodes,
@@ -162,6 +179,8 @@ import { useC2RailHandleDrag } from "./overlay/state/c2RailHandleDrag";
 import {
   normalizeReflectionOverride,
   reflectionOverrideToPoint,
+  shouldClearReflectionOverrideOnHptTipSideChange,
+  shouldClearReflectionOverrideOnTrackChange,
 } from "./domain/trajectory/c2ReflectionOverride";
 import {
   loadWorkingDataset,
@@ -641,7 +660,7 @@ export default function App({
   // ============================================
   // 관리자 모드 상태 (v0)
   // ============================================
-  const [appMode, setAppMode] = useState("USER"); // "USER" | "ADMIN"
+  const [appMode, setAppMode] = useState(() => readUiModePreference()); // "USER" | "ADMIN"
   const [workspaceCleanupMode, setWorkspaceCleanupMode] = useState(
     WORKSPACE_CLEANUP_PRESERVE_DATASET
   );
@@ -974,6 +993,12 @@ export default function App({
   const [c2ReflectionOverride, setC2ReflectionOverride] = useState(null);
   const c2ReflectionOverrideRef = useRef(null);
   c2ReflectionOverrideRef.current = c2ReflectionOverride;
+  /** DEV: SYS Apply → C1-cut diagnosis session (console only). */
+  const sysApplyCutDiagSessionRef = useRef(null);
+  const sysApplyCutDiagApplyIdRef = useRef(0);
+  /** DEV: HPT tip-side flip → corrected cut diagnosis (console only). */
+  const hptTrajectoryDiagSessionRef = useRef(null);
+  const hptTrajectoryDiagApplyIdRef = useRef(0);
 
   useEffect(() => {
     setTrajectoryExtensionDraft(null);
@@ -1701,10 +1726,10 @@ export default function App({
     setOverlayState,
   });
 
-  /** P0-4c-2: ✓ 버튼 → baseline draft Apply flow */
+  /** P0-4c-2: ✓ 버튼 / pointerup → baseline draft Apply flow */
   function onBaselineDraftApplyClick(mark) {
     console.log("[BASELINE APPLY BUTTON]", mark);
-    runBaselineDraftApply({
+    const ok = runBaselineDraftApply({
       mark,
       appMode,
       showBaseLine,
@@ -1712,8 +1737,6 @@ export default function App({
       baselineDraftState,
       trackForAnchors,
       systemIdForGrid,
-      baselineLabelSlotSnapshot: baselineLabelSlotSnapshotRef.current,
-      baselineLabelSsot: baselineLabelSsotRef.current,
       activeSlot: shotEditor.activeSlot,
       slots: shotEditor.slots,
       resolvedSlotSys,
@@ -1723,6 +1746,7 @@ export default function App({
       patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
       clearAppliedBaselineDraftMark,
     });
+    if (ok) setAdminTableLayersVisible(true);
   }
 
   /** SYS/HPT/STR/AI 닫을 때 Stage가 슬롯 버튼으로 currentButtonId를 되돌림 */
@@ -1874,6 +1898,28 @@ export default function App({
     setShowCoaching(false);
   }, [actions, trajectory]);
 
+  /**
+   * ADMIN Reset — keep hydrated Position/slot/adminState data;
+   * re-open edit gates (Target Lock unlock + session active). Does not touch dataset.
+   */
+  const handleAdminWorkReset = useCallback(() => {
+    if (appMode !== "ADMIN") return;
+
+    hideBallPositionController();
+    closeOverlay();
+
+    // Target Lock unlock only — keep targetColor and slot.targetBall so Ready/SAVE stay valid.
+    setIsTargetSelected(false);
+    if (targetColor === "red" || targetColor === "yellow") {
+      actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
+        targetBall: targetColor,
+      });
+    }
+
+    setIsAdminInputSessionActive(true);
+    setIsSaved(false);
+  }, [appMode, actions, targetColor, shotEditor.activeSlot]);
+
   const handleAdminSearch = useCallback(async () => {
     if (appMode !== "ADMIN") return;
     logAdminSearchTargetState("ADMIN_SEARCH_TARGET_STATE");
@@ -1899,7 +1945,7 @@ export default function App({
     if (matched) {
       setUserTableDisplaySlotId(null);
     }
-    // no-match: 포지션 유지, beginAdminInputSession으로 새 입력 상태 진입 (Reset 버튼 없음)
+    // no-match: 포지션 유지, beginAdminInputSession으로 새 입력 상태 진입
   }, [
     appMode,
     dataset,
@@ -2192,17 +2238,16 @@ export default function App({
   // Admin Mode 토글 함수
   function handleToggleAdminMode() {
     const wasType = overlayState.type;
-    setAppMode((prev) => {
-      const nextMode = prev === "ADMIN" ? "USER" : "ADMIN";
-      
-      if (nextMode === "ADMIN") {
-        setShowCoaching(false);
-        setAdminTableLayersVisible(false);
-        setOverlayContent(null);
-      }
-      
-      return nextMode;
-    });
+    const nextMode = appMode === "ADMIN" ? "USER" : "ADMIN";
+
+    if (nextMode === "ADMIN") {
+      setShowCoaching(false);
+      setAdminTableLayersVisible(false);
+      setOverlayContent(null);
+    }
+
+    setAppMode(nextMode);
+    writeUiModePreference(nextMode);
     setOverlayState({ open: false, type: null });
     if (wasType && ["SYS", "HPT", "STR", "AI"].includes(wasType)) {
       notifyFuncOverlayClosedByAdminUi();
@@ -3070,21 +3115,14 @@ function handleJoyPadPointerCancel(e) {
       // ✅ 조건 3: input/textarea 포커스 시 동작 금지
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       
-      // Ctrl+Shift+A: 관리자 모드 토글
-      if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+      // Ctrl+Alt+A: 관리자 모드 토글 (Ctrl+Shift+A는 호환 alias)
+      const isAdminToggle =
+        e.ctrlKey &&
+        e.code === "KeyA" &&
+        (e.altKey || e.shiftKey);
+      if (isAdminToggle) {
         e.preventDefault();
-        setAppMode(prev => {
-          const nextMode = prev === "USER" ? "ADMIN" : "USER";
-          
-          if (nextMode === "ADMIN") {
-            setShowCoaching(false);
-            setAdminTableLayersVisible(false);
-            setOverlayContent(null);
-          }
-          
-          console.log("🔑 모드 전환:", nextMode);
-          return nextMode;
-        });
+        handleToggleAdminMode();
       }
       
       // ESC: 오버레이 닫기
@@ -3241,23 +3279,10 @@ function handleJoyPadPointerCancel(e) {
   const rawSystemIdForGrid = resolvedSlotSys?.systemId ?? "5_half_system";
   const systemIdForGrid = canonicalSystemIdForConfig(rawSystemIdForGrid);
 
-  baselineDraftDragContextRef.current = {
-    canEndpointDraftDrag: () =>
-      appMode === "ADMIN" &&
-      showBaseLine &&
-      systemIdForGrid === "5_half_system" &&
-      !!trackForAnchors?.startsWith("B2T"),
-    captureLabelSlotSnapshot: () =>
-      captureBaselineLabelSlotSnapshot(baselineLabelSsotRef.current),
-    snapCoPointerRg: (pointerRg) => {
-      const rail = coDepartureRailForTrack(trackForAnchors);
-      return projectPointToRail(pointerRg, rail);
-    },
-    snapC1PointerRg: (pointerRg) => {
-      const rail = c1ArrivalRailForTrack(trackForAnchors);
-      return projectPointToRail(pointerRg, rail);
-    },
-  };
+  const systemRuntimeContract = getSystemContract(systemIdForGrid);
+  const trajectoryContractView = systemRuntimeContract
+    ? extractTrajectoryContractView(systemRuntimeContract)
+    : null;
 
   // USER/ADMIN 공통: slot SSOT anchors (display.anchors fallback when slot empty)
   const rawAnchors = (() => {
@@ -3352,6 +3377,30 @@ function handleJoyPadPointerCancel(e) {
           return keys.length > 0 ? ab : (display?.anchors ?? {});
         })()
       : null;
+
+  baselineDraftDragContextRef.current = {
+    canEndpointDraftDrag: () =>
+      appMode === "ADMIN" &&
+      showBaseLine &&
+      isBaselineEndpointEditingEnabled(
+        trajectoryContractView?.baselineHandle,
+        trackForAnchors
+      ),
+    captureLabelSlotSnapshot: () =>
+      captureBaselineLabelSlotSnapshot(baselineLabelSsotRef.current),
+    snapCoPointerRg: (pointerRg) => {
+      const markCoord =
+        baselineDraftState.coRg ??
+        readBaselineHandleCoord(rawAnchorsBase?.CO);
+      return projectPointerToMarkAxis(pointerRg, markCoord);
+    },
+    snapC1PointerRg: (pointerRg) => {
+      const markCoord =
+        baselineDraftState.c1Rg ??
+        readBaselineHandleCoord(rawAnchorsBase?.["C1"]);
+      return projectPointerToMarkAxis(pointerRg, markCoord);
+    },
+  };
 
   // [ANCHOR_COMPARE] 정상(display.anchors) vs 계산(rawAnchors) — reflection 입력 비교
   console.log("[ANCHOR_COMPARE] display.anchors (정상 경로)", {
@@ -3805,8 +3854,14 @@ function handlePointerUp(e) {
   }
 
   if (endC2HandleDrag(e)) return;
-  if (endCoBaselineDraftDrag(e)) return;
-  if (endC1BaselineDraftDrag(e)) return;
+  if (endCoBaselineDraftDrag(e)) {
+    onBaselineDraftApplyClick("CO");
+    return;
+  }
+  if (endC1BaselineDraftDrag(e)) {
+    onBaselineDraftApplyClick("C1");
+    return;
+  }
   if (endExtensionHandleDrag(e)) return;
 
   if (!dragState.dragging || !dragState.ballId) return;
@@ -3880,8 +3935,14 @@ function handlePointerCancel(e) {
     return;
   }
   if (endC2HandleDrag(e)) return;
-  if (endCoBaselineDraftDrag(e)) return;
-  if (endC1BaselineDraftDrag(e)) return;
+  if (endCoBaselineDraftDrag(e)) {
+    clearAppliedBaselineDraftMark("CO");
+    return;
+  }
+  if (endC1BaselineDraftDrag(e)) {
+    clearAppliedBaselineDraftMark("C1");
+    return;
+  }
   if (endExtensionHandleDrag(e)) return;
   stopJoystick();
   stopFineCtrl();
@@ -3894,11 +3955,6 @@ function handlePointerCancel(e) {
   // Batch 6 STEP 6-2: Contract safety supply (D-009) before buildTrajectory
   // buildTrajectory → pathAttrModel → renderModel → baselineHandleModel → JSX
   // ---------------------------------------------------------------------------
-
-  const systemRuntimeContract = getSystemContract(systemIdForGrid);
-  const trajectoryContractView = systemRuntimeContract
-    ? extractTrajectoryContractView(systemRuntimeContract)
-    : null;
 
   if (trajectoryContractView) {
     supplyReflectionSafety(trajectoryContractView.reflectionSafety);
@@ -4141,28 +4197,18 @@ function handlePointerCancel(e) {
       : cushionPathForRender;
 
 
-  baselineCoHandleRgRef.current = handles.coRg;
-  baselineC1HandleRgRef.current = handles.c1Rg;
+  baselineCoHandleRgRef.current =
+    baselineDraftState.coRg ??
+    readBaselineHandleCoord(rawAnchorsBase?.CO) ??
+    handles.coRg;
+  baselineC1HandleRgRef.current =
+    baselineDraftState.c1Rg ??
+    readBaselineHandleCoord(rawAnchorsBase?.["C1"]) ??
+    handles.c1Rg;
 
-  let effectiveCushionPathBaselineRg = cushionPathBaselineRg;
-  if (
-    Array.isArray(effectiveCushionPathBaselineRg) &&
-    effectiveCushionPathBaselineRg.length >= 2
-  ) {
-    if (baselineDraftState.coRg) {
-      effectiveCushionPathBaselineRg = [
-        baselineDraftState.coRg,
-        ...effectiveCushionPathBaselineRg.slice(1),
-      ];
-    }
-    if (baselineDraftState.c1Rg) {
-      effectiveCushionPathBaselineRg = [
-        effectiveCushionPathBaselineRg[0],
-        baselineDraftState.c1Rg,
-        ...effectiveCushionPathBaselineRg.slice(2),
-      ];
-    }
-  }
+  // Handle/Mark coords stay on Fg/Rg system marks. Do not rewrite the
+  // baseline path (rail vertices) with those coords.
+  const effectiveCushionPathBaselineRg = cushionPathBaselineRg;
 
   const useBaselineLabelAnchors =
     appMode === "USER"
@@ -4188,6 +4234,70 @@ function handlePointerCancel(e) {
     });
   }
 
+  if (import.meta.env.DEV) {
+    const activeSlotForDiag = shotEditor.activeSlot;
+    const slotForDiag = shotEditor.slots[activeSlotForDiag];
+    sysApplyCutDiagSessionRef.current = maybeLogSysApplyCutRender(
+      sysApplyCutDiagSessionRef.current,
+      {
+        showBaseLine,
+        adminTableLayersVisible,
+        appMode,
+        snapshotInput: {
+          showBaseLine,
+          pathNodes: correctedPathNodes,
+          cushionPath,
+          cushionPathForRender,
+          capCorrected,
+          visibleKeysForLabels,
+          skipSameRail: !!c2OverridePoint,
+          c2ReflectionOverride,
+          c2Resolved:
+            correctedPathNodes?.[2] ??
+            anchors?.C2 ??
+            null,
+          anchorsC2Present: anchors?.C2 != null,
+          reflectedDiagnostics,
+          slotDraft: slotForDiag?.draft ?? null,
+          slotApplied: slotForDiag?.applied ?? null,
+          slotRenderSys,
+          resolvedSlotSysValues,
+          useCurveDeform,
+        },
+      }
+    );
+    hptTrajectoryDiagSessionRef.current = maybeLogHptTrajectoryDiagRender(
+      hptTrajectoryDiagSessionRef.current,
+      {
+        showBaseLine,
+        adminTableLayersVisible,
+        appMode,
+        renderInput: {
+          showBaseLine,
+          skipSameRail: !!c2OverridePoint,
+          c2ReflectionOverride,
+          currentTip,
+          corrections:
+            slotForDiag?.draft?.corrections ??
+            slotForDiag?.applied?.corrections ??
+            slotRenderSys?.corrections ??
+            null,
+          effectiveCorrected: resolvedSlotSysValues,
+          effectiveBaseline: resolvedSlotBaseSysValues,
+          correctedPathNodes,
+          baselinePathNodes: baseline?.pathNodes ?? null,
+          capCorrected,
+          capBaseline,
+          coPrep: CO_prep,
+          c1Rail,
+          anchorsC2Present: anchors?.C2 != null,
+          reflectedDiagnostics,
+          useCurveDeform,
+        },
+      }
+    );
+  }
+
   // SystemValueLabels는 data.coord.{x,y}를 기대. anchorLookupEngine 형태 { coord, valueSpace }는 그대로 두고, plain {x,y}(예: reflection C2)만 감싼다. 좌표 숫자는 변경하지 않음.
   const labelPayload = (anchorOrPoint) => {
     if (anchorOrPoint == null) return null;
@@ -4211,10 +4321,13 @@ function handlePointerCancel(e) {
   };
 
   // 노란점(라벨): resolveAnchorPoint·anchor 원본 좌표 유지 (FG/RG 변환 없음). 궤적은 cushionPath·computeRailImpactPoint 쪽에서 레일 교점 유지.
+  // ADMIN 기준선 Mark: path vertex가 아니라 rawAnchorsBase lookup (보정선과 동일 Fg/Rg 원칙).
+  // USER 기준선 라벨은 기존 path 매핑을 유지한다.
   const blKeysForLabels = ["CO", "C1", "C2", "C3"];
   const labelPathRgForAnchors =
     effectiveCushionPathBaselineRg ?? cushionPathBaselineRg;
   const fromBaselinePath =
+    appMode === "USER" &&
     useBaselineLabelAnchors &&
     labelPathRgForAnchors &&
     labelPathRgForAnchors.length > 0 &&
@@ -4230,6 +4343,10 @@ function handlePointerCancel(e) {
             .filter(([, v]) => v != null)
         )
       : null;
+  const baselineLookupMark = (key) =>
+    appMode === "ADMIN" && useBaselineLabelAnchors && rawAnchorsBase
+      ? labelPayload(rawAnchorsBase[key])
+      : null;
   const allAnchors = {
     CO:
       (baselineDraftState.coRg
@@ -4240,6 +4357,7 @@ function handlePointerCancel(e) {
             },
           }
         : null) ??
+      baselineLookupMark("CO") ??
       (fromBaselinePath && fromBaselinePath.CO) ??
       labelPayload(override.CO) ??
       anchorSources.CO,
@@ -4252,12 +4370,17 @@ function handlePointerCancel(e) {
             },
           }
         : null) ??
+      baselineLookupMark("C1") ??
       (fromBaselinePath && fromBaselinePath["C1"]) ??
       anchorSources.C1,
     "C2":
-      (fromBaselinePath && fromBaselinePath["C2"]) ?? anchorSources["C2"],
+      baselineLookupMark("C2") ??
+      (fromBaselinePath && fromBaselinePath["C2"]) ??
+      anchorSources["C2"],
     "C3":
-      (fromBaselinePath && fromBaselinePath["C3"]) ?? anchorSources["C3"],
+      baselineLookupMark("C3") ??
+      (fromBaselinePath && fromBaselinePath["C3"]) ??
+      anchorSources["C3"],
     "C4":
       labelPayload(useBaselineLabelAnchors && anchorsBase ? anchorsBase["C4"] : anchorSources["C4"]),
     "C5":
@@ -4481,15 +4604,6 @@ function handlePointerCancel(e) {
         })()
       : null;
 
-  const baselineHandleContract = trajectoryContractView?.baselineHandle ?? {
-    enabled: false,
-    requireTrackPrefix: null,
-  };
-  const baselineHandleTrackAllowed =
-    baselineHandleContract.requireTrackPrefix == null ||
-    baselineHandleContract.requireTrackPrefix === "" ||
-    (typeof trackForAnchors === "string" &&
-      trackForAnchors.startsWith(baselineHandleContract.requireTrackPrefix));
   const baselineHandleModel = buildBaselineHandleModel(
     trajectoryBuild,
     {
@@ -4497,12 +4611,16 @@ function handlePointerCancel(e) {
       showBaseLine,
       draftCoRg: baselineDraftState.coRg,
       draftC1Rg: baselineDraftState.c1Rg,
+      markCoRg: readBaselineHandleCoord(rawAnchorsBase?.CO),
+      markC1Rg: readBaselineHandleCoord(rawAnchorsBase?.["C1"]),
       draggingMark: baselineDraftState.draggingMark,
     },
     tablePxConfig,
     {
-      enabled:
-        baselineHandleContract.enabled && baselineHandleTrackAllowed,
+      enabled: isBaselineEndpointEditingEnabled(
+        trajectoryContractView?.baselineHandle,
+        trackForAnchors
+      ),
     }
   );
 
@@ -4894,7 +5012,10 @@ function handlePointerCancel(e) {
           history={workspaceHistory}
           onClose={() => setShowHistoryModal(false)}
           onLoad={(id) => {
-            handleLoadWorkspaceSnapshot(id);
+            // Success → Admin table layers ON (trajectory/sys labels). Session stays false until Reset.
+            if (handleLoadWorkspaceSnapshot(id)) {
+              setAdminTableLayersVisible(true);
+            }
             setShowHistoryModal(false);
           }}
           onDelete={handleDeleteWorkspaceSnapshot}
@@ -4945,6 +5066,28 @@ function handlePointerCancel(e) {
                   console.log("[SYS APPLY] adminState.sys:", adminState.sys);
                   console.log("[SYS APPLY] slot.applied before:", slot?.applied);
 
+                  if (import.meta.env.DEV) {
+                    sysApplyCutDiagApplyIdRef.current += 1;
+                    sysApplyCutDiagSessionRef.current = createSysApplyCutDiagSession(
+                      sysApplyCutDiagApplyIdRef.current
+                    );
+                    logSysApplyOrdering("BEFORE", {
+                      applyId: sysApplyCutDiagApplyIdRef.current,
+                      activeSlot,
+                      shotType_form: newData.shotType ?? null,
+                      track_form: newData.track ?? null,
+                      corrections_form: newData.corrections ?? null,
+                      slot_draft_corrections: slot?.draft?.corrections ?? null,
+                      slot_applied_corrections: slot?.applied?.corrections ?? null,
+                      slot_draft_shotType: slot?.draft?.shotType ?? null,
+                      slot_applied_shotType: slot?.applied?.shotType ?? null,
+                      slot_sys_outputs: slot?.applied?.sys?.outputs?.result ??
+                        slot?.draft?.sys?.outputs?.result ??
+                        null,
+                      c2ReflectionOverride: c2ReflectionOverrideRef.current,
+                    });
+                  }
+
                   // 1. adminState 업데이트
                   setAdminState(prev => ({
                     ...prev,
@@ -4960,10 +5103,44 @@ function handlePointerCancel(e) {
                   const systemId = newData.system || system_id || "5_half_system";
                   const numericInputs = mergeSysOverlayPayloadToNumericInputs(newData);
                   const trackVal = newData.track ?? "B2T_L";
+                  const previousTrack =
+                    slot?.draft?.sys?.track ??
+                    slot?.applied?.sys?.track ??
+                    adminState?.sys?.track ??
+                    "B2T_L";
+                  // Track flip → stale C2 reflectionOverride invalid (keep when track unchanged)
+                  if (
+                    shouldClearReflectionOverrideOnTrackChange(
+                      previousTrack,
+                      trackVal
+                    )
+                  ) {
+                    setC2ReflectionOverride(null);
+                    c2ReflectionOverrideRef.current = null;
+                  }
                   const applyResult = actions.commitDraftSys(activeSlot, systemId, numericInputs, {
                     track: trackVal,
                   });
                   console.log("[SYS APPLY] commitDraftSys result:", applyResult);
+                  if (import.meta.env.DEV) {
+                    const sysOutCommit = applyResult.ok
+                      ? applyResult.appliedSys?.outputs?.result
+                      : null;
+                    logSysApplyOrdering("AFTER_COMMIT", {
+                      applyId: sysApplyCutDiagApplyIdRef.current,
+                      ok: applyResult.ok,
+                      note: "flushSync commit done; corrections meta not patched yet",
+                      committed_outputs: sysOutCommit,
+                      CO_f: sysOutCommit?.CO_f ?? null,
+                      C1_f: sysOutCommit?.C1_f ?? null,
+                      C3_r: sysOutCommit?.C3_r ?? null,
+                      C4_f: sysOutCommit?.C4_f ?? null,
+                      Sn: sysOutCommit?.Sn ?? null,
+                      slot_corrections_still_pre_patch:
+                        slot?.draft?.corrections ?? slot?.applied?.corrections ?? null,
+                      c2ReflectionOverride: c2ReflectionOverrideRef.current,
+                    });
+                  }
                   if (applyResult.ok) {
                     console.log("[SYS APPLY] committed applied.sys outputs:", applyResult.appliedSys?.outputs);
                     const sysOut = applyResult.appliedSys?.outputs?.result;
@@ -4975,7 +5152,7 @@ function handlePointerCancel(e) {
                       Sn: sysOut?.Sn,
                     });
                     const corr = newData.corrections ?? {};
-                    actions.patchSlotRuntimeMeta(activeSlot, {
+                    const metaPatch = {
                       corrections: {
                         slide: Number(corr.slide) || 0,
                         curve_ratio: Number(corr.curve_ratio) || 0,
@@ -4993,7 +5170,15 @@ function handlePointerCancel(e) {
                         targetColor === "red" || targetColor === "yellow"
                           ? targetColor
                           : null,
-                    });
+                    };
+                    if (import.meta.env.DEV) {
+                      logSysApplyOrdering("AFTER_META_PATCH", {
+                        applyId: sysApplyCutDiagApplyIdRef.current,
+                        note: "patchSlotRuntimeMeta scheduled (React setState; not flushSync)",
+                        metaPatch,
+                      });
+                    }
+                    actions.patchSlotRuntimeMeta(activeSlot, metaPatch);
                     const appliedResult = applyResult.appliedSys?.outputs?.result;
                     if (appliedResult && !trajectory.state.adjusted) {
                       trajectory.setAdjusting({
@@ -5006,6 +5191,7 @@ function handlePointerCancel(e) {
                     if (appliedResult) {
                       trajectory.applySysResult(appliedResult);
                     }
+                    setAdminTableLayersVisible(true);
                   }
 
                   if (newData.calculated?.HP_n != null) {
@@ -5030,8 +5216,69 @@ function handlePointerCancel(e) {
                     hypothesisId: "HPT_APPLY_START",
                     ts: Date.now(),
                   });
+                  const activeSlotId = shotEditor.activeSlot;
+                  const slot = shotEditor.slots[activeSlotId];
+                  // Same prev resolution as applyHptToSlot (slot SSOT → admin mirror)
+                  const prevHpt =
+                    slot?.draft?.hpt ?? slot?.applied?.hpt ?? adminState.hpt;
+                  const shouldClear =
+                    shouldClearReflectionOverrideOnHptTipSideChange(
+                      prevHpt,
+                      newData
+                    );
+                  if (import.meta.env.DEV) {
+                    hptTrajectoryDiagApplyIdRef.current += 1;
+                    const applyId = hptTrajectoryDiagApplyIdRef.current;
+                    hptTrajectoryDiagSessionRef.current =
+                      createHptTrajectoryDiagSession(applyId);
+                    const applyMeta = logHptTrajectoryDiagApply({
+                      applyId,
+                      positionId:
+                        slot?.draft?.meta?.recommendedFrom?.positionId ??
+                        slot?.applied?.meta?.recommendedFrom?.positionId ??
+                        editSourceContext?.snapshotId ??
+                        null,
+                      shotType:
+                        slot?.draft?.shotType ??
+                        slot?.applied?.shotType ??
+                        adminState?.sys?.shotType ??
+                        null,
+                      track:
+                        slot?.draft?.sys?.track ??
+                        slot?.applied?.sys?.track ??
+                        adminState?.sys?.track ??
+                        null,
+                      targetBall:
+                        slot?.draft?.targetBall ??
+                        slot?.applied?.targetBall ??
+                        targetColor ??
+                        null,
+                      prevHpt,
+                      nextHpt: newData,
+                      shouldClear,
+                      c2ReflectionOverrideBefore: c2ReflectionOverride,
+                      slotDraftOverrideBefore:
+                        slot?.draft?.reflectionOverride ?? null,
+                      slotAppliedOverrideBefore:
+                        slot?.applied?.reflectionOverride ?? null,
+                      corrections:
+                        slot?.draft?.corrections ??
+                        slot?.applied?.corrections ??
+                        adminState?.sys?.corrections ??
+                        null,
+                    });
+                    if (hptTrajectoryDiagSessionRef.current) {
+                      hptTrajectoryDiagSessionRef.current.applyMeta = applyMeta;
+                    }
+                  }
+                  // Tip L↔R → clear React C2 mirror + slot layers together
+                  if (shouldClear) {
+                    setC2ReflectionOverride(null);
+                    c2ReflectionOverrideRef.current = null;
+                  }
                   setAdminState({ ...adminState, hpt: newData });
-                  actions.applyHptToSlot(shotEditor.activeSlot, newData);
+                  actions.applyHptToSlot(activeSlotId, newData);
+                  setAdminTableLayersVisible(true);
                   setIsSaved(false);
                   closeOverlay();
                 }}
@@ -5049,6 +5296,7 @@ function handlePointerCancel(e) {
                   });
                   setAdminState({ ...adminState, str: newData });
                   actions.applyStrToSlot(shotEditor.activeSlot, newData);
+                  setAdminTableLayersVisible(true);
                   setIsSaved(false);
                   closeOverlay();
                 }}
@@ -5103,6 +5351,7 @@ function handlePointerCancel(e) {
                   });
                   setAdminState({ ...adminState, ai: newData });
                   actions.applyAiToSlot(shotEditor.activeSlot, newData);
+                  setAdminTableLayersVisible(true);
                   setIsSaved(false);
                   closeOverlay();
                 }}
@@ -5273,6 +5522,21 @@ function handlePointerCancel(e) {
               }}
             >
               SAVE
+            </button>
+            <button
+              type="button"
+              className="control-button"
+              onClick={() => {
+                hideBallPositionController();
+                handleAdminWorkReset();
+              }}
+              title="현재 데이터 유지, 재편집 가능 상태로 전환"
+              style={{
+                backgroundColor: "#64748b",
+                color: "white",
+              }}
+            >
+              Reset
             </button>
           </div>
           <div className="right-panel-divider" aria-hidden="true" />

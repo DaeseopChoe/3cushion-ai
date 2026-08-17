@@ -15,6 +15,11 @@ import {
   hasRenderableOutputsResult,
   resolveSlotSysForRender,
 } from '../domain/slotSysResolve';
+import {
+  shouldClearReflectionOverrideOnHptTipSideChange,
+  shouldClearReflectionOverrideOnTrackChange,
+  stripReflectionOverrideFromLayer,
+} from '../domain/trajectory/c2ReflectionOverride';
 
 export { resolveSlotSysForRender, hasRenderableOutputsResult };
 
@@ -222,6 +227,12 @@ function buildSlotDraftWithUpdatedSys(
   const prevInputs = prevDraftSys.inputs ?? {};
   const prevSystemId = prevDraftSys.systemId;
   const nextTrack = opts?.track ?? prevDraftSys.track ?? "B2T_L";
+  const prevTrackForOverride =
+    prevDraftSys.track ?? slot.applied?.sys?.track ?? "B2T_L";
+  const clearOverrideOnTrackFlip = shouldClearReflectionOverrideOnTrackChange(
+    prevTrackForOverride,
+    nextTrack
+  );
 
   const candidateInputs = {
     ...prevInputs,
@@ -312,8 +323,12 @@ function buildSlotDraftWithUpdatedSys(
     console.groupEnd();
   }
 
+  const baseDraft = clearOverrideOnTrackFlip
+    ? stripReflectionOverrideFromLayer(slot.draft || {})
+    : { ...(slot.draft || {}) };
+
   return {
-    ...(slot.draft || {}),
+    ...baseDraft,
     sys: {
       systemId: nextSystemId,
       track: nextTrack,
@@ -455,6 +470,23 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
             return s;
           }
           committedSys = clonedSys;
+          const prevTrackForOverride =
+            fresh.draft?.sys?.track ??
+            fresh.applied?.sys?.track ??
+            "B2T_L";
+          const nextTrackForOverride =
+            nextDraft.sys?.track ?? opts?.track ?? "B2T_L";
+          const clearOverrideOnTrackFlip =
+            shouldClearReflectionOverrideOnTrackChange(
+              prevTrackForOverride,
+              nextTrackForOverride
+            );
+          const nextApplied = clearOverrideOnTrackFlip
+            ? {
+                ...stripReflectionOverrideFromLayer(prevApplied),
+                sys: clonedSys,
+              }
+            : { ...prevApplied, sys: clonedSys };
           return {
             ...s,
             slots: {
@@ -462,7 +494,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
               [slotId]: {
                 ...fresh,
                 draft: nextDraft,
-                applied: { ...prevApplied, sys: clonedSys },
+                applied: nextApplied,
               },
             },
           };
@@ -494,20 +526,30 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
   };
 
   // Draft.hpt/str/ai -> Applied.hpt/str/ai 확정 (오버레이 "적용" 시 호출)
+  // Tip side L↔R → strip stale C2 reflectionOverride (slot SSOT + mirror owner).
   const applyHptToSlot = (slotId: SlotId, data: DraftState['hpt']) => {
     if (data == null) return;
     setShotEditor((s) => {
       const slot = s.slots[slotId];
       const prevApplied = slot.applied ?? {};
+      const prevHpt = slot.draft?.hpt ?? slot.applied?.hpt ?? null;
       const cloned = structuredClone(data);
+      const clearOverrideOnTipSideFlip =
+        shouldClearReflectionOverrideOnHptTipSideChange(prevHpt, cloned);
+      let nextDraft: DraftState = { ...(slot.draft ?? {}), hpt: cloned };
+      let nextApplied: DraftState = { ...prevApplied, hpt: cloned };
+      if (clearOverrideOnTipSideFlip) {
+        nextDraft = stripReflectionOverrideFromLayer(nextDraft);
+        nextApplied = stripReflectionOverrideFromLayer(nextApplied);
+      }
       return {
         ...s,
         slots: {
           ...s.slots,
           [slotId]: {
             ...slot,
-            draft: { ...(slot.draft ?? {}), hpt: cloned },
-            applied: { ...prevApplied, hpt: cloned },
+            draft: nextDraft,
+            applied: nextApplied,
           },
         },
       };
@@ -909,6 +951,18 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     }));
   };
 
+  /** ADMIN Position work Reset — wipe S1/S2/S3 draft+applied. Does not touch dataset or ballsState. */
+  const clearAdminWorkSlots = () => {
+    setShotEditor((prev) => ({
+      ...prev,
+      slots: {
+        S1: { draft: null, applied: null },
+        S2: { draft: null, applied: null },
+        S3: { draft: null, applied: null },
+      },
+    }));
+  };
+
   return {
     shotEditor,
     actions: {
@@ -938,6 +992,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       restoreShotEditor,
       syncBallsToAllSlots,
       clearBallsSnapshotsFromSlots,
+      clearAdminWorkSlots,
     }
   };
 }

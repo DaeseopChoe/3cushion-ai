@@ -154,7 +154,7 @@ function buildCapabilities(
   return {
     render: labelStrategy ? { labelStrategy } : null,
     baselineHandle: isFiveHalfFamily
-      ? { enabled: true, requireTrackPrefix: "B2T" }
+      ? { enabled: true, requireTrackPrefix: null }
       : null,
   };
 }

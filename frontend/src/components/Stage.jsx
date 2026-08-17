@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import App from "../App";
+import { readUiModePreference } from "../domain/uiModePreference";
 /** @typedef {import("../domain/userDisplayFlags").UserTableDisplayMode} UserTableDisplayMode */
 /** @typedef {import("../domain/userDisplayFlags").TrajectoryCardSource} TrajectoryCardSource */
 
@@ -311,7 +312,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const [currentButtonId, setCurrentButtonId] = useState("S1");
   const [activeSlot, setActiveSlot] = useState("S1");
   const [dirtySlotIds, setDirtySlotIds] = useState([]);
-  const [appMode, setAppMode] = useState("USER");
+  const [appMode, setAppMode] = useState(() => readUiModePreference());
   const [strategyButtons, setStrategyButtons] = useState([]);
   const [systemControlsAvailable, setSystemControlsAvailable] = useState(false);
   const [userTableDisplayMode, setUserTableDisplayMode] = useState(

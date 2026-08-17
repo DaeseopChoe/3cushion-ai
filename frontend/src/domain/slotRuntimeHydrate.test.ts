@@ -7,6 +7,12 @@ import {
 } from "./slotRuntimeHydrate";
 
 describe("slotRuntimeHydrate", () => {
+  it("empty work slot is not a renderable strategy", () => {
+    expect(
+      slotHasRenderableStrategy({ draft: null, applied: null })
+    ).toBe(false);
+  });
+
   it("empty slot returns blank runtime", () => {
     const payload = buildSlotRuntimePayload({ draft: null, applied: null });
     expect(payload.trajectoryResult).toBeNull();

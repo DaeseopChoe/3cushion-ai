@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { detectRail, resolveNearestRail } from "./reflectionEngine";
 import {
   computeBaselinePhysicalLimitEndIndex,
   computeSameRailCapEndIndex,
@@ -187,18 +188,20 @@ describe("trajectoryPathDisplayPolicy", () => {
     });
   });
 
-  it("skipSameRail: corner-like TOP/RIGHT pair does not cut when override opts set", () => {
+  it("skipSameRail: true same-rail C4-C5 is skipped when override opts set", () => {
+    // True same-rail (not corner EPS steal). Corner C1-C2 is handled by nearest-rail.
     const pathNodes = [
       bottom(30),
       top(4),
-      { x: 80, y: 38 },
+      { x: 48, y: 18 },
       bottom(26),
-      left(16),
       top(16),
+      top(16.05),
       bottom(16),
     ];
     const cut = computeSameRailCapEndIndex(pathNodes);
     expect(cut.reason).toBe("same_rail");
+    expect(cut.endIndex).toBe(4);
 
     const skip = computeSameRailCapEndIndex(pathNodes, { skipSameRail: true });
     expect(skip.endIndex).toBe(6);
@@ -208,5 +211,102 @@ describe("trajectoryPathDisplayPolicy", () => {
       skipSameRail: true,
     });
     expect(resolved.endIndex).toBeGreaterThanOrEqual(3);
+  });
+
+  describe("BUG-A: corner side-rail C2 must not false same_rail with C1 (no skipSameRail)", () => {
+    // Measured corrected nodes (T2B_L tip L tipCount=3 slide=8 CO_eff=55). No override.
+    const f1 = {
+      c1_5: { C1: { x: 70.471, y: 0 }, C2: { x: 80, y: 2.273 } },
+      c1_7: { C1: { x: 70.471, y: 0 }, C2: { x: 80, y: 2.887 } },
+      c1_7_5: { C1: { x: 70.471, y: 0 }, C2: { x: 80, y: 3.041 } },
+      c1_10: { C1: { x: 70.471, y: 0 }, C2: { x: 80, y: 3.808 } },
+    };
+    const f2Mirror = {
+      C1: { x: 9.529, y: 0 },
+      C2: { x: 0, y: 2.273 },
+    };
+
+    function pathWithC1C2(C1: PathPoint, C2: PathPoint): (PathPoint | null)[] {
+      // CO on TOP (T2B-like) — must not share BOTTOM with C1 or CO–C1 true same_rail masks BUG-A.
+      return [
+        top(30),
+        C1,
+        C2,
+        bottom(26),
+        left(16),
+        top(16),
+        bottom(16),
+      ];
+    }
+
+    it.each([
+      ["C1=5", f1.c1_5],
+      ["C1=7", f1.c1_7],
+      ["C1=7.5", f1.c1_7_5],
+      ["C1=10", f1.c1_10],
+    ] as const)(
+      "F1 %s: C1 BOTTOM + side-rail C2 → not same_rail; cap past C1",
+      (_label, pts) => {
+        const pathNodes = pathWithC1C2(pts.C1, pts.C2);
+        const same = computeSameRailCapEndIndex(pathNodes);
+        expect(same.reason).not.toBe("same_rail");
+        expect(same.endIndex).toBeGreaterThanOrEqual(2);
+        expect(same.stoppedSegment).not.toBe("C1-C2");
+
+        const cap = resolveTrajectoryDisplayCap(pathNodes, null, 2);
+        expect(cap.reason).not.toBe("same_rail");
+        expect(cap.endIndex).toBeGreaterThan(1);
+      }
+    );
+
+    it("F2 mirror LEFT: C1 BOTTOM + C2≈(0,2.273) → not same_rail", () => {
+      const pathNodes = pathWithC1C2(f2Mirror.C1, f2Mirror.C2);
+      const same = computeSameRailCapEndIndex(pathNodes);
+      expect(same.reason).not.toBe("same_rail");
+      expect(same.endIndex).toBeGreaterThanOrEqual(2);
+      expect(same.stoppedSegment).not.toBe("C1-C2");
+    });
+
+    it("NORMAL true same-rail C4-C5 still truncates", () => {
+      const pathNodes = [
+        top(30),
+        f1.c1_5.C1,
+        f1.c1_5.C2,
+        bottom(26),
+        top(16),
+        top(16.05),
+        bottom(16),
+      ];
+      const same = computeSameRailCapEndIndex(pathNodes);
+      expect(same.endIndex).toBe(4);
+      expect(same.reason).toBe("same_rail");
+      expect(same.stoppedSegment).toBe("C4-C5");
+    });
+
+    it("exact/near-corner: side-rail wins over TOP/BOTTOM steal", () => {
+      // Exact corner: LEFT/RIGHT preferred over TOP/BOTTOM
+      expect(resolveNearestRail({ x: 80, y: 0 })).toBe("RIGHT");
+      expect(resolveNearestRail({ x: 80, y: 40 })).toBe("RIGHT");
+      expect(resolveNearestRail({ x: 0, y: 0 })).toBe("LEFT");
+      expect(resolveNearestRail({ x: 0, y: 40 })).toBe("LEFT");
+      // Near-corner inside former EPS=3 band
+      expect(resolveNearestRail({ x: 80, y: 2.273 })).toBe("RIGHT");
+      expect(resolveNearestRail({ x: 80, y: 2.89 })).toBe("RIGHT");
+      expect(resolveNearestRail({ x: 80, y: 38 })).toBe("RIGHT");
+      expect(resolveNearestRail({ x: 0, y: 2.273 })).toBe("LEFT");
+      // Mid-rail BOTTOM unchanged
+      expect(resolveNearestRail({ x: 70.47, y: 0 })).toBe("BOTTOM");
+      // detectRail would steal these as BOTTOM; presence+nearest keeps side identity
+      expect(detectRail({ x: 80, y: 2.273 })).toBe("BOTTOM");
+      expect(resolveNearestRail({ x: 80, y: 2.273 })).toBe("RIGHT");
+    });
+
+    it("geometry presence: 7 path nodes still cap without cutting at C1", () => {
+      const pathNodes = pathWithC1C2(f1.c1_5.C1, f1.c1_5.C2);
+      expect(pathNodes.filter(Boolean)).toHaveLength(7);
+      const cap = resolveTrajectoryDisplayCap(pathNodes, null, 2);
+      expect(cap.endIndex).toBeGreaterThanOrEqual(3);
+      expect(cap.stoppedSegment).not.toBe("C1-C2");
+    });
   });
 });

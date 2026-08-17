@@ -35,6 +35,46 @@ function byPriority(a, b) {
   return String(a.label).localeCompare(String(b.label));
 }
 
+/** 노란 Mark는 고정. text만 table 안쪽으로 이동. */
+const MARK_LABEL_INSET_PX = 16;
+const MARK_LABEL_SIDE_GAP_PX = 14;
+const MARK_RAIL_EPS = 0.6;
+
+function detectMarkRail(coord) {
+  const x = Number(coord?.x);
+  const y = Number(coord?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (Math.abs(x + 2.25) <= MARK_RAIL_EPS || Math.abs(x) <= MARK_RAIL_EPS) return "LEFT";
+  if (Math.abs(x - 82.25) <= MARK_RAIL_EPS || Math.abs(x - 80) <= MARK_RAIL_EPS) return "RIGHT";
+  if (Math.abs(y + 2.25) <= MARK_RAIL_EPS || Math.abs(y) <= MARK_RAIL_EPS) return "BOTTOM";
+  if (Math.abs(y - 42.25) <= MARK_RAIL_EPS || Math.abs(y - 40) <= MARK_RAIL_EPS) return "TOP";
+  return null;
+}
+
+function inwardMarkLabelOffset(coord) {
+  const rail = detectMarkRail(coord);
+  if (rail === "TOP") {
+    return { dx: 0, dy: MARK_LABEL_INSET_PX, textAnchor: "middle" };
+  }
+  if (rail === "BOTTOM") {
+    return { dx: 0, dy: -MARK_LABEL_INSET_PX, textAnchor: "middle" };
+  }
+  if (rail === "LEFT") {
+    return { dx: MARK_LABEL_SIDE_GAP_PX, dy: 0, textAnchor: "start" };
+  }
+  if (rail === "RIGHT") {
+    return { dx: -MARK_LABEL_SIDE_GAP_PX, dy: 0, textAnchor: "end" };
+  }
+  const x = Number(coord?.x);
+  const y = Number(coord?.y);
+  const fromLeft = Number.isFinite(x) && x < 40;
+  return {
+    dx: fromLeft ? MARK_LABEL_SIDE_GAP_PX : -MARK_LABEL_SIDE_GAP_PX,
+    dy: Number.isFinite(y) && y < 20 ? -MARK_LABEL_INSET_PX : MARK_LABEL_INSET_PX,
+    textAnchor: fromLeft ? "start" : "end",
+  };
+}
+
 function collectBaseNodes(anchors) {
   return Object.entries(anchors)
     .map(([label, data]) => {
@@ -67,6 +107,10 @@ function renderNode(
   const p = toPx(node.coord, scale, tableH);
   const cx = p.x + padding;
   const cy = p.y + padding;
+  const labelInset = inwardMarkLabelOffset(node.coord);
+  const textX = cx + labelInset.dx;
+  const textY = cy + labelInset.dy;
+  const textAnchor = labelInset.textAnchor;
   const override = labelValueOverrides?.[node.label];
   const checkOnlyPending = !!override?.preview && !!override?.checkOnly;
   const num =
@@ -121,12 +165,12 @@ function renderNode(
       {showApplyButton && checkOnlyPending ? (
         <>
           <text
-            x={cx}
-            y={cy}
+            x={textX}
+            y={textY}
             fill={labelFill}
             fontSize={20}
             fontWeight="bold"
-            textAnchor="middle"
+            textAnchor={textAnchor}
             dominantBaseline="middle"
             style={{ pointerEvents: "none" }}
           >
@@ -210,12 +254,12 @@ function renderNode(
         </g>
       ) : (
         <text
-          x={cx}
-          y={cy}
+          x={textX}
+          y={textY}
           fill={labelFill}
           fontSize={20}
           fontWeight="bold"
-          textAnchor="middle"
+          textAnchor={textAnchor}
           dominantBaseline="middle"
           style={{ pointerEvents: "none" }}
         >

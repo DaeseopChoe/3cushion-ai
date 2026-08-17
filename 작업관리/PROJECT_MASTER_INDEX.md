@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.69  
-Last Updated: 2026-08-12  
+Version: 1.70  
+Last Updated: 2026-08-17  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -51,8 +51,12 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | Phase 5 Mission 02 — Dead Code Cleanup **COMPLETE** |
-| **Next Track** | **Sample System Validation** |
-| **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
+| **Next Track** | **Family Data Architecture Phase 1** — Master/Member 저장 구조 분석 (**Ask**) |
+| **Next Track Readiness** | **READY FOR ASK** · 코드 수정 금지 · 설계 문서: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` |
+| **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
+| **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
+| **BUG-B Reset/History stale** | **OPEN ISSUE** · Family와 분리 |
+| **Working tree** | **대량 uncommitted 보존** · Commit/Push는 사용자 요청 전까지 금지 |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
 | **Ball Fine Position Controller** | ✅ **COMPLETE** (`1eaf76c` · Desktop PASS · Mobile Production PASS · Admin/User PASS) |
 | **Git baseline (pre–Fine Controller)** | `9678b69d0f82b82a685de86cb42eec07e18cb53f` |
@@ -104,9 +108,40 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Code baseline** | `8bf90b6` · `chore(cleanup): remove temporary snap agent telemetry` |
 | **Scope** | Cleanup #1–#4 complete — temporary telemetry / no-op trace scaffolding removed; protected product / validation paths preserved |
 | **Deferred** | Optional hygiene · defer-until-validation · design-decision · KEEP — **no Mission 02 blocker**; do not auto-resume Dead Code Cleanup |
-| **Next Track** | **Sample System Validation** · **READY FOR SAMPLE SYSTEM VALIDATION** |
+| **Next Track** | **Family Data Architecture Phase 1** · **READY FOR ASK** |
 
 Detail: `HISTORY/PROJECT_LOG_2026-08.md` (Mission 02 Final Closure).
+
+---
+
+## Next Architecture Track — Family Data Architecture (2026-08-17)
+
+| Field | Value |
+|-------|--------|
+| **Status** | **CONFIRMED DESIGN** · **not implemented** |
+| **SSOT draft** | `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` |
+| **LOG** | `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-17 |
+| **Next** | **Phase 1 Ask** — Family Master / Member 현재 저장 구조 분석 |
+| **Must not** | IMPLEMENTED로 표기 · Envelope Sampling 재해석 · 한 번에 Phase 1–4 구현 |
+
+### 왜 지금인가
+
+샘플 데이터셋 3개(뒤돌리기 · 옆돌리기 · 뒤돌리기 대회전, 각 4 track)가 사용자에 의해 완성되었다.  
+다음 질문은 “기준 1개로 나머지 3 track + 파생을 자동 생성할 수 있는가”이다.
+
+### 설계 한 줄
+
+Family Master = 공통값 SSOT · Member = 좌표+track+provenance · Search Index = derived index (새 SSOT 아님) · 명령 3종: 원본수정 UPDATE / 파생수정 BRANCH+REPLACE / 새로저장 CREATE.
+
+상세·안전 원칙·Phase 1–4: **DRAFT 문서만** 따른다. 본 MASTER는 상태를 가리킨다.
+
+### 구현된 Authoring/Display (uncommitted · cite LOG)
+
+saveFlow system identity · C2 Track invalidate · History restore layers ON · uiMode F5 · HPT tip-side C2 invalidate · **BUG-A** display-cap nearest-rail. **BUG-B OPEN**.
+
+### Export ≠ History
+
+History snapshot count ≠ export `positions.json` record count. Dataset 3계층 SSOT 유지 (본 문서 Dataset Architecture).
 
 ---
 
@@ -184,7 +219,7 @@ Authority는 중복되지 않는다. Terminology 전용 추가 SSOT(`SEARCH_TERM
 | 3 | GLOSSARY | Official Terminology / Pipelines |
 | 4 | Architecture Freeze | Structure (Consume only) |
 | 5 | HANDOFF | Session ops / Checklist |
-| 6 | Mission-specific | 해당 Mission만 (예: Product Phase Handoff · Quality Report) |
+| 6 | Mission-specific | 해당 Mission만 (예: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` · Product Phase Handoff · Quality Report) |
 
 상세 Session Rules: `CURSOR_SESSION_HANDOFF.md` §0.1.
 
@@ -361,7 +396,7 @@ Architecture Review
 | **Search Engine Architecture** | **Complete** — Phase 1 Foundation ✅ · Phase 2 Dataset Generator ✅ · Phase 3 Search Engine Enhancement ✅ |
 | **Phase 4 Foundation** | ✅ **COMPLETED** — Project Constitution · GLOSSARY · Session / Documentation Governance · Handoff alignment |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** — Mission 01–03 · Mission 04 ABSORBED |
-| **Next Phase** | **Sample System Validation** (Phase 5 Mission 02 Dead Code Cleanup COMPLETE) |
+| **Next Phase** | **Family Data Architecture Phase 1 (Ask)** — 샘플 3 set 완성 보고 이후 |
 
 ### Search Engine Phase Map (Complete)
 
@@ -456,7 +491,7 @@ Phase 3에서 Search 품질·성능 Enhancement Engine을 구현하고 Runtime�
 **품질 보고서:** `search/quality/SEARCH_QUALITY_REPORT.md`  
 **세션 이관:** `CURSOR_SESSION_HANDOFF.md`
 
-**Next Track:** **Sample System Validation**
+**Next Track:** **Family Data Architecture Phase 1 (Ask)** · 설계: `FAMILY_DATA_ARCHITECTURE_DRAFT.md`
 
 ### 핵심 설계 원칙
 
@@ -525,6 +560,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 **상태:** Phase 1~3-1 완료 · **UI 용어 (OPEN-02C~E, 2026-06):** ADMIN **로컬DB** = Local Dataset Search (`positions_dataset`); ADMIN **Search** = USER **Search** = Published Search (`dataset/{공략}/{시스템}/positions.json`). UI에서 Recall 라벨 제거 · published Search active state `isAdminPublishedSearchMatched` · CSS `.published-search-btn`. 내부 handler명(`handlePositionRecall` 등)·profile ID·trace는 2차 정리 예정.  
 **이관 문서:** `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`  
 **월별 로그:** `HISTORY/PROJECT_LOG_2026-06.md` §14 (Phase 1) · §15 (Phase 2~3-1)
+
+**Export ≠ History (2026-08-17):** History UI snapshot 개수와 `dataset/{공략}/{시스템}/positions.json` record 수는 동일 개념이 아니다. Family 설계는 이 3계층 위에 올라간다 (`FAMILY_DATA_ARCHITECTURE_DRAFT.md` · **미구현**).
 
 ### 데이터 3계층
 
@@ -625,7 +662,7 @@ Production Search 장애 발생 시 점검 순서:
 | **Phase 3 Search Engine Enhancement** | **Complete** — Mission 35~42 |
 | **Phase 4 Foundation** | ✅ **COMPLETED** |
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** |
-| **Next** | **Sample System Validation** |
+| **Next** | **Family Data Architecture Phase 1 (Ask)** |
 
 > Phase 3 Enhancement 로드맵(Spatial Index → … → Quality Validation)은 **전부 완료**되었다.  
 > Phase 4 Foundation · Mission 01–03 COMPLETED · Mission 04 ABSORBED · **Phase 4 Product Pipeline COMPLETE**.  
@@ -1042,7 +1079,8 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | Slot hydrate | `domain/slotRuntimeHydrate.ts` |
 | Render SYS | `domain/slotSysResolve.ts` (App: `slotRenderSys`, effective values) |
 | 궤적 | `utils/trajectory/curveTrajectory.ts`, `hooks/useTrajectoryState.ts`, `components/table/ImpactLines.jsx` |
-| Anchors | `domain/anchorLookupEngine.ts`, `domain/anchorCoordinateEngine.ts`, `domain/reflectionEngine.ts` |
+| Anchors | `domain/anchorLookupEngine.ts`, `domain/anchorCoordinateEngine.ts`, `domain/reflectionEngine.ts` (`detectRail` · **`resolveNearestRail`**) |
+| Display Cap | `domain/trajectoryPathDisplayPolicy.ts` — same-rail presence=`detectRail` · identity=`resolveNearestRail` |
 | **Caption Engine** | `domain/systemAxisCaption.ts` (`findBestAlongSequential`), `components/table/SystemValueLabels.jsx` (`pushGroup`) |
 | Overlay Router | `overlay/router/adminOverlayRouter.ts` (`useAdminOverlayRouter`), `overlay/state/overlayStateMachine.ts` (`useAdminOverlayLifecycle`), `overlay/router/userOverlayRouter.ts` (`useUserOverlayRouter`) |
 | Overlay Utils | `overlay/utils/sysOverlayUtils.jsx` — SysOverlay 공유 헬퍼 |
@@ -1121,6 +1159,21 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | Dataset Pipeline | 안정 — SAVE / Export / Search / Production 반영 검증 완료 |
 
 **상세:** `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-01 (D-RTC-01 · D-OVLSEL-01~02)
+
+### Authoring / Display (2026-08-17) — uncommitted
+
+상세: `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-17. **Commit/Push 없음. working tree 보존.**
+
+| Item | Status |
+|------|--------|
+| saveFlow `system` identity string | IMPLEMENTED (uncommitted) |
+| C2 Track-change invalidate | IMPLEMENTED (uncommitted) |
+| History restore `adminTableLayersVisible` ON · session false | IMPLEMENTED (uncommitted) |
+| `app_ui_mode_v1` F5 USER/ADMIN | IMPLEMENTED (uncommitted) |
+| HPT tip-side C2 invalidate | IMPLEMENTED (uncommitted) |
+| **BUG-A** display-cap nearest-rail | IMPLEMENTED (uncommitted) |
+| **BUG-B** Reset/History stale | **OPEN ISSUE** |
+| Family Master/Member | **CONFIRMED DESIGN** · not implemented |
 
 ### ADMIN Interaction — Pointer Capture Timing (2026-07-30)
 
@@ -1530,11 +1583,13 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 >
 > **Phase 5 Mission 02 — Dead Code Cleanup:** ✅ **COMPLETE** — Cleanup #1–#4 · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS** · baseline `8bf90b6`.
 >
-> **Next Track:** **Sample System Validation** · **READY FOR SAMPLE SYSTEM VALIDATION**.
+> **Next Track:** **Family Data Architecture Phase 1 (Ask)** · `FAMILY_DATA_ARCHITECTURE_DRAFT.md` · **CONFIRMED DESIGN / not implemented**.
 >
-> **병행 Carry:** Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · System Authoring 준비 · Product / Platform Carry.
+> **Sample datasets:** 사용자 보고 3 set 완성 (뒤돌리기 · 옆돌리기 · 뒤돌리기 대회전 × 4 tracks). Auto-generation은 Family Phase 2–3.
 >
-> **Runtime / Product 상태 (2026-08-04 유지):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy v1.4 Completed.
+> **병행 Carry:** **BUG-B** Reset/History stale · Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · uncommitted working tree 보존 · Commit/Push 사용자 요청 시.
+>
+> **Runtime / Product 상태 (2026-08-17):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy **v1.4.1** (BUG-A same-rail identity) · Family **미구현**.
 
 ### STEP7 상태
 
@@ -1698,7 +1753,10 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 - **Phase 5 Search Quality Follow-on · Task #5** — ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done)
 - **Phase 5 Mission 02 — Dead Code Cleanup** — ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**)
 - **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c` · Desktop / Mobile Production / Admin/User PASS)
-- **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
+- **Sample datasets (user)** — ✅ 3 set 완성 보고 · Export≠History
+- **BUG-A display-cap corner** — ✅ **IMPLEMENTED** (uncommitted) · `resolveNearestRail`
+- **BUG-B Reset/History stale** — **OPEN ISSUE**
+- **Family Data Architecture** — **CONFIRMED DESIGN** · **NEXT = Phase 1 Ask** · `FAMILY_DATA_ARCHITECTURE_DRAFT.md`
 - Official Search Enhancement Pipeline: `GLOSSARY_SSOT` §5.3
 - Terminology: `작업관리/GLOSSARY_SSOT.md` · Session ops: `CURSOR_SESSION_HANDOFF.md`
 - Architecture SSOT: `Architecture/` (**Freeze 유지 · 내용 수정 금지**)
@@ -1722,7 +1780,7 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 
 ### 최우선 (Product Carry) — 병행 가능 잔여
 
-- **Display Boundary Policy** — SSOT **v1.4** · Reading Mode · C2 Handle · Corner Cap Override **Completed** · Next: Continuation / CASE A · Corrected Cap Minimum · Boundary
+- **Display Boundary Policy** — SSOT **v1.4.1** · BUG-A same-rail identity **Implemented** · Reading Mode · C2 Handle · skipSameRail 유지 · Next: Continuation / CASE A · Corrected Cap Minimum · Boundary · **BUG-B OPEN**
 - **Handle First Drag 잔여 간섭** (명시적 후속 · Extension Handle vs Ball/Joystick) — 또는 신규 Product 세션
 - 인계: `DISPLAY_BOUNDARY_POLICY_SSOT.md`
 
@@ -1783,7 +1841,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 ### P0 — Next Track
 
 - **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c` · Desktop / Mobile Production / Admin/User PASS)
-- **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
+- **Family Data Architecture Phase 1** — **NEXT** · **Ask** · `FAMILY_DATA_ARCHITECTURE_DRAFT.md`
 - Phase 5 Mission 02 Dead Code Cleanup: ✅ COMPLETE (`8bf90b6` · EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS)
 - Phase 5 Search Quality Follow-on Task #5: ✅ COMPLETE (`282c859`)
 - Phase 5 Mission 01 Real Interpolation: ✅ COMPLETE
@@ -1824,7 +1882,8 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `Architecture/` | **Structure Constitution** — Envelope Architecture Freeze (내용 수정 금지) |
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | **Session Operations** — Official Read Order · Startup Rules · Current / Next / Carry |
 | `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
-| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4** — Reading Mode · C2 Reflection Rail Handle · Phase 2A · Cap / Boundary |
+| `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` | **Family Data Architecture** — CONFIRMED DESIGN · Phase 1–4 · Admin 3 commands · **미구현** |
+| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4.1** — same-rail nearest-rail identity (BUG-A) · Reading Mode · C2 Handle |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
 | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` | **Architecture Impact Working Guideline** — PASS · Consume · Freeze Candidate |

@@ -7,7 +7,7 @@
 //
 // Flow → Flow: saveFlow.runSaveStrategy 경유 (동일 Layer 참조 허용).
 
-import { runSaveStrategy, type SaveFlowContext } from "./saveFlow";
+import { runSaveStrategy, type SaveFlowContext, type SaveFlowResult } from "./saveFlow";
 import { type PositionRecord } from "../../domain/positionSearchEngine";
 
 // ---------------------------------------------------------------------------
@@ -32,12 +32,13 @@ export type HistoryFlowContext = SaveFlowContext & {
  * Canonical Save Flow (DS-003).
  * 저장 가능 상태 검증 → runSaveStrategy → workspace_history snapshot 기록.
  * handleCanonicalRightPanelSave 로직을 추출.
+ * @returns SaveFlowResult — callers may clear edit/session UX on ok.
  */
-export function runCanonicalSave(ctx: HistoryFlowContext): void {
+export function runCanonicalSave(ctx: HistoryFlowContext): SaveFlowResult {
   // Guard: 저장 가능 상태 검증
   if (!ctx.canUseSystemControls) {
     alert("Search/로컬DB 편집 세션 및 Target 확정 후 저장할 수 있습니다.");
-    return;
+    return { ok: false, reason: "controls-unavailable" };
   }
 
   const adminSys = ctx.adminState?.sys as
@@ -50,7 +51,7 @@ export function runCanonicalSave(ctx: HistoryFlowContext): void {
 
   if (!systemId || systemId === "null") {
     alert("시스템을 선택하세요 (SYS 설정)");
-    return;
+    return { ok: false, reason: "missing-system" };
   }
 
   // SRCH-005 + DS-002: Strategy 저장
@@ -65,11 +66,12 @@ export function runCanonicalSave(ctx: HistoryFlowContext): void {
         "공 배치(ballsState)를 확인할 수 없습니다. 테이블 공 위치를 확인 후 다시 저장하세요."
       );
     }
-    return;
+    return r ?? { ok: false, reason: "save-failed" };
   }
 
   // DS-003: workspace_history snapshot 기록
   if (r.updated) {
     ctx.commitWorkspaceHistoryWithStrategyDataset(r.updated);
   }
+  return r;
 }

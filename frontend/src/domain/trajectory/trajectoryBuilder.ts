@@ -33,6 +33,7 @@ import {
   type PathPoint,
 } from "./pathNodeHelpers";
 import { resolveReflectionC2 } from "./reflectionPolicy";
+import { readBaselineHandleCoord } from "./baselineMarkAxisSnap";
 
 const DEFAULT_CURVE_EPS = 1e-6;
 
@@ -211,19 +212,6 @@ function resolveAnchorPointOrCoord(
     return (anchor as { coord: PathPoint }).coord;
   }
   return (anchor as PathPoint | null) ?? null;
-}
-
-function baselineHandleFromPath(
-  pt: PathPoint | null | undefined
-): PathPoint | null {
-  if (
-    pt &&
-    Number.isFinite(pt.x) &&
-    Number.isFinite(pt.y)
-  ) {
-    return { x: pt.x, y: pt.y };
-  }
-  return null;
 }
 
 function pickSysNum(
@@ -655,8 +643,8 @@ export function buildTrajectory(
     displayCapOpts
   );
 
-  const coRg = baselineHandleFromPath(baseline?.cushionPath[0]);
-  const c1Rg = baselineHandleFromPath(baseline?.cushionPath[1]);
+  const coRg = readBaselineHandleCoord(anchorsBase?.CO);
+  const c1Rg = readBaselineHandleCoord(anchorsBase?.["C1"]);
 
   return {
     corrected: {

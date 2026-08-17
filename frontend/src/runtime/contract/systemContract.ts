@@ -48,6 +48,7 @@ export type SystemContractCapabilities = {
   } | null;
   baselineHandle: {
     enabled: boolean;
+    /** null / "" = all tracks of this system. */
     requireTrackPrefix: string | null;
   } | null;
 };

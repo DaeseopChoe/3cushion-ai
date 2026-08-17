@@ -4,6 +4,7 @@ import {
   adminSysShallowEqual,
   createEmptyAdminSysSnapshot,
 } from "./adminSysFromSlot";
+import { hasRenderableOutputsResult } from "./slotSysResolve";
 
 describe("adminSysFromSlot", () => {
   it("maps renderable slot sys with per-slot meta (not prev corrections)", () => {
@@ -28,6 +29,11 @@ describe("adminSysFromSlot", () => {
     expect(empty.inputs).toEqual({});
     expect(empty.shotType).toBe("");
     expect(empty.corrections?.slide).toBe(0);
+  });
+
+  it("empty snapshot is not renderable SYS (AI auto-comment guard)", () => {
+    const empty = createEmptyAdminSysSnapshot();
+    expect(hasRenderableOutputsResult(empty)).toBe(false);
   });
 
   it("shallow equal detects identical sys snapshots", () => {

@@ -1,8 +1,230 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.28  
+Version : v1.29  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-17 (Authoring/Display uncommitted fixes · Family Data Architecture CONFIRMED DESIGN)
+
+## 제목
+
+**ADMIN Authoring / Display 수정 일괄 기록 · Family Data Architecture 설계 확정 · BUG-A IMPLEMENTED · BUG-B OPEN**
+
+## Status
+
+**DOCS SYNC** · 코드는 **working tree uncommitted** (Commit/Push 없음)  
+Family 구조는 **CONFIRMED DESIGN / NEXT** (미구현)
+
+## Working tree (preserve)
+
+이번 세션 및 직전 세션의 코드 변경은 **모두 보존 대상**이다. 문서 작업이 이를 revert/reset 하지 않는다.
+
+포함 (비완전 목록): Reset / History restore display / C2 Track·HPT-side invalidation / SYS diag / uiMode F5 / saveFlow SYS identity / baseline / HPT tip-side / display-cap nearest-rail (BUG-A) 등.
+
+`SYSTEM_ARCHITECTURE.md` / `CALCULATION_RULES.md` 루트 파일명은 없고, 실제 문서는 `작업관리/3_SYSTEM_ARCHITECTURE.md` · `작업관리/4_CALCULATION_RULES.md` 이다.
+
+---
+
+## A. saveFlow sys.system identity — IMPLEMENTED (uncommitted)
+
+| Item | Fact |
+|------|------|
+| 문제 | saveFlow가 UI display object를 `system` 필드에 저장 → identity corruption |
+| 수정 | `system: ctx.system`이 아니라 이미 계산된 **systemId string** 사용 (예: `"5_half_system"`) |
+| 파일 | `frontend/src/application/flows/saveFlow.ts` |
+| 테스트 | `saveFlow.sysIdentity.test.ts` · regression PASS |
+| Commit/Push | **없음** |
+
+---
+
+## B. C2 stale on Track change — IMPLEMENTED (uncommitted)
+
+| Item | Fact |
+|------|------|
+| 본질 | C2는 sys 계산값이 아니라 **reflection geometry derived** 값 |
+| 문제 | `reflectionOverride`가 Track 변경 후에도 남아 새 Track에서 C2 reflection 계산 skip |
+| 수정 | Track 변경 시 reflectionOverride invalidate · runtime + slot draft/applied 정리 |
+| 재사용 | 기존 `resolveReflectionC2` |
+| 비변경 | C2를 sys 필드로 추가하지 않음 · Reset/baseline/exact-upsert 정책 유지 |
+| 테스트 | `c2ReflectionOverride.trackInvalidate.test.ts` |
+
+---
+
+## C. History restore trajectory display — IMPLEMENTED (uncommitted)
+
+| Item | Fact |
+|------|------|
+| 문제 | History restore 시 balls/target/slot/adminState는 복원되나 `adminTableLayersVisible`이 꺼져 trajectory/labels 미표시 |
+| 수정 | History restore **성공 시 display layers ON** · **session은 false 유지** |
+| 비변경 | Reset / SYS Apply 우회 없음 · Search/LocalDB 기존 경로 유지 |
+| 테스트 | `historyRestoreDisplayContract.test.ts` |
+
+---
+
+## D. ADMIN UI mode F5 persistence — IMPLEMENTED (uncommitted)
+
+| Item | Fact |
+|------|------|
+| 문제 | `appMode` 초기값 USER 하드코딩 → ADMIN에서 F5 시 USER로 떨어짐 |
+| 수정 | `app_ui_mode_v1` localStorage (`domain/uiModePreference.ts`) |
+| 계약 | USER F5 → USER · ADMIN F5 → ADMIN · runtime 작업 state는 F5 시 초기화 · dataset/history 목록성 데이터 유지 |
+| 분리 | Reset semantics와 분리 · 최초/invalid key fallback = USER |
+| 쓰기 | 명시적 toggle에서만 write |
+| 테스트 | `uiModePreference.test.ts` T1–T14 |
+
+---
+
+## E. HPT tip side L↔R stale C2 — IMPLEMENTED (uncommitted)
+
+| Item | Fact |
+|------|------|
+| 문제 | History/Load 후 HPT 타점 L↔R 시 `c2ReflectionOverride`가 남아 old C2를 `anchors.C2`로 주입 |
+| 수정 | HPT side 변경 감지 시 reflectionOverride invalidate · React runtime + slot draft/applied |
+| 결과 | new tip 기준으로 C2 재계산 |
+| 분리 | Track flip invalidation과 **별개** HPT side invalidation |
+| 테스트 | `c2ReflectionOverride.hptTipSideInvalidate.test.ts` |
+| 한계 | 이 수정만으로는 대회전 C1-cut(BUG-A)을 고치지 못함 (override가 이미 null인 FIRST_RENDER) |
+
+---
+
+## F. BUG-A — HPT corrected display-cap corner — IMPLEMENTED (uncommitted)
+
+### 증상
+
+뒤돌리기 대회전 일부 데이터에서 **corrected** 궤적이 C1에서 잘림. baseline은 C1–C6 정상.
+
+geometry / path generation 실패가 아니라 **display-cap truncation**.
+
+### 원인
+
+reflection 단계는 C2 rail을 RIGHT로 정상 판정.
+
+display-cap `isSameRailSegment`가 `detectRail(EPS_RAIL=3, TOP/BOTTOM 우선)`을 다시 호출해 코너 근처 side-rail C2를 BOTTOM으로 오분류.
+
+예 (T2B_L, tip `{count:3,side:L}`, slide=8, effective CO=55, C1_f=5):
+
+| | 값 |
+|--|-----|
+| C1 | ≈ (70.47, 0) BOTTOM |
+| C2 | ≈ (80, 2.273) |
+| reflection `c2Rail` | **RIGHT** |
+| display `detectRail(C2)` | **BOTTOM** (`\|y\|=2.273 ≤ 3`) |
+| same_rail | true |
+| cap | `endIndex=1` · stoppedSegment C1–C2 |
+| `pathNodes.length` | **7** (생성은 됨) |
+
+C1_f=10: C2.y≈3.808 → detectRail RIGHT → PASS.
+
+### C1 sweep (사용자 관찰 + production 재계산)
+
+동일 조건에서 C1_f만 변경:
+
+| C1_f | C2.y (approx) | display rail | 결과 |
+|------|----------------|--------------|------|
+| 5 | 2.273 | BOTTOM | FAIL |
+| 7.0 | ≈2.89 | BOTTOM | FAIL |
+| ≈7.37 | ≈3.000 | EPS_RAIL boundary | — |
+| 7.5 | ≈3.04 | RIGHT | PASS |
+| 10 | 3.808 | RIGHT | PASS |
+
+이 threshold는 C1 시스템 경계가 아니라 **C2.y가 EPS=3 band를 통과하는 인공 경계**.
+
+### 수정 (최소)
+
+- `detectRail` **전역 semantics 유지** (reflectionEngine 수식 미변경)
+- display-cap `isSameRailSegment`만:
+  1. **presence** = `detectRail(eps)` (내부 점은 same-rail 아님)
+  2. **identity** = `resolveNearestRail` (코너 tie: LEFT/RIGHT 우선)
+- `resolveRailForC2Handle`은 `resolveNearestRail` 위임 (공용 helper)
+
+금지한 것: EPS 축소 · detectRail 순서 변경 · same_rail 제거 · skipSameRail 강제 · C1≥7.5 하드코딩 · shotType/track/tip 예외 · SYS/HPT/slide 수식 변경.
+
+성공 기준: **c2ReflectionOverride / skipSameRail 없이** F1 C1=5가 same_rail로 C1에서 잘리지 않음.  
+C2 점 조작으로 살아나는 현상은 cap 우회일 뿐 근본 수정이 아님.
+
+### 검증
+
+| Suite | 결과 |
+|-------|------|
+| `trajectoryPathDisplayPolicy.test.ts` + `c2ReflectionOverride.test.ts` | **28/28 PASS** |
+| trajectory folder + display policy | **56/56 PASS** |
+| Fixtures | F1 C1=5/7/7.5/10 · F2 mirror · NORMAL C4–C5 same_rail · exact/near-corner · path length 7 |
+
+파일: `reflectionEngine.ts` (`resolveNearestRail`) · `trajectoryPathDisplayPolicy.ts` · `c2ReflectionOverride.ts` · 해당 test.
+
+Cite: `DISPLAY_BOUNDARY_POLICY_SSOT.md` §5.3 (v1.4.1 identity 분리).
+
+---
+
+## G. BUG-B — Reset / History stale — OPEN ISSUE
+
+BUG-A와 **분리**. 이번 세션에서 **수정하지 않음**.
+
+관찰:
+
+- C2 handle override → `c2OverridePoint` → `skipSameRail: true` → false same-rail cap **우회** (궤적이 “살아난 것처럼” 보임)
+- Reset이 `c2ReflectionOverride` / `trajectoryExtensionDraft`를 안 지울 수 있음
+- History ADMIN extension: payload **없을 때 이전 draft 유지** (`if (payload) set…`)
+- 브라우저 Refresh 후 동일 History Load면 정상 → runtime stale 후보
+
+다음 세션에서 Family와 섞지 말고, 필요 시 **Reset/History stale cleanup 별도 Agent**.
+
+관계 판정: BUG-A는 classifier root. BUG-B는 override/skipSameRail + incomplete clear가 A를 숨기거나 오염을 노출. 동일 필드는 관여하나 원인 합치지 않음.
+
+---
+
+## 샘플 데이터 (사용자 보고 · 2026-08)
+
+| 공략 | 상태 |
+|------|------|
+| 뒤돌리기 | 1 set × 4 tracks |
+| 옆돌리기 | 1 set × 4 tracks |
+| 뒤돌리기 대회전 | 샘플 생성/검증 · corner/display-cap(BUG-A) 수정 후 정상 확인 |
+| 합계 | 사용자: **샘플 데이터셋 3개 완성** |
+
+다음 목적: 기준 데이터 1개로 나머지 3 track + 각 track 파생 데이터를 **Family로 자동 생성** 가능한가.
+
+### Export ≠ History
+
+History UI snapshot 개수와 export `positions.json` record 수는 **동일 개념이 아니다**.
+
+- History = workspace snapshot
+- Export = `dataset/{shotType}/{system}/positions.json` **누적 corpus**
+- 대회전 export fault records는 분석용으로 사용
+- 둘을 1:1로 동일시하지 말 것
+
+Dataset 3계층 SSOT: MASTER Dataset Architecture · `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`.
+
+---
+
+## Family Data Architecture — CONFIRMED DESIGN (미구현)
+
+상세: `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md`
+
+요약:
+
+- Family Master = 공통값 SSOT (shotType · system identity · SYS/AI/STR/HPT/thickness canonical)
+- mirrored HPT/thickness **DB 중복 저장 금지** · handedness resolver
+- Member = 좌표 + track + provenance (원본도 Member)
+- 4 Track = H/V/RPI 대칭 · sys 불변 · 좌표만 대칭
+- Derived = 기존 production 규칙 재사용 (CO–C1 1/3 · 2Rg · C3+ 2Rg) — Envelope 1.5gr과 혼동 금지
+- Search Index = derived index, 새 SSOT 아님 · PositionKey unique 아님 · position당 최대 3 Family
+- 명령: 원본수정 UPDATE · 파생수정 BRANCH+REPLACE · 새로저장 CREATE
+
+**IMPLEMENTED로 쓰지 말 것.**
+
+---
+
+## Next
+
+```text
+[Cursor Mode: Ask]
+Family Data Architecture Phase 1 — Family Master / Member 현재 저장 구조 분석
+```
+
+Carry: BUG-B OPEN · uncommitted 코드 보존 · Commit/Push는 사용자 요청 시.
 
 ---
 

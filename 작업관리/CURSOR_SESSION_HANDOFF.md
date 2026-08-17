@@ -4,8 +4,10 @@
 Document  : CURSOR_SESSION_HANDOFF.md
 Type      : Cursor Session Handoff (Operational)
 Authority : Operations
-Date      : 2026-08-06
-Scope     : Search Engine Architecture Complete
+Date      : 2026-08-17
+Scope     : Family Data Architecture Phase 1 Ask (CONFIRMED DESIGN)
+             · Authoring/Display uncommitted (BUG-A done · BUG-B OPEN)
+             · Search Engine Architecture Complete
              (Phase 1 Foundation + Phase 2 Dataset Generator + Phase 3 Enhancement)
              · Phase 4 Foundation — GLOSSARY_SSOT adopt (Session ops)
 Rule      : Fact only ·
@@ -40,7 +42,7 @@ Rule      : Fact only ·
 | **3** | **GLOSSARY** | Terminology — Official Name · Official Pipeline 표현 |
 | **4** | **Architecture Freeze** | Structure — Envelope / Sampling / Dataset / Membership / Resolve 규칙 (Consume only) |
 | **5** | **HANDOFF** | Operations — Current / Next / Carry · Session Checklist |
-| **6** | **Mission-specific** | 해당 Mission만 (예: Product Phase Handoff · `search/quality/SEARCH_QUALITY_REPORT.md`) |
+| **6** | **Mission-specific** | 해당 Mission만 (예: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` · Product Phase Handoff · `search/quality/SEARCH_QUALITY_REPORT.md`) |
 
 **기본 5종을 마친 뒤에만** Mission-specific 문서를 읽는다.
 
@@ -168,21 +170,16 @@ Current Status
   ✅ Product Envelope Static Publisher (Task #4) COMPLETE
   ✅ Phase 5 Search Quality Follow-on Task #5 COMPLETE (Production RI E2E)
   ✅ Phase 5 Mission 02 — Dead Code Cleanup COMPLETE
-      · Closure: COMPLETE WITH DEFERRED ITEMS
-      · Cleanup Exit: EXIT-AFTER-#4
-      · Code baseline (Mission 02): main · 8bf90b648cfb73752abc0d4af8353aab2ce8998f
-  ✅ USER Overlay Centering SSOT COMPLETE (2026-08-12)
-      · Root Cause B+C · Panel ResizeObserver · 브라우저 검증 · build PASS
-      · Code + docs sync uncommitted · Commit/Push 대기
-  ✅ Ball Fine Position Controller COMPLETE (2026-08-12)
-      · Production: 1eaf76c0102071893c2bc561cfe72d972d53b55f
-      · Desktop PASS · Mobile Production PASS · Admin PASS · User PASS
-      · Closed UI contract — do not redesign without a new explicit request
+  ✅ Ball Fine Position Controller COMPLETE (2026-08-12 · 1eaf76c)
+  ✅ Sample datasets (user-reported): 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 × 4 tracks
+  ✅ BUG-A display-cap nearest-rail IMPLEMENTED (uncommitted)
+  OPEN BUG-B Reset/History stale (do not mix with Family Phase 1)
+  Working tree: LARGE UNCOMMITTED — preserve; no Commit/Push unless user asks
 
 Next Track
-  Sample System Validation
-  · Readiness: READY FOR SAMPLE SYSTEM VALIDATION
-  · Product / Platform Carry (Display Boundary · STEP9 · Known Issues)
+  Family Data Architecture Phase 1 — Family Master / Member 현재 저장 구조 분석
+  Mode: [Cursor Mode: Ask] FIRST
+  Design: 작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md (CONFIRMED DESIGN · not implemented)
 ```
 
 | Item | Value |
@@ -199,11 +196,13 @@ Next Track
 | **Phase 5 Mission 02 Dead Code Cleanup** | ✅ **COMPLETED** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETED** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
 | **Ball Fine Position Controller** | ✅ **COMPLETED** (2026-08-12 · Desktop PASS · Mobile Production PASS · Admin/User PASS · `1eaf76c`) |
-| **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) |
+| **BUG-A** | ✅ **IMPLEMENTED** (uncommitted) — display-cap `resolveNearestRail` |
+| **BUG-B** | **OPEN ISSUE** — Reset/History stale · skipSameRail heal |
+| **Family Data Architecture** | **CONFIRMED DESIGN** · not implemented |
+| **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) — Family terms not yet adopted |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
-| **Product Pipeline Tests** | **21 PASS** (export · package · deploy) |
-| **Next Track** | **Sample System Validation** |
-| **Next Track Readiness** | **READY FOR SAMPLE SYSTEM VALIDATION** |
+| **Next Track** | **Family Data Architecture Phase 1 (Ask)** |
+| **Next Track Readiness** | **READY FOR ASK** · 코드 수정 금지 |
 ### 구현 완료 범위
 
 | ✓ | Phase / Layer | Path |
@@ -244,15 +243,30 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
 
 ## 3. 다음 작업 — Next Track
 
-### Primary
+### Primary — MUST START AS ASK
 
-- **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c`) · Desktop PASS · Mobile Production PASS · Admin/User PASS
-- **USER Overlay Centering SSOT** — ✅ **COMPLETE** · docs sync → **Commit** → **Push** (사용자 요청 시)
-- **Sample System Validation** — **NEXT** · **READY FOR SAMPLE SYSTEM VALIDATION**
-- **Phase 5 Mission 02 — Dead Code Cleanup** — ✅ **COMPLETE** (EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS)
-- **Phase 5 Mission 01 Real Interpolation** — ✅ **COMPLETE** (core engine)
-- **Product Envelope Static Publisher (Task #4)** — ✅ **COMPLETE**
-- **Phase 5 Search Quality Follow-on Task #5** — ✅ **COMPLETE** (Production RI E2E)
+```text
+NEXT:
+"Family Data Architecture Phase 1 — Family Master / Member 현재 저장 구조 분석"
+
+[Cursor Mode: Ask]
+
+읽기 순서:
+1) PROJECT_MASTER_INDEX.md
+2) PROJECT_LOG_2026-08.md
+3) FAMILY_DATA_ARCHITECTURE_DRAFT.md
+4) 실제 저장/localDB/export 코드 (StrategyEntry · positions_dataset · History · Export · slot draft/applied)
+5) 기존 derived/symmetry SSOT · production 파생 규칙 (재사용 · 재해석 금지)
+
+코드 수정 금지. uncommitted working tree 보존. Commit/Push 금지(사용자 요청 전).
+```
+
+- **Family Data Architecture** — **CONFIRMED DESIGN** · Phase 1 Ask → 검토 → Agent · Phase 2–4 한 번에 구현 금지
+- **BUG-B** — OPEN · Family Phase 1과 분리 · Reset/History stale cleanup은 별도 Agent
+- **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c`) · 재설계 금지
+- **USER Overlay Centering SSOT** — ✅ **COMPLETE** · Commit/Push는 사용자 요청 시
+- **Sample datasets** — 사용자 3 set 완성 보고 · Export ≠ History
+- **BUG-A** — ✅ IMPLEMENTED (uncommitted)
 - **Product / Platform Carry**
   - Display Boundary Continuation / CASE A / Corrected Cap · Handle Drag
   - STEP9 Phase 4 Pilot
@@ -319,7 +333,9 @@ Cite: `HISTORY/PROJECT_LOG_2026-08.md` · `OVERLAY_LAYOUT_SSOT_v1.2.md` §8 · M
 - Do **NOT** reopen Cleanup #1–#4.
 - Do **NOT** automatically remove deferred candidates (N3–N15).
 - Do **NOT** alter locked Search / RI / Slot / Calculator / Envelope / Publisher contracts as “cleanup”.
-- Design / run **Sample System Validation** first.
+- Design / run **Family Data Architecture Phase 1 Ask** first (no code).
+- Do not treat Family draft as IMPLEMENTED.
+- Do not mix BUG-B stale cleanup into Family Phase 1 unless the user explicitly asks.
 - Deferred cleanup: revisit only after validation results or a separate maintenance / design decision.
 
 ### Phase 5 Mission 02 — Dead Code Cleanup (Complete)
@@ -446,16 +462,19 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : Ball Fine Position Controller — Mobile Production Final PASS / session close
-Baseline       : main · 1eaf76c0102071893c2bc561cfe72d972d53b55f · origin/main 0/0
-Current Status : COMPLETE · Desktop PASS · Mobile Production PASS · Admin PASS · User PASS
-Code change    : none (documentation finalization only)
-Docs           : MASTER v1.69 · LOG v1.28 · HANDOFF · Frontend Baseline
-Next Session   : Sample System Validation
-Readiness      : READY FOR SAMPLE SYSTEM VALIDATION
-Guardrail      : Fine Controller is a closed UI contract — do not redesign/reimplement
+Session ID     : 2026-08-17 docs handoff — Family architecture + uncommitted authoring/display
+Baseline       : main · last production Fine Controller 1eaf76c · LARGE uncommitted working tree
+Current Status : Docs updated · BUG-A IMPLEMENTED (code uncommitted) · BUG-B OPEN
+                 Family CONFIRMED DESIGN · not implemented
+Code change    : none in this docs session (preserve all existing uncommitted code)
+Docs           : MASTER v1.70 · LOG v1.29 · HANDOFF · FAMILY_DATA_ARCHITECTURE_DRAFT
+                 DISPLAY_BOUNDARY v1.4.1 note
+Next Session   : [Ask] Family Data Architecture Phase 1 — Master/Member storage analysis
+Readiness      : READY FOR ASK
+Guardrail      : Do not commit/push unless user asks · Do not touch working-tree product code
+                 Fine Controller closed · Envelope Freeze · detectRail global semantics stay
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-12 · Ball Fine Position Controller COMPLETE · Next Track Sample System Validation*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-17 · Next: Family Data Architecture Phase 1 Ask*
