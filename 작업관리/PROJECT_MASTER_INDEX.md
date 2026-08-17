@@ -55,7 +55,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Next Track Readiness** | **READY FOR ASK** · 코드 수정 금지 · 설계 문서: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
-| **BUG-B Reset/History stale** | **OPEN ISSUE** · Family와 분리 |
+| **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
 | **Working tree** | **대량 uncommitted 보존** · Commit/Push는 사용자 요청 전까지 금지 |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
 | **Ball Fine Position Controller** | ✅ **COMPLETE** (`1eaf76c` · Desktop PASS · Mobile Production PASS · Admin/User PASS) |
@@ -137,7 +137,7 @@ Family Master = 공통값 SSOT · Member = 좌표+track+provenance · Search Ind
 
 ### 구현된 Authoring/Display (uncommitted · cite LOG)
 
-saveFlow system identity · C2 Track invalidate · History restore layers ON · uiMode F5 · HPT tip-side C2 invalidate · **BUG-A** display-cap nearest-rail. **BUG-B OPEN**.
+saveFlow system identity · C2 Track invalidate · History restore layers ON · uiMode F5 · HPT tip-side C2 invalidate · **BUG-A** display-cap nearest-rail. **BUG-B UNCONFIRMED (reproduction required)**.
 
 ### Export ≠ History
 
@@ -1172,7 +1172,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | `app_ui_mode_v1` F5 USER/ADMIN | IMPLEMENTED (uncommitted) |
 | HPT tip-side C2 invalidate | IMPLEMENTED (uncommitted) |
 | **BUG-A** display-cap nearest-rail | IMPLEMENTED (uncommitted) |
-| **BUG-B** Reset/History stale | **OPEN ISSUE** |
+| **BUG-B** Reset/History stale | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 |
 | Family Master/Member | **CONFIRMED DESIGN** · not implemented |
 
 ### ADMIN Interaction — Pointer Capture Timing (2026-07-30)
@@ -1587,7 +1587,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 >
 > **Sample datasets:** 사용자 보고 3 set 완성 (뒤돌리기 · 옆돌리기 · 뒤돌리기 대회전 × 4 tracks). Auto-generation은 Family Phase 2–3.
 >
-> **병행 Carry:** **BUG-B** Reset/History stale · Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · uncommitted working tree 보존 · Commit/Push 사용자 요청 시.
+> **병행 Carry:** **BUG-B 재현 확인 필요** · Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · uncommitted working tree 보존 · Commit/Push 사용자 요청 시.
 >
 > **Runtime / Product 상태 (2026-08-17):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy **v1.4.1** (BUG-A same-rail identity) · Family **미구현**.
 
@@ -1755,7 +1755,7 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 - **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c` · Desktop / Mobile Production / Admin/User PASS)
 - **Sample datasets (user)** — ✅ 3 set 완성 보고 · Export≠History
 - **BUG-A display-cap corner** — ✅ **IMPLEMENTED** (uncommitted) · `resolveNearestRail`
-- **BUG-B Reset/History stale** — **OPEN ISSUE**
+- **BUG-B Reset/History stale** — **UNCONFIRMED** · BUG-A 수정 후 동일 UI stale 현상 재현 시에만 별도 조사
 - **Family Data Architecture** — **CONFIRMED DESIGN** · **NEXT = Phase 1 Ask** · `FAMILY_DATA_ARCHITECTURE_DRAFT.md`
 - Official Search Enhancement Pipeline: `GLOSSARY_SSOT` §5.3
 - Terminology: `작업관리/GLOSSARY_SSOT.md` · Session ops: `CURSOR_SESSION_HANDOFF.md`
@@ -1780,7 +1780,7 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 
 ### 최우선 (Product Carry) — 병행 가능 잔여
 
-- **Display Boundary Policy** — SSOT **v1.4.1** · BUG-A same-rail identity **Implemented** · Reading Mode · C2 Handle · skipSameRail 유지 · Next: Continuation / CASE A · Corrected Cap Minimum · Boundary · **BUG-B OPEN**
+- **Display Boundary Policy** — SSOT **v1.4.1** · BUG-A same-rail identity **Implemented** · Reading Mode · C2 Handle · skipSameRail 유지 · Next: Continuation / CASE A · Corrected Cap Minimum · Boundary · **BUG-B UNCONFIRMED**
 - **Handle First Drag 잔여 간섭** (명시적 후속 · Extension Handle vs Ball/Joystick) — 또는 신규 Product 세션
 - 인계: `DISPLAY_BOUNDARY_POLICY_SSOT.md`
 

@@ -10,7 +10,7 @@ Status : Active Project Log
 
 ## 제목
 
-**ADMIN Authoring / Display 수정 일괄 기록 · Family Data Architecture 설계 확정 · BUG-A IMPLEMENTED · BUG-B OPEN**
+**ADMIN Authoring / Display 수정 일괄 기록 · Family Data Architecture 설계 확정 · BUG-A IMPLEMENTED · BUG-B UNCONFIRMED**
 
 ## Status
 
@@ -158,7 +158,7 @@ Cite: `DISPLAY_BOUNDARY_POLICY_SSOT.md` §5.3 (v1.4.1 identity 분리).
 
 ---
 
-## G. BUG-B — Reset / History stale — OPEN ISSUE
+## G. BUG-B — Reset / History stale — UNCONFIRMED / REPRODUCTION REQUIRED
 
 BUG-A와 **분리**. 이번 세션에서 **수정하지 않음**.
 
@@ -169,9 +169,23 @@ BUG-A와 **분리**. 이번 세션에서 **수정하지 않음**.
 - History ADMIN extension: payload **없을 때 이전 draft 유지** (`if (payload) set…`)
 - 브라우저 Refresh 후 동일 History Load면 정상 → runtime stale 후보
 
-다음 세션에서 Family와 섞지 말고, 필요 시 **Reset/History stale cleanup 별도 Agent**.
+이 현상은 과거 BUG-A가 존재하던 상태에서 관찰되었다. BUG-A 수정 후 실시한 테스트에서는 현재 동일 현상이 재현되지 않았다.
 
-관계 판정: BUG-A는 classifier root. BUG-B는 override/skipSameRail + incomplete clear가 A를 숨기거나 오염을 노출. 동일 필드는 관여하나 원인 합치지 않음.
+따라서 현재 증거만으로 BUG-B를 **독립된 미해결 코드 버그로 확정해서는 안 된다**.
+
+현재 판정:
+
+- **UNCONFIRMED — BUG-A 수정 후 재현 필요**
+- 가능성 1: BUG-A의 2차 증상이었고 BUG-A 수정과 함께 해소되었을 수 있음
+- 가능성 2: 별도 stale-state 문제가 있으나 현재 fixture에서는 재현되지 않았을 수 있음
+
+정책:
+
+- 재현 전 코드 수정 금지
+- 특히 `Reset` semantics / `History` restore-hydrate / `c2ReflectionOverride` lifecycle / `trajectoryExtensionDraft` / `skipSameRail` / slot draft-applied / runtime cleanup 추측 수정 금지
+- 다음 세션에서 Family와 섞지 말고, **동일 stale UI 현상이 production UI에서 다시 재현될 때만** reproduction-first로 재조사
+
+관계 판정: BUG-A는 classifier root. BUG-B 후보는 override/skipSameRail + incomplete clear가 A를 숨기거나 오염을 노출한 현상일 수 있다. 다만 현재는 **재현 전 가설 단계**이며 독립 root cause로 확정하지 않는다.
 
 ---
 
@@ -224,7 +238,7 @@ Dataset 3계층 SSOT: MASTER Dataset Architecture · `SESSION_TRANSFER/SESSION_T
 Family Data Architecture Phase 1 — Family Master / Member 현재 저장 구조 분석
 ```
 
-Carry: BUG-B OPEN · uncommitted 코드 보존 · Commit/Push는 사용자 요청 시.
+Carry: BUG-B UNCONFIRMED (reproduction required) · uncommitted 코드 보존 · Commit/Push는 사용자 요청 시.
 
 ---
 

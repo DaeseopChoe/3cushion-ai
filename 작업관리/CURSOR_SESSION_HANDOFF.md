@@ -6,7 +6,7 @@ Type      : Cursor Session Handoff (Operational)
 Authority : Operations
 Date      : 2026-08-17
 Scope     : Family Data Architecture Phase 1 Ask (CONFIRMED DESIGN)
-             · Authoring/Display uncommitted (BUG-A done · BUG-B OPEN)
+             · Authoring/Display uncommitted (BUG-A done · BUG-B unconfirmed)
              · Search Engine Architecture Complete
              (Phase 1 Foundation + Phase 2 Dataset Generator + Phase 3 Enhancement)
              · Phase 4 Foundation — GLOSSARY_SSOT adopt (Session ops)
@@ -173,7 +173,7 @@ Current Status
   ✅ Ball Fine Position Controller COMPLETE (2026-08-12 · 1eaf76c)
   ✅ Sample datasets (user-reported): 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 × 4 tracks
   ✅ BUG-A display-cap nearest-rail IMPLEMENTED (uncommitted)
-  OPEN BUG-B Reset/History stale (do not mix with Family Phase 1)
+  BUG-B Reset/History stale = UNCONFIRMED (reproduce after BUG-A fix first)
   Working tree: LARGE UNCOMMITTED — preserve; no Commit/Push unless user asks
 
 Next Track
@@ -197,7 +197,7 @@ Next Track
 | **USER Overlay Centering SSOT** | ✅ **COMPLETED** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
 | **Ball Fine Position Controller** | ✅ **COMPLETED** (2026-08-12 · Desktop PASS · Mobile Production PASS · Admin/User PASS · `1eaf76c`) |
 | **BUG-A** | ✅ **IMPLEMENTED** (uncommitted) — display-cap `resolveNearestRail` |
-| **BUG-B** | **OPEN ISSUE** — Reset/History stale · skipSameRail heal |
+| **BUG-B** | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 · 재현 전 코드 수정 금지 |
 | **Family Data Architecture** | **CONFIRMED DESIGN** · not implemented |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) — Family terms not yet adopted |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
@@ -262,7 +262,7 @@ NEXT:
 ```
 
 - **Family Data Architecture** — **CONFIRMED DESIGN** · Phase 1 Ask → 검토 → Agent · Phase 2–4 한 번에 구현 금지
-- **BUG-B** — OPEN · Family Phase 1과 분리 · Reset/History stale cleanup은 별도 Agent
+- **BUG-B** — UNCONFIRMED · Family Phase 1과 분리 · 동일 stale UI 현상 재현 시 reproduction-first로만 재조사
 - **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c`) · 재설계 금지
 - **USER Overlay Centering SSOT** — ✅ **COMPLETE** · Commit/Push는 사용자 요청 시
 - **Sample datasets** — 사용자 3 set 완성 보고 · Export ≠ History
@@ -335,7 +335,7 @@ Cite: `HISTORY/PROJECT_LOG_2026-08.md` · `OVERLAY_LAYOUT_SSOT_v1.2.md` §8 · M
 - Do **NOT** alter locked Search / RI / Slot / Calculator / Envelope / Publisher contracts as “cleanup”.
 - Design / run **Family Data Architecture Phase 1 Ask** first (no code).
 - Do not treat Family draft as IMPLEMENTED.
-- Do not mix BUG-B stale cleanup into Family Phase 1 unless the user explicitly asks.
+- Do not mix BUG-B into Family Phase 1. Reproduce the same stale UI symptom after BUG-A first; if not reproducible, do not change Reset/History/c2ReflectionOverride/skipSameRail cleanup code.
 - Deferred cleanup: revisit only after validation results or a separate maintenance / design decision.
 
 ### Phase 5 Mission 02 — Dead Code Cleanup (Complete)
@@ -464,7 +464,7 @@ SearchResult
 ```text
 Session ID     : 2026-08-17 docs handoff — Family architecture + uncommitted authoring/display
 Baseline       : main · last production Fine Controller 1eaf76c · LARGE uncommitted working tree
-Current Status : Docs updated · BUG-A IMPLEMENTED (code uncommitted) · BUG-B OPEN
+Current Status : Docs updated · BUG-A IMPLEMENTED (code uncommitted) · BUG-B UNCONFIRMED
                  Family CONFIRMED DESIGN · not implemented
 Code change    : none in this docs session (preserve all existing uncommitted code)
 Docs           : MASTER v1.70 · LOG v1.29 · HANDOFF · FAMILY_DATA_ARCHITECTURE_DRAFT

@@ -27,7 +27,7 @@ Not       : IMPLEMENTED · Official Glossary (until GLOSSARY_SSOT cites)
 | Envelope `cueSet` 1/3 · 1.5gr Sampling | **Architecture Freeze** — Search sampling; **≠** Family derived 2Rg |
 | Dataset 3계층 (Working / History / Published) | **IMPLEMENTED** — Family sits on top later; do not collapse History↔Export |
 | BUG-A display-cap nearest-rail | **IMPLEMENTED** (uncommitted) — cite LOG 2026-08-17 |
-| BUG-B Reset/History stale | **OPEN ISSUE** — separate from Family |
+| BUG-B Reset/History stale | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 · separate from Family |
 
 ---
 

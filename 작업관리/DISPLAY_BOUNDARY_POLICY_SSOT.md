@@ -20,7 +20,7 @@
 | v1.2 | **Phase 2A** Overlay Attach/Visibility Gate 구현 상태 · CASE B · CASE A 확장점 |
 | v1.3 | **Reading Mode (Overlay UX)** 정책 · D-DBP-13…15 · 문서 확정 |
 | **v1.4** | Reading Mode **Implemented** · C2 Reflection Rail Handle **Implemented** · Corner Cap skipSameRail · D-DBP-16…18 |
-| **v1.4.1** | **BUG-A:** same-rail **presence** = `detectRail(eps)` · **identity** = `resolveNearestRail` (LEFT/RIGHT tie-break). `detectRail` 함수 자체 미변경. `skipSameRail`은 C2 override 예외로 **유지** (BUG-B와 별개). |
+| **v1.4.1** | **BUG-A:** same-rail **presence** = `detectRail(eps)` · **identity** = `resolveNearestRail` (LEFT/RIGHT tie-break). `detectRail` 함수 자체 미변경. `skipSameRail`은 C2 override 예외로 **유지** (BUG-B와 별개 · BUG-B는 현재 **UNCONFIRMED / reproduction required**). |
 
 ---
 
@@ -627,7 +627,7 @@ Manual Reflection Override가 있으면 Display Cap **sameRail 절단을 수행�
 - `detectRail` 공통 함수 **수정 금지** (v1.4.1도 동일 — identity만 display-cap에서 nearest-rail)
 - Builder 계산 경로 유지 · Cap 옵션 전달만
 - Corner 근처에서도 C1→C2→C3 표시 유지
-- **BUG-A 수정 후** override/`skipSameRail` 없이도 코너 side-rail C2는 nearest-rail identity로 거짓 same_rail이 나지 않아야 한다. `skipSameRail`을 BUG-A 성공 기준으로 쓰지 말 것 (BUG-B OPEN).
+- **BUG-A 수정 후** override/`skipSameRail` 없이도 코너 side-rail C2는 nearest-rail identity로 거짓 same_rail이 나지 않아야 한다. `skipSameRail`을 BUG-A 성공 기준으로 쓰지 말 것 (BUG-B는 현재 **UNCONFIRMED / reproduction required**).
 
 ### 16.4 구현 앵커
 
