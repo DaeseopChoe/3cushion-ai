@@ -2,6 +2,10 @@
  * Canonical strategy types + read/save normalize (no automatic localStorage rewrite).
  */
 
+import {
+  familyIdentityPersistPatch,
+  type FamilyIdentityFields,
+} from "./family/familyIdentity";
 import { createPositionId } from "./positionId";
 import type {
   Ball3,
@@ -83,6 +87,14 @@ export type CanonicalStrategyEntry = {
   signature: StrategySignature;
   /** Phase 5 Mission 01 — Authoring Strategy lineage (not stripped). */
   authoringStrategyId?: string;
+  /** Phase 1B Family identity (additive; not stripped). */
+  familyId?: string;
+  memberId?: string;
+  memberOrigin?: FamilyIdentityFields["memberOrigin"];
+  generatedFromMemberId?: string;
+  symmetryOp?: FamilyIdentityFields["symmetryOp"];
+  derivedRule?: FamilyIdentityFields["derivedRule"];
+  derivedStep?: FamilyIdentityFields["derivedStep"];
   track?: string;
   sysInputs: Record<string, number>;
   corrections: StrategySysCorrections;
@@ -107,6 +119,14 @@ export type CanonicalSaveDraft = {
   signature: StrategySignature;
   /** Phase 5 Mission 01 — required on new SAVE; preserved through normalize. */
   authoringStrategyId?: string;
+  /** Phase 1B Family identity (additive; not a Master-table write). */
+  familyId?: string;
+  memberId?: string;
+  memberOrigin?: FamilyIdentityFields["memberOrigin"];
+  generatedFromMemberId?: string;
+  symmetryOp?: FamilyIdentityFields["symmetryOp"];
+  derivedRule?: FamilyIdentityFields["derivedRule"];
+  derivedStep?: FamilyIdentityFields["derivedStep"];
   track: string;
   sysInputs: Record<string, number>;
   corrections: StrategySysCorrections;
@@ -129,6 +149,14 @@ export type ToCanonicalStrategyEntryArgs = {
   signature: StrategySignature;
   /** Phase 5 Mission 01 lineage identity for this SAVE. */
   authoringStrategyId?: string;
+  /** Phase 1B Family identity for this SAVE (mint or preserve). */
+  familyId?: string;
+  memberId?: string;
+  memberOrigin?: FamilyIdentityFields["memberOrigin"];
+  generatedFromMemberId?: string;
+  symmetryOp?: FamilyIdentityFields["symmetryOp"];
+  derivedRule?: FamilyIdentityFields["derivedRule"];
+  derivedStep?: FamilyIdentityFields["derivedStep"];
   applied?: {
     sys?: {
       inputs?: Record<string, unknown>;
@@ -267,6 +295,11 @@ export function toCanonicalStrategyEntry(
     slot: args.slotId,
     signature: args.signature,
     authoringStrategyId: args.authoringStrategyId,
+    ...familyIdentityPersistPatch({
+      familyId: args.familyId,
+      memberId: args.memberId,
+      memberOrigin: args.memberOrigin,
+    }),
     track: sys?.track ?? admin?.track ?? "B2T_L",
     sysInputs,
     corrections: mergeCorrections(admin?.corrections),
@@ -286,6 +319,7 @@ export function normalizeCanonicalSaveDraft(
     slot: draft.slot,
     signature: draft.signature,
     authoringStrategyId: draft.authoringStrategyId,
+    ...familyIdentityPersistPatch(draft),
     track: draft.track ?? "B2T_L",
     sysInputs: stripRuntimeSysInputs(draft.sysInputs),
     corrections: mergeCorrections(draft.corrections),
@@ -313,6 +347,7 @@ export function attachCanonicalFieldsToStrategyEntry(
     ...(draft.authoringStrategyId
       ? { authoringStrategyId: draft.authoringStrategyId }
       : {}),
+    ...familyIdentityPersistPatch(draft),
     sysInputs: stripRuntimeSysInputs(draft.sysInputs),
     corrections: mergeCorrections(draft.corrections),
     correctionsStored: true,
@@ -327,12 +362,21 @@ export function normalizeCanonicalStrategyEntry(entry: StrategyEntry): StrategyE
     entry as object,
     "corrections"
   );
+  const rest: StrategyEntry = { ...entry };
+  delete rest.familyId;
+  delete rest.memberId;
+  delete rest.memberOrigin;
+  delete rest.generatedFromMemberId;
+  delete rest.symmetryOp;
+  delete rest.derivedRule;
+  delete rest.derivedStep;
   return {
-    ...entry,
+    ...rest,
     ...(typeof entry.authoringStrategyId === "string" &&
     entry.authoringStrategyId.trim()
       ? { authoringStrategyId: entry.authoringStrategyId.trim() }
       : {}),
+    ...familyIdentityPersistPatch(entry),
     sysInputs: stripRuntimeSysInputs(entry.sysInputs as Record<string, unknown>),
     corrections: mergeCorrections(entry.corrections),
     correctionsStored,

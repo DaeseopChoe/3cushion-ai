@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useHptController, clampHpToRadius } from "../../admin/hpt/useHptController";
 
-export function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
+export function HptOverlay({ data, sysHpNResult, onSave, onCancel, applyDisabled = false }) {
   const [tempData, setTempData] = useState(data);
   const [lastChanged, setLastChanged] = useState(null); // 'x' or 'y'
   const [isClamped, setIsClamped] = useState(false);
@@ -464,15 +464,16 @@ export function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
       <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
         <button
           type="submit"
+          disabled={applyDisabled}
           style={{
             flex: 1,
             padding: '10px',
-            backgroundColor: '#2563eb',
+            backgroundColor: applyDisabled ? '#94a3b8' : '#2563eb',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',
-            cursor: 'pointer'
+            cursor: applyDisabled ? 'not-allowed' : 'pointer'
           }}
         >
           적용
@@ -498,7 +499,7 @@ export function HptOverlay({ data, sysHpNResult, onSave, onCancel }) {
   );
 }
 
-export function StrOverlay({ data, onSave, onCancel }) {
+export function StrOverlay({ data, onSave, onCancel, applyDisabled = false }) {
   const [tempData, setTempData] = useState({
     type: data?.type ?? null,
     acceleration: data?.acceleration || 'smooth_const',
@@ -707,15 +708,16 @@ export function StrOverlay({ data, onSave, onCancel }) {
       <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
         <button
           type="submit"
+          disabled={applyDisabled}
           style={{
             flex: 1,
             padding: '10px',
-            backgroundColor: '#2563eb',
+            backgroundColor: applyDisabled ? '#94a3b8' : '#2563eb',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',
-            cursor: 'pointer'
+            cursor: applyDisabled ? 'not-allowed' : 'pointer'
           }}
         >
           적용

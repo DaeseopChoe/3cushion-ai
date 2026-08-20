@@ -115,6 +115,7 @@ export function SysOverlay({
   data,
   onSave,
   onCancel,
+  applyDisabled = false,
   computeSysOverlayValues,
   evaluateSysOverlayHasAllInputs,
 }) {
@@ -990,20 +991,26 @@ export function SysOverlay({
       <div style={{ display: 'flex', gap: '10px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
         <button
           type="submit"
-          disabled={!hasAllInputs}
-          title={!hasAllInputs ? "공식에 필요한 입력을 모두 채운 뒤 적용할 수 있습니다." : undefined}
+          disabled={!hasAllInputs || applyDisabled}
+          title={
+            applyDisabled
+              ? "Derived Inspect 확인 모드에서는 Apply할 수 없습니다."
+              : !hasAllInputs
+                ? "공식에 필요한 입력을 모두 채운 뒤 적용할 수 있습니다."
+                : undefined
+          }
           style={{
             flex: 1,
             height: '36px',
             padding: '0 16px',
-            backgroundColor: hasAllInputs ? '#3b82f6' : '#94a3b8',
+            backgroundColor: hasAllInputs && !applyDisabled ? '#3b82f6' : '#94a3b8',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',
             fontSize: '14px',
-            cursor: hasAllInputs ? 'pointer' : 'not-allowed',
-            opacity: hasAllInputs ? 1 : 0.85,
+            cursor: hasAllInputs && !applyDisabled ? 'pointer' : 'not-allowed',
+            opacity: hasAllInputs && !applyDisabled ? 1 : 0.85,
           }}
         >
           적용

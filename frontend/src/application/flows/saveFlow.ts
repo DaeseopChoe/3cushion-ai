@@ -16,10 +16,26 @@ import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
 import { createStrategyEntry } from "../../domain/adminSaveEngine";
 import {
   applyCueEditSnap,
+  ballsExactEqual,
   type EditSourceContext,
 } from "../../domain/cueEditSnap";
 import { resolveAuthoringStrategyIdForSave } from "../../domain/authoringStrategyId";
+import {
+  resolveFamilyIdentityForSave,
+  type FamilySaveIntent,
+} from "../../domain/family/familyIdentity";
+import {
+  resolveFamilySaveIntent,
+  shouldWriteFourTrackFamilyOnSave,
+} from "../../domain/family/familySavePolicy";
+import { writeFourTrackFamilyMembers } from "../../domain/family/familyAwareWriter";
+import {
+  syncPositionDatasetToNormalizedFamilyStore,
+  type NormalizedDualWriteResult,
+} from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
+import { createPositionId } from "../../domain/positionId";
 import { upsertPositionRecord } from "../../domain/positionMergeEngine";
+
 import {
   applySchemaVersionToDatasetRecord,
   attachCanonicalFieldsToStrategyEntry,
@@ -44,10 +60,40 @@ import { normalizePublishedShotTypeHint } from "./recallHydrateFlow";
 
 type AdminState = Record<string, unknown>;
 
+function explicitFamilyIdentityFromSlot(
+  slot: Record<string, unknown> | null | undefined
+): {
+  familyId?: string;
+  memberId?: string;
+  memberOrigin?: StrategyEntry["memberOrigin"];
+  generatedFromMemberId?: string;
+  symmetryOp?: StrategyEntry["symmetryOp"];
+} | null {
+  const applied = slot?.applied as Record<string, unknown> | null | undefined;
+  const draft = slot?.draft as Record<string, unknown> | null | undefined;
+  const src = applied ?? draft;
+  if (!src) return null;
+  return {
+    familyId: src.familyId as string | undefined,
+    memberId: src.memberId as string | undefined,
+    memberOrigin: src.memberOrigin as StrategyEntry["memberOrigin"] | undefined,
+    generatedFromMemberId: src.generatedFromMemberId as string | undefined,
+    symmetryOp: src.symmetryOp as StrategyEntry["symmetryOp"] | undefined,
+  };
+}
+
 export type SaveFlowResult = {
   ok: boolean;
   updated?: PositionRecord[];
   reason?: string;
+  /** Present when this SAVE wrote a 4-track Family. Derived is not persisted here. */
+  familyId?: string;
+  fourTrackWritten?: boolean;
+  /**
+   * Phase 3A-326 shadow dual-write result. Failure never rolls back positions_dataset.
+   * Production READ still uses legacy corpus.
+   */
+  normalizedDualWrite?: NormalizedDualWriteResult;
 };
 
 export type SaveFlowContext = {
@@ -71,6 +117,7 @@ export type SaveFlowContext = {
    * History Load Edit Source (session). Null → no Cue Snap / no proximity replace.
    */
   editSource?: EditSourceContext | null;
+  saveIntent?: FamilySaveIntent | null;
 
   // READ (Infrastructure)
   saveWorkingDataset: (updated: PositionRecord[]) => void;
@@ -87,6 +134,16 @@ export type SaveFlowContext = {
   patchSlotRuntimeMeta: (
     slotId: string,
     meta: { targetBall: string | null }
+  ) => void;
+  patchSlotFamilyIdentity: (
+    slotId: string,
+    identity: {
+      familyId?: string;
+      memberId?: string;
+      memberOrigin?: StrategyEntry["memberOrigin"];
+      generatedFromMemberId?: string;
+      symmetryOp?: StrategyEntry["symmetryOp"];
+    } | null
   ) => void;
   saveToFile: (data: {
     version: string;
@@ -237,6 +294,32 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   });
   console.log("[SAVE] authoringStrategyId:", authoringStrategyId);
 
+  const positionIdForIdentity = createPositionId(ball3ForDataset);
+  const existingExactRecord = Array.isArray(ctx.dataset)
+    ? ctx.dataset.find((r) => ballsExactEqual(r.balls, ball3ForDataset))
+    : undefined;
+  const existingExactSlotEntry =
+    existingExactRecord?.strategies?.[slotId as "S1" | "S2" | "S3"] ?? null;
+  const explicitSlotFamilyIdentity = explicitFamilyIdentityFromSlot(slotRaw);
+  const saveIntent = resolveFamilySaveIntent({
+    explicitIdentity: explicitSlotFamilyIdentity,
+    existingSlotEntry: existingExactSlotEntry,
+    authoringStrategyId,
+    positionId: positionIdForIdentity,
+    requestedIntent: ctx.saveIntent ?? null,
+  });
+  const familyIdentity = resolveFamilyIdentityForSave({
+    saveIntent: saveIntent === "LEGACY" ? "CREATE" : saveIntent,
+    explicitIdentity: explicitSlotFamilyIdentity,
+    authoringStrategyId,
+    positionId: positionIdForIdentity,
+  });
+  if (saveIntent !== "LEGACY" && !familyIdentity) {
+    console.warn("[SAVE] missing explicit Family identity for UPDATE");
+    return { ok: false, reason: "family-save:update-missing-identity" };
+  }
+  console.log("[SAVE] familyIdentity:", familyIdentity);
+
   const datasetTargetBall =
     ctx.targetColor === "red" || ctx.targetColor === "yellow"
       ? ctx.targetColor
@@ -247,6 +330,9 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       slotId,
       signature,
       authoringStrategyId,
+      familyId: familyIdentity?.familyId,
+      memberId: familyIdentity?.memberId,
+      memberOrigin: familyIdentity?.memberOrigin,
       applied: appliedForSave,
       adminSys: ctx.adminState?.sys,
     })
@@ -290,6 +376,9 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       balls: cleanBall3,
       track: canonicalDraft.track,
       authoringStrategyId: canonicalDraft.authoringStrategyId,
+      familyId: canonicalDraft.familyId,
+      memberId: canonicalDraft.memberId,
+      memberOrigin: canonicalDraft.memberOrigin,
       evaluateStrategy: evalForSave,
       trajectoryExtensions: ctx.trajectoryExtensionPayload ?? null,
       reflectionOverride: ctx.reflectionOverridePayload ?? null,
@@ -301,22 +390,58 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     throw e;
   }
 
-  console.log("[SAVE] Running Exact upsertPositionRecord");
-  let updated = upsertPositionRecord(
-    ctx.dataset,
-    ball3ForDataset,
-    strategy,
-    undefined,
-    datasetTargetBall
-  );
-  updated = applySchemaVersionToDatasetRecord(updated, cleanBall3);
+  const useFourTrackFamily = shouldWriteFourTrackFamilyOnSave({
+    saveIntent,
+    familyIdentity: {
+      familyId: strategy.familyId,
+      memberId: strategy.memberId,
+      memberOrigin: strategy.memberOrigin,
+    },
+    track: strategy.track,
+  });
+
+  let updated: PositionRecord[];
+  let savedSlotId = slotId as "S1" | "S2" | "S3";
+
+  if (useFourTrackFamily) {
+    console.log("[SAVE] Running family-aware four-track write (no Exact upsert)");
+    const familyWrite = writeFourTrackFamilyMembers(
+      Array.isArray(ctx.dataset) ? ctx.dataset : [],
+      {
+        balls: ball3ForDataset,
+        ...(datasetTargetBall ? { targetBall: datasetTargetBall } : {}),
+        entry: strategy,
+      },
+      { preferredAuthoredSlot: savedSlotId }
+    );
+    if (!familyWrite.ok) {
+      console.warn("[SAVE] four-track family write failed:", familyWrite.code, familyWrite.reason);
+      return {
+        ok: false,
+        reason: `family-four-track:${familyWrite.code}`,
+      };
+    }
+    updated = familyWrite.dataset;
+    const authoredPlan = familyWrite.plans.find((p) => p.identity === "IDENTITY");
+    if (authoredPlan?.slot) savedSlotId = authoredPlan.slot;
+    for (const member of familyWrite.set.members) {
+      updated = applySchemaVersionToDatasetRecord(updated, member.balls);
+    }
+  } else {
+    console.log("[SAVE] Running Exact upsertPositionRecord");
+    updated = upsertPositionRecord(
+      ctx.dataset,
+      ball3ForDataset,
+      strategy,
+      undefined,
+      datasetTargetBall
+    );
+    updated = applySchemaVersionToDatasetRecord(updated, cleanBall3);
+  }
   console.log("[SAVE] updated length:", updated?.length);
 
-  const savedRecord = updated.find((r) => {
-    const s = r.strategies?.[slotId];
-    return s != null;
-  });
-  const savedStrategy = savedRecord?.strategies?.[slotId] ?? strategy;
+  const savedRecord = updated.find((r) => ballsExactEqual(r.balls, ball3ForDataset));
+  const savedStrategy = savedRecord?.strategies?.[savedSlotId] ?? strategy;
 
   logCanonicalPersistAudit({
     slotId,
@@ -341,12 +466,27 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   ctx.saveWorkingDataset(updated);
   ctx.setDataset(updated);
 
+  // Phase 3A-326: shadow FamilyMaster/Member sync (never rolls back legacy).
+  const normalizedDualWrite = syncPositionDatasetToNormalizedFamilyStore(updated);
+
   ctx.patchSlotRuntimeMeta(slotId, {
     targetBall:
       ctx.targetColor === "red" || ctx.targetColor === "yellow"
         ? ctx.targetColor
         : null,
   });
+  ctx.patchSlotFamilyIdentity(
+    savedSlotId,
+    useFourTrackFamily
+      ? {
+          familyId: savedStrategy.familyId,
+          memberId: savedStrategy.memberId,
+          memberOrigin: savedStrategy.memberOrigin,
+          generatedFromMemberId: savedStrategy.generatedFromMemberId,
+          symmetryOp: savedStrategy.symmetryOp,
+        }
+      : null
+  );
 
   if (import.meta.env.DEV) {
     console.log(
@@ -386,5 +526,12 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     });
   }
 
-  return { ok: true, updated };
+  return {
+    ok: true,
+    updated,
+    normalizedDualWrite,
+    ...(useFourTrackFamily && savedStrategy.familyId
+      ? { familyId: savedStrategy.familyId, fourTrackWritten: true }
+      : {}),
+  };
 }

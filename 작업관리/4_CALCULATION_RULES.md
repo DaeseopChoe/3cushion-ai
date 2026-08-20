@@ -29,6 +29,11 @@ frontend/src/
    ↓
 [Trajectory / sample / Physics]
 
+Family Cue→Impact Derived Members (Phase 3A-3D) are **not** System Engine / expr calculations.
+They sample physical Ball-center coordinates along the straight Cue→Impact segment.
+`CO_f` / `C1_f` and `anchors.json` CO marks are not inputs to that sampler.
+See `FAMILY_DATA_ARCHITECTURE_DRAFT.md` §5.0–5.1.
+
 3️⃣ 표기 규칙 (Naming Convention)
 3.1 시스템 값 표기
 허용	금지

@@ -44,6 +44,40 @@ export type StrategyEntry = {
    */
   authoringStrategyId?: string;
 
+  /**
+   * Phase 1B Family identity (additive). Not authoringStrategyId.
+   * Optional on legacy corpus — never inferred from coordinates.
+   * Not the final Family Master table; persist still lives on StrategyEntry.
+   */
+  familyId?: string;
+  /** Phase 1B Member identity (additive). Not positionId. */
+  memberId?: string;
+  /**
+   * Origin / generation lineage. Separate from storage compatibility.
+   * New SAVE writes AUTHORED. LEGACY is view-only and is not persisted.
+   */
+  memberOrigin?: "AUTHORED" | "SYMMETRY" | "DERIVED_CUE_IMPACT" | "DERIVED_C3_PLUS";
+  /**
+   * Phase 2B Member lineage. AUTHORED omits this.
+   * SYMMETRY: AUTHORED memberId. Not positionId / familyId.
+   */
+  generatedFromMemberId?: string;
+  /**
+   * Phase 2B symmetry operator. AUTHORED omits this (no IDENTITY sentinel).
+   * Replacement / idempotency key is familyId + this field.
+   */
+  symmetryOp?: "H" | "V" | "RPI";
+  /**
+   * Phase 3A-1 derived lineage rule. Present only on Derived Members.
+   * Identity axis, not coordinate / position identity.
+   */
+  derivedRule?: "CUE_IMPACT_FIRST_30PCT" | "C3_PLUS_2RG";
+  /**
+   * Phase 3A-1 derived lineage step key.
+   * Stable source-domain key; never a balls/position alias.
+   */
+  derivedStep?: string;
+
   /** 관리자 선택 트랙 (미지정 시 리콜·렌더는 B2T_L 기본) */
   track?: string;
 

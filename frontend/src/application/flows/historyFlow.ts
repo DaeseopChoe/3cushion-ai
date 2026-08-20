@@ -20,7 +20,13 @@ export type HistoryFlowContext = SaveFlowContext & {
 
   // ACTION (추가)
   commitWorkspaceHistoryWithStrategyDataset: (
-    updated: PositionRecord[]
+    updated: PositionRecord[],
+    runtimeOverride?: {
+      adminState: unknown;
+      ballsState: unknown;
+      shotEditor: unknown;
+      targetBall: string | null;
+    }
   ) => void;
 };
 

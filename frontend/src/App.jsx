@@ -187,6 +187,7 @@ import {
   saveWorkingDataset,
   importDatasetFromFile,
 } from "./domain/dataset/infra/datasetStorage";
+import { syncPositionDatasetToNormalizedFamilyStore } from "./domain/family/syncPositionDatasetToNormalizedFamilyStore";
 import { useAutoCapture } from "./domain/dataset/autoCapture";
 import {
   adminSysFromRecallEntry,
@@ -214,6 +215,23 @@ import {
 } from "./domain/realInterpolation/uiSurface";
 import { runSaveStrategy } from "./application/flows/saveFlow";
 import { runCanonicalSave } from "./application/flows/historyFlow";
+import { commitDerivedApprovalDataset } from "./application/flows/derivedApprovalFlow";
+import {
+  approveCueImpactDerivedReview,
+  createCueImpactDerivedReview,
+  cueImpactReviewPreviewMarkers,
+  DERIVED_REVIEW_MARKER_HIT_RADIUS_RG,
+  frozenReviewSourceForTrack,
+  getVisibleReviewCandidates,
+  hitTestDerivedReviewMarker,
+} from "./domain/family/cueImpactDerivedReview";
+import {
+  projectDerivedCandidateToRuntimeView,
+  projectFamilySourceMemberToRuntimeView,
+} from "./domain/family/projectDerivedCandidateToRuntimeView";
+import DerivedCandidatePreviewLayer from "./components/table/DerivedCandidatePreviewLayer";
+import DerivedReviewOverlay from "./components/table/DerivedReviewOverlay";
+import { useCueImpactDerivedReviewUi } from "./hooks/useCueImpactDerivedReviewUi";
 import { runBallDrag } from "./application/flows/ballDragFlow";
 import { runTrajectoryHydrate } from "./application/flows/trajectoryHydrateFlow";
 import { runBaselineDraftApply } from "./application/flows/baselineDraftApplyFlow";
@@ -1365,6 +1383,15 @@ export default function App({
   const [impactMode, setImpactMode] = useState("CONTACT");
   // "CONTACT": 타겟볼 접선 고정 (기본)
   // "FREE": 자유 이동 (더블클릭 후)
+  const [cueImpactDerivedReview, setCueImpactDerivedReview] = useState(null);
+  const derivedReviewUi = useCueImpactDerivedReviewUi();
+  const reviewBaselineSnapshotRef = useRef(null);
+  const derivedReviewApproveInFlightRef = useRef(false);
+
+  const isDerivedReviewSessionPending =
+    appMode === "ADMIN" && cueImpactDerivedReview?.status === "PENDING";
+  const isDerivedReviewInspectLocked =
+    isDerivedReviewSessionPending && derivedReviewUi.isInspectActive;
   
   // ============================================
   // USER MODE 코칭 표시 상태
@@ -1713,6 +1740,8 @@ export default function App({
       const normalized = await importDatasetFromFile(file);
       setDataset(normalized);
       saveWorkingDataset(normalized);
+      // Phase 3A-326: shadow FamilyMaster/Member sync (legacy remains production SSOT).
+      syncPositionDatasetToNormalizedFamilyStore(normalized);
     } catch (err) {
       alert(err?.message ?? "Failed to import dataset.json");
     }
@@ -1754,8 +1783,103 @@ export default function App({
     onFuncOverlayClose?.();
   }
 
+  function captureDerivedReviewSnapshot() {
+    return {
+      ballsState: structuredClone(ballsState),
+      adminState: structuredClone(adminState),
+      overlayState: structuredClone(overlayState),
+      targetColor,
+      isTargetSelected,
+      shotEditor: structuredClone(shotEditor),
+      activeSlot: shotEditor.activeSlot,
+    };
+  }
+
+  function restoreDerivedReviewSnapshot(snapshot) {
+    if (!snapshot) return;
+    setBallsState(snapshot.ballsState);
+    setAdminState(snapshot.adminState);
+    setOverlayState(snapshot.overlayState);
+    setTargetColor(snapshot.targetColor);
+    setIsTargetSelected(snapshot.isTargetSelected);
+    actions.restoreShotEditor(snapshot.shotEditor);
+    const slotId = snapshot.activeSlot ?? shotEditor.activeSlot;
+    if (slotId) {
+      actions.switchSlot(slotId);
+      hydrateSlotRuntime(slotId);
+    }
+  }
+
+  function applyReviewSourceTrackDisplay(track) {
+    if (!cueImpactDerivedReview || derivedReviewUi.isInspectActive) return;
+    const source = frozenReviewSourceForTrack(cueImpactDerivedReview, track);
+    if (!source) return;
+    const projection = projectFamilySourceMemberToRuntimeView({
+      entry: source.entry,
+      balls: source.balls,
+      slot: shotEditor.activeSlot,
+    });
+    actions.loadDraftFromStrategyEntry(shotEditor.activeSlot, projection.entry);
+    setBallsState(hydrateBallsStateForUi(projection.balls));
+    setAdminState((prev) => ({
+      ...prev,
+      hpt: projection.adminPatch.hpt,
+      str: projection.adminPatch.str,
+      ai: projection.adminPatch.ai,
+      sys: {
+        ...(prev.sys ?? createEmptyAdminSysSnapshot()),
+        ...projection.adminPatch.sys,
+      },
+    }));
+    setAdminTableLayersVisible(true);
+    hydrateSlotRuntime(shotEditor.activeSlot);
+  }
+
+  function handleEnterDerivedInspect(candidate) {
+    if (!cueImpactDerivedReview || !candidate) return;
+    const snapshot = captureDerivedReviewSnapshot();
+    derivedReviewUi.setInspectSnapshot(snapshot);
+    derivedReviewUi.enterInspect({
+      memberId: candidate.memberId,
+      derivedStep: candidate.derivedStep ?? "",
+      track: candidate.track,
+    });
+    hideBallPositionController();
+    const projection = projectDerivedCandidateToRuntimeView({
+      dataset: Array.isArray(dataset) ? dataset : [],
+      familyId: cueImpactDerivedReview.familyId,
+      candidate,
+      slot: shotEditor.activeSlot,
+    });
+    actions.loadDraftFromStrategyEntry(shotEditor.activeSlot, projection.entry);
+    setBallsState(hydrateBallsStateForUi(projection.balls));
+    setAdminState((prev) => ({
+      ...prev,
+      hpt: projection.adminPatch.hpt,
+      str: projection.adminPatch.str,
+      ai: projection.adminPatch.ai,
+      sys: {
+        ...(prev.sys ?? createEmptyAdminSysSnapshot()),
+        ...projection.adminPatch.sys,
+      },
+    }));
+    setAdminTableLayersVisible(true);
+    hydrateSlotRuntime(shotEditor.activeSlot);
+  }
+
+  function handleExitDerivedInspect() {
+    restoreDerivedReviewSnapshot(derivedReviewUi.inspectSnapshot);
+    setOverlayState({ open: false, type: null, anchorKey: null });
+    derivedReviewUi.exitInspectToReview();
+    hideBallPositionController();
+  }
+
   // 오버레이 닫기
   function closeOverlay() {
+    if (isDerivedReviewInspectLocked) {
+      handleExitDerivedInspect();
+      return;
+    }
     const wasType = overlayState.type;
     setOverlayState({ open: false, type: null, anchorKey: null });
     // SYS/HP/T/STR/AI 오버레이 닫힐 때 부모에 알려 선택 초기화 → 같은 버튼 재클릭 시 즉시 열림
@@ -1777,9 +1901,68 @@ export default function App({
     isAdminTargetReady,
   });
 
+  function openCueImpactDerivedPreview(nextDataset, familyId) {
+    if (appMode !== "ADMIN" || !familyId) return;
+    const review = createCueImpactDerivedReview({
+      dataset: Array.isArray(nextDataset) ? nextDataset : [],
+      familyId,
+    });
+    if (!review.ok) {
+      console.warn("[DERIVED_REVIEW] generate failed", review.code, review.reason);
+      setCueImpactDerivedReview(null);
+      derivedReviewUi.resetReviewUi();
+      if (review.code === "NO_AUTHORED_TRACK") {
+        alert(`Derived Review를 시작할 수 없습니다: ${review.reason}`);
+      }
+      return;
+    }
+    reviewBaselineSnapshotRef.current = captureDerivedReviewSnapshot();
+    setCueImpactDerivedReview(review.session);
+    derivedReviewUi.startReview(review.session.authoredTrack);
+  }
+
+  function handleApproveCueImpactDerived() {
+    if (!cueImpactDerivedReview || derivedReviewApproveInFlightRef.current) return;
+    derivedReviewApproveInFlightRef.current = true;
+    try {
+      const result = approveCueImpactDerivedReview({
+        dataset: Array.isArray(dataset) ? dataset : [],
+        session: cueImpactDerivedReview,
+      });
+      if (!result.ok) {
+        alert(`파생 승인 실패: ${result.reason}`);
+        return;
+      }
+      commitDerivedApprovalDataset({
+        resultDataset: result.dataset,
+        baselineSnapshot: reviewBaselineSnapshotRef.current,
+        saveWorkingDataset,
+        setDataset,
+        restoreDerivedReviewSnapshot,
+        commitWorkspaceHistoryWithStrategyDataset,
+      });
+      setCueImpactDerivedReview(null);
+      derivedReviewUi.resetReviewUi();
+      reviewBaselineSnapshotRef.current = null;
+      hideBallPositionController();
+    } finally {
+      derivedReviewApproveInFlightRef.current = false;
+    }
+  }
+
+  function handleCancelDerivedReview() {
+    restoreDerivedReviewSnapshot(reviewBaselineSnapshotRef.current);
+    setCueImpactDerivedReview(null);
+    derivedReviewUi.resetReviewUi();
+    reviewBaselineSnapshotRef.current = null;
+    hideBallPositionController();
+    closeOverlay();
+  }
+
   /** Strategy Save — SRCH-005 + DS-002 → saveFlow.runSaveStrategy */
   function handleSaveStrategy(aiOverride = null) {
-    return runSaveStrategy({
+    if (isDerivedReviewSessionPending) return null;
+    const result = runSaveStrategy({
       dataset,
       ballsState,
       adminState,
@@ -1800,16 +1983,22 @@ export default function App({
       setUserPublishedSearchContext,
       setAdminState,
       patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
+      patchSlotFamilyIdentity: actions.patchSlotFamilyIdentity,
       saveToFile,
       resolveFormulaHash,
       resolveEvalProfile,
       resolveAnchorsData,
     });
+    if (result?.ok && result.fourTrackWritten && result.familyId && result.updated) {
+      openCueImpactDerivedPreview(result.updated, result.familyId);
+    }
+    return result;
   }
 
   /** 우측 SAVE: DS-003 → historyFlow.runCanonicalSave */
   function handleCanonicalRightPanelSave() {
-    runCanonicalSave({
+    if (isDerivedReviewSessionPending) return;
+    const result = runCanonicalSave({
       dataset,
       ballsState,
       adminState,
@@ -1830,6 +2019,7 @@ export default function App({
       setUserPublishedSearchContext,
       setAdminState,
       patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
+      patchSlotFamilyIdentity: actions.patchSlotFamilyIdentity,
       saveToFile,
       canUseSystemControls,
       commitWorkspaceHistoryWithStrategyDataset,
@@ -1837,6 +2027,9 @@ export default function App({
       resolveEvalProfile,
       resolveAnchorsData,
     });
+    if (result?.ok && result.fourTrackWritten && result.familyId && result.updated) {
+      openCueImpactDerivedPreview(result.updated, result.familyId);
+    }
   }
 
   // SRCH-001: runAdminPositionRecall → application/flows/adminLocalDbFlow.ts (STEP 3-5)
@@ -1918,7 +2111,10 @@ export default function App({
 
     setIsAdminInputSessionActive(true);
     setIsSaved(false);
-  }, [appMode, actions, targetColor, shotEditor.activeSlot]);
+    setCueImpactDerivedReview(null);
+    derivedReviewUi.resetReviewUi();
+    reviewBaselineSnapshotRef.current = null;
+  }, [appMode, actions, targetColor, shotEditor.activeSlot, derivedReviewUi]);
 
   const handleAdminSearch = useCallback(async () => {
     if (appMode !== "ADMIN") return;
@@ -2479,6 +2675,24 @@ function handleJoyPadPointerCancel(e) {
     else if (currentButtonId === "STR") openOverlay("STR");
     else if (currentButtonId === "AI") openOverlay("AI");
   }, [currentButtonId, appMode, isAdminInputSessionActive, isTargetSelected, targetColor]);
+
+  useEffect(() => {
+    if (
+      appMode !== "ADMIN" ||
+      cueImpactDerivedReview?.status !== "PENDING" ||
+      derivedReviewUi.reviewMode !== "REVIEW" ||
+      !derivedReviewUi.viewingTrack
+    ) {
+      return;
+    }
+    applyReviewSourceTrackDisplay(derivedReviewUi.viewingTrack);
+  }, [
+    appMode,
+    cueImpactDerivedReview?.status,
+    cueImpactDerivedReview?.familyId,
+    derivedReviewUi.reviewMode,
+    derivedReviewUi.viewingTrack,
+  ]);
 
   // ============================================
   // S1/S2/S3: navigation only (no runAutoRecommend)
@@ -3155,10 +3369,27 @@ function handleJoyPadPointerCancel(e) {
     });
   }, [view, shotEditor?.activeSlot, shotEditor?.slots]);
   const ballsForCoaching = view?.ui ? (ballsState ?? (view.ui.balls || {})) : (ballsState ?? {});
-  const coachingImpactTarget = useMemo(
-    () => resolveImpactTargetBall(ballsForCoaching, targetColor),
-    [ballsForCoaching, targetColor]
-  );
+  const coachingImpactTarget = useMemo(() => {
+    if (
+      isDerivedReviewSessionPending &&
+      derivedReviewUi.reviewMode === "REVIEW" &&
+      derivedReviewUi.viewingTrack
+    ) {
+      const frozen = frozenReviewSourceForTrack(
+        cueImpactDerivedReview,
+        derivedReviewUi.viewingTrack
+      );
+      if (frozen) return frozen.targetBall === "red" ? frozen.balls.second : frozen.balls.target;
+    }
+    return resolveImpactTargetBall(ballsForCoaching, targetColor);
+  }, [
+    ballsForCoaching,
+    targetColor,
+    isDerivedReviewSessionPending,
+    derivedReviewUi.reviewMode,
+    derivedReviewUi.viewingTrack,
+    cueImpactDerivedReview,
+  ]);
 
   /** USER: 공략 선택 후 coaching/labels gate (기준값 토글과 별도, rail/hydrate 비변경) */
   const userStrategyLayersVisible =
@@ -3500,11 +3731,43 @@ function captureBaselineLabelSlotSnapshot(ssotValues) {
 }
 
 function handlePointerDown(e) {
-  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
-  if (overlayState.open) return;
+  const reviewPending =
+    appMode === "ADMIN" && cueImpactDerivedReview?.status === "PENDING";
+  const inDerivedReview =
+    reviewPending && derivedReviewUi.reviewMode === "REVIEW";
+  const inDerivedInspect =
+    reviewPending && derivedReviewUi.reviewMode === "INSPECT";
+
+  if (inDerivedInspect) return;
 
   if (!svgRef.current) return;
   const pointerRgEarly = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
+
+  if (inDerivedReview && pointerRgEarly) {
+    const visible = getVisibleReviewCandidates(
+      cueImpactDerivedReview,
+      derivedReviewUi.viewingTrack
+    );
+    const hitCandidate = hitTestDerivedReviewMarker({
+      pointerRg: pointerRgEarly,
+      candidates: visible,
+      hitRadiusRg: DERIVED_REVIEW_MARKER_HIT_RADIUS_RG,
+    });
+    if (hitCandidate) {
+      handleEnterDerivedInspect(hitCandidate);
+      return;
+    }
+    if (!derivedReviewUi.overlayVisible) {
+      derivedReviewUi.setOverlayVisible(true);
+      return;
+    }
+    return;
+  }
+
+  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
+  if (overlayState.open) return;
+
+  if (!pointerRgEarly) return;
 
   // Priority: Extension → C2 → Baseline → Joystick → Ball → Fine → Empty dismiss
   if (
@@ -4816,6 +5079,21 @@ function handlePointerCancel(e) {
           }
         />
       )}
+      {appMode === "ADMIN" &&
+        isDerivedReviewSessionPending &&
+        derivedReviewUi.reviewMode === "REVIEW" && (
+        <DerivedCandidatePreviewLayer
+          markers={cueImpactReviewPreviewMarkers(
+            cueImpactDerivedReview,
+            derivedReviewUi.viewingTrack
+          )}
+          scale={SCALE}
+          tableH={TABLE_H}
+          padding={PADDING}
+          ballRadiusRg={BALL_RADIUS_RG}
+          markerOpacity={0.5}
+        />
+      )}
       {canEdit && (
         <SystemGrid
           track={trackForAnchors}
@@ -4994,7 +5272,19 @@ function handlePointerCancel(e) {
         variant={userToast.variant}
       />
       <div className="table-area">
-        <div className="table-area-inner">
+        <div className="table-area-inner" style={{ position: "relative" }}>
+          {isDerivedReviewSessionPending && derivedReviewUi.reviewMode === "REVIEW" ? (
+            <DerivedReviewOverlay
+              visible={derivedReviewUi.overlayVisible}
+              viewingTrack={derivedReviewUi.viewingTrack}
+              authoredTrack={cueImpactDerivedReview?.authoredTrack}
+              onTrackChange={derivedReviewUi.setViewingTrack}
+              onApprove={handleApproveCueImpactDerived}
+              onCancel={handleCancelDerivedReview}
+              onHide={() => derivedReviewUi.setOverlayVisible(false)}
+              approveDisabled={derivedReviewApproveInFlightRef.current}
+            />
+          ) : null}
           {tableSVG}
         </div>
       {appMode === "USER" &&
@@ -5052,9 +5342,11 @@ function handlePointerCancel(e) {
               <SysOverlay
                 key={`sys-${shotEditor.activeSlot}`}
                 data={adminState.sys}
+                applyDisabled={isDerivedReviewInspectLocked}
                 computeSysOverlayValues={computeSysOverlayValues}
                 evaluateSysOverlayHasAllInputs={evaluateSysOverlayHasAllInputs}
                 onSave={(newData) => {
+                  if (isDerivedReviewInspectLocked) return;
                   console.log("[SYS_APPLY_START]", {
                     hypothesisId: "SYS_APPLY_START",
                     ts: Date.now(),
@@ -5211,7 +5503,9 @@ function handlePointerCancel(e) {
               <HptOverlay
                 data={adminState.hpt}
                 sysHpNResult={sysHpNResult}
+                applyDisabled={isDerivedReviewInspectLocked}
                 onSave={(newData) => {
+                  if (isDerivedReviewInspectLocked) return;
                   console.log("[HPT_APPLY_START]", {
                     hypothesisId: "HPT_APPLY_START",
                     ts: Date.now(),
@@ -5289,7 +5583,9 @@ function handlePointerCancel(e) {
             {overlayState.type === 'STR' && (
               <StrOverlay
                 data={adminState.str}
+                applyDisabled={isDerivedReviewInspectLocked}
                 onSave={(newData) => {
+                  if (isDerivedReviewInspectLocked) return;
                   console.log("[STR_APPLY_START]", {
                     hypothesisId: "STR_APPLY_START",
                     ts: Date.now(),
@@ -5344,7 +5640,9 @@ function handlePointerCancel(e) {
                 slotRenderSys={slotRenderSys}
                 resolvedSlotSysValues={resolvedSlotSysValues}
                 resolvedSlotBaseSysValues={resolvedSlotBaseSysValues}
+                applyDisabled={isDerivedReviewInspectLocked}
                 onSave={(newData) => {
+                  if (isDerivedReviewInspectLocked) return;
                   console.log("[AI_APPLY_START]", {
                     hypothesisId: "AI_APPLY_START",
                     ts: Date.now(),
@@ -5513,12 +5811,15 @@ function handlePointerCancel(e) {
             </button>
             <button
               type="button"
-              disabled={!canUseSystemControls}
+              disabled={!canUseSystemControls || isDerivedReviewSessionPending}
               className={`control-button save-btn${isSaved ? " active" : ""}`}
               onClick={() => { hideBallPositionController(); handleCanonicalRightPanelSave(); }}
               style={{
-                opacity: canUseSystemControls ? 1 : 0.45,
-                cursor: canUseSystemControls ? "pointer" : "not-allowed",
+                opacity: canUseSystemControls && !isDerivedReviewSessionPending ? 1 : 0.45,
+                cursor:
+                  canUseSystemControls && !isDerivedReviewSessionPending
+                    ? "pointer"
+                    : "not-allowed",
               }}
             >
               SAVE

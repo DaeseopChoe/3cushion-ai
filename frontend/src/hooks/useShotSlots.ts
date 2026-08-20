@@ -6,7 +6,9 @@ import { calculateByProfileExpr } from '../utils/systemCalculator';
 import { buildTrajectorySamples } from '../utils/trajectorySampleBuilder';
 import type { PositionRecord, StrategyEntry } from '../domain/positionSearchEngine';
 import {
+  draftFamilyIdentityFromStrategyEntry,
   draftRuntimeFieldsFromStrategyEntry,
+  runtimeHptFromStrategyEntry,
   strategyEntryToSlotDraftSys,
 } from '../domain/slotDraftFromEntry';
 import type { StrategySysCorrections, TargetBall } from '../domain/positionSearchEngine';
@@ -34,6 +36,11 @@ export interface DraftState {
   hpt?: any;
   str?: any;
   ai?: any;
+  familyId?: string;
+  memberId?: string;
+  memberOrigin?: import('../domain/positionSearchEngine').StrategyEntry['memberOrigin'];
+  generatedFromMemberId?: import('../domain/positionSearchEngine').StrategyEntry['generatedFromMemberId'];
+  symmetryOp?: import('../domain/positionSearchEngine').StrategyEntry['symmetryOp'];
   meta?: { recommendedFrom?: { positionId: string; score: number } };
   /** Per-slot runtime (PHASE 2) — not shared across slots */
   corrections?: StrategySysCorrections;
@@ -98,9 +105,10 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
     const recordTarget = normalizeSlotTargetBall(record.targetBall);
     map[slotId] = {
       sys: strategyEntryToSlotDraftSys(entry),
-      hpt: entry.hpT,
+      hpt: runtimeHptFromStrategyEntry(entry),
       str: entry.str,
       ai: entry.ai,
+      ...draftFamilyIdentityFromStrategyEntry(entry),
       meta: { recommendedFrom: { positionId: record.positionId, score: 0 } },
       corrections: runtime.corrections,
       shotType: runtime.shotType,
@@ -731,9 +739,10 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
           ...slot,
           draft: {
             sys: strategyEntryToSlotDraftSys(entry),
-            hpt: entry.hpT,
+            hpt: runtimeHptFromStrategyEntry(entry),
             str: entry.str,
             ai: entry.ai,
+            ...draftFamilyIdentityFromStrategyEntry(entry),
             meta: { recommendedFrom: { positionId: record.positionId, score: 0 } },
             ...draftRuntimeFieldsFromStrategyEntry(entry),
           },
@@ -763,9 +772,10 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
             ...slot,
             draft: {
               sys: strategyEntryToSlotDraftSys(entry),
-              hpt: entry.hpT,
+              hpt: runtimeHptFromStrategyEntry(entry),
               str: entry.str,
               ai: entry.ai,
+              ...draftFamilyIdentityFromStrategyEntry(entry),
               meta: meta ? { recommendedFrom: meta } : undefined,
               ...draftRuntimeFieldsFromStrategyEntry(entry),
             },
@@ -813,6 +823,40 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
             applied: slot.applied
               ? { ...slot.applied, ...patch }
               : targetOnlyStub,
+          },
+        },
+      };
+    });
+  };
+
+  const patchSlotFamilyIdentity = (
+    slotId: SlotId,
+    identity: {
+      familyId?: string;
+      memberId?: string;
+      memberOrigin?: DraftState["memberOrigin"];
+      generatedFromMemberId?: DraftState["generatedFromMemberId"];
+      symmetryOp?: DraftState["symmetryOp"];
+    } | null
+  ) => {
+    setShotEditor((s) => {
+      const slot = s.slots[slotId];
+      const clear = {
+        familyId: undefined,
+        memberId: undefined,
+        memberOrigin: undefined,
+        generatedFromMemberId: undefined,
+        symmetryOp: undefined,
+      };
+      const patch = identity ? { ...clear, ...identity } : clear;
+      return {
+        ...s,
+        slots: {
+          ...s.slots,
+          [slotId]: {
+            ...slot,
+            draft: slot.draft ? { ...slot.draft, ...patch } : slot.draft,
+            applied: slot.applied ? { ...slot.applied, ...patch } : slot.applied,
           },
         },
       };
@@ -977,6 +1021,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       applyAiToSlot,
       loadDraftFromStrategyEntry,
       patchSlotRuntimeMeta,
+      patchSlotFamilyIdentity,
       loadDraftsFromPositionRecord,
       applyPositionRecall,
       applyUserSearchRecall,

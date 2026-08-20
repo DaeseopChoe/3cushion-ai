@@ -1,8 +1,547 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.29  
+Version : v1.32  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-20 (Phase 3A-326 — Normalized Dual-Write Complete)
+
+## 제목
+
+**Normalized Shadow Dual-Write — SAVE / Derived Approval / Import**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음
+
+## Status
+
+**COMPLETE** for shadow dual-write scope. Production READ still `positions_dataset`. Flag **false**. Normalized primary READ **disabled**.
+
+## Purpose
+
+Keep `family_masters` / `family_members` in sync after production mutations, without switching READ off of `positions_dataset`.
+
+## Files
+
+**New**
+
+- `frontend/src/domain/family/syncPositionDatasetToNormalizedFamilyStore.ts`
+- `frontend/src/domain/family/normalizedDualWrite.test.ts`
+
+**Modified**
+
+- `frontend/src/application/flows/saveFlow.ts`
+- `frontend/src/application/flows/derivedApprovalFlow.ts`
+- `frontend/src/App.jsx` (Import path)
+- `frontend/src/domain/family/index.ts`
+
+## Shared pipeline
+
+`syncPositionDatasetToNormalizedFamilyStore(dataset)`  
+→ `migratePositionRecordsToFamilyParts`  
+→ `persistMigratedFamilyParts`  
+→ `validateFamilyStore`
+
+## Call graphs
+
+| Path | Behavior |
+|------|----------|
+| **SAVE** | legacy save first → normalized shadow sync → History **+1** unchanged |
+| **Derived Approval** | legacy approved dataset write → normalized shadow sync → baseline runtime restore → History **+1** unchanged |
+| **Import** | legacy working dataset write → normalized shadow sync |
+
+## Failure policy
+
+- Legacy write succeeds first.
+- Normalized failure must **not** rollback `positions_dataset`.
+- While legacy READ is primary, normalized shadow failure is **non-catastrophic**.
+- Prior valid shadow remains if persist not reached; diagnostics via result / `console.warn`.
+
+## Verified
+
+| Path | Result |
+|------|--------|
+| SAVE | 1 Master + 4 Members (representative) |
+| Approval | legacy Derived count == normalized Derived count · lineage preserved · History exactly **+1** |
+| Import | 4-track + handcrafted 16-member / 12-Derived fixture |
+| History | SAVE **+1** · Approval **+1** · Cancel **+0** — unchanged |
+
+## Production impact
+
+| Item | State |
+|------|--------|
+| `positions_dataset` | **Production corpus SSOT** |
+| `family_*` | **Normalized shadow** |
+| Flag | `FAMILY_NORMALIZED_STORAGE_ENABLED = false` |
+| Normalized primary READ | **OFF** |
+| Search / Export / geometry / HPT / symmetry / Physical Target | **unchanged** |
+
+## Tests (historical at completion)
+
+**75/75** across 6 files (incl. `normalizedDualWrite.test.ts`).
+
+## Remaining blockers (before normalized READ)
+
+1. generation / freshness marker  
+2. History restore **H3**  
+3. cleanup / `preserve_dataset` `family_*` preservation  
+4. SearchIndex  
+5. gated normalized READ  
+
+Approval History **+1** removal still **BLOCKED**.
+
+## Next
+
+Ask-only: generation marker + History H3 + cleanup `family_*` prerequisite audit. **Not** gated READ implementation.
+
+## Working tree
+
+기존 uncommitted Phase 3A 보존. Commit/Push 없음.
+
+---
+
+# 2026-08-20 (Phase 3A-325 — B6 Gated-Read Pre-Implementation Audit)
+
+## 제목
+
+**B6 Production Dual-Read / Gated-Read Pre-Implementation Audit**
+
+## Mode
+
+**Ask** · documentation / decision only · no code change in this phase
+
+## Verdict
+
+**PRODUCTION NORMALIZED READ = BLOCKED.**
+
+## Why blocked
+
+At audit time, `family_*` stores were **not** updated by production mutation paths:
+
+- SAVE  
+- Derived Approval  
+- Import  
+- History restore  
+
+Enabling flag / reading normalized first would risk **stale** `family_*` and lose latest `positions_dataset` changes.
+
+## Current production SSOT (then and through 3A-326 READ policy)
+
+| Layer | Role |
+|-------|------|
+| `positions_dataset` | Production corpus SSOT |
+| React `dataset` | Runtime mirror |
+| `workspace_history` | Workspace snapshots |
+| `family_masters` / `family_members` | Shadow infrastructure only (pre–dual-write at audit; dual-write landed in 3A-326) |
+
+## Decision
+
+Normalized READ **after** dual-write. Dual-write scope: **SAVE + Derived Approval + Import**. Legacy READ primary. Flag **OFF**.
+
+SearchIndex is **not** a dual-write prerequisite (Members hold 3-ball; Index rebuildable later).
+
+## Discoveries
+
+- **Generation / freshness marker** required before trusting schema-valid normalized store as current.  
+- **History H3**: restore workspace without rolling back persistent Members.  
+- **Cleanup**: `preserve_dataset` may delete `family_*` keys outside preserve list — policy needed before READ.
+
+## Recommended sequence
+
+1. migration infra — DONE (323)  
+2. compatibility read adapter — DONE (324)  
+3. dual-write SAVE + Approval + Import — NEXT at audit → DONE (326)  
+4. generation / freshness marker  
+5. cleanup / reset policy for `family_*`  
+6. History restore contract (H3)  
+7. SearchIndex + rebuild  
+8. gated normalized read  
+9. legacy retirement  
+
+## Next
+
+Phase 3A-326 dual-write Agent.
+
+---
+
+# 2026-08-20 (Phase 3A-324 — B5 Compatibility Read Adapter)
+
+## 제목
+
+**B5 Compatibility Read Adapter**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음
+
+## Purpose
+
+Load validated normalized store → hydrate → `PositionRecord[]` compatible dataset. No App production wiring.
+
+## Files
+
+**New**
+
+- `frontend/src/domain/family/loadFamilyCompatibleDataset.ts`
+- `frontend/src/domain/family/loadFamilyCompatibleDataset.test.ts`
+
+**Modified**
+
+- `frontend/src/domain/family/index.ts`
+
+## API
+
+- `loadFamilyCompatibleDataset()` — from localStorage envelopes  
+- `hydrateFamilyPartsToCompatibleDataset(...)` — in-memory helper  
+
+## Pipeline
+
+load Master envelope → load Member envelope → schemaVersion check → `validateFamilyStore` → hydrate each Member with its Master → `PositionRecord[]`.
+
+Valid store → `source = normalized`. Invalid/corrupt → `ok:false` + issues. **No partial** normalized dataset.
+
+## Fail-closed
+
+orphan · schema mismatch · FK mismatch · forbidden Member common payload · corrupt JSON · missing Master · map-key/memberId conflict.
+
+## Contracts
+
+- 3-ball exact numeric preservation  
+- AUTHORED / SYMMETRY / DERIVED_CUE_IMPACT provenance preserved  
+- Fixture: 1 Master + 16 Members → 16 hydrated records  
+
+## Production impact
+
+`positions_dataset` · `workspace_history` · SAVE/Approval · Search · Export/Import — **unchanged**. Flag **false**. No App.jsx wiring.
+
+## Tests (at completion)
+
+loadFamilyCompatibleDataset **16/16** · migration **16/16** · storage **12/12** · derivedApproval **10/10** · **Total 54/54**.
+
+## Next
+
+3A-325 gated-read pre-audit (Ask).
+
+---
+
+# 2026-08-20 (Phase 3A-323 — B1–B4 Migration Infrastructure)
+
+## 제목
+
+**B1–B4 Migration Infrastructure**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음
+
+## Files
+
+**New**
+
+- `frontend/src/domain/family/migratePositionRecordsToFamilyParts.ts`
+- `frontend/src/domain/family/migratePositionRecordsToFamilyParts.test.ts`
+
+**Modified**
+
+- `frontend/src/domain/family/index.ts`
+- `frontend/src/domain/family/familyNormalizedStore.ts` (`persistMigratedFamilyParts`)
+
+## API
+
+`migratePositionRecordsToFamilyParts(dataset)` returns either:
+
+- `ok:true` · masters · members · familyCount · memberCount · skippedLegacySlots  
+- `ok:false` · issues  
+
+## Master seed
+
+Exactly one validated **AUTHORED** per family.
+
+| Issue | When |
+|-------|------|
+| `NO_AUTHORED_SEED` | no AUTHORED |
+| `MULTIPLE_AUTHORED_SEEDS` | multiple distinct AUTHORED |
+| `COMMON_PAYLOAD_CONFLICT` | conflicting common payload |
+
+No invented Master. No silent merge.
+
+## Member
+
+- Physical PK: `memberId`  
+- Logical dedup: `genericFamilyMemberIdentityKey`  
+- same logical key + different memberId → reject  
+- same memberId + incompatible payload → reject  
+
+## Derived lineage preserved
+
+`DERIVED_CUE_IMPACT` · `generatedFromMemberId` · `derivedRule` · `derivedStep` · `track` · IDs.
+
+## Fixture / idempotency
+
+1 Master + 16 Members (12 Derived). Idempotency verified.
+
+## Legacy
+
+`positions_dataset` unchanged · `workspace_history` unchanged · flag **false**.
+
+## Tests (at completion)
+
+migration **16/16** · storage **12/12** · derivedApproval **10/10**.
+
+## Next
+
+3A-324 B5 compatibility read.
+
+---
+
+# 2026-08-20 (Phase 3A-322 — Phase B Migration & Compatibility Read Audit)
+
+## 제목
+
+**Phase B Migration & Compatibility Read Audit**
+
+## Mode
+
+**Ask** · decision only · no production switch
+
+## Verdict
+
+Phase B **infrastructure-only** implementation is **SAFE**. Production read/write switch **forbidden**.
+
+## Migration source (allowed)
+
+`positions_dataset` / working React dataset / explicit Import.
+
+## Forbidden
+
+Use `workspace_history` as Member DB or bulk migration source.
+
+## Master seed
+
+AUTHORED preferred/required. No AUTHORED → fail/quarantine. Conflicting common payload → fail/quarantine. Silent merge forbidden. familyId-only dedup **FORBIDDEN**.
+
+## Member identity
+
+- PK: `memberId`  
+- Logical: `genericFamilyMemberIdentityKey`  
+
+## 3-ball
+
+cue / target / second — exact numeric preservation. No rounding / interpolation / Fg–Rg conversion in migration.
+
+## History / Approval
+
+History restore should not delete `family_*` (direction for later H3). Approval History **+1** **KEEP**.
+
+## Next
+
+3A-323 B1–B4 migration Agent.
+
+---
+
+# 2026-08-20 (Phase 3A-321 — Normalized Family Storage Phase A)
+
+## 제목
+
+**Normalized Family Storage Phase A**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음
+
+## Purpose
+
+Physical FamilyMaster / FamilyMember schema, localStorage store, hydrate/split boundary. No production wiring.
+
+## Files
+
+- `frontend/src/domain/family/familyNormalizedSchema.ts`
+- `frontend/src/domain/family/familyNormalizedFlag.ts`
+- `frontend/src/domain/family/familyNormalizedStore.ts`
+- `frontend/src/domain/family/familyHydrate.ts`
+- `frontend/src/domain/family/familyNormalizedStorage.test.ts`
+- `frontend/src/domain/family/index.ts` (exports)
+- `frontend/src/domain/family/familyMigrationDebt.ts` (debt note)
+
+## Storage keys
+
+`family_masters` · `family_members`
+
+## Flag
+
+`FAMILY_NORMALIZED_STORAGE_ENABLED = false`
+
+## Ownership contract
+
+| Entity | Owns |
+|--------|------|
+| **FamilyMaster** | family-common payload (`signature`, `sysInputs`, `corrections*`, `ai`, `str`, canonical `hpT`, …) |
+| **FamilyMember** | balls `{cue,target,second}` + track + provenance / member delta only |
+
+Member must **not** duplicate family-common payload.
+
+## Representative fixture
+
+1 Master · 16 Members · orphan 0 · duplicate memberId 0 · no common payload on Members.
+
+## Production wiring
+
+**NONE.** SAVE / Approval / Search / History **unchanged**.
+
+## Tests (at completion)
+
+`familyNormalizedStorage` **12/12** · `derivedApprovalFlow` **10/10**.
+
+## Next
+
+3A-322 Phase B migration audit (Ask).
+
+---
+
+# 2026-08-20 (Phase 3A-320 — SAVE vs Derived Approval WorkspaceSnapshot Semantic Diff Audit)
+
+## 제목
+
+**SAVE vs Derived Approval WorkspaceSnapshot Semantic Diff Audit**
+
+## Mode
+
+**Ask** · audit only · no code change in this phase
+
+## Purpose
+
+Verify whether SAVE History snapshot and Derived Approval History snapshot are accidental duplicates (user concern: v007 / v008 look identical on restore; Export might duplicate corpus).
+
+## Representative case
+
+| Snapshot | Role |
+|----------|------|
+| **S0** (v007-like) | Canonical SAVE |
+| **S1** (v008-like) | Derived Approval |
+
+## Three-axis conclusion
+
+| Axis | Result | Meaning |
+|------|--------|---------|
+| **Visual equality** | **YES** | Both restore visible/runtime baseline A — screen looks the same **by design** |
+| **Serialized equality** | **NO** | S0: 4-track base · no approved Derived. S1: 4-track + approved Derived. `state.dataset` differs |
+| **Functional equality** | **NO** | S0 restore can drop Derived from working corpus. S1 restore can recover approved Derived |
+
+Therefore: v007/v008 are **not** metadata-only duplicates. S1 is currently a **post-approval persisted-corpus restore point**.
+
+## Writer / History counts
+
+- normal SAVE → WorkspaceSnapshot **+1**  
+- Derived Approval → separate WorkspaceSnapshot **+1**  
+- same History writer  
+
+## Decision
+
+**TEMPORARILY KEEP** Approval History **+1**.  
+**REMOVE only AFTER** normalized migration + Members + SearchIndex + restore contract + product agreement that Approval ≠ workspace save-event.
+
+## History +0 transition prerequisites (recorded)
+
+1. physical FamilyMaster / FamilyMember persistence  
+2. SearchIndex or equivalent  
+3. working/search read from Members  
+4. History restore does not delete Members (H3 direction)  
+5. regression suite  
+6. explicit product contract: Approval ≠ workspace save-event  
+
+## Architecture principle
+
+**History ≠ Member DB** · History ≠ persistent family corpus SSOT · SearchIndex ≠ family-common payload SSOT.
+
+## Export note (session)
+
+Do **not** treat History v007+v008 as two persistent “original” corpora for Export merge/dedup.  
+
+**TARGET:** Export corpus = FamilyMaster + FamilyMembers; History = workspace snapshot only.  
+
+**CURRENT through 3A-326:** Export format/behavior **unchanged** — normalized Export **NOT IMPLEMENTED**.
+
+## Next
+
+3A-321 Normalized Storage Phase A (Agent).
+
+---
+
+# 2026-08-19 (Family Phase 3A-3E — Derived Preview / Approval)
+
+## 제목
+
+**Cue→Impact Derived Candidate generate-once → Preview → Approve same set**
+
+## Status
+
+**IMPLEMENTED (uncommitted)** · Commit/Push 없음  
+SAVE 자동 Derived persistence **없음** · AUTO_APPROVE **없음** · C3_PLUS **없음**
+
+## Contract
+
+Derived candidates are generated automatically for review, but are not persisted until explicit administrator approval. The exact candidate set reviewed in Preview is the candidate set passed to persistence; approval must not trigger regeneration.
+
+- Policy: REVIEW_REQUIRED
+- 4-track SAVE 후 in-memory review session
+- 파생 승인 = frozen Candidate Set → generic writer
+- Preview close = no dataset mutation
+
+## Files
+
+- `frontend/src/domain/family/cueImpactDerivedReview.ts` (+ test)
+- `frontend/src/components/table/DerivedCandidatePreviewLayer.jsx`
+- `frontend/src/App.jsx` (ghost markers · 파생 승인)
+- `saveFlow.ts` additive `familyId` / `fourTrackWritten` (Derived persist 없음)
+
+## Working tree
+
+기존 uncommitted · leftover 보존. Commit/Push 없음.
+
+---
+
+# 2026-08-18 (Family Phase 3A-3D — Cue→Impact first 30% Derived)
+
+## 제목
+
+**Cue Ball / Impact Ball / CO 의미 확정 · CO_C1_2RG 폐기 · Cue→Impact 처음 30% adaptive Derived Member 생성**
+
+## Status
+
+**IMPLEMENTED (uncommitted)** · Commit/Push 없음  
+SAVE 자동 Derived 연결 **없음** · C3_PLUS **없음**
+
+## Contract
+
+- Cue Ball = `source.balls.cue` (물리 중심)
+- Impact Ball center = `calcImpactBall(cue, target, runtime T)` = 충돌 순간 Cue 중심
+- CO ≠ Cue Ball. CO는 Impact 이후 system trajectory origin
+- Cue→Impact = 직선 `P(t) = C + t*(I-C)`, valid `0 < t <= 0.30`
+- Adaptive: `N = max(3, ceil(D*0.30 / 3.0))`, last t always 0.30
+- 2Rg / CO→C1 / Envelope cueSet 미사용
+- `derivedRule = CUE_IMPACT_FIRST_30PCT`, `memberOrigin = DERIVED_CUE_IMPACT`
+- `derivedStep = cue_impact:t:0.100000`
+- 각 Track은 자기 source에서 직접 생성. H/V/RPI Derived 복제 없음
+- generic writer 사용. production SAVE는 기존 4-track만 유지
+
+## Withdrawn
+
+`CO_C1_2RG` / `DERIVED_CO_C1` / `sourceDomainLengthRg` / `evaluateCoC1RgSteps` / `co_c1:rg:`  
+production persistence에 없었으므로 migration alias 없음.
+
+## Files
+
+- `frontend/src/domain/family/generateCueImpactDerivedMembers.ts` (+ test)
+- `familyIdentity.ts` / `positionSearchEngine.ts` / `familyAwareWriter.ts`
+- `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` §5.0–5.1
+- `작업관리/4_CALCULATION_RULES.md` (sys/expr 경계 명시)
+
+## Working tree
+
+기존 uncommitted · dataset/vitest leftovers **보존**. Commit/Push 없음.
 
 ---
 

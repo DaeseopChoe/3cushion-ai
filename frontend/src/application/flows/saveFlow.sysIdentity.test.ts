@@ -86,6 +86,7 @@ function buildCtx(overrides: Partial<SaveFlowContext> = {}): {
       adminState = updater(adminState);
     },
     patchSlotRuntimeMeta: vi.fn(),
+    patchSlotFamilyIdentity: vi.fn(),
     saveToFile: vi.fn(),
     resolveFormulaHash: () => "v1",
     resolveEvalProfile: () => ({ formula: { expr: "C3_r = CO_f - C1_f" } }),

@@ -639,6 +639,7 @@ resolvedSlotSys
 
 - `getRailLineFromPosition(x, y)` → `getRailOutwardUnitNormalFG(railLine)` 사용.
 - `applyLayerOffset`는 **outward** 법선에 맞춰 픽셀 `dx/dy` 매핑됨 (기존 화면과 동일하도록 부호 조정 완료).
+- **CO is not the physical Cue Ball position.** CO is the system trajectory origin after Cue–Target impact. Family Cue→Impact Derived coordinates must not be generated from CO or CO→C1 geometry (`FAMILY_DATA_ARCHITECTURE_DRAFT.md` §5.0).
 
 ### 6. 핵심 설계 원칙
 

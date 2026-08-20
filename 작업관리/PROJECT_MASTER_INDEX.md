@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.70  
-Last Updated: 2026-08-17  
+Version: 1.73  
+Last Updated: 2026-08-20  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -50,9 +50,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Phase 5 Mission 02 — Dead Code Cleanup **COMPLETE** |
-| **Next Track** | **Family Data Architecture Phase 1** — Master/Member 저장 구조 분석 (**Ask**) |
-| **Next Track Readiness** | **READY FOR ASK** · 코드 수정 금지 · 설계 문서: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` |
+| **Current Mission** | Family Normalization **Phase 3A-326** — Normalized Shadow Dual-Write **COMPLETE** (uncommitted) |
+| **Next Track** | Ask-only prerequisites: generation/freshness marker · History H3 · cleanup `family_*` — **not** gated READ yet · C3_PLUS later |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
@@ -114,26 +113,76 @@ Detail: `HISTORY/PROJECT_LOG_2026-08.md` (Mission 02 Final Closure).
 
 ---
 
-## Next Architecture Track — Family Data Architecture (2026-08-17)
+### Current Family Normalization State (2026-08-20 · Phase 3A-326)
+
+> **Pointer only** — detail: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-320 ~ 3A-326**. Design: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` (CURRENT vs TARGET).
 
 | Field | Value |
 |-------|--------|
-| **Status** | **CONFIRMED DESIGN** · **not implemented** |
-| **SSOT draft** | `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` |
-| **LOG** | `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-17 |
-| **Next** | **Phase 1 Ask** — Family Master / Member 현재 저장 구조 분석 |
-| **Must not** | IMPLEMENTED로 표기 · Envelope Sampling 재해석 · 한 번에 Phase 1–4 구현 |
+| **Current Phase** | **Phase 3A-326** — Normalized Shadow Dual-Write **COMPLETE** (uncommitted) |
+| **Production corpus SSOT** | `positions_dataset` (+ React `dataset` mirror) |
+| **Normalized shadow stores** | `family_masters` · `family_members` |
+| **Feature flag** | `FAMILY_NORMALIZED_STORAGE_ENABLED = false` |
+| **Production normalized READ** | **OFF / BLOCKED** (do not enable until prerequisites) |
+| **SSOT docs** | DRAFT + this INDEX · LOG 2026-08-20 (3A-320…326) |
 
-### 왜 지금인가
+#### Done (through 3A-326)
 
-샘플 데이터셋 3개(뒤돌리기 · 옆돌리기 · 뒤돌리기 대회전, 각 4 track)가 사용자에 의해 완성되었다.  
-다음 질문은 “기준 1개로 나머지 3 track + 파생을 자동 생성할 수 있는가”이다.
+- FamilyMaster / FamilyMember schema · normalized storage · hydrate/split (3A-321)
+- Migration infrastructure (3A-323) · compatibility read adapter (3A-324)
+- SAVE / Derived Approval / Import **shadow dual-write** (3A-326)
+- Prior authoring path: identity · 4-track SAVE · Cue→Impact · Preview/Approve (through 3A-3E)
 
-### 설계 한 줄
+#### Not done (must not mark complete)
 
-Family Master = 공통값 SSOT · Member = 좌표+track+provenance · Search Index = derived index (새 SSOT 아님) · 명령 3종: 원본수정 UPDATE / 파생수정 BRANCH+REPLACE / 새로저장 CREATE.
+- generation / freshness marker · History restore **H3** · cleanup/`preserve_dataset` `family_*` policy
+- SearchIndex · gated normalized READ · Approval History **+0** · legacy `positions_dataset` retirement
+- normalized Export migration · AUTO_APPROVE · C3_PLUS · destructive migration
 
-상세·안전 원칙·Phase 1–4: **DRAFT 문서만** 따른다. 본 MASTER는 상태를 가리킨다.
+#### CURRENT vs TARGET (do not confuse)
+
+| Layer | CURRENT | TARGET |
+|-------|---------|--------|
+| Corpus SSOT | `positions_dataset` | FamilyMaster + FamilyMembers |
+| `family_*` | **Normalized shadow** (dual-write) | Production physical SSOT |
+| FamilyMaster | Shadow common payload | Family-common **physical SSOT** |
+| FamilyMember | Shadow balls+track+provenance | Member **physical SSOT** |
+| SearchIndex | **NOT IMPLEMENTED** | Rebuildable locator (not common payload) |
+| History | Workspace snapshots; Approval still uses History **+1** for post-approval corpus restore | Workspace-only; **not** Member DB |
+
+#### Approval / SAVE History rule (CURRENT — KEEP)
+
+| Event | History |
+|-------|---------|
+| SAVE | **+1** |
+| Derived Approval | **+1** (**TEMPORARILY KEEP** — do not remove yet) |
+| Cancel / Preview close | **+0** |
+
+Long-term target: Approval → Members(+SearchIndex) update · History **+0**. **NOT DONE.**
+
+#### Next recommended work
+
+**Ask-only** prerequisite audit (in order):
+
+1. generation / freshness marker  
+2. History restore **H3** (workspace restore ≠ Member corpus rollback)  
+3. cleanup / `preserve_dataset` `family_*` preservation  
+
+Then: SearchIndex/rebuild → gated-read audit → normalized READ. **Not** “implement gated READ” as the immediate next step.
+
+#### Must not
+
+Envelope Sampling 재해석 · 2Rg/CO→C1로 Cue 좌표 생성 · flag ON without prerequisites · treat History as Member DB · unrelated leftover cleanup · Commit/Push without user request.
+
+### 왜 지금인가 (context)
+
+샘플 데이터셋 3개(뒤돌리기 · 옆돌리기 · 뒤돌리기 대회전) 완성 후 Family 생성·정규화 경로를 진행 중. Phase 3A-326까지 **shadow dual-write** 완료; production READ는 여전히 `positions_dataset`.
+
+### 설계 한 줄 (TARGET)
+
+FamilyMaster = 공통값 SSOT · FamilyMember = 좌표+track+provenance · SearchIndex = derived locator (새 SSOT 아님) · History = workspace snapshot only.
+
+상세·안전 원칙: **DRAFT** (CURRENT vs TARGET). 본 MASTER는 상태 pointer.
 
 ### 구현된 Authoring/Display (uncommitted · cite LOG)
 
@@ -141,7 +190,7 @@ saveFlow system identity · C2 Track invalidate · History restore layers ON · 
 
 ### Export ≠ History
 
-History snapshot count ≠ export `positions.json` record count. Dataset 3계층 SSOT 유지 (본 문서 Dataset Architecture).
+History snapshot count ≠ export `positions.json` record count. Dataset 3계층 SSOT 유지. **CURRENT Export format unchanged** through 3A-326. Target Export corpus = Master+Members (not History-row merge) — **NOT IMPLEMENTED**.
 
 ---
 
@@ -561,7 +610,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 **이관 문서:** `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`  
 **월별 로그:** `HISTORY/PROJECT_LOG_2026-06.md` §14 (Phase 1) · §15 (Phase 2~3-1)
 
-**Export ≠ History (2026-08-17):** History UI snapshot 개수와 `dataset/{공략}/{시스템}/positions.json` record 수는 동일 개념이 아니다. Family 설계는 이 3계층 위에 올라간다 (`FAMILY_DATA_ARCHITECTURE_DRAFT.md` · **미구현**).
+**Export ≠ History (2026-08-17 · refreshed 2026-08-20):** History UI snapshot 개수와 `dataset/{공략}/{시스템}/positions.json` record 수는 동일 개념이 아니다. Family 설계는 이 3계층 위에 올라간다 (`FAMILY_DATA_ARCHITECTURE_DRAFT.md` · shadow dual-write **IMPLEMENTED** · production SSOT still `positions_dataset`).
 
 ### 데이터 3계층
 
@@ -1173,7 +1222,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | HPT tip-side C2 invalidate | IMPLEMENTED (uncommitted) |
 | **BUG-A** display-cap nearest-rail | IMPLEMENTED (uncommitted) |
 | **BUG-B** Reset/History stale | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 |
-| Family Master/Member | **CONFIRMED DESIGN** · not implemented |
+| Family Master/Member | **Shadow physical stores IMPLEMENTED** (3A-321…326) · production SSOT still `positions_dataset` · normalized READ **OFF** |
 
 ### ADMIN Interaction — Pointer Capture Timing (2026-07-30)
 
@@ -1583,13 +1632,13 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 >
 > **Phase 5 Mission 02 — Dead Code Cleanup:** ✅ **COMPLETE** — Cleanup #1–#4 · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS** · baseline `8bf90b6`.
 >
-> **Next Track:** **Family Data Architecture Phase 1 (Ask)** · `FAMILY_DATA_ARCHITECTURE_DRAFT.md` · **CONFIRMED DESIGN / not implemented**.
+> **Next Track:** Family Normalization **Phase 3A-326** shadow dual-write COMPLETE · next Ask = generation marker · History H3 · cleanup `family_*` · `FAMILY_DATA_ARCHITECTURE_DRAFT.md` (CURRENT vs TARGET) · production SSOT still `positions_dataset` · flag **false** · normalized READ **OFF**.
 >
 > **Sample datasets:** 사용자 보고 3 set 완성 (뒤돌리기 · 옆돌리기 · 뒤돌리기 대회전 × 4 tracks). Auto-generation은 Family Phase 2–3.
 >
 > **병행 Carry:** **BUG-B 재현 확인 필요** · Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · uncommitted working tree 보존 · Commit/Push 사용자 요청 시.
 >
-> **Runtime / Product 상태 (2026-08-17):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy **v1.4.1** (BUG-A same-rail identity) · Family **미구현**.
+> **Runtime / Product 상태 (2026-08-20):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy **v1.4.1** (BUG-A same-rail identity) · Family **shadow stores + dual-write IMPLEMENTED** · production corpus SSOT = `positions_dataset` · normalized READ **OFF**.
 
 ### STEP7 상태
 
@@ -1882,7 +1931,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `Architecture/` | **Structure Constitution** — Envelope Architecture Freeze (내용 수정 금지) |
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | **Session Operations** — Official Read Order · Startup Rules · Current / Next / Carry |
 | `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
-| `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` | **Family Data Architecture** — CONFIRMED DESIGN · Phase 1–4 · Admin 3 commands · **미구현** |
+| `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` | **Family Data Architecture** — CONFIRMED DESIGN · CURRENT (3A-326 shadow dual-write) vs TARGET · production SSOT still `positions_dataset` · normalized READ **OFF** |
 | `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4.1** — same-rail nearest-rail identity (BUG-A) · Reading Mode · C2 Handle |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |

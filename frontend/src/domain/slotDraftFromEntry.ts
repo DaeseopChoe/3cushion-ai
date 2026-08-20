@@ -4,6 +4,8 @@
 
 import type { StrategyEntry, StrategySysCorrections } from "./positionSearchEngine";
 import { mergeCorrections } from "./canonicalStrategy";
+import { familyIdentityPersistPatch } from "./family/familyIdentity";
+import { hydrateFamilyMemberRuntimeHpt } from "./family/familyRuntimeProjection";
 import { hydrateSysFromStrategyEntry } from "./strategyHydrate";
 import type { SlotDraftSys } from "./slotSysResolve";
 
@@ -24,6 +26,24 @@ export function strategyEntryToSlotDraftSys(entry: StrategyEntry): SlotDraftSys 
     inputs: hydrated.inputs,
     outputs: hydrated.outputs,
   };
+}
+
+/**
+ * Family-native hydrate: AUTHORED/legacy hpT unchanged; SYMMETRY gets
+ * handedness-resolved runtime HPT. Does not persist the resolved value.
+ */
+export function runtimeHptFromStrategyEntry(entry: StrategyEntry): unknown {
+  return hydrateFamilyMemberRuntimeHpt(entry);
+}
+
+export function draftFamilyIdentityFromStrategyEntry(entry: StrategyEntry): {
+  familyId?: string;
+  memberId?: string;
+  memberOrigin?: StrategyEntry["memberOrigin"];
+  generatedFromMemberId?: string;
+  symmetryOp?: StrategyEntry["symmetryOp"];
+} {
+  return familyIdentityPersistPatch(entry);
 }
 
 /** Per-slot runtime fields stored on draft/applied (corrections, shotType, system_values, extensions). */

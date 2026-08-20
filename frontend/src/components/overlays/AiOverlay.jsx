@@ -85,6 +85,7 @@ export function AiOverlay({
   onSave,
   onSaveStrategy,
   onCancel,
+  applyDisabled = false,
   onePointLibrary,
   sortedOnePointLibrary,
   onePointSelectedId,
@@ -160,6 +161,7 @@ export function AiOverlay({
 
   const handleGlobalApplySubmit = (e) => {
     e.preventDefault();
+    if (applyDisabled) return;
     const newData = {
       ...data,
       text: "",
@@ -450,16 +452,17 @@ export function AiOverlay({
       <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
         <button
           type="submit"
+          disabled={applyDisabled}
           style={{
             flex: 1,
             padding: '10px 16px',
-            backgroundColor: '#2563eb',
+            backgroundColor: applyDisabled ? '#94a3b8' : '#2563eb',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',
             fontSize: '14px',
-            cursor: 'pointer'
+            cursor: applyDisabled ? 'not-allowed' : 'pointer'
           }}
         >
           전체 적용

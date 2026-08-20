@@ -246,11 +246,20 @@ export function useSettings({
    * Caller is responsible for guards (Position LOCK / systemId) and strategy ok.
    */
   const commitWorkspaceHistoryWithStrategyDataset = useCallback(
-    (strategyUpdatedDataset) => {
+    (strategyUpdatedDataset, runtimeOverride) => {
       canonicalDebugLog("[H_SAVE_ENTRY]", { ts: Date.now() });
+      const snapshotAdminState = runtimeOverride?.adminState ?? adminState;
+      const snapshotBallsState = runtimeOverride?.ballsState ?? ballsState;
+      const snapshotShotEditor = runtimeOverride?.shotEditor ?? shotEditor;
+      const snapshotTargetBall =
+        runtimeOverride?.targetBall !== undefined
+          ? runtimeOverride.targetBall
+          : targetColor ?? null;
       const systemId =
-        adminState?.sys?.system_id ?? adminState?.sys?.system ?? "5_half_system";
-      const pattern = adminState?.sys?.shotType ?? "뒤돌리기";
+        snapshotAdminState?.sys?.system_id ??
+        snapshotAdminState?.sys?.system ??
+        "5_half_system";
+      const pattern = snapshotAdminState?.sys?.shotType ?? "뒤돌리기";
       const history = loadWorkspaceHistory();
       const version = getNextVersion(history, systemId, pattern);
       const timestamp = new Date().toISOString();
@@ -264,13 +273,15 @@ export function useSettings({
         timestamp,
         exported: false,
         state: {
-          adminState: JSON.parse(JSON.stringify(adminState)),
-          ballsState: ballsState ? JSON.parse(JSON.stringify(ballsState)) : null,
+          adminState: JSON.parse(JSON.stringify(snapshotAdminState)),
+          ballsState: snapshotBallsState
+            ? JSON.parse(JSON.stringify(snapshotBallsState))
+            : null,
           dataset: JSON.parse(
             JSON.stringify(Array.isArray(strategyUpdatedDataset) ? strategyUpdatedDataset : [])
           ),
-          shotEditor: JSON.parse(JSON.stringify(shotEditor)),
-          targetBall: targetColor ?? null,
+          shotEditor: JSON.parse(JSON.stringify(snapshotShotEditor)),
+          targetBall: snapshotTargetBall,
         },
       };
       const nextHistory = [...history, snapshot];

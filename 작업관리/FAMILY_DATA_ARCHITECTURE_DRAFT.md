@@ -2,16 +2,62 @@
 
 ```
 Document  : FAMILY_DATA_ARCHITECTURE_DRAFT.md
-Type      : Confirmed Design (not implemented)
+Type      : Confirmed Design · partial implementation (uncommitted)
 Authority : Status/Design — consume via PROJECT_MASTER_INDEX
-Date      : 2026-08-17
-Status    : CONFIRMED DESIGN · NEXT (Phase 1 Ask)
-Not       : IMPLEMENTED · Official Glossary (until GLOSSARY_SSOT cites)
+Date      : 2026-08-18 · CURRENT status refreshed 2026-08-20
+Status    : CONFIRMED DESIGN · Phase 3A-326 shadow dual-write COMPLETE · production SSOT still positions_dataset
+Not       : Official Glossary (until GLOSSARY_SSOT cites) · production normalized READ · Search Index · C3_PLUS · Approval History +0 · legacy retirement
 ```
 
-> 본 문서는 **아직 구현되지 않은** Family 저장/생성 설계다.  
-> 기존 SSOT(Envelope Sampling · Dataset 3계층 · Display Boundary · Calculation Rules)를 **재정의하지 않는다**.  
-> 구현 시 production 파생/대칭 규칙을 **새로 해석하지 말고 재사용**한다.
+> 본 문서는 Family 저장/생성 **TARGET 설계** + **CURRENT 구현 상태**를 함께 둔다.  
+> **CURRENT ≠ TARGET.** Physical normalized **shadow** stores (`family_masters` / `family_members`)는 구현됨.  
+> Production corpus SSOT는 아직 **`positions_dataset`**. Normalized primary READ **OFF**.  
+> 기존 SSOT(Envelope Sampling · Dataset 3계층 · Display Boundary · Calculation Rules expr/sys)를 **재정의하지 않는다**.
+
+---
+
+## CURRENT IMPLEMENTATION STATUS — 2026-08-20 (Phase 3A-326)
+
+| Item | CURRENT |
+|------|---------|
+| **Production corpus SSOT** | `positions_dataset` (+ React `dataset` mirror) |
+| **Normalized shadow stores** | `family_masters` · `family_members` (physical schema + localStorage) |
+| **Shadow dual-write** | SAVE · Derived Approval · Import — **COMPLETE** (3A-326) |
+| **Feature flag** | `FAMILY_NORMALIZED_STORAGE_ENABLED = false` |
+| **Normalized production READ** | **OFF / BLOCKED** until generation marker · H3 · cleanup · (later) SearchIndex · gated-read audit |
+| **Compatibility read adapter** | Implemented (3A-324) · **not** wired as App primary READ |
+| **Migration infra** | Implemented (3A-323) · source = positions/Import — **not** History |
+| **History** | SAVE **+1** · Approval **+1** (**KEEP**) · Cancel **+0** — temporary; Approval still supports post-approval corpus restore via snapshot |
+| **SearchIndex** | **NOT IMPLEMENTED** |
+| **Export** | **Legacy behavior unchanged** through 3A-326 — normalized Export **NOT IMPLEMENTED** |
+| **Pending before normalized READ** | generation/freshness marker · History restore **H3** · cleanup/`preserve_dataset` `family_*` · SearchIndex · gated-read audit |
+| **NOT DONE** | flag ON · Approval History **+0** · legacy `positions_dataset` retirement · normalized-only op · destructive migration |
+
+Detail chronology: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-320 ~ 3A-326**. Status pointer: `PROJECT_MASTER_INDEX.md`.
+
+### CURRENT layer roles (do not confuse with TARGET)
+
+| Layer | CURRENT role |
+|-------|----------------|
+| `positions_dataset` | **Production corpus SSOT** (READ + primary WRITE) |
+| `family_masters` / `family_members` | **Normalized shadow** (dual-write after SAVE/Approval/Import) |
+| `workspace_history` | Workspace save-event snapshots — **≠** Member DB |
+| SearchIndex | Not present |
+
+---
+
+## TARGET ARCHITECTURE (design — not fully production)
+
+| Layer | TARGET role |
+|-------|-------------|
+| **FamilyMaster** | Family-common payload **physical SSOT** (`signature`, `sysInputs`, `corrections*`, `ai`, `str`, canonical `hpT`, …) |
+| **FamilyMember** | balls `{cue,target,second}` + track + provenance / member-delta **physical SSOT** — **no** family-common payload duplicate |
+| **SearchIndex** | Rebuildable **locator/index** (memberId, familyId, 3-ball) — **not** common-payload SSOT |
+| **History** | **Workspace-only** snapshot — **not** Member DB · **not** persistent corpus SSOT |
+| **Long-term Approval** | Members(+SearchIndex) update · History **+0** |
+| **Long-term Export** | Corpus from Master+Members — **not** History-row merge/dedup |
+
+Sections below (§1–…) describe this **TARGET** design and earlier phase contracts. They are **not** claims that production has cut over.
 
 ---
 
@@ -19,13 +65,20 @@ Not       : IMPLEMENTED · Official Glossary (until GLOSSARY_SSOT cites)
 
 | Item | Status |
 |------|--------|
-| Family Master / Member schema | **CONFIRMED DESIGN** · not implemented |
-| 4 Track auto-generation | **CONFIRMED DESIGN** · NEXT Phase 2 |
-| Derived Members + Search Index | **CONFIRMED DESIGN** · NEXT Phase 3 |
+| Family Master / Member **schema + shadow stores** | **IMPLEMENTED** (uncommitted · 3A-321…326) — physical keys exist; **not** production primary SSOT |
+| Family Master / Member as **production corpus SSOT** | **NOT YET** — still `positions_dataset` |
+| 4 Track auto-generation | **IMPLEMENTED** (uncommitted) — AUTHORED SAVE → 4-track writer |
+| Cue→Impact Derived Members | **IMPLEMENTED** (uncommitted · 3A-3E+) — Preview/Approve; Approval persists Derived to working corpus + shadow dual-write |
+| SAVE auto-connect Derived (no review) | **NOT IMPLEMENTED** — REVIEW_REQUIRED remains |
+| C3_PLUS Derived + Search Index | **NOT IMPLEMENTED** |
 | Admin commands 원본수정 / 파생수정 / 새로저장 | **CONFIRMED DESIGN** · NEXT Phase 4 |
 | Existing production derived / symmetry rules | **IMPLEMENTED / SSOT** — reuse; do not reinvent |
-| Envelope `cueSet` 1/3 · 1.5gr Sampling | **Architecture Freeze** — Search sampling; **≠** Family derived 2Rg |
-| Dataset 3계층 (Working / History / Published) | **IMPLEMENTED** — Family sits on top later; do not collapse History↔Export |
+| Envelope `cueSet` 1/3 · 1.5gr Sampling | **Architecture Freeze** — Search sampling; **≠** Family Cue→Impact 30% Derived |
+| Dataset 3계층 (Working / History / Published) | **IMPLEMENTED** — do not collapse History↔Export; Family Master+Members sit **above** later |
+| Family identity / 4-track SAVE / generic writer | **IMPLEMENTED** (uncommitted) — Phase 2C.1 + 3A-1/3A-2 |
+| Cue→Impact first 30% Derived generator | **IMPLEMENTED** (uncommitted · Phase 3A-3D) |
+| Normalized shadow dual-write (SAVE/Approval/Import) | **IMPLEMENTED** (uncommitted · Phase 3A-326) |
+| Normalized production READ / flag ON | **NOT DONE / BLOCKED** |
 | BUG-A display-cap nearest-rail | **IMPLEMENTED** (uncommitted) — cite LOG 2026-08-17 |
 | BUG-B Reset/History stale | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 · separate from Family |
 
@@ -39,9 +92,9 @@ Not       : IMPLEMENTED · Official Glossary (until GLOSSARY_SSOT cites)
 2. 각 Track의 **파생 Member**를 기존 규칙으로 생성하며
 3. 검색은 **Search Index**로 찾고 Family Master를 resolve
 
-하는 구조를 목표로 한다.
+하는 구조를 목표로 한다 (**TARGET**).
 
-현재 구현은 StrategyEntry / `positions_dataset` / History snapshot / Export corpus가 **레코드 단위**로 공통값과 좌표를 함께 들고 있다. Family는 그 중복을 제거하는 **다음 아키텍처**이다.
+**CURRENT (2026-08-20):** Production corpus SSOT는 여전히 StrategyEntry / `positions_dataset` (레코드에 공통값+좌표). `family_*`는 **shadow** dual-write만 수행. SearchIndex·normalized primary READ·Export Master+Members 전환은 **NOT DONE**.
 
 ---
 
@@ -94,8 +147,10 @@ Member에는 Family 공통값을 **중복 저장하지 않는다**.
 |------------|------|
 | `AUTHORED` | 관리자가 직접 입력한 원본 (자동 삭제 금지) |
 | `SYMMETRY` | 4 Track 대칭 생성 |
-| `DERIVED_CO_C1` | CO–C1 구간 파생 |
-| `DERIVED_C3_PLUS` | C3 이후 파생 |
+| `DERIVED_CUE_IMPACT` | Cue→Impact 직선 처음 30% adaptive sampling |
+| `DERIVED_C3_PLUS` | C3 이후 파생 (**미구현**) |
+
+**Withdrawn (never persisted):** `DERIVED_CO_C1` / `CO_C1_2RG` — CO–C1 1/3 · 2Rg 가정. Phase 3A-3 temporary. Do not migrate.
 
 향후 검토 가능: `parentMemberId`, generation rule/version.
 
@@ -128,36 +183,142 @@ DB에 mirrored common values를 별도 저장하지 않는다.
 
 ## 5. Derived Members
 
-4개 Track 각각은 자신의 파생 Members를 자동 생성한다.
+4개 Track 각각은 **자신의 source Track Member**에서 파생 Members를 생성한다.  
+한 Track의 Derived를 H/V/RPI로 복제하지 않는다.
 
-**새 규칙을 만들지 않는다.** 기존 production 파생 규칙을 재사용한다.  
-Phase 1 Ask에서 실제 함수/SSOT 경로를 확정한다 (`trajectorySampleBuilder` · authoring derived · 관련 SSOT).
+이 계층은 **시스템 공식 계산이 아니다.**  
+`CO_f` / `C1_f` / anchors.json CO mark / `computeRailImpactPoint` / CO→C1 rail은 Cue 좌표 생성에 사용하지 않는다.  
+계산 규칙 SSOT(`4_CALCULATION_RULES.md`)의 expr/sys 파이프라인과 분리한다.
 
-현재 합의된 재사용 계약:
+### 5.0 Cue Ball · Impact Ball · CO (필수 분리)
 
-### 5.1 CO–C1 구간
+**Cue Ball**
 
-- 현재 정의된 **1/3 범위까지**
-- **2Rg 단위** 파생
-- 이유: 구름관성 차이가 동일하다고 보는 유효 구간
+`source.balls.cue`
+
+현재 배치된 3구 중 내공의 **물리 중심 좌표**다. Ball coordinate이며 sys 값이 아니다.
+
+**Impact Ball center**
+
+Target Ball과 충돌하는 순간의 **Cue Ball 중심 좌표**다.
+
+production:
+
+```text
+I = calcImpactBall(source.balls.cue, source.balls.target, canonical/runtime T)
+```
+
+- Target 표면 접점(`contactPoint`)이 아니다.
+- Target 중심이 아니다.
+- UI CONTACT dotted-line endpoint와 같은 의미다.
+- Cue→Impact는 직선이다.
+- Impact Ball은 별도 persisted Ball이 아니다. 필요 시 cue + target + T로 재계산한다.
+- FREE `balls.impact` override는 Derived canonical generation에 쓰지 않는다.
+
+**CO (Cueball Origin)**
+
+CO는 `source.balls.cue`가 아니다.
+
+CO는 Cue Ball이 Target과 Impact한 **이후**, 변경된 시스템/쿠션 진로의 출발점을 나타내는 **system trajectory anchor**다.  
+예: `CO_30.0`, `CO_33.0`. 이 값들은 현재 Cue Ball의 물리 좌표가 아니다.
+
+> CO is not the physical Cue Ball position.  
+> CO is the system trajectory origin after Cue Ball–Target impact.  
+> Cue→Impact Derived Ball coordinates must not be generated from CO or CO→C1 geometry.
+
+사용 금지 (Cue Derived):
+
+- CO sys value
+- CO coordinate / anchors.json CO를 Cue 위치로 해석
+- CO→C1 line / CO→C1 rail geometry
+- `computeRailImpactPoint`로 Cue 위치 추정
+
+### 5.1 Cue→Impact first 30% (`CUE_IMPACT_FIRST_30PCT`)
+
+Source Member `S`:
+
+```text
+C = S.balls.cue
+I = calcImpactBall(C, S.balls.target, runtime T)
+P(t) = C + t * (I - C)
+0 < t <= 0.30
+```
+
+`validFraction = 0.30` (**1/3이 아님**).
+
+Adaptive sampling (Cue→Impact coordinate-space path distance `D = distance(C, I)`):
+
+```text
+VALID_FRACTION = 0.30
+MAX_SAMPLE_SPACING = 3.0
+MIN_SAMPLE_COUNT = 3
+
+validLength = D * VALID_FRACTION
+N = max(MIN_SAMPLE_COUNT, ceil(validLength / MAX_SAMPLE_SPACING))
+t_k = VALID_FRACTION * k / N    for k = 1 ... N
+P_k = C + t_k * (I - C)
+```
+
+마지막 sample은 항상 `t_N = 0.30`.
+
+`D`는 sys가 아니고, CO/C1 값이 아니고, `offset_fg2rg`가 아니고, rail spacing이 아니고, Envelope cueSet spacing이 아니다.
+
+Derived Ball3:
+
+```text
+derived.balls.cue    = P_k
+derived.balls.target = source.balls.target   (Exact)
+derived.balls.second = source.balls.second   (Exact)
+```
+
+움직이는 공은 Cue 하나뿐이다.
+
+T는 기존 Family runtime resolver (`hydrateFamilyMemberRuntimeThickness` / `resolveFamilyThickness`)를 사용한다. 새 thickness 공식을 만들지 않는다. HP/tip/spin/slide/draw는 Cue→Impact를 휘게 만들지 않는다.
+
+Identity:
+
+```text
+derivedRule = CUE_IMPACT_FIRST_30PCT
+derivedStep = cue_impact:t:0.100000   (locale-independent, 6 decimal t)
+```
+
+좌표/positionId/array index는 Member identity가 아니다.
+
+### 5.1.1 Preview / Approval (Phase 3A-3E)
+
+> Derived candidates are generated automatically for review,
+> but are not persisted until explicit administrator approval.
+> The exact candidate set reviewed in Preview is the candidate set
+> passed to persistence; approval must not trigger regeneration.
+
+- Policy: **REVIEW_REQUIRED** only. AUTO_APPROVE is not implemented.
+- 4-track SAVE 이후 in-memory review session을 연다. SAVE 자체는 Derived를 persist하지 않는다.
+- Preview는 ghost/tracking Cue markers만 표시한다. trajectory geometry를 변경하지 않는다.
+- Approve는 동결된 Candidate Set을 generic Family writer에 전달한다 (generate 재호출 금지).
+- Preview open/close는 dataset mutation이 없다.
+- 승인 실패는 all-or-nothing. partial persistence 금지.
+
+SAVE 자동 Derived persistence는 **하지 않는다**.
 
 ### 5.2 C3 이후
 
-- 기존 정의대로 **2Rg 단위**
-- Family 공통값 **완전히 동일**
+- **미구현** (`DERIVED_C3_PLUS` / `C3_PLUS_2RG` reserved)
+- 기존 초안의 “2Rg 단위”는 이 Phase에서 확정하지 않는다
 
 ### 5.3 Envelope Sampling과 혼동 금지
 
 | Layer | Interval | Role |
 |-------|----------|------|
-| Family derived members | **2Rg** (authoring positions) | Family DB Member 생성 |
+| Family derived members | Cue→Impact **first 30%** · adaptive ≤ 3.0 coordinate units · min 3 samples | Family DB Member 생성 |
 | Envelope `cueSet` | **1.5gr** · Cue→Impact **1/3** | Published Search sampling (Freeze / GLOSSARY) |
 
 둘은 다른 계층이다. Family 구현이 Envelope Sampling Policy를 재해석하면 안 된다.
 
+**Historical (withdrawn):** Phase 3A 초안의 Family “CO–C1 1/3 · 2Rg”는 production geometry가 아니었다. 구현하지 말 것.
+
 ### 5.4 파생수정이 필요한 이유
 
-향후 CO–C1 유효구간이 1/3보다 짧은 1/4, 1/5, 1/N으로 실제 데이터에서 발견될 수 있다.  
+향후 Cue→Impact 유효구간이 30%보다 짧은 1/4, 1/5, 1/N으로 실제 데이터에서 발견될 수 있다.  
 그때 **파생수정 = Branch Family** 모델이 필요하다 (명령 §7.2).
 
 ---
@@ -322,11 +483,10 @@ Family A 자체는 유지. B가 생성하지 않는 영역의 A Members는 유�
 
 ### Phase 3 — Derived Members + Search Index
 
-- CO–C1 기존 파생 규칙
-- C3 이후 기존 파생 규칙
-- 각 4 Track별 생성
-- Search Index 생성
-- 필요 시 3A / 3B 분리
+- **3A-3D COMPLETE (uncommitted):** Cue→Impact first 30% adaptive Derived generator + generic writer integration.
+- **3A-3E COMPLETE (uncommitted):** generate → Preview → Approve same Candidate Set. SAVE 자동 Derived persistence 없음. REVIEW_REQUIRED only.
+- C3 이후 파생 **미구현**
+- Search Index **미구현**
 
 ### Phase 4 — Admin 3 Commands
 
