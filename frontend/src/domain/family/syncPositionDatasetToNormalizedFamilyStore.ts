@@ -1,17 +1,23 @@
 /**
- * Phase 3A-326 — Shadow dual-write: positions_dataset corpus → family_* stores.
+ * Phase 3A-326 / 3A-333 — Shadow dual-write: positions_dataset → family_*.
  *
- * Call ONLY after successful legacy positions_dataset persistence.
+ * Call ONLY after successful persistPositionsDatasetWithGeneration (committed corpusGeneration).
  * Never rolls back / deletes positions_dataset on normalized failure.
- * Production READ remains legacy (FAMILY_NORMALIZED_STORAGE_ENABLED = false).
+ * Dual-write is independent of FAMILY_NORMALIZED_STORAGE_ENABLED.
+ * Production READ uses loadProductionCompatibleDataset (gated; flag OFF → legacy).
  */
 
 import type { PositionRecord } from "../positionSearchEngine";
+import { isValidCorpusGeneration } from "../dataset/infra/positionsDatasetMeta";
 import {
   migratePositionRecordsToFamilyParts,
   type FamilyMigrationIssue,
   type MigratePositionRecordsSuccess,
 } from "./migratePositionRecordsToFamilyParts";
+import {
+  evaluateNormalizedCorpusFreshness,
+  type FamilyFreshnessResult,
+} from "./familyCorpusFreshness";
 import {
   persistMigratedFamilyParts,
   validateFamilyStore,
@@ -24,14 +30,18 @@ export type NormalizedDualWriteSuccess = {
   masterCount: number;
   memberCount: number;
   skippedLegacySlots: number;
+  corpusGeneration: number;
+  freshness: FamilyFreshnessResult;
   validation: FamilyStoreValidationOk;
   migrated: MigratePositionRecordsSuccess;
 };
 
 export type NormalizedDualWriteFailure = {
   ok: false;
-  stage: "migrate" | "persist" | "validate" | "exception";
+  stage: "generation" | "migrate" | "persist" | "validate" | "freshness" | "exception";
   reason: string;
+  corpusGeneration?: number;
+  freshness?: FamilyFreshnessResult;
   issues?: FamilyMigrationIssue[];
   storeCode?: FamilyStoreValidationFail["code"];
 };
@@ -40,12 +50,18 @@ export type NormalizedDualWriteResult =
   | NormalizedDualWriteSuccess
   | NormalizedDualWriteFailure;
 
+export type SyncNormalizedFamilyStoreOptions = {
+  /** Required: generation already bumped on positions_dataset_meta. */
+  corpusGeneration: number;
+};
+
 /**
  * Sync full working PositionRecord[] into family_masters / family_members.
  * Fail-closed for normalized stores; never mutates positions_dataset.
  */
 export function syncPositionDatasetToNormalizedFamilyStore(
-  dataset: PositionRecord[] | null | undefined
+  dataset: PositionRecord[] | null | undefined,
+  options?: SyncNormalizedFamilyStoreOptions
 ): NormalizedDualWriteResult {
   try {
     if (typeof localStorage === "undefined") {
@@ -55,6 +71,19 @@ export function syncPositionDatasetToNormalizedFamilyStore(
         reason: "localStorage is not available; normalized shadow sync skipped",
       };
     }
+
+    const corpusGeneration = options?.corpusGeneration;
+    if (!isValidCorpusGeneration(corpusGeneration)) {
+      return {
+        ok: false,
+        stage: "generation",
+        reason:
+          "corpusGeneration required (>= 1); bump positions_dataset_meta before shadow sync",
+        corpusGeneration:
+          typeof corpusGeneration === "number" ? corpusGeneration : undefined,
+      };
+    }
+
     const records = Array.isArray(dataset) ? dataset : [];
     const migrated = migratePositionRecordsToFamilyParts(records);
     if (!migrated.ok) {
@@ -66,13 +95,16 @@ export function syncPositionDatasetToNormalizedFamilyStore(
         ok: false,
         stage: "migrate",
         reason,
+        corpusGeneration,
         issues: migrated.issues,
+        freshness: evaluateNormalizedCorpusFreshness(),
       };
     }
 
     const persisted = persistMigratedFamilyParts({
       masters: migrated.masters,
       members: migrated.members,
+      corpusGeneration,
     });
     if (!persisted.ok) {
       console.warn("[NORMALIZED_DUAL_WRITE] persist failed", persisted);
@@ -80,7 +112,9 @@ export function syncPositionDatasetToNormalizedFamilyStore(
         ok: false,
         stage: "persist",
         reason: persisted.reason,
+        corpusGeneration,
         storeCode: persisted.code,
+        freshness: evaluateNormalizedCorpusFreshness(),
       };
     }
 
@@ -91,7 +125,24 @@ export function syncPositionDatasetToNormalizedFamilyStore(
         ok: false,
         stage: "validate",
         reason: validation.reason,
+        corpusGeneration,
         storeCode: validation.code,
+        freshness: evaluateNormalizedCorpusFreshness(),
+      };
+    }
+
+    const freshness = evaluateNormalizedCorpusFreshness();
+    if (!freshness.ok || !freshness.fresh) {
+      console.warn("[NORMALIZED_DUAL_WRITE] post-persist freshness failed", freshness);
+      return {
+        ok: false,
+        stage: "freshness",
+        reason:
+          freshness.ok === false
+            ? freshness.detail ?? freshness.reason
+            : "normalized shadow not fresh after persist",
+        corpusGeneration,
+        freshness,
       };
     }
 
@@ -100,6 +151,8 @@ export function syncPositionDatasetToNormalizedFamilyStore(
       masterCount: validation.masterCount,
       memberCount: validation.memberCount,
       skippedLegacySlots: migrated.skippedLegacySlots,
+      corpusGeneration,
+      freshness,
       validation,
       migrated,
     };

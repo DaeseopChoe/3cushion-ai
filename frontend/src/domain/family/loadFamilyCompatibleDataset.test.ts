@@ -88,7 +88,9 @@ function authoredEntry(overrides: Partial<StrategyEntry> = {}): StrategyEntry {
   };
 }
 
-/** Handcrafted 1 Master worth of legacy records → 16 members after migrate. */
+/** Handcrafted 1 Master worth of legacy records → 16 members after migrate.
+ * Exact balls are unique across all records (no Exact-ball collision).
+ */
 function buildSixteenMemberLegacyDataset(): PositionRecord[] {
   const tracks = ["B2T_L", "B2T_R", "T2B_L", "T2B_R"] as const;
   const ops = [null, "H", "V", "RPI"] as const;
@@ -96,9 +98,9 @@ function buildSixteenMemberLegacyDataset(): PositionRecord[] {
   tracks.forEach((track, ti) => {
     const sourceId = ti === 0 ? "mb_authored" : `mb_sym_${track}`;
     const sourceBalls = {
-      cue: { x: 10 + ti, y: 8 },
-      target: { x: 40, y: 20 },
-      second: { x: 62, y: 12 },
+      cue: { x: 10 + ti * 5, y: 8 + ti },
+      target: { x: 40 + ti, y: 20 },
+      second: { x: 62, y: 12 + ti },
     };
     dataset.push({
       positionId: `pos_src_${track}`,
@@ -123,8 +125,8 @@ function buildSixteenMemberLegacyDataset(): PositionRecord[] {
       dataset.push({
         positionId: `pos_der_${track}_${k}`,
         balls: {
-          cue: { x: sourceBalls.cue.x + k, y: sourceBalls.cue.y },
-          target: sourceBalls.target,
+          cue: { x: sourceBalls.cue.x + k * 0.5, y: sourceBalls.cue.y },
+          target: { x: sourceBalls.target.x, y: sourceBalls.target.y + k },
           second: sourceBalls.second,
         },
         targetBall: "red",
@@ -153,6 +155,7 @@ function persistSixteenFixture() {
   const persisted = persistMigratedFamilyParts({
     masters: migrated.masters,
     members: migrated.members,
+    corpusGeneration: 1,
   });
   if (!persisted.ok) throw new Error(persisted.reason);
   return { legacy, migrated };
@@ -178,8 +181,8 @@ beforeEach(() => {
 });
 
 describe("feature flag / production isolation", () => {
-  it("flag remains false", () => {
-    expect(isFamilyNormalizedStorageEnabled()).toBe(false);
+  it("flag default ON (compatible load remains READ-only)", () => {
+    expect(isFamilyNormalizedStorageEnabled()).toBe(true);
   });
 
   it("does not mutate positions_dataset or workspace_history", () => {
@@ -204,6 +207,9 @@ describe("loadFamilyCompatibleDataset success path", () => {
     expect(loaded.memberCount).toBe(16);
     expect(loaded.dataset).toHaveLength(16);
     expect(migrated.members).toHaveLength(16);
+    // Phase 3A-345: one Exact bucket → one record; no duplicate positionIds
+    const ids = loaded.dataset.map((r) => r.positionId);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("injects Master common payload; Member has no common duplication", () => {
@@ -308,13 +314,20 @@ describe("loadFamilyCompatibleDataset success path", () => {
     }
   });
 
-  it("preserves store insertion order (no extra memberId alphabetic reorder)", () => {
+  it("deterministic rematerialize order by canonical positionId", () => {
     const { migrated } = persistSixteenFixture();
     const loaded = loadFamilyCompatibleDataset();
     expect(loaded.ok).toBe(true);
     if (!loaded.ok) return;
-    expect(loaded.dataset.map((r) => entryOf(r).memberId)).toEqual(
-      migrated.members.map((m) => m.memberId)
+    const ids = loaded.dataset.map((r) => r.positionId);
+    expect(ids).toEqual([...ids].sort((a, b) => a.localeCompare(b)));
+    // Every migrated member appears exactly once across packed records
+    const memberIds = loaded.dataset.flatMap((r) =>
+      Object.values(r.strategies).map((e) => e!.memberId)
+    );
+    expect(new Set(memberIds).size).toBe(migrated.members.length);
+    expect(memberIds.sort()).toEqual(
+      migrated.members.map((m) => m.memberId).sort()
     );
   });
 });
@@ -344,6 +357,7 @@ describe("loadFamilyCompatibleDataset fail-closed", () => {
             },
             track: "B2T_L",
             memberOrigin: "AUTHORED",
+            sourceSlot: "S1",
           },
         },
       })
@@ -405,7 +419,7 @@ describe("loadFamilyCompatibleDataset fail-closed", () => {
         schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
         members: {
           mb_x: {
-            schemaVersion: 1,
+            schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
             memberId: "mb_x",
             familyId: "fm_x",
             balls: {
@@ -415,6 +429,7 @@ describe("loadFamilyCompatibleDataset fail-closed", () => {
             },
             track: "B2T_L",
             memberOrigin: "AUTHORED",
+            sourceSlot: "S1",
           },
         },
       })
@@ -444,7 +459,7 @@ describe("loadFamilyCompatibleDataset fail-closed", () => {
         schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
         members: {
           mb_authored: {
-            schemaVersion: 1,
+            schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
             memberId: "mb_authored",
             familyId: "fm_family1",
             balls: {
@@ -454,6 +469,7 @@ describe("loadFamilyCompatibleDataset fail-closed", () => {
             },
             track: "B2T_L",
             memberOrigin: "AUTHORED",
+            sourceSlot: "S1",
           },
         },
       })
@@ -474,7 +490,7 @@ describe("loadFamilyCompatibleDataset fail-closed", () => {
       sysInputs: { CO_f: 1 },
     };
     const dirty = {
-      schemaVersion: 1,
+      schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
       memberId: "mb_authored",
       familyId: "fm_family1",
       balls: {
@@ -484,6 +500,7 @@ describe("loadFamilyCompatibleDataset fail-closed", () => {
       },
       track: "B2T_L",
       memberOrigin: "AUTHORED" as const,
+      sourceSlot: "S1" as const,
       sysInputs: { CO_f: 99 },
     };
     localStorage.setItem(
@@ -509,7 +526,7 @@ describe("loadFamilyCompatibleDataset fail-closed", () => {
   it("in-memory hydrate helper fails closed on orphan without partial dataset", () => {
     const members: FamilyMember[] = [
       {
-        schemaVersion: 1,
+        schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
         memberId: "mb_a",
         familyId: "fm_family1",
         balls: {
@@ -519,6 +536,7 @@ describe("loadFamilyCompatibleDataset fail-closed", () => {
         },
         track: "B2T_L",
         memberOrigin: "AUTHORED",
+        sourceSlot: "S1",
       },
     ];
     const result = hydrateFamilyPartsToCompatibleDataset({

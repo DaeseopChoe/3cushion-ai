@@ -3,6 +3,10 @@
 
 import type { PositionRecord } from "../../domain/positionSearchEngine";
 import {
+  persistPositionsDatasetWithGeneration,
+  type PersistPositionsWithGenerationResult,
+} from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
+import {
   syncPositionDatasetToNormalizedFamilyStore,
   type NormalizedDualWriteResult,
 } from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
@@ -29,7 +33,8 @@ export type DerivedApprovalHistoryRuntimeOverride = {
 export type DerivedApprovalCommitContext = {
   resultDataset: PositionRecord[];
   baselineSnapshot: DerivedReviewBaselineSnapshot | null;
-  saveWorkingDataset: (updated: PositionRecord[]) => void;
+  /** Optional DI callback after durable persist (tests / React mirror helpers). */
+  saveWorkingDataset?: (updated: PositionRecord[]) => void;
   setDataset: (updated: PositionRecord[]) => void;
   restoreDerivedReviewSnapshot: (snapshot: DerivedReviewBaselineSnapshot | null) => void;
   commitWorkspaceHistoryWithStrategyDataset: (
@@ -54,22 +59,42 @@ export function baselineSnapshotToHistoryRuntime(
 export type DerivedApprovalCommitResult = {
   /** Phase 3A-326 shadow dual-write; failure never rolls back positions_dataset. */
   normalizedDualWrite: NormalizedDualWriteResult;
+  /** Phase 3A-335 corpus persist result. */
+  corpusPersist: PersistPositionsWithGenerationResult;
 };
 
 /**
  * Persist approved Derived members, restore pre-review authoring runtime,
- * append one workspace_history snapshot (AFTER dataset + baseline runtime).
+ * append one workspace_history snapshot (AFTER durable corpus + baseline runtime).
  * Must not call runSaveStrategy / runCanonicalSave.
  */
 export function commitDerivedApprovalDataset(
   ctx: DerivedApprovalCommitContext
 ): DerivedApprovalCommitResult {
-  ctx.saveWorkingDataset(ctx.resultDataset);
-  ctx.setDataset(ctx.resultDataset);
+  // Phase 3A-335: invalidate → positions → generation (fail-closed).
+  const corpusPersist = persistPositionsDatasetWithGeneration(ctx.resultDataset);
+  if (!corpusPersist.ok) {
+    console.warn(
+      "[APPROVAL] safe corpus persist failed",
+      corpusPersist.stage,
+      corpusPersist.reason
+    );
+    return {
+      corpusPersist,
+      normalizedDualWrite: {
+        ok: false,
+        stage: "generation",
+        reason: corpusPersist.reason,
+      },
+    };
+  }
 
-  // Shadow FamilyMaster/Member sync after legacy corpus write succeeds.
+  ctx.setDataset(ctx.resultDataset);
+  ctx.saveWorkingDataset?.(ctx.resultDataset);
+
   const normalizedDualWrite = syncPositionDatasetToNormalizedFamilyStore(
-    ctx.resultDataset
+    ctx.resultDataset,
+    { corpusGeneration: corpusPersist.corpusGeneration }
   );
 
   const historyRuntime = ctx.baselineSnapshot
@@ -81,5 +106,5 @@ export function commitDerivedApprovalDataset(
   }
 
   ctx.commitWorkspaceHistoryWithStrategyDataset(ctx.resultDataset, historyRuntime);
-  return { normalizedDualWrite };
+  return { normalizedDualWrite, corpusPersist };
 }

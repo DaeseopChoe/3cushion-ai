@@ -183,10 +183,13 @@ import {
   shouldClearReflectionOverrideOnTrackChange,
 } from "./domain/trajectory/c2ReflectionOverride";
 import {
-  loadWorkingDataset,
+  loadProductionCompatibleDataset,
+} from "./domain/family/loadProductionCompatibleDataset";
+import {
   saveWorkingDataset,
   importDatasetFromFile,
 } from "./domain/dataset/infra/datasetStorage";
+import { persistPositionsDatasetWithGeneration } from "./domain/dataset/infra/persistPositionsDatasetWithGeneration";
 import { syncPositionDatasetToNormalizedFamilyStore } from "./domain/family/syncPositionDatasetToNormalizedFamilyStore";
 import { useAutoCapture } from "./domain/dataset/autoCapture";
 import {
@@ -1168,8 +1171,11 @@ export default function App({
     onSystemControlsAvailabilityChange?.(canUseSystemControls);
   }, [canUseSystemControls, onSystemControlsAvailabilityChange]);
 
-  // dataset: PositionRecord[] (localStorage — domain/dataset/infra/datasetStorage 위임)
-  const [dataset, setDataset] = useState(loadWorkingDataset);
+  // dataset: PositionRecord[] — Phase 3A-342 gated production READ boundary
+  // (flag OFF / ineligible → positions_dataset; eligible → normalized projection).
+  const [dataset, setDataset] = useState(
+    () => loadProductionCompatibleDataset().dataset
+  );
 
   const {
     workspaceHistory,
@@ -1738,10 +1744,23 @@ export default function App({
 
     try {
       const normalized = await importDatasetFromFile(file);
+      // Phase 3A-335: invalidate → positions → generation, then stamp shadow.
+      const corpusPersist = persistPositionsDatasetWithGeneration(normalized);
+      if (!corpusPersist.ok) {
+        console.warn(
+          "[Import] safe corpus persist failed",
+          corpusPersist.stage,
+          corpusPersist.reason
+        );
+        alert(
+          `Import corpus persist failed (${corpusPersist.stage}): ${corpusPersist.reason}`
+        );
+        return;
+      }
       setDataset(normalized);
-      saveWorkingDataset(normalized);
-      // Phase 3A-326: shadow FamilyMaster/Member sync (legacy remains production SSOT).
-      syncPositionDatasetToNormalizedFamilyStore(normalized);
+      syncPositionDatasetToNormalizedFamilyStore(normalized, {
+        corpusGeneration: corpusPersist.corpusGeneration,
+      });
     } catch (err) {
       alert(err?.message ?? "Failed to import dataset.json");
     }

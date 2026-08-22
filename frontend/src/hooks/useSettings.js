@@ -33,6 +33,8 @@ import {
   mergeProductExportRequests,
 } from "../domain/productExportRequest";
 import { canonicalDebugLog } from "../domain/canonicalPersistAudit";
+import { persistPositionsDatasetWithGeneration } from "../domain/dataset/infra/persistPositionsDatasetWithGeneration";
+import { POSITIONS_DATASET_META_KEY } from "../domain/dataset/infra/positionsDatasetMeta";
 
 async function getOrCreateDir(parent, name) {
   return parent.getDirectoryHandle(name, { create: true });
@@ -40,6 +42,8 @@ async function getOrCreateDir(parent, name) {
 
 /** Recall SSOT dataset key — preserved by default cleanup mode */
 export const POSITIONS_DATASET_STORAGE_KEY = "positions_dataset";
+/** Re-export SSOT generation authority key for cleanup preserve list. */
+export { POSITIONS_DATASET_META_KEY as POSITIONS_DATASET_META_STORAGE_KEY };
 export const ONE_POINT_LESSON_LIBRARY_STORAGE_KEY =
   "ONE_POINT_LESSON_LIBRARY_V1";
 
@@ -61,7 +65,8 @@ export function listLocalStorageKeysExcept(exceptKeys) {
 
 /**
  * Workspace LocalStorage cleanup.
- * - preserve_dataset: remove every key except protected working keys
+ * - preserve_dataset: keep production corpus + generation meta + lesson library;
+ *   delete family_* shadow, workspace_history, and other keys (Phase 3A-339)
  * - clear_all: localStorage.clear()
  * @returns {string[]} keys removed (or all keys before clear)
  */
@@ -76,8 +81,11 @@ export function runWorkspaceLocalStorageCleanup(mode) {
     return removedKeys;
   }
 
+  // Phase 3A-339: positions_dataset + positions_dataset_meta = authoritative pair.
+  // family_* remains DELETE (normalized shadow; rebuild on next SAVE/Approval/Import).
   const removedKeys = listLocalStorageKeysExcept([
     POSITIONS_DATASET_STORAGE_KEY,
+    POSITIONS_DATASET_META_KEY,
     ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
   ]);
   for (const key of removedKeys) {
@@ -304,16 +312,27 @@ export function useSettings({
         return false;
       }
       const s = snapshot.state;
+      const nextDataset = normalizeDatasetFromStorage(s.dataset ?? []);
+      // Phase 3A-335/337: durable persist first (invalidate → positions → gen).
+      // Transitional H3: do NOT sync/rollback family_* (History ≠ Member DB).
+      // Restore advances corpusGeneration → generation mismatch → freshness false until SAVE/Approval.
+      // Full H3 workspace/corpus storage split remains DEFERRED.
+      const corpusPersist = persistPositionsDatasetWithGeneration(nextDataset);
+      if (!corpusPersist.ok) {
+        console.warn(
+          "Failed safe corpus persist on History restore",
+          corpusPersist.stage,
+          corpusPersist.reason
+        );
+        alert(
+          `히스토리 복원 저장 실패 (${corpusPersist.stage}): ${corpusPersist.reason}`
+        );
+        return false;
+      }
       setAdminState(s.adminState);
       const hydratedBalls = hydrateBallsStateForUi(s.ballsState);
       setBallsState(hydratedBalls);
-      const nextDataset = normalizeDatasetFromStorage(s.dataset ?? []);
       setDataset(nextDataset);
-      try {
-        localStorage.setItem("positions_dataset", JSON.stringify(nextDataset));
-      } catch (e) {
-        console.warn("Failed to persist dataset on restore", e);
-      }
       actions.restoreShotEditor(s.shotEditor);
       setWorkspaceHistoryVersion((v) => v + 1);
       setIsSaved(false);

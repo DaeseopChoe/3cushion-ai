@@ -6,6 +6,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SCALE } from "../../utils/physics/ImpactEngine";
 import { WORKING_DATASET_KEY } from "../../domain/dataset/infra/datasetStorage";
+import {
+  clearPositionsDatasetMetaForTests,
+  loadPositionsDatasetCorpusGeneration,
+  POSITIONS_DATASET_META_KEY,
+} from "../../domain/dataset/infra/positionsDatasetMeta";
+import { persistPositionsDatasetWithGeneration } from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
 import type { Ball3, PositionRecord, StrategyEntry } from "../../domain/positionSearchEngine";
 import { WORKSPACE_HISTORY_KEY } from "../../domain/workspaceHistory";
 import {
@@ -16,7 +22,6 @@ import {
 import { writeFourTrackFamilyMembers } from "../../domain/family/familyAwareWriter";
 import {
   familyCompatibilityFingerprint,
-  hydrateFamilyMemberToPositionRecord,
 } from "../../domain/family/familyHydrate";
 import { isFamilyNormalizedStorageEnabled } from "../../domain/family/familyNormalizedFlag";
 import {
@@ -27,11 +32,16 @@ import {
 } from "../../domain/family/familyNormalizedSchema";
 import {
   clearFamilyNormalizedStoresForTests,
+  loadFamilyMastersEnvelope,
   loadFamilyMembersEnvelope,
   readFamilyMaster,
   readFamilyMembersByFamilyId,
   validateFamilyStore,
 } from "../../domain/family/familyNormalizedStore";
+import {
+  evaluateNormalizedCorpusFreshness,
+  isNormalizedCorpusFresh,
+} from "../../domain/family/familyCorpusFreshness";
 import { loadFamilyCompatibleDataset } from "../../domain/family/loadFamilyCompatibleDataset";
 import { syncPositionDatasetToNormalizedFamilyStore } from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
 import { runSaveStrategy, type SaveFlowContext } from "./saveFlow";
@@ -39,6 +49,10 @@ import {
   commitDerivedApprovalDataset,
   type DerivedReviewBaselineSnapshot,
 } from "./derivedApprovalFlow";
+import {
+  runWorkspaceLocalStorageCleanup,
+  WORKSPACE_CLEANUP_PRESERVE_DATASET,
+} from "../../hooks/useSettings.js";
 
 function createMemoryLocalStorage() {
   const map = new Map<string, string>();
@@ -198,12 +212,22 @@ function makeBaselineA(): DerivedReviewBaselineSnapshot {
 beforeEach(() => {
   vi.stubGlobal("localStorage", createMemoryLocalStorage());
   clearFamilyNormalizedStoresForTests();
+  clearPositionsDatasetMetaForTests();
   localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify([]));
 });
 
+function syncWithBump(dataset: PositionRecord[]) {
+  const persist = persistPositionsDatasetWithGeneration(dataset);
+  expect(persist.ok).toBe(true);
+  if (!persist.ok) throw new Error(persist.reason);
+  return syncPositionDatasetToNormalizedFamilyStore(dataset, {
+    corpusGeneration: persist.corpusGeneration,
+  });
+}
+
 describe("feature flag / production read", () => {
-  it("keeps FAMILY_NORMALIZED_STORAGE_ENABLED false", () => {
-    expect(isFamilyNormalizedStorageEnabled()).toBe(false);
+  it("default ON for gated READ; dual-write remains flag-independent", () => {
+    expect(isFamilyNormalizedStorageEnabled()).toBe(true);
   });
 });
 
@@ -216,6 +240,16 @@ describe("SAVE dual-write", () => {
     expect(result.normalizedDualWrite?.ok).toBe(true);
     expect(capture.dataset).toHaveLength(4);
     expect(JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)).toHaveLength(4);
+
+    const gen = loadPositionsDatasetCorpusGeneration();
+    expect(gen).toBe(1);
+    expect(loadFamilyMastersEnvelope().corpusGeneration).toBe(1);
+    expect(loadFamilyMembersEnvelope().corpusGeneration).toBe(1);
+    expect(evaluateNormalizedCorpusFreshness()).toMatchObject({
+      ok: true,
+      fresh: true,
+      corpusGeneration: 1,
+    });
 
     const validation = validateFamilyStore();
     expect(validation).toMatchObject({
@@ -261,12 +295,13 @@ describe("SAVE dual-write", () => {
 
   it("keeps legacy corpus when normalized sync fails after positions write", () => {
     const { ctx, capture } = buildSaveCtx();
-    // Pre-seed corrupt shadow that migration of empty identity would replace;
-    // force migrate fail by saving then manually calling sync with conflicting corpus.
     const result = runSaveStrategy(ctx);
     expect(result.ok).toBe(true);
     const legacyJson = localStorage.getItem(WORKING_DATASET_KEY);
     expect(legacyJson).toBeTruthy();
+    const genAfterSave = loadPositionsDatasetCorpusGeneration();
+    expect(genAfterSave).toBe(1);
+    expect(isNormalizedCorpusFresh()).toBe(true);
 
     // Conflicting common payload corpus → sync fail-closed, legacy untouched
     const conflictDataset = structuredClone(capture.dataset!) as PositionRecord[];
@@ -274,11 +309,31 @@ describe("SAVE dual-write", () => {
       Object.values(r.strategies).some((e) => e?.memberOrigin === "SYMMETRY")
     )!;
     Object.values(sym.strategies)[0]!.sysInputs = { CO_f: 999, C1_f: 1, C3_r: 1 };
-    const sync = syncPositionDatasetToNormalizedFamilyStore(conflictDataset);
+    // Simulate post-SAVE failed resync without advancing gen (same N)
+    const sync = syncPositionDatasetToNormalizedFamilyStore(conflictDataset, {
+      corpusGeneration: genAfterSave!,
+    });
     expect(sync.ok).toBe(false);
     expect(localStorage.getItem(WORKING_DATASET_KEY)).toBe(legacyJson);
     // Previous successful shadow from SAVE still present (persist not called on fail)
     expect(validateFamilyStore().ok).toBe(true);
+    expect(isNormalizedCorpusFresh()).toBe(true);
+  });
+
+  it("legacy bump without successful sync leaves shadow stale", () => {
+    const { ctx, capture } = buildSaveCtx();
+    expect(runSaveStrategy(ctx).ok).toBe(true);
+    expect(isNormalizedCorpusFresh()).toBe(true);
+
+    // Newer legacy generation via safe persist of same content, no sync
+    expect(persistPositionsDatasetWithGeneration(capture.dataset!).ok).toBe(true);
+    expect(loadPositionsDatasetCorpusGeneration()).toBe(2);
+    expect(loadFamilyMastersEnvelope().corpusGeneration).toBe(1);
+    const freshness = evaluateNormalizedCorpusFreshness();
+    expect(freshness.ok).toBe(false);
+    if (!freshness.ok) {
+      expect(freshness.reason).toBe("GENERATION_MISMATCH");
+    }
   });
 });
 
@@ -319,6 +374,8 @@ describe("Derived Approval dual-write", () => {
 
     expect(commitHistory).toHaveBeenCalledTimes(1);
     expect(commit.normalizedDualWrite.ok).toBe(true);
+    expect(loadPositionsDatasetCorpusGeneration()).toBe(1);
+    expect(isNormalizedCorpusFresh()).toBe(true);
     expect(legacy).toBeTruthy();
     const derivedLegacy = persistedCueImpactDerivedCount(legacy!, "fm_family1");
     expect(derivedLegacy).toBe(review.session.members.length);
@@ -362,13 +419,15 @@ describe("Import dual-write (sync helper)", () => {
     });
     if (!written.ok) throw new Error(written.reason);
 
-    // Simulate Import: write positions then sync
+    // Simulate Import: write positions then bump + sync
     localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(written.dataset));
-    const sync = syncPositionDatasetToNormalizedFamilyStore(written.dataset);
+    const sync = syncWithBump(written.dataset);
     expect(sync.ok).toBe(true);
     if (!sync.ok) return;
     expect(sync.masterCount).toBe(1);
     expect(sync.memberCount).toBe(4);
+    expect(sync.corpusGeneration).toBe(1);
+    expect(isNormalizedCorpusFresh()).toBe(true);
     expect(JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)).toHaveLength(4);
 
     const loaded = loadFamilyCompatibleDataset();
@@ -441,7 +500,7 @@ describe("Import dual-write (sync helper)", () => {
     });
 
     localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(dataset));
-    const sync = syncPositionDatasetToNormalizedFamilyStore(dataset);
+    const sync = syncWithBump(dataset);
     expect(sync.ok).toBe(true);
     if (!sync.ok) return;
     expect(sync.masterCount).toBe(1);
@@ -451,6 +510,7 @@ describe("Import dual-write (sync helper)", () => {
         (m) => m.memberOrigin === "DERIVED_CUE_IMPACT"
       )
     ).toHaveLength(12);
+    expect(isNormalizedCorpusFresh()).toBe(true);
   });
 });
 
@@ -464,7 +524,7 @@ describe("failure policy", () => {
       entry: authoredEntry(),
     });
     if (!written.ok) throw new Error(written.reason);
-    expect(syncPositionDatasetToNormalizedFamilyStore(written.dataset).ok).toBe(true);
+    expect(syncWithBump(written.dataset).ok).toBe(true);
 
     const conflict = structuredClone(written.dataset) as PositionRecord[];
     Object.values(conflict[0]!.strategies)[0]!.sysInputs = { CO_f: 1 };
@@ -473,7 +533,10 @@ describe("failure policy", () => {
       Object.values(conflict[1].strategies)[0]!.sysInputs = { CO_f: 999 };
     }
     const before = localStorage.getItem(WORKING_DATASET_KEY);
-    const sync = syncPositionDatasetToNormalizedFamilyStore(conflict);
+    const gen = loadPositionsDatasetCorpusGeneration()!;
+    const sync = syncPositionDatasetToNormalizedFamilyStore(conflict, {
+      corpusGeneration: gen,
+    });
     expect(sync.ok).toBe(false);
     expect(localStorage.getItem(WORKING_DATASET_KEY)).toBe(before);
   });
@@ -484,13 +547,65 @@ describe("failure policy", () => {
       entry: authoredEntry(),
     });
     if (!written.ok) throw new Error(written.reason);
-    syncPositionDatasetToNormalizedFamilyStore(written.dataset);
+    expect(syncWithBump(written.dataset).ok).toBe(true);
     expect(Object.keys(loadFamilyMembersEnvelope().members)).toHaveLength(4);
+    expect(isNormalizedCorpusFresh()).toBe(true);
 
-    // Simulate History restore writing older/empty positions only
-    localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify([]));
+    // Simulate History restore via safe persist (no family sync)
+    const persist = persistPositionsDatasetWithGeneration([]);
+    expect(persist.ok).toBe(true);
     expect(JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)).toHaveLength(0);
-    // family_* still has 4 members (divergence by design this Phase)
     expect(Object.keys(loadFamilyMembersEnvelope().members)).toHaveLength(4);
+    const freshness = evaluateNormalizedCorpusFreshness();
+    expect(freshness.ok).toBe(false);
+    if (!freshness.ok) {
+      expect(freshness.reason).toBe("GENERATION_MISMATCH");
+    }
+  });
+
+  it("History restore → SAVE restores freshness", () => {
+    const { ctx } = buildSaveCtx();
+    expect(runSaveStrategy(ctx).ok).toBe(true);
+    expect(isNormalizedCorpusFresh()).toBe(true);
+
+    expect(persistPositionsDatasetWithGeneration([]).ok).toBe(true);
+    expect(isNormalizedCorpusFresh()).toBe(false);
+
+    const { ctx: ctx2 } = buildSaveCtx();
+    const result = runSaveStrategy(ctx2);
+    expect(result.ok).toBe(true);
+    expect(result.normalizedDualWrite?.ok).toBe(true);
+    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(loadPositionsDatasetCorpusGeneration()).toBe(3);
+  });
+
+  it("rejects sync without corpusGeneration", () => {
+    const written = writeFourTrackFamilyMembers([], {
+      balls,
+      entry: authoredEntry(),
+    });
+    if (!written.ok) throw new Error(written.reason);
+    const sync = syncPositionDatasetToNormalizedFamilyStore(written.dataset);
+    expect(sync.ok).toBe(false);
+    if (!sync.ok) expect(sync.stage).toBe("generation");
+  });
+
+  it("preserve_dataset: production cleanup keeps meta, deletes family → NORMALIZED_MISSING", () => {
+    const { ctx } = buildSaveCtx();
+    expect(runSaveStrategy(ctx).ok).toBe(true);
+    expect(isNormalizedCorpusFresh()).toBe(true);
+    const gen = loadPositionsDatasetCorpusGeneration();
+    expect(gen).toBe(1);
+
+    runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
+
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeTruthy();
+    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBeTruthy();
+    expect(loadPositionsDatasetCorpusGeneration()).toBe(gen);
+    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeNull();
+    const freshness = evaluateNormalizedCorpusFreshness();
+    expect(freshness.ok).toBe(false);
+    if (!freshness.ok) expect(freshness.reason).toBe("NORMALIZED_MISSING");
   });
 });

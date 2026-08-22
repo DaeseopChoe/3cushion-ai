@@ -3,8 +3,8 @@
  *
  * Does NOT write localStorage.
  * Does NOT read workspace_history.
- * Does NOT wire App / SAVE / Approval / Search.
- * Feature flag remains OFF elsewhere — this module is infrastructure only.
+ * Pure transform used by shadow dual-write / sync after positions persist.
+ * Does not change WRITE SSOT (positions_dataset) or generation authority.
  */
 
 import type { PositionRecord, StrategyEntry } from "../positionSearchEngine";

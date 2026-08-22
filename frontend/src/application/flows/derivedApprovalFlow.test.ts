@@ -3,7 +3,7 @@
  * Run: npx vitest run src/application/flows/derivedApprovalFlow.test.ts
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SCALE } from "../../utils/physics/ImpactEngine";
 import type { Ball3, PositionRecord, StrategyEntry } from "../../domain/positionSearchEngine";
 import {
@@ -25,6 +25,28 @@ import {
   commitDerivedApprovalDataset,
   type DerivedReviewBaselineSnapshot,
 } from "./derivedApprovalFlow";
+
+function createMemoryLocalStorage() {
+  const map = new Map<string, string>();
+  return {
+    getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      map.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      map.delete(k);
+    },
+    clear: () => map.clear(),
+    key: (i: number) => [...map.keys()][i] ?? null,
+    get length() {
+      return map.size;
+    },
+  };
+}
+
+beforeEach(() => {
+  vi.stubGlobal("localStorage", createMemoryLocalStorage());
+});
 
 const canonicalHpt = {
   T: "8/8",

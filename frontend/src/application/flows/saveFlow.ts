@@ -8,9 +8,9 @@
 // Batch 6 STEP 6-4: profile / anchors via App-injected HELPER (D-006 / D-007 Closed).
 //
 // 핵심 불변 조건:
-//   saveWorkingDataset() 만 WORKING_DATASET_KEY 를 사용한다.
-//   localStorage 직접 접근 금지.
-//   saveWorkingDataset() → setDataset() 은 반드시 함께 호출.
+//   Durable corpus write uses persistPositionsDatasetWithGeneration
+//   (invalidate → positions → generation). Then setDataset + saveWorkingDataset DI.
+//   localStorage 직접 접근 금지 in this flow.
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
 import { createStrategyEntry } from "../../domain/adminSaveEngine";
@@ -33,6 +33,7 @@ import {
   syncPositionDatasetToNormalizedFamilyStore,
   type NormalizedDualWriteResult,
 } from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
+import { persistPositionsDatasetWithGeneration } from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
 import { createPositionId } from "../../domain/positionId";
 import { upsertPositionRecord } from "../../domain/positionMergeEngine";
 
@@ -94,6 +95,8 @@ export type SaveFlowResult = {
    * Production READ still uses legacy corpus.
    */
   normalizedDualWrite?: NormalizedDualWriteResult;
+  /** Phase 3A-335 corpus persist stage when durable write/gen commit failed. */
+  corpusPersistStage?: "invalidate" | "positions" | "generation";
 };
 
 export type SaveFlowContext = {
@@ -462,13 +465,35 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     effectiveRenderKeys: Object.keys(ctx.resolvedSlotSysValues || {}),
   });
 
-  // DS-002: Working Dataset 저장 → React State 갱신 (순서 유지)
-  ctx.saveWorkingDataset(updated);
+  // Phase 3A-335: invalidate → positions → generation (fail-closed).
+  const corpusPersist = persistPositionsDatasetWithGeneration(updated);
+  if (!corpusPersist.ok) {
+    console.warn(
+      "[SAVE] safe corpus persist failed",
+      corpusPersist.stage,
+      corpusPersist.reason
+    );
+    return {
+      ok: false,
+      reason: `corpus persist failed (${corpusPersist.stage}): ${corpusPersist.reason}`,
+      corpusPersistStage: corpusPersist.stage,
+      normalizedDualWrite: {
+        ok: false,
+        stage: "generation",
+        reason: corpusPersist.reason,
+      },
+    };
+  }
+
+  // DS-002: React mirror + DI callback after durable commit succeeds.
   ctx.setDataset(updated);
+  ctx.saveWorkingDataset(updated);
 
-  // Phase 3A-326: shadow FamilyMaster/Member sync (never rolls back legacy).
-  const normalizedDualWrite = syncPositionDatasetToNormalizedFamilyStore(updated);
-
+  // Phase 3A-326/335: shadow sync stamped with committed N.
+  const normalizedDualWrite = syncPositionDatasetToNormalizedFamilyStore(
+    updated,
+    { corpusGeneration: corpusPersist.corpusGeneration }
+  );
   ctx.patchSlotRuntimeMeta(slotId, {
     targetBall:
       ctx.targetColor === "red" || ctx.targetColor === "yellow"

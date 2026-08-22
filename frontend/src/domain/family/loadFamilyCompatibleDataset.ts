@@ -1,17 +1,17 @@
 /**
- * Phase 3A-324 B5 — Compatibility read adapter.
+ * Phase 3A-324 B5 / 3A-345 — Compatibility read adapter.
  *
  * family_masters + family_members
  *   → validateFamilyStore (fail-closed)
- *   → hydrateFamilyMemberToPositionRecord
+ *   → Exact-ball rematerialize (sourceSlot packing)
  *   → PositionRecord[]
  *
  * Does NOT mutate positions_dataset, React state, History, SAVE, Search, or Export.
- * Production App must not call this until a later gated phase (flag remains OFF).
+ * Production App uses this only behind loadProductionCompatibleDataset gate
+ * (flag ∧ freshness ∧ hydration success; flag default OFF).
  */
 
 import type { PositionRecord } from "../positionSearchEngine";
-import { hydrateFamilyMemberToPositionRecord } from "./familyHydrate";
 import {
   FAMILY_NORMALIZED_SCHEMA_VERSION,
   type FamilyMaster,
@@ -23,9 +23,17 @@ import {
   validateFamilyStore,
   type FamilyStoreValidationFail,
 } from "./familyNormalizedStore";
+import {
+  rematerializeFamilyPartsToPositionRecords,
+  type RematerializeIssueCode,
+} from "./rematerializeFamilyPartsToPositionRecords";
 
 export type FamilyCompatibleReadIssue = {
-  code: FamilyStoreValidationFail["code"] | "SCHEMA_MISMATCH" | "HYDRATE_FAILED";
+  code:
+    | FamilyStoreValidationFail["code"]
+    | "SCHEMA_MISMATCH"
+    | "HYDRATE_FAILED"
+    | RematerializeIssueCode;
   reason: string;
   familyId?: string;
   memberId?: string;
@@ -49,8 +57,8 @@ export type LoadFamilyCompatibleDatasetResult =
   | LoadFamilyCompatibleDatasetFailure;
 
 /**
- * Read-only: load validated normalized stores and hydrate to PositionRecord[].
- * Partial/corrupt stores → fail-closed (no partial dataset).
+ * Read-only: load validated normalized stores and rematerialize to PositionRecord[].
+ * Partial/corrupt stores or packing collisions → fail-closed (no partial dataset).
  */
 export function loadFamilyCompatibleDataset(): LoadFamilyCompatibleDatasetResult {
   const mastersEnv = loadFamilyMastersEnvelope();
@@ -84,46 +92,27 @@ export function loadFamilyCompatibleDataset(): LoadFamilyCompatibleDatasetResult
     };
   }
 
-  const masters = mastersEnv.masters;
+  const masters = Object.values(mastersEnv.masters);
   const members = Object.values(membersEnv.members);
-
-  // Preserve store insertion order (migration persist order) — no extra alphabetic reorder.
-  const dataset: PositionRecord[] = [];
-  for (const member of members) {
-    const master: FamilyMaster | undefined = masters[member.familyId];
-    if (!master) {
-      return {
-        ok: false,
-        issues: [
-          {
-            code: "ORPHAN_MEMBER",
-            reason: `hydrate aborted: missing Master for member ${member.memberId}`,
-            familyId: member.familyId,
-            memberId: member.memberId,
-          },
-        ],
-      };
-    }
-    try {
-      dataset.push(hydrateFamilyMemberToPositionRecord(master, member));
-    } catch (e) {
-      return {
-        ok: false,
-        issues: [
-          {
-            code: "HYDRATE_FAILED",
-            reason: e instanceof Error ? e.message : String(e),
-            familyId: member.familyId,
-            memberId: member.memberId,
-          },
-        ],
-      };
-    }
+  const rematerialized = rematerializeFamilyPartsToPositionRecords({
+    masters,
+    members,
+  });
+  if (!rematerialized.ok) {
+    return {
+      ok: false,
+      issues: rematerialized.issues.map((issue) => ({
+        code: issue.code,
+        reason: issue.reason,
+        familyId: issue.familyId,
+        memberId: issue.memberId,
+      })),
+    };
   }
 
   return {
     ok: true,
-    dataset,
+    dataset: rematerialized.dataset,
     source: "normalized",
     masterCount: validation.masterCount,
     memberCount: validation.memberCount,
@@ -131,49 +120,28 @@ export function loadFamilyCompatibleDataset(): LoadFamilyCompatibleDatasetResult
 }
 
 /**
- * Test/helper: hydrate an in-memory Master+Member set without touching localStorage.
- * Still fail-closed if any member cannot resolve its master.
+ * Test/helper: rematerialize an in-memory Master+Member set without touching localStorage.
+ * Still fail-closed on packing collision / missing sourceSlot / orphan.
  */
 export function hydrateFamilyPartsToCompatibleDataset(args: {
   masters: FamilyMaster[];
   members: FamilyMember[];
 }): LoadFamilyCompatibleDatasetResult {
-  const masterById = new Map(args.masters.map((m) => [m.familyId, m]));
-  const dataset: PositionRecord[] = [];
-  for (const member of args.members) {
-    const master = masterById.get(member.familyId);
-    if (!master) {
-      return {
-        ok: false,
-        issues: [
-          {
-            code: "ORPHAN_MEMBER",
-            reason: `missing Master for member ${member.memberId}`,
-            familyId: member.familyId,
-            memberId: member.memberId,
-          },
-        ],
-      };
-    }
-    try {
-      dataset.push(hydrateFamilyMemberToPositionRecord(master, member));
-    } catch (e) {
-      return {
-        ok: false,
-        issues: [
-          {
-            code: "HYDRATE_FAILED",
-            reason: e instanceof Error ? e.message : String(e),
-            familyId: member.familyId,
-            memberId: member.memberId,
-          },
-        ],
-      };
-    }
+  const rematerialized = rematerializeFamilyPartsToPositionRecords(args);
+  if (!rematerialized.ok) {
+    return {
+      ok: false,
+      issues: rematerialized.issues.map((issue) => ({
+        code: issue.code,
+        reason: issue.reason,
+        familyId: issue.familyId,
+        memberId: issue.memberId,
+      })),
+    };
   }
   return {
     ok: true,
-    dataset,
+    dataset: rematerialized.dataset,
     source: "normalized",
     masterCount: args.masters.length,
     memberCount: args.members.length,

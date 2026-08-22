@@ -2,8 +2,30 @@
  * Regression: runSaveStrategy must persist adminState.sys.system as systemId string,
  * never the UI display object (ctx.system / view.ui.system).
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runSaveStrategy, type SaveFlowContext } from "./saveFlow";
+
+function createMemoryLocalStorage() {
+  const map = new Map<string, string>();
+  return {
+    getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      map.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      map.delete(k);
+    },
+    clear: () => map.clear(),
+    key: (i: number) => [...map.keys()][i] ?? null,
+    get length() {
+      return map.size;
+    },
+  };
+}
+
+beforeEach(() => {
+  vi.stubGlobal("localStorage", createMemoryLocalStorage());
+});
 
 const balls = {
   cue: { x: 10, y: 10 },

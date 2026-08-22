@@ -70,7 +70,12 @@ export function hydrateFamilyMemberToPositionRecord(
       `hydrate familyId mismatch: master ${master.familyId} vs member ${member.familyId}`
     );
   }
-  const slot = options?.slot ?? "S1";
+  const slot = options?.slot ?? member.sourceSlot;
+  if (slot !== "S1" && slot !== "S2" && slot !== "S3") {
+    throw new Error(
+      `hydrate missing sourceSlot for member ${member.memberId} (pass options.slot or persist sourceSlot)`
+    );
+  }
   const balls = {
     cue: { x: member.balls.cue.x, y: member.balls.cue.y },
     target: { x: member.balls.target.x, y: member.balls.target.y },
@@ -188,6 +193,8 @@ export function splitPositionRecordToFamilyParts(
     },
     track,
     memberOrigin: identity.memberOrigin,
+    /** Packing provenance: Exact-ball rematerialize restores strategies[sourceSlot]. */
+    sourceSlot: slot,
   };
   if (record.targetBall === "yellow" || record.targetBall === "red") {
     member.targetBall = record.targetBall;

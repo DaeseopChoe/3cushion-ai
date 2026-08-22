@@ -4,45 +4,56 @@
 Document  : FAMILY_DATA_ARCHITECTURE_DRAFT.md
 Type      : Confirmed Design · partial implementation (uncommitted)
 Authority : Status/Design — consume via PROJECT_MASTER_INDEX
-Date      : 2026-08-18 · CURRENT status refreshed 2026-08-20
-Status    : CONFIRMED DESIGN · Phase 3A-326 shadow dual-write COMPLETE · production SSOT still positions_dataset
-Not       : Official Glossary (until GLOSSARY_SSOT cites) · production normalized READ · Search Index · C3_PLUS · Approval History +0 · legacy retirement
+Date      : 2026-08-18 · CURRENT status refreshed 2026-08-22
+Status    : CONFIRMED DESIGN · Phase 3A-349 controlled flag default ON (gated READ) · Phase 3A-347 parity PASS · Phase 3A-345 Exact-ball rematerialize + sourceSlot (schema v2) · Phase 3A-342 gated READ · Phase 3A-339 preserve KEEP positions+meta · FULL H3 DEFERRED · WRITE SSOT still positions_dataset
+Not       : Official Glossary (until GLOSSARY_SSOT cites) · family_* durable SSOT · Search Index · C3_PLUS · Approval History +0 · legacy retirement · Full H3 storage split · F12 content fingerprint
 ```
 
 > 본 문서는 Family 저장/생성 **TARGET 설계** + **CURRENT 구현 상태**를 함께 둔다.  
-> **CURRENT ≠ TARGET.** Physical normalized **shadow** stores (`family_masters` / `family_members`)는 구현됨.  
-> Production corpus SSOT는 아직 **`positions_dataset`**. Normalized primary READ **OFF**.  
+> **CURRENT ≠ TARGET.** Physical normalized **shadow** stores (`family_masters` / `family_members`)는 구현됨 (schema **v2** · `sourceSlot`).  
+> Production **WRITE** corpus SSOT는 여전히 **`positions_dataset`**. Normalized READ는 **gated optional projection** (flag ∧ freshness ∧ rematerialize OK); default flag **true** (3A-349); flag OFF → instant legacy.  
 > 기존 SSOT(Envelope Sampling · Dataset 3계층 · Display Boundary · Calculation Rules expr/sys)를 **재정의하지 않는다**.
 
 ---
 
-## CURRENT IMPLEMENTATION STATUS — 2026-08-20 (Phase 3A-326)
+## CURRENT IMPLEMENTATION STATUS — 2026-08-22 (Phase 3A-349)
 
 | Item | CURRENT |
 |------|---------|
-| **Production corpus SSOT** | `positions_dataset` (+ React `dataset` mirror) |
-| **Normalized shadow stores** | `family_masters` · `family_members` (physical schema + localStorage) |
-| **Shadow dual-write** | SAVE · Derived Approval · Import — **COMPLETE** (3A-326) |
-| **Feature flag** | `FAMILY_NORMALIZED_STORAGE_ENABLED = false` |
-| **Normalized production READ** | **OFF / BLOCKED** until generation marker · H3 · cleanup · (later) SearchIndex · gated-read audit |
-| **Compatibility read adapter** | Implemented (3A-324) · **not** wired as App primary READ |
-| **Migration infra** | Implemented (3A-323) · source = positions/Import — **not** History |
-| **History** | SAVE **+1** · Approval **+1** (**KEEP**) · Cancel **+0** — temporary; Approval still supports post-approval corpus restore via snapshot |
-| **SearchIndex** | **NOT IMPLEMENTED** |
-| **Export** | **Legacy behavior unchanged** through 3A-326 — normalized Export **NOT IMPLEMENTED** |
-| **Pending before normalized READ** | generation/freshness marker · History restore **H3** · cleanup/`preserve_dataset` `family_*` · SearchIndex · gated-read audit |
-| **NOT DONE** | flag ON · Approval History **+0** · legacy `positions_dataset` retirement · normalized-only op · destructive migration |
+| **Production corpus SSOT (WRITE)** | `positions_dataset` (+ React `dataset` mirror) |
+| **Safe corpus persist** | `persistPositionsDatasetWithGeneration` — invalidate → positions → gen (3A-335) |
+| **Legacy generation meta** | `positions_dataset_meta.corpusGeneration` (authority) |
+| **Normalized shadow stores** | `family_masters` · `family_members` — schema **v2** · **`sourceSlot` required** |
+| **Shadow dual-write** | SAVE · Derived Approval · Import — migrate persists `sourceSlot` |
+| **Freshness API** | `evaluateNormalizedCorpusFreshness` — schema v2 + referential + gen equality |
+| **Feature flag** | `FAMILY_NORMALIZED_STORAGE_ENABLED = true` · gated READ · OFF → legacy rollback |
+| **Production READ loader** | `loadProductionCompatibleDataset()` (3A-342) |
+| **Normalized production READ** | **Gated default ON** (3A-349) — rematerialize Exact-ball packing when eligible |
+| **Rematerialization** | one Exact balls → one PositionRecord · `strategies[sourceSlot]` · collision fail-closed |
+| **Old family schema** | v1 / missing `sourceSlot` → SCHEMA_MISMATCH / invalid → legacy fallback · rebuild on next SAVE |
+| **Compatibility hydrate** | via rematerializer — not member-per-record fan-out |
+| **Production parity regressions** | **PASS** (3A-347) · default-ON + OFF rollback (3A-349) |
+| **History** | SAVE **+1** · Approval **+1** · restore bumps gen, does **not** sync `family_*` |
+| **Transitional H3** | **HARDENED** (3A-337) |
+| **Full H3** | **DEFERRED** |
+| **preserve_dataset** | **positions + meta KEEP** · **family_* DELETE** (3A-339) |
+| **SearchIndex** | **NOT IMPLEMENTED** · **NOT REQUIRED** |
+| **Export** | **Legacy unchanged** |
+| **F12 residual** | generation-aligned content drift theoretically possible |
+| **Pending** | Post-enable Ask audit · Commit/Push · Full H3 (later) |
+| **NOT DONE** | family_* as durable SSOT · Approval History **+0** · positions retirement · Full H3 · SearchIndex |
 
-Detail chronology: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-320 ~ 3A-326**. Status pointer: `PROJECT_MASTER_INDEX.md`.
+Detail chronology: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-320 ~ 3A-349**. Status pointer: `PROJECT_MASTER_INDEX.md`.
 
 ### CURRENT layer roles (do not confuse with TARGET)
 
 | Layer | CURRENT role |
 |-------|----------------|
-| `positions_dataset` | **Production corpus SSOT** (READ + primary WRITE) |
-| `family_masters` / `family_members` | **Normalized shadow** (dual-write after SAVE/Approval/Import) |
+| `positions_dataset` | **Production corpus WRITE SSOT** · default READ · fallback READ |
+| `positions_dataset_meta` | **Generation authority** |
+| `family_masters` / `family_members` | **Normalized shadow** · optional gated READ via Exact-ball rematerialize |
 | `workspace_history` | Workspace save-event snapshots — **≠** Member DB |
-| SearchIndex | Not present |
+| SearchIndex | Not present · not a READ prerequisite |
 
 ---
 
@@ -78,7 +89,16 @@ Sections below (§1–…) describe this **TARGET** design and earlier phase con
 | Family identity / 4-track SAVE / generic writer | **IMPLEMENTED** (uncommitted) — Phase 2C.1 + 3A-1/3A-2 |
 | Cue→Impact first 30% Derived generator | **IMPLEMENTED** (uncommitted · Phase 3A-3D) |
 | Normalized shadow dual-write (SAVE/Approval/Import) | **IMPLEMENTED** (uncommitted · Phase 3A-326) |
-| Normalized production READ / flag ON | **NOT DONE / BLOCKED** |
+| Generation / freshness contract (`corpusGeneration`) | **IMPLEMENTED** (uncommitted · Phase 3A-333) — not READ enablement |
+| Generation failure-safety (invalidate → write → gen) | **IMPLEMENTED** (uncommitted · Phase 3A-335) |
+| Transitional History H3 contract regression | **IMPLEMENTED** (uncommitted · Phase 3A-337) |
+| preserve_dataset KEEP positions+meta / DELETE family_* | **IMPLEMENTED** (uncommitted · Phase 3A-339) |
+| Gated Normalized READ (flag ∧ fresh ∧ hydrate) | **IMPLEMENTED** (uncommitted · Phase 3A-342) — default flag **true** (3A-349) |
+| Exact-ball rematerialize + `sourceSlot` (schema v2) | **IMPLEMENTED** (uncommitted · Phase 3A-345) |
+| Production semantic parity regressions (ADMIN LocalDB / S2·S3 SAVE / Approval·Import reload) | **PASS** (uncommitted · Phase 3A-347 · test-only) |
+| Controlled production flag enable | **DONE** (uncommitted · Phase 3A-349) — default **true**; OFF rollback preserved |
+| Full H3 workspace/corpus storage split | **DEFERRED** |
+| Normalized READ as durable authority / family_* WRITE SSOT | **NOT DONE / FORBIDDEN** |
 | BUG-A display-cap nearest-rail | **IMPLEMENTED** (uncommitted) — cite LOG 2026-08-17 |
 | BUG-B Reset/History stale | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 · separate from Family |
 

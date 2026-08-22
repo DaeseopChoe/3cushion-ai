@@ -17,6 +17,7 @@ import {
   FAMILY_MASTER_COMMON_FIELD_KEYS,
   FAMILY_MASTERS_STORAGE_KEY,
   FAMILY_MEMBERS_STORAGE_KEY,
+  FAMILY_NORMALIZED_SCHEMA_VERSION,
   memberHasForbiddenCommonPayload,
   type FamilyMaster,
   type FamilyMember,
@@ -67,7 +68,7 @@ const sysInputs = { CO_f: 30, C1_f: 10, C3_r: 20 };
 
 function baseMaster(overrides: Partial<FamilyMaster> = {}): FamilyMaster {
   return {
-    schemaVersion: 1,
+    schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
     familyId: "fm_family1",
     signature,
     sysInputs,
@@ -91,10 +92,11 @@ function baseMember(
     Pick<FamilyMember, "memberId" | "balls" | "track" | "memberOrigin">
 ): FamilyMember {
   return {
-    schemaVersion: 1,
+    schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
     familyId: "fm_family1",
     targetBall: "red",
     authoringStrategyId: "as_authored",
+    sourceSlot: "S1",
     ...overrides,
   };
 }
@@ -154,9 +156,9 @@ function buildSixteenMemberFixture(): {
   tracks.forEach((track, ti) => {
     const sourceId = `mb_src_${track}`;
     const sourceBalls = {
-      cue: { x: 10 + ti, y: 8 },
-      target: { x: 40, y: 20 + ti },
-      second: { x: 62, y: 12 },
+      cue: { x: 10 + ti * 5, y: 8 + ti },
+      target: { x: 40 + ti, y: 20 },
+      second: { x: 62, y: 12 + ti },
     };
     if (ti === 0) {
       members.push(
@@ -187,8 +189,8 @@ function buildSixteenMemberFixture(): {
         baseMember({
           memberId: `mb_der_${track}_${k}`,
           balls: {
-            cue: { x: sourceBalls.cue.x + k, y: sourceBalls.cue.y },
-            target: sourceBalls.target,
+            cue: { x: sourceBalls.cue.x + k * 0.5, y: sourceBalls.cue.y },
+            target: { x: sourceBalls.target.x, y: sourceBalls.target.y + k },
             second: sourceBalls.second,
           },
           track,
@@ -213,8 +215,8 @@ beforeEach(() => {
 });
 
 describe("Phase A feature flag", () => {
-  it("keeps normalized storage disabled (no SAVE dual-write activation)", () => {
-    expect(isFamilyNormalizedStorageEnabled()).toBe(false);
+  it("controlled enable default ON (READ gate only; WRITE SSOT still positions)", () => {
+    expect(isFamilyNormalizedStorageEnabled()).toBe(true);
   });
 });
 

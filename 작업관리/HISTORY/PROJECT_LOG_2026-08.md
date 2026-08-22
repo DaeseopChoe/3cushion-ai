@@ -1,8 +1,528 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.32  
+Version : v1.40  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-22 (Phase 3A-349 — Controlled Normalized READ Flag Enable)
+
+## 제목
+
+**Production default: FAMILY_NORMALIZED_STORAGE_ENABLED false → true (gated READ only)**
+
+## Mode
+
+**Agent** · minimal production change · Commit/Push 없음
+
+## Status
+
+**PASS** · CONTROLLED FLAG ENABLE IMPLEMENTED = **YES**
+
+## Change
+
+| Item | Before | After |
+|------|--------|--------|
+| `FAMILY_NORMALIZED_STORAGE_ENABLED` | `false` | **`true`** |
+| Eligibility gate | flag ∧ fresh ∧ rematerialize | **unchanged** |
+| WRITE SSOT | `positions_dataset` | **unchanged** |
+| Flag OFF rollback | legacy | **preserved** (test override + reason `flag_off`) |
+
+## Architecture
+
+| Invariant | Result |
+|-----------|--------|
+| WRITE SSOT | positions_dataset |
+| Generation authority | positions_dataset_meta |
+| family_* | shadow |
+| SearchIndex | not required |
+| Full H3 | deferred |
+| F12 residual | generation-aligned content drift theoretically possible (not addressed) |
+
+## Files
+
+**Production:** `familyNormalizedFlag.ts` (+ comment drift fixes in schema/sync/migrate/freshness/index/loadProductionCompatibleDataset)
+
+**Tests:** isolation for default ON · explicit OFF rollback · parity A0 default-ON path · related flag assertions
+
+**Docs:** INDEX · LOG · DRAFT
+
+## Tests
+
+**23 files / 312 PASS / 0 FAIL** (baseline 311 + 1 default-ON parity case)
+
+## Next
+
+Ask-only: Post-enable final audit before Commit/Push.
+
+---
+
+# 2026-08-22 (Phase 3A-348 — Final Controlled Flag-Enable Re-Audit)
+
+## Mode
+
+**Ask** · audit only · no code/flag change
+
+## Status
+
+**PASS** · CONTROLLED FLAG ENABLE = **GO** · Choice **A**
+
+## Evidence
+
+G1–G20 ALL PASS · live regression 23/311 PASS · ROLLBACK TRUE→FALSE SAFE = YES
+
+## Next
+
+Agent: Phase 3A-349 Controlled Flag Enable (implemented below).
+
+---
+
+# 2026-08-22 (Phase 3A-347 — Production Parity Regression Completion)
+
+## 제목
+
+**Close 3A-346 CONDITIONAL gaps with production-path parity regressions (test-only)**
+
+## Mode
+
+**Agent** · TEST-ONLY · production algorithm **unchanged** · Commit/Push 없음 · flag enable **NOT** performed
+
+## Status
+
+**PASS** · PRODUCTION PARITY REGRESSION COMPLETION = **PASS** · Choice **A** (ready for final controlled flag-enable re-audit)
+
+## Gaps closed (were 3A-346 PARTIAL / NOT PROVEN)
+
+| Gap | Result |
+|-----|--------|
+| ADMIN LocalDB actual path (`runAdminLocalDbRecall` + `applyPositionRecall`) S2 | **PROVEN** |
+| ADMIN LocalDB activeSlot S3 | **PROVEN** |
+| preferredAuthoredSlot S3 → sourceSlot → rematerialize | **PROVEN** |
+| Recall S2 → edit → SAVE → reload | **PROVEN** (sibling S1 preserved) |
+| Recall S3 → edit → SAVE → reload | **PROVEN** (S1/S2 preserved) |
+| Approval → reload → rematerialize | **PROVEN** |
+| Import → reload → rematerialize | **PROVEN** |
+| Reload determinism (+ member order permutation) | **PROVEN** |
+| Meta regeneration on SAVE (placeholder not durable) | **PROVEN** |
+| Fail-closed + flag-off rollback | **PROVEN** |
+
+## Files
+
+**New:** `frontend/src/application/flows/productionParity.347.contract.test.ts`
+
+**Production code:** **none** changed in this phase
+
+## Tests
+
+- Parity file: **1 / 12 PASS**
+- Related suite: **23 files / 311 PASS / 0 FAIL** (family + persist/dual-write/Approval/saveFlow/H3/preserve + 347)
+
+## Invariants preserved
+
+| Item | Value |
+|------|--------|
+| WRITE SSOT | `positions_dataset` |
+| Generation authority | `positions_dataset_meta` |
+| family_* | shadow |
+| Flag default | **false** |
+| Flag enabled | **NO** |
+| SearchIndex | not required |
+| Full H3 | deferred |
+
+## Next
+
+Ask-only: Controlled Flag-Enable **Final Re-Audit**. Do **not** flip `FAMILY_NORMALIZED_STORAGE_ENABLED` default in that audit unless explicitly approved.
+
+---
+
+# 2026-08-22 (Phase 3A-346 — Production Semantic Parity Re-Audit)
+
+## Mode
+
+**Ask** · audit only
+
+## Status
+
+**CONDITIONAL** — packing / identity / fail-closed PASS; ADMIN LocalDB E2E · S2/S3 recall→edit→SAVE · preferred S3 · Approval/Import reload · determinism/meta **PARTIAL or NOT PROVEN** → closed by **3A-347**.
+
+---
+
+# 2026-08-22 (Phase 3A-345 — PositionRecord Rematerialization + sourceSlot)
+
+## 제목
+
+**Exact-ball packing restored via FamilyMember.sourceSlot (schema v2)**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음 · flag enable **NOT** performed
+
+## Status
+
+**COMPLETE**. Phase 3A-343/344 STOP-B addressed for projection invertibility.
+
+## Contract
+
+| Item | Value |
+|------|--------|
+| `FamilyMember.sourceSlot` | required `S1\|S2\|S3` packing provenance |
+| Schema | **v1 → v2** |
+| Old schema / missing sourceSlot | freshness/eligibility fail → legacy READ |
+| Rematerialize | Exact balls → one PositionRecord · `strategies[sourceSlot]` |
+| Slot collision | fail-closed (no overwrite / no fan-out) |
+| WRITE SSOT | still `positions_dataset` |
+| Flag default | **false** · controlled enable **NOT** performed |
+
+## Files
+
+**New:** `rematerializeFamilyPartsToPositionRecords.ts` · `rematerializeFamilyParts.contract.test.ts`
+
+**Modified:** `familyNormalizedSchema.ts` · `familyHydrate.ts` · `familyNormalizedStore.ts` · `loadFamilyCompatibleDataset.ts` · related fixtures/tests · INDEX / LOG / DRAFT
+
+## Tests
+
+**22 files / 299 PASS** (family + persist/dual-write/Approval/saveFlow/H3/preserve + rematerialize A–J).
+
+## Next
+
+Ask-only: Production Semantic Parity & Controlled Flag-Enable **Re-Audit**. Do not flip flag default.
+
+---
+
+# 2026-08-22 (Phase 3A-342 — Gated Normalized READ Implementation)
+
+## 제목
+
+**Production READ gate: flag ∧ freshness ∧ hydration → else positions_dataset**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음
+
+## Status
+
+**COMPLETE**. Phase 3A-341 contract implemented on production READ boundary.
+
+## Contract
+
+| Case | Source |
+|------|--------|
+| flag OFF (default) | `positions_dataset` (legacy) |
+| flag ON + fresh + hydrate OK | normalized PositionRecord-compatible projection |
+| flag ON + stale / missing / partial / invalid / schema / hydrate fail / exception | legacy fallback |
+| READ failure | **no** corpus / generation / family mutation · **no** auto rebuild |
+
+## Eligibility
+
+```
+normalizedReadEligible =
+  isFamilyNormalizedStorageEnabled()
+  AND evaluateNormalizedCorpusFreshness().fresh
+  AND loadFamilyCompatibleDataset().ok
+```
+
+## Result
+
+- App startup uses `loadProductionCompatibleDataset().dataset`
+- WRITE SSOT remains `positions_dataset` + meta
+- `family_*` remains synchronized shadow
+- flag default **false**
+- SearchIndex **not** required · Full H3 **DEFERRED**
+- preserve_dataset / transitional H3 / 3A-335 persist unchanged
+
+## Files
+
+**New:** `loadProductionCompatibleDataset.ts` · `loadProductionCompatibleDataset.contract.test.ts`
+
+**Modified:** `App.jsx` (startup READ) · `familyNormalizedFlag.ts` (test override) · `familyNormalizedStore.ts` (stale comment) · `family/index.ts` · INDEX / this LOG / DRAFT
+
+## Tests
+
+**11 files / 132 PASS** (gated READ contract 20 + related regressions) · `saveFlow.sysIdentity` also green.
+
+## Architecture
+
+- production corpus SSOT = `positions_dataset`
+- optional READ projection ≠ durable authority
+- READY FOR CONTROLLED FLAG-ENABLE AUDIT (Ask) — not auto-enable
+
+## Next
+
+Ask-only: controlled flag-enable audit. Not Full H3. Do not set flag default true.
+
+---
+
+# 2026-08-22 (Phase 3A-339 — Cleanup / preserve_dataset Policy Implementation)
+
+## 제목
+
+**preserve_dataset keeps positions + generation meta; deletes family shadow**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음
+
+## Status
+
+**COMPLETE**. Phase 3A-338 policy implemented.
+
+## Contract
+
+| Key | preserve_dataset |
+|-----|------------------|
+| `positions_dataset` | **KEEP** |
+| `positions_dataset_meta` | **KEEP** |
+| `family_masters` / `family_members` | **DELETE** |
+| `workspace_history` | DELETE (unchanged) |
+| `ONE_POINT_LESSON_LIBRARY_V1` | KEEP (unchanged) |
+
+## Reason
+
+`positions_dataset_meta` is generation **authority** paired with production corpus. Deleting it on preserve caused N→missing→1 reset and `LEGACY_MARKER_MISSING`. Family remains disposable normalized shadow while READ is legacy.
+
+## Result
+
+- generation N survives cleanup
+- cleanup freshness = `NORMALIZED_MISSING` (not `LEGACY_MARKER_MISSING`)
+- next SAVE/Approval/Import → N+1 + dual-write rebuild → fresh=true
+- clear_all / ADMIN·USER Reset / History delete / transitional H3 unchanged
+- lesson category preserve pair **DEFERRED**
+
+## Files
+
+**New:** `frontend/src/hooks/workspaceCleanup.preserveDataset.contract.test.ts`
+
+**Modified:** `useSettings.js` (preserve list) · `normalizedDualWrite.test.ts` (call production cleanup) · INDEX / this LOG / DRAFT
+
+## Tests
+
+**10 files / 112 PASS** (prior 101 + 11 new cleanup contract).
+
+## Architecture
+
+- production SSOT = `positions_dataset`
+- normalized READ **OFF** · flag **false** · SearchIndex untouched · Full H3 **DEFERRED**
+
+## Next
+
+Ask-only: next prerequisite audit (gated READ / SearchIndex later). Not Full H3.
+
+---
+
+# 2026-08-22 (Phase 3A-338 — Cleanup / preserve_dataset Family Shadow Policy Audit)
+
+## 제목
+
+**Ask-only: what must preserve_dataset keep for generation/freshness + H3?**
+
+## Mode
+
+**Ask** · AUDIT ONLY · no implementation
+
+## Verdict
+
+| Item | Result |
+|------|--------|
+| CLEANUP POLICY CHANGE REQUIRED | **YES** |
+| CURRENT preserve_dataset | **SAFE-BUT-INCOMPLETE** (meta DELETE) |
+| FAMILY_* PRESERVE POLICY | **DELETE** |
+| POSITIONS_DATASET_META PRESERVE | **YES** |
+| Ready for implementation | **YES** → 3A-339 |
+
+## Next
+
+Agent: Phase 3A-339 implement preserve list + regressions.
+
+---
+
+# 2026-08-22 (Phase 3A-337 — Transitional History H3 Contract Hardening)
+
+## 제목
+
+**Lock transitional History contract: restore ≠ Member DB rollback**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음
+
+## Status
+
+**TRANSITIONAL H3 HARDENING COMPLETE**. **FULL H3 DEFERRED** (workspace/corpus storage split not introduced).
+
+## Purpose
+
+Regression-fix the 3A-336 transitional contract without implementing Full H3:
+
+- History = workspace snapshot ≠ Member DB
+- restore leaves `family_*` untouched
+- restore advances legacy `corpusGeneration` → freshness false
+- restore → SAVE / Approval may resync shadow → freshness true
+- Approval History **+1 KEEP**
+- 3A-335 false-fresh safety unchanged
+
+## Files
+
+**New:** `frontend/src/application/flows/historyTransitionalH3.contract.test.ts`
+
+**Modified (minimal):** `useSettings.js` (transitional H3 comment) · INDEX / this LOG / DRAFT pointers
+
+## Production behavior
+
+No intentional runtime contract change — behavior already matched 3A-336; tests lock it.
+
+## Tests
+
+Related suite: **9 files / 101 PASS** (incl. new H3 contract + 3A-335 persist + freshness + dual-write + Approval + SAVE family + load/migrate).
+
+## Explicitly deferred (Full H3)
+
+`workspace_dataset` / active `workspace_current` persistence · workspaceGeneration · positions SSOT demotion · normalized READ · flag ON · SearchIndex
+
+## Next
+
+Ask-only: cleanup / `preserve_dataset` `family_*` policy audit. **Not** Full H3 · **not** gated READ.
+
+---
+
+# 2026-08-22 (Phase 3A-336 — History H3 Full Contract Audit)
+
+## 제목
+
+**Ask-only: is Full H3 required now, or is transitional Member protection enough?**
+
+## Mode
+
+**Ask** · AUDIT ONLY · no implementation
+
+## Verdict
+
+| Item | Result |
+|------|--------|
+| H3 CONTRACT REQUIRED | **YES** (eventually) |
+| Transitional Member protection | **SAFE** (restore does not overwrite `family_*`) |
+| Partial / transitional hardening | **READY** → done in 3A-337 |
+| Full H3 | **DEFERRED** — needs workspace vs durable corpus storage split |
+| Production SSOT | remains `positions_dataset` |
+
+## Central contradiction (documented, not fixed in 337)
+
+`positions_dataset` is both workspace restore target **and** production corpus SSOT → restore overwrites durable legacy corpus, but **not** persistent Member shadow.
+
+## Next
+
+Agent: Phase 3A-337 transitional hardening (tests). Full H3 deferred.
+
+---
+
+# 2026-08-22 (Phase 3A-335 — Generation Metadata Failure-Safety Patch)
+
+## 제목
+
+**Close false-fresh window: invalidate → positions → generation commit**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음
+
+## Status
+
+**COMPLETE**. Phase 3A-333 FINAL CLOSURE **APPROVED**. False-fresh on meta-write failure **CLOSED**.
+
+## Root cause (3A-334)
+
+positions write success + `positions_dataset_meta` bump failure left old gen on meta+family → `fresh=true` with new content.
+
+## Fix
+
+`persistPositionsDatasetWithGeneration`:
+
+1. read previousGeneration (memory)
+2. invalidate/remove meta (abort mutation if invalidate fails)
+3. write `positions_dataset`
+4. write next corpusGeneration (from in-memory previous+1)
+5. caller syncs shadow only when ok
+
+## Files
+
+**New:** `persistPositionsDatasetWithGeneration.ts` (+ test)
+
+**Modified:** saveFlow · derivedApprovalFlow · App Import · useSettings History restore · dual-write/freshness related tests · INDEX/LOG/DRAFT pointers
+
+## Tests
+
+18 files / **246** PASS (incl. T1 exact 3A-334 defect injection).
+
+## Next
+
+Ask: History H3 (3A-336) · then transitional harden (3A-337) · cleanup `family_*`. Not gated READ.
+
+---
+
+# 2026-08-22 (Phase 3A-333 — Generation/Freshness Contract Implementation)
+
+## 제목
+
+**Durable corpusGeneration linkage — positions_dataset_meta ↔ family_* envelopes**
+
+## Mode
+
+**Agent** · IMPLEMENTED (uncommitted) · Commit/Push 없음
+
+## Status
+
+**COMPLETE** for generation/freshness contract scope. Production READ still `positions_dataset`. Flag **false**. Normalized primary READ **disabled**.
+
+## Purpose
+
+Prove whether normalized shadow was produced from the **same latest** durable working corpus generation as `positions_dataset` (schema-valid ≠ fresh).
+
+## Model
+
+| Item | Value |
+|------|--------|
+| Type | monotonic integer `corpusGeneration` (≥ 1) |
+| Authority | legacy `positions_dataset_meta` after successful positions write |
+| Shadow stamp | `family_masters.corpusGeneration` + `family_members.corpusGeneration` |
+| Freshness | all three equal + `validateFamilyStore` ok |
+| Marker missing | **ineligible** (never treat as fresh) |
+
+## Files
+
+**New**
+
+- `frontend/src/domain/dataset/infra/positionsDatasetMeta.ts`
+- `frontend/src/domain/family/familyCorpusFreshness.ts`
+- `frontend/src/domain/family/familyCorpusFreshness.test.ts`
+
+**Modified**
+
+- `familyNormalizedSchema.ts` · `familyNormalizedStore.ts` · `syncPositionDatasetToNormalizedFamilyStore.ts`
+- `familyNormalizedFlag.ts` (comment) · `index.ts`
+- `saveFlow.ts` · `derivedApprovalFlow.ts` · `App.jsx` (Import) · `useSettings.js` (History restore gen bump only)
+- `normalizedDualWrite.test.ts` · migration/compat test persist call sites
+- `PROJECT_MASTER_INDEX.md` · this LOG · `FAMILY_DATA_ARCHITECTURE_DRAFT.md` (CURRENT pointer)
+
+## Mutation integration
+
+| Path | Legacy gen bump | family gen stamp | Notes |
+|------|-----------------|------------------|-------|
+| SAVE | YES | YES (on sync ok) | History +1 unchanged |
+| Approval | YES | YES | History +1 unchanged |
+| Import | YES | YES | |
+| History restore | YES | **NO** | intentional divergence · not full H3 |
+
+## Tests
+
+Family + related flows: **16 files / 238 tests PASS** (incl. freshness + dual-write).
+
+## NOT done
+
+cleanup `family_*` preserve · H3 full · SearchIndex · gated READ · Approval +0 · Export · fingerprint
+
+## Next
+
+Ask-only: History H3 · cleanup `family_*`. **Not** gated READ.
 
 ---
 

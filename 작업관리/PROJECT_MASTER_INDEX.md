@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.73  
-Last Updated: 2026-08-20  
+Version: 1.79  
+Last Updated: 2026-08-22  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -50,8 +50,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Family Normalization **Phase 3A-326** — Normalized Shadow Dual-Write **COMPLETE** (uncommitted) |
-| **Next Track** | Ask-only prerequisites: generation/freshness marker · History H3 · cleanup `family_*` — **not** gated READ yet · C3_PLUS later |
+| **Current Mission** | Family Normalization **Phase 3A-349** — Controlled Normalized READ Flag Enable **PASS** (uncommitted) |
+| **Next Track** | Ask-only **Post-Enable Final Audit** before Commit/Push — flag default **true** · WRITE SSOT unchanged |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
@@ -113,70 +113,41 @@ Detail: `HISTORY/PROJECT_LOG_2026-08.md` (Mission 02 Final Closure).
 
 ---
 
-### Current Family Normalization State (2026-08-20 · Phase 3A-326)
+### Current Family Normalization State (2026-08-22 · Phase 3A-349)
 
-> **Pointer only** — detail: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-320 ~ 3A-326**. Design: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` (CURRENT vs TARGET).
+> **Pointer only** — detail: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-320 ~ 3A-349**. Design: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` (CURRENT vs TARGET).
 
 | Field | Value |
 |-------|--------|
-| **Current Phase** | **Phase 3A-326** — Normalized Shadow Dual-Write **COMPLETE** (uncommitted) |
-| **Production corpus SSOT** | `positions_dataset` (+ React `dataset` mirror) |
-| **Normalized shadow stores** | `family_masters` · `family_members` |
-| **Feature flag** | `FAMILY_NORMALIZED_STORAGE_ENABLED = false` |
-| **Production normalized READ** | **OFF / BLOCKED** (do not enable until prerequisites) |
-| **SSOT docs** | DRAFT + this INDEX · LOG 2026-08-20 (3A-320…326) |
+| **Current Phase** | **Phase 3A-349** — Controlled Normalized READ Flag Enable **PASS** (uncommitted) |
+| **Production corpus SSOT** | `positions_dataset` (+ React `dataset` mirror) — **WRITE authority unchanged** |
+| **Safe corpus persist** | `persistPositionsDatasetWithGeneration` (invalidate → positions → gen) |
+| **Legacy generation meta** | `positions_dataset_meta.corpusGeneration` (authority) |
+| **Normalized shadow stores** | `family_masters` · `family_members` (schema **v2** · `sourceSlot` required) |
+| **Feature flag** | `FAMILY_NORMALIZED_STORAGE_ENABLED = true` (default) · gated READ · **OFF → instant legacy rollback** |
+| **Production READ loader** | `loadProductionCompatibleDataset()` — App startup wired |
+| **Normalized READ eligibility** | `flag ∧ freshness ∧ rematerialize/hydrate success` — else legacy |
+| **Rematerialization** | Exact-ball grouping · `strategies[sourceSlot]` packing · slot collision fail-closed |
+| **Parity regressions** | 3A-347 suite + default-ON / explicit-OFF (3A-349) — **PASS** |
+| **History H3** | **TRANSITIONAL HARDENED** (3A-337) · **FULL H3 DEFERRED** |
+| **preserve_dataset** | positions + **meta KEEP** · `family_*` **DELETE** (3A-339) |
+| **SearchIndex** | **NOT REQUIRED** · **NOT IMPLEMENTED** |
+| **F12 residual** | generation-aligned content drift theoretically possible (no new fingerprint in 349) |
 
-#### Done (through 3A-326)
+#### Done (through 3A-349)
 
-- FamilyMaster / FamilyMember schema · normalized storage · hydrate/split (3A-321)
-- Migration infrastructure (3A-323) · compatibility read adapter (3A-324)
-- SAVE / Derived Approval / Import **shadow dual-write** (3A-326)
-- Prior authoring path: identity · 4-track SAVE · Cue→Impact · Preview/Approve (through 3A-3E)
+- Shadow dual-write · corpusGeneration · fail-closed persist · transitional H3 · preserve meta KEEP
+- Gated READ loader (3A-342) · Exact-ball rematerializer + sourceSlot (3A-345)
+- Production semantic parity regressions (3A-347) · Final GO audit (3A-348)
+- **Controlled production flag default ON** (3A-349) — eligibility gate unchanged · WRITE SSOT unchanged
 
-#### Not done (must not mark complete)
+#### Not done
 
-- generation / freshness marker · History restore **H3** · cleanup/`preserve_dataset` `family_*` policy
-- SearchIndex · gated normalized READ · Approval History **+0** · legacy `positions_dataset` retirement
-- normalized Export migration · AUTO_APPROVE · C3_PLUS · destructive migration
-
-#### CURRENT vs TARGET (do not confuse)
-
-| Layer | CURRENT | TARGET |
-|-------|---------|--------|
-| Corpus SSOT | `positions_dataset` | FamilyMaster + FamilyMembers |
-| `family_*` | **Normalized shadow** (dual-write) | Production physical SSOT |
-| FamilyMaster | Shadow common payload | Family-common **physical SSOT** |
-| FamilyMember | Shadow balls+track+provenance | Member **physical SSOT** |
-| SearchIndex | **NOT IMPLEMENTED** | Rebuildable locator (not common payload) |
-| History | Workspace snapshots; Approval still uses History **+1** for post-approval corpus restore | Workspace-only; **not** Member DB |
-
-#### Approval / SAVE History rule (CURRENT — KEEP)
-
-| Event | History |
-|-------|---------|
-| SAVE | **+1** |
-| Derived Approval | **+1** (**TEMPORARILY KEEP** — do not remove yet) |
-| Cancel / Preview close | **+0** |
-
-Long-term target: Approval → Members(+SearchIndex) update · History **+0**. **NOT DONE.**
-
-#### Next recommended work
-
-**Ask-only** prerequisite audit (in order):
-
-1. generation / freshness marker  
-2. History restore **H3** (workspace restore ≠ Member corpus rollback)  
-3. cleanup / `preserve_dataset` `family_*` preservation  
-
-Then: SearchIndex/rebuild → gated-read audit → normalized READ. **Not** “implement gated READ” as the immediate next step.
-
-#### Must not
-
-Envelope Sampling 재해석 · 2Rg/CO→C1로 Cue 좌표 생성 · flag ON without prerequisites · treat History as Member DB · unrelated leftover cleanup · Commit/Push without user request.
+- Commit/Push of enable · Full H3 · SearchIndex · Approval +0 · Export cutover · family_* as durable SSOT · F12 content fingerprint
 
 ### 왜 지금인가 (context)
 
-샘플 데이터셋 3개(뒤돌리기 · 옆돌리기 · 뒤돌리기 대회전) 완성 후 Family 생성·정규화 경로를 진행 중. Phase 3A-326까지 **shadow dual-write** 완료; production READ는 여전히 `positions_dataset`.
+샘플 데이터셋 3개 완성 후 Family 정규화 경로 진행. Phase 3A-349에서 gated normalized READ production default **ON**. WRITE SSOT는 여전히 `positions_dataset`; flag OFF 시 즉시 legacy READ.
 
 ### 설계 한 줄 (TARGET)
 
@@ -1632,13 +1603,13 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 >
 > **Phase 5 Mission 02 — Dead Code Cleanup:** ✅ **COMPLETE** — Cleanup #1–#4 · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS** · baseline `8bf90b6`.
 >
-> **Next Track:** Family Normalization **Phase 3A-326** shadow dual-write COMPLETE · next Ask = generation marker · History H3 · cleanup `family_*` · `FAMILY_DATA_ARCHITECTURE_DRAFT.md` (CURRENT vs TARGET) · production SSOT still `positions_dataset` · flag **false** · normalized READ **OFF**.
+> **Next Track:** Family Normalization **Phase 3A-349** controlled flag enable **PASS** · next Ask = post-enable **final audit** before Commit/Push · flag default **true** · Full H3 **DEFERRED**.
 >
 > **Sample datasets:** 사용자 보고 3 set 완성 (뒤돌리기 · 옆돌리기 · 뒤돌리기 대회전 × 4 tracks). Auto-generation은 Family Phase 2–3.
 >
 > **병행 Carry:** **BUG-B 재현 확인 필요** · Display Boundary Continuation · STEP9 Pilot · Known Issues OPEN-01/02/05 · uncommitted working tree 보존 · Commit/Push 사용자 요청 시.
 >
-> **Runtime / Product 상태 (2026-08-20):** Pointer Capture Timing 안정 · Trajectory Extension **Task Closed** · Display Boundary Policy **v1.4.1** (BUG-A same-rail identity) · Family **shadow stores + dual-write IMPLEMENTED** · production corpus SSOT = `positions_dataset` · normalized READ **OFF**.
+> **Runtime / Product 상태 (2026-08-22):** Family shadow schema **v2** (`sourceSlot`) · Exact-ball rematerialize · WRITE SSOT = `positions_dataset` · flag default **true** → gated normalized READ (else legacy).
 
 ### STEP7 상태
 

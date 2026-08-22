@@ -145,8 +145,8 @@ beforeEach(() => {
 });
 
 describe("feature flag", () => {
-  it("remains OFF", () => {
-    expect(isFamilyNormalizedStorageEnabled()).toBe(false);
+  it("default ON (3A-349); migrate remains pure (no storage write)", () => {
+    expect(isFamilyNormalizedStorageEnabled()).toBe(true);
   });
 });
 
@@ -468,6 +468,7 @@ describe("B1–B4 migration", () => {
     const persisted = persistMigratedFamilyParts({
       masters: migrated.masters,
       members: migrated.members,
+      corpusGeneration: 1,
     });
     expect(persisted.ok).toBe(true);
     const validation = validateFamilyStore();
@@ -498,6 +499,7 @@ describe("B1–B4 migration", () => {
     persistMigratedFamilyParts({
       masters: migrated.masters,
       members: migrated.members,
+      corpusGeneration: 1,
     });
     expect(localStorage.getItem(WORKING_DATASET_KEY)).toBe(beforePos);
     expect(localStorage.getItem(WORKSPACE_HISTORY_KEY)).toBe(beforeHist);

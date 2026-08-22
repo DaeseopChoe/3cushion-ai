@@ -1,7 +1,8 @@
 /**
  * Family domain (Phase 1B identity + Phase 2B 4-track generation).
- * Phase 3A-321 Phase A adds physical FamilyMaster/Member stores + hydrate/split
- * (feature flag OFF — SAVE/Approval/Search still use positions_dataset).
+ * Phase 3A-321 Phase A adds physical FamilyMaster/Member stores + hydrate/split.
+ * Shadow dual-write is flag-independent; production READ uses
+ * loadProductionCompatibleDataset gate (Phase 3A-342; default ON since 3A-349).
  */
 
 export * from "./familyIdentity";
@@ -24,4 +25,7 @@ export * from "./familyNormalizedStore";
 export * from "./familyHydrate";
 export * from "./migratePositionRecordsToFamilyParts";
 export * from "./loadFamilyCompatibleDataset";
+export * from "./rematerializeFamilyPartsToPositionRecords";
+export * from "./loadProductionCompatibleDataset";
 export * from "./syncPositionDatasetToNormalizedFamilyStore";
+export * from "./familyCorpusFreshness";

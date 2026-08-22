@@ -3,7 +3,9 @@
  *
  * Keys: family_masters / family_members.
  * Does not touch positions_dataset or workspace_history.
- * Dual-write from SAVE/Approval is gated by isFamilyNormalizedStorageEnabled().
+ * Dual-write from SAVE/Approval/Import is NOT gated by the feature flag
+ * (Phase 3A-326+). Flag only gates future/optional normalized production READ
+ * (Phase 3A-342 loader; default OFF).
  */
 
 import {
@@ -18,6 +20,7 @@ import {
   FAMILY_MASTERS_STORAGE_KEY,
   FAMILY_MEMBERS_STORAGE_KEY,
   FAMILY_NORMALIZED_SCHEMA_VERSION,
+  isFamilySourceSlot,
   memberHasForbiddenCommonPayload,
   type FamilyMaster,
   type FamilyMastersEnvelope,
@@ -88,6 +91,18 @@ function writeEnvelopeRaw(key: string, value: unknown): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function readOptionalCorpusGeneration(
+  env: Partial<FamilyMastersEnvelope> | Partial<FamilyMembersEnvelope>
+): number | undefined {
+  const g = (env as { corpusGeneration?: unknown }).corpusGeneration;
+  return typeof g === "number" &&
+    Number.isInteger(g) &&
+    Number.isFinite(g) &&
+    g >= 1
+    ? g
+    : undefined;
+}
+
 export function loadFamilyMastersEnvelope(): FamilyMastersEnvelope {
   const parsed = readEnvelopeRaw(FAMILY_MASTERS_STORAGE_KEY);
   if (!parsed || typeof parsed !== "object") return emptyFamilyMastersEnvelope();
@@ -95,11 +110,13 @@ export function loadFamilyMastersEnvelope(): FamilyMastersEnvelope {
   if (!env.masters || typeof env.masters !== "object") {
     return emptyFamilyMastersEnvelope();
   }
+  const corpusGeneration = readOptionalCorpusGeneration(env);
   return {
     schemaVersion:
       typeof env.schemaVersion === "number"
         ? env.schemaVersion
         : FAMILY_NORMALIZED_SCHEMA_VERSION,
+    ...(corpusGeneration != null ? { corpusGeneration } : {}),
     masters: { ...env.masters },
   };
 }
@@ -111,11 +128,13 @@ export function loadFamilyMembersEnvelope(): FamilyMembersEnvelope {
   if (!env.members || typeof env.members !== "object") {
     return emptyFamilyMembersEnvelope();
   }
+  const corpusGeneration = readOptionalCorpusGeneration(env);
   return {
     schemaVersion:
       typeof env.schemaVersion === "number"
         ? env.schemaVersion
         : FAMILY_NORMALIZED_SCHEMA_VERSION,
+    ...(corpusGeneration != null ? { corpusGeneration } : {}),
     members: { ...env.members },
   };
 }
@@ -221,6 +240,14 @@ export function normalizeFamilyMember(
       reason: "FamilyMember.track required",
     };
   }
+  if (!isFamilySourceSlot(input.sourceSlot)) {
+    return {
+      ok: false,
+      code: "INVALID_IDENTITY",
+      reason: "FamilyMember.sourceSlot required (S1|S2|S3)",
+    };
+  }
+  const sourceSlot = input.sourceSlot;
   const memberOrigin = parseMemberOrigin(input.memberOrigin);
   if (!memberOrigin) {
     return {
@@ -255,6 +282,7 @@ export function normalizeFamilyMember(
     },
     track,
     memberOrigin,
+    sourceSlot,
   };
   if (input.targetBall === "yellow" || input.targetBall === "red") {
     member.targetBall = input.targetBall;
@@ -508,23 +536,44 @@ export function commitFamilyMasterWithMembers(args: {
  * Replaces the entire normalized envelopes with the provided masters+members.
  * Does NOT touch positions_dataset or workspace_history.
  *
- * Atomicity note (Phase B): two localStorage keys cannot be updated in one
- * browser transaction. We validate the full replacement envelopes in memory
- * first; if a crash occurs between the two setItem calls, validateFamilyStore
- * detects orphans/FK issues and the incomplete stores are safely ignorable
- * while legacy positions_dataset remains SSOT (feature flag OFF).
+ * Phase 3A-333: both envelopes must be stamped with the same corpusGeneration
+ * (legacy positions_dataset_meta authority). Missing/invalid generation → fail
+ * before write so unstamped envelopes are not claimed fresh.
+ *
+ * Atomicity note: two localStorage keys cannot be updated in one browser
+ * transaction. Generation mismatch across keys is detectable via
+ * evaluateNormalizedCorpusFreshness (even when referential validate passes).
  */
 export function persistMigratedFamilyParts(args: {
   masters: FamilyMaster[];
   members: FamilyMember[];
+  /** Required shared generation from legacy corpus bump. */
+  corpusGeneration: number;
 }):
   | {
       ok: true;
       validation: FamilyStoreValidationOk;
+      corpusGeneration: number;
     }
   | FamilyStoreValidationFail {
+  const gen = args.corpusGeneration;
+  if (
+    typeof gen !== "number" ||
+    !Number.isInteger(gen) ||
+    !Number.isFinite(gen) ||
+    gen < 1
+  ) {
+    return {
+      ok: false,
+      code: "INVALID_IDENTITY",
+      reason: `persistMigratedFamilyParts requires corpusGeneration >= 1, got ${String(gen)}`,
+    };
+  }
+
   const mastersEnv = emptyFamilyMastersEnvelope();
   const membersEnv = emptyFamilyMembersEnvelope();
+  mastersEnv.corpusGeneration = gen;
+  membersEnv.corpusGeneration = gen;
 
   for (const raw of args.masters) {
     const normalized = normalizeFamilyMaster(raw);
@@ -564,7 +613,23 @@ export function persistMigratedFamilyParts(args: {
 
   saveMastersEnvelope(mastersEnv);
   saveMembersEnvelope(membersEnv);
-  return { ok: true, validation };
+  return { ok: true, validation, corpusGeneration: gen };
+}
+
+/**
+ * Test / diagnostics: write a single envelope raw (for partial-generation cases).
+ * Does not validate cross-store freshness.
+ */
+export function writeFamilyMastersEnvelopeForTests(
+  env: FamilyMastersEnvelope
+): void {
+  saveMastersEnvelope(env);
+}
+
+export function writeFamilyMembersEnvelopeForTests(
+  env: FamilyMembersEnvelope
+): void {
+  saveMembersEnvelope(env);
 }
 
 /** Test / diagnostics helper — does not clear positions_dataset or workspace_history. */
