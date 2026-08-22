@@ -51,3 +51,7 @@ _update_*.txt
 # Phase 4 local artifacts / caches (never commit)
 product_export/
 .npm-cache/
+
+# Agent/test ephemeral console captures (Phase 3A-353)
+frontend/vitest-*.txt
+frontend/grep-out.txt
