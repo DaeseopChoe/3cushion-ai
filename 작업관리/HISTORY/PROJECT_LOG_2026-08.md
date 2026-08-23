@@ -1,8 +1,60 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.40  
+Version : v1.41  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-23 (Phase 3A-358 — FINAL DERIVED CUE-IMPACT E2E VERIFICATION)
+
+## Mode
+
+**Ask / Agent (doc-only)** · verification record · production/dataset/localStorage **unchanged**
+
+## Final status
+
+| Item | Result |
+|------|--------|
+| **PHASE 3A-358** | **PASS** |
+| **Q7 LOCALDB HIT IDENTITY** | **VERIFIED** |
+| Production code modified | **NO** |
+| Dataset modified by verification | **NO** |
+
+## Verification flow
+
+1. Authored dataset SAVE → History **v001**
+2. Cue→Impact derived approval
+3. 10% / 20% / 30% derived records → approved corpus → History **v002**
+4. User DevTools: v001 records = **112** · v002 = **124** · delta = **+12**
+5. +12 = **4 source × {0.1, 0.2, 0.3}** derived steps
+6. LocalDB recall near ~30% Cue position
+7. `[RECALL_RESULT]` winner metadata confirmed directly
+
+## Final LocalDB winner evidence
+
+| Field | Value |
+|-------|--------|
+| positionId | `203174220360700390` |
+| slot | S1 |
+| memberOrigin | `DERIVED_CUE_IMPACT` |
+| derivedRule | `CUE_IMPACT_FIRST_30PCT` |
+| derivedStep | `cue_impact:t:0.300000` |
+| cue (Exact) | ≈ (20.321164872848954, 17.36227996072103) |
+| LocalDB query cue | ≈ (20.3, 17.5) |
+| distance (Ball3 L1) | ≈ 0.18121729433007516 |
+
+## Judgment
+
+LocalDB trajectory was not merely “similar to authored.” The selected winner itself is the **DERIVED_CUE_IMPACT / 30%** record, proven via `[RECALL_RESULT]` metadata. Prior 3A-358 Q7 **PARTIAL / NOT PROVEN** is closed as **VERIFIED**.
+
+## E2E verified chain
+
+authored SAVE → v001 History → derived approval → 10/20/30 Cue→Impact generation → approved corpus / v002 History → LocalDB working-corpus search → exact 30% derived winner recall
+
+## Next
+
+**PHASE 3A-359** — C3 이후 파생 데이터 생성/저장 설계 및 구현 검토
 
 ---
 
