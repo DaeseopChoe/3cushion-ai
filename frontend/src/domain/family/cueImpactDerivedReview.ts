@@ -38,6 +38,8 @@ import {
   type CueImpactSourceMember,
   type GenerateCueImpactFailureCode,
 } from "./generateCueImpactDerivedMembers";
+import { C3_PLUS_DERIVED_RULE } from "./generateC3PlusScoringDerivedMembers";
+import { parseC3PlusDerivedStepLabel } from "./sampleC3PlusScoringLine";
 
 /** Future AUTO_APPROVE is not implemented in this Phase. */
 export const CUE_IMPACT_DERIVED_APPROVAL_POLICY = "REVIEW_REQUIRED" as const;
@@ -63,6 +65,8 @@ export type CueImpactReviewFrozenSource = {
 };
 
 export type CueImpactDerivedReviewSession = {
+  /** Distinguishes Cue→Impact vs C3+ HUD; defaults to Cue when omitted (legacy). */
+  kind?: "CUE_IMPACT" | "C3_PLUS";
   policy: CueImpactDerivedApprovalPolicy;
   status: CueImpactDerivedReviewStatus;
   familyId: string;
@@ -175,14 +179,11 @@ export function resolveAuthoredTrackForReview(
   return parseFamilyTrack(authored.entry.track);
 }
 
-/** Marker anchor for preview / hit-test. Future C3+ will use balls.second. */
+/** Marker anchor for preview / hit-test. C3+ and Cue→Impact both preview cue samples. */
 export function resolveDerivedPreviewBall(
   candidate: Pick<LogicalFamilyMemberCandidate, "derivedRule" | "balls">
 ): Point {
-  if (candidate.derivedRule === CUE_IMPACT_DERIVED_RULE) {
-    return candidate.balls.cue;
-  }
-  // Future C3_PLUS_2RG → candidate.balls.second
+  void candidate.derivedRule;
   return candidate.balls.cue;
 }
 
@@ -348,7 +349,10 @@ export function cueImpactReviewPreviewMarkers(
     track: member.track,
     derivedRule: member.derivedRule,
     derivedStep: member.derivedStep,
-    tLabel: parseCueImpactDerivedStepT(member.derivedStep),
+    tLabel:
+      member.derivedRule === C3_PLUS_DERIVED_RULE
+        ? parseC3PlusDerivedStepLabel(member.derivedStep)
+        : parseCueImpactDerivedStepT(member.derivedStep),
     cue: { ...member.balls.cue },
     target: { ...member.balls.target },
     second: { ...member.balls.second },
@@ -443,6 +447,7 @@ export function createCueImpactDerivedReview(args: {
   const members = cloneJson(generated.members);
   const frozenSourcesByTrack = buildFrozenSourcesByTrack(sources);
   const session: CueImpactDerivedReviewSession = {
+    kind: "CUE_IMPACT",
     policy: CUE_IMPACT_DERIVED_APPROVAL_POLICY,
     status: "PENDING",
     familyId,

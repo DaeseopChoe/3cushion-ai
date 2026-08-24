@@ -67,6 +67,16 @@ export function encodeC3PlusInteriorDerivedStep(
   return `c3plus:seg:${segmentIndex}:t:${t.toFixed(STEP_FORMAT_DIGITS)}`;
 }
 
+/** Short HUD / marker label for a C3+ derivedStep. */
+export function parseC3PlusDerivedStepLabel(derivedStep: string | undefined): string {
+  if (!derivedStep) return "";
+  const vertex = /^c3plus:v:(.+)$/.exec(derivedStep.trim());
+  if (vertex) return vertex[1]!;
+  const seg = /^c3plus:seg:(\d+):t:(-?\d+(?:\.\d+)?)$/.exec(derivedStep.trim());
+  if (seg) return `s${seg[1]}@${Number(seg[2]).toFixed(2)}`;
+  return derivedStep;
+}
+
 /**
  * Hybrid: keep all scoring-line vertices; densify long segments (spacing ≤ 3).
  * Ensure at least MIN_SAMPLE_COUNT samples when line length allows.

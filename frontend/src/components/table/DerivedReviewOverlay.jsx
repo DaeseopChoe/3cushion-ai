@@ -9,6 +9,7 @@ export default function DerivedReviewOverlay({
   visible = true,
   viewingTrack,
   authoredTrack,
+  title = "Cue→Impact Derived Review",
   onTrackChange,
   onApprove,
   onCancel,
@@ -21,6 +22,7 @@ export default function DerivedReviewOverlay({
     <div
       className="derived-review-hud"
       data-derived-review-hud="1"
+      data-derived-review-kind={title}
       style={{
         position: "absolute",
         top: 12,
@@ -42,7 +44,7 @@ export default function DerivedReviewOverlay({
       onClick={(e) => e.stopPropagation()}
     >
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.02em" }}>
-        Cue→Impact Derived Review
+        {title}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
         <span style={{ fontSize: 11, opacity: 0.85 }}>Track</span>

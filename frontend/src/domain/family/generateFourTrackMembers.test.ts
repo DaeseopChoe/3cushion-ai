@@ -217,6 +217,41 @@ describe("generateFourTrackMembers", () => {
       first.set.symmetry.V.entry.memberId
     );
   });
+
+  it("transforms trajectoryExtensions onto SYMMETRY members", () => {
+    const e1 = { x: 80, y: 30 };
+    const result = generateFourTrackMembers({
+      balls: authoredBalls,
+      entry: authoredEntry({
+        trajectoryExtensions: {
+          extensionSchemaVersion: 1,
+          origin: { kind: "path_node", source: "corrected" },
+          items: [
+            {
+              id: "EXT-S1-01",
+              index: 1,
+              endpoint: e1,
+              userEdited: true,
+              createdAt: "t0",
+              updatedAt: "t0",
+            },
+          ],
+        },
+      }),
+    });
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.set.authored.entry.trajectoryExtensions?.items[0]?.endpoint).toEqual(
+      e1
+    );
+    expect(result.set.symmetry.H.entry.trajectoryExtensions?.items[0]?.endpoint).toEqual({
+      x: 80 - e1.x,
+      y: e1.y,
+    });
+    expect(result.set.symmetry.V.entry.trajectoryExtensions?.items[0]?.endpoint).toEqual({
+      x: e1.x,
+      y: 40 - e1.y,
+    });
+  });
 });
 
 describe("base track is the AUTHORED explicit track", () => {

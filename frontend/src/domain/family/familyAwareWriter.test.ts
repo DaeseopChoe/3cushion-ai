@@ -498,23 +498,34 @@ describe("generic family writer", () => {
     expect(result.code).toBe("INVALID_PROVENANCE");
   });
 
-  it("projects only temporary compatibility payload fields", () => {
+  it("projects compatibility payload and preserves member-specific geometry fields", () => {
+    const extensions = {
+      extensionSchemaVersion: 1 as const,
+      origin: { kind: "path_node" as const, source: "corrected" as const },
+      items: [
+        {
+          id: "EXT-S1-01",
+          index: 1 as const,
+          endpoint: { x: 80, y: 30 },
+          userEdited: true,
+          createdAt: "t0",
+          updatedAt: "t0",
+        },
+      ],
+    };
     const candidate = candidateFromEntry(authoredBalls, {
       familyId: "fm_proj",
       memberId: "mb_proj",
       reflectionOverride: { rail: "TOP", t: 0.25 },
-      trajectoryExtensions: {
-        start: { x: 1, y: 1 },
-        end: { x: 2, y: 2 },
-      },
+      trajectoryExtensions: extensions,
     });
     const projected = projectFamilyMemberToCompatibilityEntry(candidate, "S2");
     expect(projected.slot).toBe("S2");
     expect(projected.signature.systemId).toBe("5_half_system");
     expect(projected.sysInputs.CO_f).toBe(30);
     expect(projected.hpT).toEqual(canonicalHpt);
-    expect(projected.reflectionOverride).toBeUndefined();
-    expect(projected.trajectoryExtensions).toBeUndefined();
+    expect(projected.reflectionOverride).toEqual({ rail: "TOP", t: 0.25 });
+    expect(projected.trajectoryExtensions).toEqual(extensions);
   });
 
   it("rejects derived when generatedFromMemberId is not a same-family Track base", () => {

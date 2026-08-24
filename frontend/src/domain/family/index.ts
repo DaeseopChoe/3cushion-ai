@@ -21,6 +21,8 @@ export * from "./generateC3PlusScoringDerivedMembers";
 export * from "./c3PlusScoringPath";
 export * from "./sampleC3PlusScoringLine";
 export * from "./cueImpactDerivedReview";
+export * from "./c3PlusDerivedReview";
+export * from "./c3PlusFourTrackConsistency";
 export * from "./projectDerivedCandidateToRuntimeView";
 export * from "./familyNormalizedSchema";
 export * from "./familyNormalizedFlag";

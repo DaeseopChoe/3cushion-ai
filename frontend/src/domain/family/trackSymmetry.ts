@@ -8,6 +8,7 @@
  */
 
 import type { Ball3, Point, StrategyMeta } from "../positionSearchEngine";
+import type { TrajectoryExtensionPayload } from "../trajectoryExtension/model";
 import type { SymmetryOp } from "./familyIdentity";
 
 export const FAMILY_TRACKS = ["B2T_L", "B2T_R", "T2B_L", "T2B_R"] as const;
@@ -93,6 +94,57 @@ export function transformBall3(op: SymmetryOp, balls: Ball3): Ball3 {
     cue: transformPoint(op, balls.cue),
     target: transformPoint(op, balls.target),
     second: transformPoint(op, balls.second),
+  };
+}
+
+/**
+ * Symmetry op that maps `fromTrack` → `toTrack`, or null if unrelated / identity.
+ */
+export function symmetryOpBetweenTracks(
+  fromTrack: FamilyTrack,
+  toTrack: FamilyTrack
+): SymmetryOp | null {
+  if (fromTrack === toTrack) return null;
+  for (const op of ["H", "V", "RPI"] as const) {
+    if (mapFamilyTrack(fromTrack, op) === toTrack) return op;
+  }
+  return null;
+}
+
+/** Transform corrected pathNodes (nulls preserved). */
+export function transformPathNodes(
+  op: SymmetryOp,
+  pathNodes: ReadonlyArray<Point | null | undefined>
+): Array<Point | null> {
+  return pathNodes.map((p) => {
+    if (p == null) return null;
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+    return transformPoint(op, p);
+  });
+}
+
+/**
+ * Transform persisted trajectoryExtensions endpoints for a SYMMETRY track.
+ * Origin reference is path_node (not coordinates) — copied as-is.
+ */
+export function transformTrajectoryExtensions(
+  op: SymmetryOp,
+  payload: TrajectoryExtensionPayload
+): TrajectoryExtensionPayload {
+  return {
+    extensionSchemaVersion: payload.extensionSchemaVersion,
+    origin: {
+      kind: payload.origin.kind,
+      source: payload.origin.source,
+    },
+    items: payload.items.map((item) => ({
+      id: item.id,
+      index: item.index,
+      endpoint: transformPoint(op, item.endpoint),
+      userEdited: item.userEdited,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    })),
   };
 }
 

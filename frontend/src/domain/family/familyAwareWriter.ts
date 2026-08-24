@@ -351,6 +351,12 @@ export function familyWriteCandidateFromEntry(args: {
       : {}),
     ...(args.entry.meta ? { meta: cloneJson(args.entry.meta) } : {}),
     compatibility: extractTemporaryCompatibilityPayload(args.entry),
+    ...(args.entry.trajectoryExtensions
+      ? { trajectoryExtensions: cloneJson(args.entry.trajectoryExtensions) }
+      : {}),
+    ...(args.entry.reflectionOverride
+      ? { reflectionOverride: cloneJson(args.entry.reflectionOverride) }
+      : {}),
   };
 }
 

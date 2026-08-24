@@ -229,6 +229,11 @@ import {
   hitTestDerivedReviewMarker,
 } from "./domain/family/cueImpactDerivedReview";
 import {
+  approveC3PlusDerivedReview,
+  createC3PlusDerivedReview,
+  isC3PlusDerivedReviewSession,
+} from "./domain/family/c3PlusDerivedReview";
+import {
   projectDerivedCandidateToRuntimeView,
   projectFamilySourceMemberToRuntimeView,
 } from "./domain/family/projectDerivedCandidateToRuntimeView";
@@ -1393,6 +1398,8 @@ export default function App({
   const derivedReviewUi = useCueImpactDerivedReviewUi();
   const reviewBaselineSnapshotRef = useRef(null);
   const derivedReviewApproveInFlightRef = useRef(false);
+  /** Authored corrected pathNodes captured when Cue review opens (for later C3+). */
+  const c3PlusAuthoredPathNodesRef = useRef(null);
 
   const isDerivedReviewSessionPending =
     appMode === "ADMIN" && cueImpactDerivedReview?.status === "PENDING";
@@ -1935,23 +1942,62 @@ export default function App({
       }
       return;
     }
+    const nodes = extensionPathNodesRef.current;
+    c3PlusAuthoredPathNodesRef.current = Array.isArray(nodes)
+      ? nodes.map((p) => (p == null ? null : { x: p.x, y: p.y }))
+      : null;
     reviewBaselineSnapshotRef.current = captureDerivedReviewSnapshot();
     setCueImpactDerivedReview(review.session);
     derivedReviewUi.startReview(review.session.authoredTrack);
   }
 
-  function handleApproveCueImpactDerived() {
+  function openC3PlusDerivedPreview(nextDataset, familyId) {
+    if (appMode !== "ADMIN" || !familyId) return;
+    const authoredPathNodes = c3PlusAuthoredPathNodesRef.current;
+    if (!Array.isArray(authoredPathNodes) || authoredPathNodes.length === 0) {
+      console.warn("[C3_PLUS_REVIEW] missing authored pathNodes; skip");
+      return;
+    }
+    const review = createC3PlusDerivedReview({
+      dataset: Array.isArray(nextDataset) ? nextDataset : [],
+      familyId,
+      authoredPathNodes,
+    });
+    if (!review.ok) {
+      console.warn("[C3_PLUS_REVIEW] create failed", review.code, review.reason);
+      if (review.code === "FOUR_TRACK_INCONSISTENT") {
+        alert(`C3+ Scoring Review를 시작할 수 없습니다 (4-track 일관성 오류):\n${review.reason}`);
+      }
+      return;
+    }
+    if (review.skipped) {
+      console.info("[C3_PLUS_REVIEW] skipped", review.reason);
+      return;
+    }
+    reviewBaselineSnapshotRef.current = captureDerivedReviewSnapshot();
+    setCueImpactDerivedReview(review.session);
+    derivedReviewUi.startReview(review.session.authoredTrack);
+  }
+
+  function handleApproveDerivedReview() {
     if (!cueImpactDerivedReview || derivedReviewApproveInFlightRef.current) return;
     derivedReviewApproveInFlightRef.current = true;
     try {
-      const result = approveCueImpactDerivedReview({
-        dataset: Array.isArray(dataset) ? dataset : [],
-        session: cueImpactDerivedReview,
-      });
+      const isC3Plus = isC3PlusDerivedReviewSession(cueImpactDerivedReview);
+      const result = isC3Plus
+        ? approveC3PlusDerivedReview({
+            dataset: Array.isArray(dataset) ? dataset : [],
+            session: cueImpactDerivedReview,
+          })
+        : approveCueImpactDerivedReview({
+            dataset: Array.isArray(dataset) ? dataset : [],
+            session: cueImpactDerivedReview,
+          });
       if (!result.ok) {
         alert(`파생 승인 실패: ${result.reason}`);
         return;
       }
+      const familyId = cueImpactDerivedReview.familyId;
       commitDerivedApprovalDataset({
         resultDataset: result.dataset,
         baselineSnapshot: reviewBaselineSnapshotRef.current,
@@ -1964,18 +2010,29 @@ export default function App({
       derivedReviewUi.resetReviewUi();
       reviewBaselineSnapshotRef.current = null;
       hideBallPositionController();
+      // After Cue→Impact approval, open C3+ review (separate create; no Cue mix).
+      if (!isC3Plus && familyId) {
+        openC3PlusDerivedPreview(result.dataset, familyId);
+      }
     } finally {
       derivedReviewApproveInFlightRef.current = false;
     }
   }
 
   function handleCancelDerivedReview() {
+    const wasC3Plus = isC3PlusDerivedReviewSession(cueImpactDerivedReview);
+    const familyId = cueImpactDerivedReview?.familyId ?? null;
+    const datasetForC3 = Array.isArray(dataset) ? dataset : [];
     restoreDerivedReviewSnapshot(reviewBaselineSnapshotRef.current);
     setCueImpactDerivedReview(null);
     derivedReviewUi.resetReviewUi();
     reviewBaselineSnapshotRef.current = null;
     hideBallPositionController();
     closeOverlay();
+    // After Cue cancel, still offer C3+ on the saved 4-track family.
+    if (!wasC3Plus && familyId) {
+      openC3PlusDerivedPreview(datasetForC3, familyId);
+    }
   }
 
   /** Strategy Save — SRCH-005 + DS-002 → saveFlow.runSaveStrategy */
@@ -5297,8 +5354,13 @@ function handlePointerCancel(e) {
               visible={derivedReviewUi.overlayVisible}
               viewingTrack={derivedReviewUi.viewingTrack}
               authoredTrack={cueImpactDerivedReview?.authoredTrack}
+              title={
+                isC3PlusDerivedReviewSession(cueImpactDerivedReview)
+                  ? "C3+ Scoring Review"
+                  : "Cue→Impact Derived Review"
+              }
               onTrackChange={derivedReviewUi.setViewingTrack}
-              onApprove={handleApproveCueImpactDerived}
+              onApprove={handleApproveDerivedReview}
               onCancel={handleCancelDerivedReview}
               onHide={() => derivedReviewUi.setOverlayVisible(false)}
               approveDisabled={derivedReviewApproveInFlightRef.current}

@@ -7,8 +7,9 @@
  * SYMMETRY → SYMMETRY regeneration is forbidden.
  * System-specific routes are not FamilyTrack values.
  *
- * Common payload copied onto SYMMETRY entries is
- * TEMPORARY — FINAL FAMILY MASTER MIGRATION TARGET.
+ * Common payload (sys/hpt/…) is TEMPORARY compatibility duplication.
+ * reflectionOverride stays Member-specific (omitted on SYMMETRY).
+ * trajectoryExtensions are transformed onto SYMMETRY tracks (Phase 3A-359H).
  */
 
 import { mintAuthoringStrategyId } from "../authoringStrategyId";
@@ -35,9 +36,11 @@ import {
   parseFamilyTrack,
   transformBall3,
   transformStrategyMeta,
+  transformTrajectoryExtensions,
   validateBall3Centers,
   type FamilyTrack,
 } from "./trackSymmetry";
+import type { TrajectoryExtensionPayload } from "../trajectoryExtension/model";
 
 export type AuthoredFamilyMemberInput = {
   balls: Ball3;
@@ -81,6 +84,15 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function cloneExtensions(
+  payload: StrategyEntry["trajectoryExtensions"]
+): TrajectoryExtensionPayload | undefined {
+  if (!payload || !Array.isArray(payload.items) || payload.items.length === 0) {
+    return undefined;
+  }
+  return cloneJson(payload) as TrajectoryExtensionPayload;
+}
+
 function lineageMap(
   existing: ExistingFamilyMemberLineage[] | undefined
 ): Map<FamilySymmetryIdentity, ExistingFamilyMemberLineage> {
@@ -96,7 +108,8 @@ function lineageMap(
  *
  * TEMPORARY_COMPATIBILITY_DUPLICATION — not Family Master SSOT.
  * hpT is the AUTHORED canonical snapshot (not handedness-mirrored).
- * reflectionOverride / trajectoryExtensions are Member-specific and omitted.
+ * reflectionOverride is Member-specific and omitted.
+ * trajectoryExtensions are NOT in this common blob — applied per-member via transform.
  */
 function copyTemporaryCommonPayload(source: StrategyEntry): Pick<
   StrategyEntry,
@@ -189,6 +202,7 @@ export function generateFourTrackMembers(
   const authoredPositionId = createPositionId(authoredBalls);
   const common = copyTemporaryCommonPayload(authored.entry);
   const targetBall = authored.targetBall;
+  const authoredExtensions = cloneExtensions(authored.entry.trajectoryExtensions);
 
   const authoredEntry: StrategyEntry = {
     slot: authored.entry.slot,
@@ -199,6 +213,7 @@ export function generateFourTrackMembers(
     memberOrigin: "AUTHORED",
     authoringStrategyId: authoredAsid,
     meta: cloneJson(authored.entry.meta),
+    ...(authoredExtensions ? { trajectoryExtensions: authoredExtensions } : {}),
   };
 
   const authoredMember: FourTrackMember = {
@@ -221,6 +236,10 @@ export function generateFourTrackMembers(
     const ids = memberIdsFor(op, existing);
     const track = mapFamilyTrack(authoredTrack, op);
     const positionId = createPositionId(transformed);
+    const mirroredExtensions =
+      authoredExtensions != null
+        ? transformTrajectoryExtensions(op, authoredExtensions)
+        : undefined;
     const entry: StrategyEntry = {
       slot: authored.entry.slot,
       ...copyTemporaryCommonPayload(authored.entry),
@@ -232,6 +251,7 @@ export function generateFourTrackMembers(
       symmetryOp: op,
       authoringStrategyId: ids.authoringStrategyId,
       meta: transformStrategyMeta(op, authored.entry.meta, transformed),
+      ...(mirroredExtensions ? { trajectoryExtensions: mirroredExtensions } : {}),
     };
 
     symmetry[op] = {
