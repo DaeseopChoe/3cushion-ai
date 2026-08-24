@@ -4,9 +4,9 @@
 Document  : FAMILY_DATA_ARCHITECTURE_DRAFT.md
 Type      : Confirmed Design · partial implementation (uncommitted)
 Authority : Status/Design — consume via PROJECT_MASTER_INDEX
-Date      : 2026-08-18 · CURRENT status refreshed 2026-08-22
-Status    : CONFIRMED DESIGN · Phase 3A-349 controlled flag default ON (gated READ) · Phase 3A-347 parity PASS · Phase 3A-345 Exact-ball rematerialize + sourceSlot (schema v2) · Phase 3A-342 gated READ · Phase 3A-339 preserve KEEP positions+meta · FULL H3 DEFERRED · WRITE SSOT still positions_dataset
-Not       : Official Glossary (until GLOSSARY_SSOT cites) · family_* durable SSOT · Search Index · C3_PLUS · Approval History +0 · legacy retirement · Full H3 storage split · F12 content fingerprint
+Date      : 2026-08-18 · CURRENT status refreshed 2026-08-24
+Status    : CONFIRMED DESIGN · Phase 3A-359 Derived Data COMPLETE (Cue→Impact · C3+ scoring · Unified Review) · Phase 3A-349 controlled flag default ON (gated READ) · Phase 3A-347 parity PASS · Phase 3A-345 Exact-ball rematerialize + sourceSlot (schema v2) · Phase 3A-342 gated READ · Phase 3A-339 preserve KEEP positions+meta · FULL H3 DEFERRED · WRITE SSOT still positions_dataset
+Not       : Official Glossary (until GLOSSARY_SSOT cites) · family_* durable SSOT · Search Index · Approval History +0 · legacy retirement · Full H3 storage split · F12 content fingerprint
 ```
 
 > 본 문서는 Family 저장/생성 **TARGET 설계** + **CURRENT 구현 상태**를 함께 둔다.  
@@ -16,7 +16,7 @@ Not       : Official Glossary (until GLOSSARY_SSOT cites) · family_* durable SS
 
 ---
 
-## CURRENT IMPLEMENTATION STATUS — 2026-08-22 (Phase 3A-349)
+## CURRENT IMPLEMENTATION STATUS — 2026-08-24 (Derived Data COMPLETE · Phase 3A-349 READ)
 
 | Item | CURRENT |
 |------|---------|
@@ -33,7 +33,8 @@ Not       : Official Glossary (until GLOSSARY_SSOT cites) · family_* durable SS
 | **Old family schema** | v1 / missing `sourceSlot` → SCHEMA_MISMATCH / invalid → legacy fallback · rebuild on next SAVE |
 | **Compatibility hydrate** | via rematerializer — not member-per-record fan-out |
 | **Production parity regressions** | **PASS** (3A-347) · default-ON + OFF rollback (3A-349) |
-| **History** | SAVE **+1** · Approval **+1** · restore bumps gen, does **not** sync `family_*` |
+| **History** | SAVE **+1** · Approval **+1** (Cue∪C3+ one commit) · restore bumps gen, does **not** sync `family_*` |
+| **Derived Data (3A-359)** | **COMPLETE** — Cue→Impact · C3+ scoring · Unified Review · atomic 4-track · History/Recall PASS |
 | **Transitional H3** | **HARDENED** (3A-337) |
 | **Full H3** | **DEFERRED** |
 | **preserve_dataset** | **positions + meta KEEP** · **family_* DELETE** (3A-339) |
@@ -79,15 +80,18 @@ Sections below (§1–…) describe this **TARGET** design and earlier phase con
 | Family Master / Member **schema + shadow stores** | **IMPLEMENTED** (uncommitted · 3A-321…326) — physical keys exist; **not** production primary SSOT |
 | Family Master / Member as **production corpus SSOT** | **NOT YET** — still `positions_dataset` |
 | 4 Track auto-generation | **IMPLEMENTED** (uncommitted) — AUTHORED SAVE → 4-track writer |
-| Cue→Impact Derived Members | **IMPLEMENTED** (uncommitted · 3A-3E+) — Preview/Approve; Approval persists Derived to working corpus + shadow dual-write |
+| Cue→Impact Derived Members | **COMPLETE** (3A-359) — Unified Review; Approval persists Derived via existing writer + shadow dual-write |
 | SAVE auto-connect Derived (no review) | **NOT IMPLEMENTED** — REVIEW_REQUIRED remains |
-| C3_PLUS Derived + Search Index | **NOT IMPLEMENTED** |
+| C3+ Scoring Line Derived Members | **COMPLETE** (3A-359) — Hybrid sampling · display-only markers · atomic 4-track · Unified Review |
+| C3_PLUS Search Index | **NOT IMPLEMENTED** |
+| Unified Derived Review (Cue ∪ C3+) | **COMPLETE** (3A-359L/M) — one Approve write/commit · Cue interactive · C3+ display-only |
+| Atomic 4-track Derived consistency | **COMPLETE** — `FOUR_TRACK_INCONSISTENT` · ALL NO_SB = normal C3+ skip |
 | Admin commands 원본수정 / 파생수정 / 새로저장 | **CONFIRMED DESIGN** · NEXT Phase 4 |
 | Existing production derived / symmetry rules | **IMPLEMENTED / SSOT** — reuse; do not reinvent |
 | Envelope `cueSet` 1/3 · 1.5gr Sampling | **Architecture Freeze** — Search sampling; **≠** Family Cue→Impact 30% Derived |
 | Dataset 3계층 (Working / History / Published) | **IMPLEMENTED** — do not collapse History↔Export; Family Master+Members sit **above** later |
 | Family identity / 4-track SAVE / generic writer | **IMPLEMENTED** (uncommitted) — Phase 2C.1 + 3A-1/3A-2 |
-| Cue→Impact first 30% Derived generator | **IMPLEMENTED** (uncommitted · Phase 3A-3D) |
+| Cue→Impact first 30% Derived generator | **COMPLETE** (Phase 3A-3D · product lock 3A-359) |
 | Normalized shadow dual-write (SAVE/Approval/Import) | **IMPLEMENTED** (uncommitted · Phase 3A-326) |
 | Generation / freshness contract (`corpusGeneration`) | **IMPLEMENTED** (uncommitted · Phase 3A-333) — not READ enablement |
 | Generation failure-safety (invalidate → write → gen) | **IMPLEMENTED** (uncommitted · Phase 3A-335) |
@@ -503,9 +507,8 @@ Family A 자체는 유지. B가 생성하지 않는 영역의 A Members는 유�
 
 ### Phase 3 — Derived Members + Search Index
 
-- **3A-3D COMPLETE (uncommitted):** Cue→Impact first 30% adaptive Derived generator + generic writer integration.
-- **3A-3E COMPLETE (uncommitted):** generate → Preview → Approve same Candidate Set. SAVE 자동 Derived persistence 없음. REVIEW_REQUIRED only.
-- C3 이후 파생 **미구현**
+- **3A-3D/3E + 3A-359 COMPLETE:** Cue→Impact first 30% adaptive Derived + Unified Review/Approve (existing writer). SAVE 자동 Derived persistence 없음. REVIEW_REQUIRED only.
+- **3A-359 COMPLETE:** C3+ scoring-line Derived (Hybrid · display-only markers · atomic 4-track) + Unified Cue∪C3+ Review. Generators remain separate. Detail: LOG **3A-359M**.
 - Search Index **미구현**
 
 ### Phase 4 — Admin 3 Commands

@@ -173,13 +173,13 @@ Current Status
   ✅ Ball Fine Position Controller COMPLETE (2026-08-12 · 1eaf76c)
   ✅ Sample datasets (user-reported): 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 × 4 tracks
   ✅ BUG-A display-cap nearest-rail IMPLEMENTED (uncommitted)
+  ✅ Phase 3A-359 Derived Data COMPLETE (Cue→Impact · C3+ · Unified Review · 4-track · History/Recall PASS)
   BUG-B Reset/History stale = UNCONFIRMED (reproduce after BUG-A fix first)
-  Working tree: LARGE UNCOMMITTED — preserve; no Commit/Push unless user asks
+  Working tree: user datasets dirty/untracked — preserve; no Commit/Push of datasets
 
 Next Track
-  Family Data Architecture Phase 1 — Family Master / Member 현재 저장 구조 분석
-  Mode: [Cursor Mode: Ask] FIRST
-  Design: 작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md (CONFIRMED DESIGN · not implemented)
+  New independent Phase (derived-data feature work not required)
+  Cite: PROJECT_MASTER_INDEX · HISTORY/PROJECT_LOG_2026-08.md (3A-359M)
 ```
 
 | Item | Value |
@@ -198,11 +198,12 @@ Next Track
 | **Ball Fine Position Controller** | ✅ **COMPLETED** (2026-08-12 · Desktop PASS · Mobile Production PASS · Admin/User PASS · `1eaf76c`) |
 | **BUG-A** | ✅ **IMPLEMENTED** (uncommitted) — display-cap `resolveNearestRail` |
 | **BUG-B** | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 · 재현 전 코드 수정 금지 |
-| **Family Data Architecture** | **CONFIRMED DESIGN** · not implemented |
+| **Derived Data (3A-359)** | ✅ **COMPLETE** — Cue→Impact · C3+ · Unified Review · atomic 4-track · History/Recall PASS |
+| **Family Data Architecture** | Shadow / gated READ in progress (see MASTER · DRAFT) · WRITE SSOT still `positions_dataset` |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) — Family terms not yet adopted |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
-| **Next Track** | **Family Data Architecture Phase 1 (Ask)** |
-| **Next Track Readiness** | **READY FOR ASK** · 코드 수정 금지 |
+| **Next Track** | **New independent Phase** (derived-data work not required) |
+| **Next Track Readiness** | Cite MASTER Current Mission / Next Track |
 ### 구현 완료 범위
 
 | ✓ | Phase / Layer | Path |
@@ -462,19 +463,19 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : 2026-08-17 docs handoff — Family architecture + uncommitted authoring/display
-Baseline       : main · last production Fine Controller 1eaf76c · LARGE uncommitted working tree
-Current Status : Docs updated · BUG-A IMPLEMENTED (code uncommitted) · BUG-B UNCONFIRMED
-                 Family CONFIRMED DESIGN · not implemented
-Code change    : none in this docs session (preserve all existing uncommitted code)
-Docs           : MASTER v1.70 · LOG v1.29 · HANDOFF · FAMILY_DATA_ARCHITECTURE_DRAFT
-                 DISPLAY_BOUNDARY v1.4.1 note
-Next Session   : [Ask] Family Data Architecture Phase 1 — Master/Member storage analysis
-Readiness      : READY FOR ASK
-Guardrail      : Do not commit/push unless user asks · Do not touch working-tree product code
-                 Fine Controller closed · Envelope Freeze · detectRail global semantics stay
+Session ID     : 2026-08-24 — Phase 3A-359M Derived Data completion docs
+Baseline       : main · HEAD ba4d56c (unified Review) · ahead of origin · user datasets dirty/untracked
+Current Status : PHASE 3A-359 DERIVED DATA COMPLETE
+                 Cue→Impact COMPLETE · C3+ COMPLETE · Unified Review COMPLETE
+                 Atomic 4-track COMPLETE · manual UI PASS · History/Recall PASS
+Code change    : none in 359M (docs only)
+Docs           : MASTER v1.80 · LOG v1.47 · HANDOFF · FAMILY_DATA_ARCHITECTURE_DRAFT (status pointers)
+Next Session   : New independent Phase — derived-data feature work not required
+Readiness      : Cite MASTER / LOG 3A-359M
+Guardrail      : Do not touch user datasets · no Push unless asked · no new WRITE SSOT
+                 Generators stay separate · C3+ markers display-only · Cue markers interactive
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-17 · Next: Family Data Architecture Phase 1 Ask*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-24 · Derived Data COMPLETE · Next: new independent Phase*

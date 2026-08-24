@@ -1,8 +1,103 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.46  
+Version : v1.47  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-24 (Phase 3A-359M — Derived Data Completion Documentation / SSOT Update)
+
+## Mode
+
+**Agent** · docs only · no production code · no dataset · no schema/SYS/generator · no Push
+
+## Final product contract
+
+**DERIVED DATA IMPLEMENTATION: COMPLETE**
+
+| Lineage | Role | Status |
+|---------|------|--------|
+| **A. Cue→Impact** | 0.10 / 0.20 / 0.30 sampling · interactive white markers · Inspect | **COMPLETE** |
+| **B. C3+ scoring-line** | Hybrid sampling · display-only markers · variable system Origin | **COMPLETE** |
+| **Unified Derived Review** | One screen Cue ∪ C3+ · Cue interactive only · one Approve write/commit | **COMPLETE** |
+| **Atomic 4-track consistency** | Semantic parity across AUTHOR/SYMMETRY · no partial C3+ | **COMPLETE** |
+| **History / Recall / LocalDB** | Existing family writer / approval path · rematerialize | **PASS** (manual UI 2026-08-24) |
+
+Generators remain **independent** (no merge · no Cue member as C3+ source · no Cue `0.30` on C3+ Hybrid). Presentation may combine markers. No new WRITE SSOT / SYS / unnecessary schema.
+
+## Final user flow
+
+```text
+SAVE
+  → 원본 AUTHOR/SYMMETRY 4-track 확정
+  → Cue→Impact derived generation + C3+ derived generation
+  → Unified Derived Review (same PreviewLayer: Cue markers ∪ C3+ markers)
+  → Approve | Cancel
+
+Approve: Cue∪C3+ approved members → writeFamilyMembers → commitDerivedApprovalDataset ×1
+Cancel: discard pending review only · original SAVE kept · dataset unchanged
+```
+
+## Cue→Impact (unchanged contract)
+
+- Sampling 0.10 / 0.20 / 0.30 · white interactive markers · virtual cue coords · Inspect · trajectory replay
+- Marker meaning: Cue Ball progressing toward Impact
+
+## C3+ scoring-line contract
+
+- Scoring line = from after C3 through **first SB-hit segment endpoint** (not SB center cut)
+- Endpoint ∈ { system cushion/node · Extension1 · Extension2 handle } — no auto-extend past E2 to projected C8
+- Origin = last valid system node (not C6-fixed); variable tail C3→C4…C6 + optional E1/E2
+- Hybrid sampling: preserve vertices / system nodes / E1 / E2-as-endpoint · adaptive interior · spacing ≤ 3 Rg · min samples ≥ 3 · **no** Cue `VALID_FRACTION=0.30`
+- SB closest-point mandatory sample: **OPTIONAL / 미강제**
+- Markers: **DISPLAY-ONLY** (no hit-test · no Inspect · no cue move · no Cue→marker trajectory / dashed line)
+
+## Unified Review
+
+`createUnifiedDerivedReview` → Cue create + C3+ create · markers Cue∪C3+ · interaction Cue only · Approve one write/commit
+
+## 4-track consistency
+
+Four tracks = one family under symmetry — semantic results must match (SB presence, system tail, EXT1/2, scoring endpoint kind, scoring-line meaning). One-track mismatch → **`FOUR_TRACK_INCONSISTENT`**: no C3+ session / partial members / writer. **ALL NO_SB** → C3+ skip (not error); Cue→Impact Review continues.
+
+## Persistence
+
+Reuse existing family writer / approval / History. Durable: sampled members, balls, strategy, trajectoryExtensions, lineage, derivedRule/Step, sourceSlot, etc. Runtime/recomputed: candidate path, corrected pathNodes, scoring line, SB hit segment, endpoint judgment. No new WRITE SSOT.
+
+## Manual UI verification (2026-08-24) — PASS
+
+1–11: SAVE · Derived Review · Cue 0.10/0.20/0.30 · C3+ markers · same-screen union · Cue Inspect · C3+ display-only · Approve · persist · History/Recall · 4-track — **end-to-end PASS**
+
+## Phase 3A-359 series rollup
+
+| Phase | Summary |
+|-------|---------|
+| **3A-359E** | Variable-End C3+ scoring-line / sampling contract audit |
+| **3A-359F** | C3+ scoring derived member generator |
+| **3A-359G** | Review/Approval integration audit |
+| **3A-359H** | C3+ Review/Approval + atomic 4-track consistency |
+| **3A-359I** | C3+ Review/Inspect display audit |
+| **3A-359J** | C3+ Review display implementation |
+| **3A-359K** | Unified Cue→Impact + C3+ Review audit |
+| **3A-359L** | Unified Review implementation (`ba4d56c`) |
+| **3A-359M** | Completion documentation / SSOT (this entry) |
+
+## Final status
+
+```text
+PHASE 3A-359 DERIVED DATA: COMPLETE
+```
+
+Further derived-data feature work is **not required**. Next work starts as a **new independent Phase**.
+
+## Docs touched
+
+- `PROJECT_MASTER_INDEX.md` · `HISTORY/PROJECT_LOG_2026-08.md` · `CURSOR_SESSION_HANDOFF.md` · `FAMILY_DATA_ARCHITECTURE_DRAFT.md` (status pointers)
+
+## Code / dataset
+
+**No** production code · dataset · schema · SYS · generator changes in 359M.
 
 ---
 

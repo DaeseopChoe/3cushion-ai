@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.79  
-Last Updated: 2026-08-22  
+Version: 1.80  
+Last Updated: 2026-08-24  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -50,8 +50,9 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Phase **3A-359L** — Unified Cue→Impact + C3+ Derived Review **PASS** |
-| **Next Track** | Manual Admin UI check (SAVE → unified markers · Cue Inspect · C3+ display-only · Approve once) |
+| **Current Mission** | Phase **3A-359** Derived Data — **COMPLETE** (docs 3A-359M · impl through 3A-359L) |
+| **Next Track** | New independent Phase (derived-data feature work **not required**) |
+| **Derived Data** | Cue→Impact · C3+ Scoring Line · Unified Review · Atomic 4-track · History/Recall — see below |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
@@ -63,6 +64,29 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
 | **Mission 04 Authoring Integration** | ✅ **ABSORBED** (ADR · Missions 01–03 + `product pipeline`) |
+
+### Derived Data (Phase 3A-359) — COMPLETE
+
+> **Pointer only** — detail: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-359E…M**. Design/contracts: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` · Cue→Impact 0.30 · C3+ Hybrid (no 0.30) · `TRAJECTORY_EXTENSION_SSOT.md` (extensions COPY). Ops: `CURSOR_SESSION_HANDOFF.md`.
+
+```text
+Derived Data
+  ├─ Cue→Impact — COMPLETE
+  ├─ C3+ Scoring Line — COMPLETE
+  ├─ Unified Derived Review — COMPLETE
+  ├─ Atomic 4-track Consistency — COMPLETE
+  └─ History / Recall verification — PASS (manual UI 2026-08-24)
+```
+
+| Field | Value |
+|-------|--------|
+| **Product contract** | **DERIVED DATA IMPLEMENTATION: COMPLETE** |
+| **Generators** | Separate Cue→Impact vs C3+ (no merge · no Cue-as-C3+ source · no Cue 0.30 on C3+) |
+| **Review UX** | SAVE → unified Review · Cue markers interactive · C3+ markers **display-only** · Approve once |
+| **4-track** | Semantic parity required · `FOUR_TRACK_INCONSISTENT` blocks C3+ · ALL NO_SB = normal C3+ skip |
+| **Persistence** | Existing family writer / `commitDerivedApprovalDataset` · **no new WRITE SSOT** |
+| **Impl commits** | Generator `58816a1` · Review+atomic `0da4bb5` · display `082f2fa` · unified `ba4d56c` · docs 359M |
+| **Manual UI** | **PASS** 2026-08-24 (SAVE → Review → Approve → History/Recall · 4-track) |
 
 ### Phase 5 Mission 01 — Real Interpolation (Implemented)
 
@@ -1902,7 +1926,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `Architecture/` | **Structure Constitution** — Envelope Architecture Freeze (내용 수정 금지) |
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | **Session Operations** — Official Read Order · Startup Rules · Current / Next / Carry |
 | `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
-| `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` | **Family Data Architecture** — CONFIRMED DESIGN · CURRENT (3A-326 shadow dual-write) vs TARGET · production SSOT still `positions_dataset` · normalized READ **OFF** |
+| `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` | **Family Data Architecture** — CONFIRMED DESIGN · CURRENT vs TARGET · Derived Data **3A-359 COMPLETE** · production WRITE SSOT still `positions_dataset` · gated READ default ON |
 | `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4.1** — same-rail nearest-rail identity (BUG-A) · Reading Mode · C2 Handle |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
