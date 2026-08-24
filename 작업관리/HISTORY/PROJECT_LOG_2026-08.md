@@ -1,8 +1,44 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.45  
+Version : v1.46  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-24 (Phase 3A-359L — Unified Cue→Impact + C3+ Derived Review)
+
+## Mode
+
+**Agent** · presentation orchestration + atomic approval · generators separate · no Push · datasets protected
+
+## Status
+
+| Item | Result |
+|------|--------|
+| **PHASE 3A-359L** | **PASS** |
+| SAVE flow | Cue create + C3+ create → one Unified Review |
+| Markers | Both sets; Cue interactive; C3+ display-only |
+| Hit-test | `getUnifiedInteractiveMembers` = Cue only |
+| Approve | `writeFamilyMembers(cue∪c3)` + `commitDerivedApprovalDataset` ×1 |
+| Cancel | pending discard; original SAVE kept |
+| NO_SB | Cue-only Review + toast |
+| INCONSISTENT | Cue-only + alert; no C3+ members/write |
+| Case D (Cue fail) | fail-closed; no C3+-only Review |
+
+## Tests
+
+`unifiedDerivedReview.test.ts` + regressions — suite green
+
+## Files
+
+- `unifiedDerivedReview.ts` (+ test)
+- `App.jsx` · Overlay title `Derived Review`
+- MASTER INDEX · PROJECT_LOG
+
+## Next
+
+Manual Admin verification of unified markers / display-only C3+
 
 ---
 

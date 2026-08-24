@@ -50,8 +50,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Phase **3A-359J** — C3+ Review / Inspect Display Integration **PASS** |
-| **Next Track** | Manual Admin UI check (SAVE → Cue → C3+ markers → Inspect → Approve) · optional scoring-line highlight |
+| **Current Mission** | Phase **3A-359L** — Unified Cue→Impact + C3+ Derived Review **PASS** |
+| **Next Track** | Manual Admin UI check (SAVE → unified markers · Cue Inspect · C3+ display-only · Approve once) |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |

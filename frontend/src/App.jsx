@@ -220,20 +220,20 @@ import { runSaveStrategy } from "./application/flows/saveFlow";
 import { runCanonicalSave } from "./application/flows/historyFlow";
 import { commitDerivedApprovalDataset } from "./application/flows/derivedApprovalFlow";
 import {
-  approveCueImpactDerivedReview,
-  createCueImpactDerivedReview,
-  cueImpactReviewPreviewMarkers,
   DERIVED_REVIEW_MARKER_HIT_RADIUS_RG,
   frozenReviewSourceForTrack,
-  getVisibleReviewCandidates,
   hitTestDerivedReviewMarker,
 } from "./domain/family/cueImpactDerivedReview";
 import {
-  approveC3PlusDerivedReview,
-  classifyC3PlusReviewOpen,
-  createC3PlusDerivedReview,
-  isC3PlusDerivedReviewSession,
-} from "./domain/family/c3PlusDerivedReview";
+  approveUnifiedDerivedReview,
+  createUnifiedDerivedReview,
+  getUnifiedInteractiveMembers,
+  isUnifiedDerivedReviewBag,
+  notifyPayloadForUnifiedC3PlusFeedback,
+  unifiedPrimarySession,
+  unifiedReviewPreviewMarkers,
+} from "./domain/family/unifiedDerivedReview";
+import { CUE_IMPACT_MEMBER_ORIGIN } from "./domain/family/generateCueImpactDerivedMembers";
 import {
   projectDerivedCandidateToRuntimeView,
   projectFamilySourceMemberToRuntimeView,
@@ -1395,17 +1395,18 @@ export default function App({
   const [impactMode, setImpactMode] = useState("CONTACT");
   // "CONTACT": 타겟볼 접선 고정 (기본)
   // "FREE": 자유 이동 (더블클릭 후)
-  const [cueImpactDerivedReview, setCueImpactDerivedReview] = useState(null);
+  const [unifiedDerivedReview, setUnifiedDerivedReview] = useState(null);
   const derivedReviewUi = useCueImpactDerivedReviewUi();
   const reviewBaselineSnapshotRef = useRef(null);
   const derivedReviewApproveInFlightRef = useRef(false);
-  /** Authored corrected pathNodes captured when Cue review opens (for later C3+). */
+  /** Authored corrected pathNodes captured at SAVE / unified open for C3+. */
   const c3PlusAuthoredPathNodesRef = useRef(null);
 
   const isDerivedReviewSessionPending =
-    appMode === "ADMIN" && cueImpactDerivedReview?.status === "PENDING";
+    appMode === "ADMIN" && unifiedDerivedReview?.status === "PENDING";
   const isDerivedReviewInspectLocked =
     isDerivedReviewSessionPending && derivedReviewUi.isInspectActive;
+  const derivedReviewPrimarySession = unifiedPrimarySession(unifiedDerivedReview);
   
   // ============================================
   // USER MODE 코칭 표시 상태
@@ -1838,8 +1839,8 @@ export default function App({
   }
 
   function applyReviewSourceTrackDisplay(track) {
-    if (!cueImpactDerivedReview || derivedReviewUi.isInspectActive) return;
-    const source = frozenReviewSourceForTrack(cueImpactDerivedReview, track);
+    if (!derivedReviewPrimarySession || derivedReviewUi.isInspectActive) return;
+    const source = frozenReviewSourceForTrack(derivedReviewPrimarySession, track);
     if (!source) return;
     const projection = projectFamilySourceMemberToRuntimeView({
       entry: source.entry,
@@ -1867,7 +1868,9 @@ export default function App({
   }
 
   function handleEnterDerivedInspect(candidate) {
-    if (!cueImpactDerivedReview || !candidate) return;
+    if (!unifiedDerivedReview || !candidate) return;
+    // C3+ markers are display-only — never Inspect (defense in depth).
+    if (candidate.memberOrigin !== CUE_IMPACT_MEMBER_ORIGIN) return;
     const snapshot = captureDerivedReviewSnapshot();
     derivedReviewUi.setInspectSnapshot(snapshot);
     derivedReviewUi.enterInspect({
@@ -1878,7 +1881,7 @@ export default function App({
     hideBallPositionController();
     const projection = projectDerivedCandidateToRuntimeView({
       dataset: Array.isArray(dataset) ? dataset : [],
-      familyId: cueImpactDerivedReview.familyId,
+      familyId: unifiedDerivedReview.familyId,
       candidate,
       slot: shotEditor.activeSlot,
     });
@@ -1946,7 +1949,7 @@ export default function App({
   }
 
   function notifyC3PlusReviewOpenFeedback(feedback) {
-    if (feedback.kind === "opened") return;
+    if (!feedback || feedback.kind === "opened") return;
     if (feedback.kind === "skip_no_sb") {
       console.info("[C3_PLUS_REVIEW]", feedback.message);
       userToast.show(feedback.message, { durationMs: 4500 });
@@ -1956,73 +1959,45 @@ export default function App({
     alert(feedback.message);
   }
 
-  function openCueImpactDerivedPreview(nextDataset, familyId) {
+  /** SAVE 직후: Cue + C3+ 독립 생성 → 하나의 Unified Derived Review. */
+  function openUnifiedDerivedPreview(nextDataset, familyId) {
     if (appMode !== "ADMIN" || !familyId) return;
-    const review = createCueImpactDerivedReview({
-      dataset: Array.isArray(nextDataset) ? nextDataset : [],
-      familyId,
-    });
-    if (!review.ok) {
-      console.warn("[DERIVED_REVIEW] generate failed", review.code, review.reason);
-      setCueImpactDerivedReview(null);
-      derivedReviewUi.resetReviewUi();
-      if (review.code === "NO_AUTHORED_TRACK") {
-        alert(`Derived Review를 시작할 수 없습니다: ${review.reason}`);
-      }
-      return;
-    }
-    // Capture authored corrected pathNodes while trajectory is still the SAVE view.
     captureC3PlusAuthoredPathNodesFromRuntime();
-    reviewBaselineSnapshotRef.current = captureDerivedReviewSnapshot();
-    setCueImpactDerivedReview(review.session);
-    derivedReviewUi.startReview(review.session.authoredTrack);
-  }
-
-  function openC3PlusDerivedPreview(nextDataset, familyId) {
-    if (appMode !== "ADMIN" || !familyId) return;
-    // Prefer live corrected nodes if still available; else keep Cue-open capture.
-    captureC3PlusAuthoredPathNodesFromRuntime();
-    const authoredPathNodes = c3PlusAuthoredPathNodesRef.current;
-    if (!Array.isArray(authoredPathNodes) || authoredPathNodes.length === 0) {
-      notifyC3PlusReviewOpenFeedback(
-        classifyC3PlusReviewOpen({ missingPathNodes: true })
-      );
-      return;
-    }
-    const review = createC3PlusDerivedReview({
+    const authoredPathNodes = Array.isArray(c3PlusAuthoredPathNodesRef.current)
+      ? c3PlusAuthoredPathNodesRef.current
+      : [];
+    const review = createUnifiedDerivedReview({
       dataset: Array.isArray(nextDataset) ? nextDataset : [],
       familyId,
       authoredPathNodes,
     });
-    const feedback = classifyC3PlusReviewOpen({ result: review });
-    if (feedback.kind !== "opened") {
-      notifyC3PlusReviewOpenFeedback(feedback);
+    if (!review.ok) {
+      console.warn("[UNIFIED_DERIVED_REVIEW] create failed", review.code, review.reason);
+      setUnifiedDerivedReview(null);
+      derivedReviewUi.resetReviewUi();
+      alert(`Derived Review를 시작할 수 없습니다: ${review.reason}`);
       return;
     }
+    const c3Fb = notifyPayloadForUnifiedC3PlusFeedback(review.bag);
+    if (c3Fb) notifyC3PlusReviewOpenFeedback(c3Fb);
     reviewBaselineSnapshotRef.current = captureDerivedReviewSnapshot();
-    setCueImpactDerivedReview(review.session);
-    derivedReviewUi.startReview(review.session.authoredTrack);
+    setUnifiedDerivedReview(review.bag);
+    derivedReviewUi.startReview(review.bag.authoredTrack);
   }
 
   function handleApproveDerivedReview() {
-    if (!cueImpactDerivedReview || derivedReviewApproveInFlightRef.current) return;
+    if (!isUnifiedDerivedReviewBag(unifiedDerivedReview) || derivedReviewApproveInFlightRef.current)
+      return;
     derivedReviewApproveInFlightRef.current = true;
     try {
-      const isC3Plus = isC3PlusDerivedReviewSession(cueImpactDerivedReview);
-      const result = isC3Plus
-        ? approveC3PlusDerivedReview({
-            dataset: Array.isArray(dataset) ? dataset : [],
-            session: cueImpactDerivedReview,
-          })
-        : approveCueImpactDerivedReview({
-            dataset: Array.isArray(dataset) ? dataset : [],
-            session: cueImpactDerivedReview,
-          });
+      const result = approveUnifiedDerivedReview({
+        dataset: Array.isArray(dataset) ? dataset : [],
+        bag: unifiedDerivedReview,
+      });
       if (!result.ok) {
         alert(`파생 승인 실패: ${result.reason}`);
         return;
       }
-      const familyId = cueImpactDerivedReview.familyId;
       commitDerivedApprovalDataset({
         resultDataset: result.dataset,
         baselineSnapshot: reviewBaselineSnapshotRef.current,
@@ -2031,33 +2006,22 @@ export default function App({
         restoreDerivedReviewSnapshot,
         commitWorkspaceHistoryWithStrategyDataset,
       });
-      setCueImpactDerivedReview(null);
+      setUnifiedDerivedReview(null);
       derivedReviewUi.resetReviewUi();
       reviewBaselineSnapshotRef.current = null;
       hideBallPositionController();
-      // After Cue→Impact approval, open C3+ review (separate create; no Cue mix).
-      if (!isC3Plus && familyId) {
-        openC3PlusDerivedPreview(result.dataset, familyId);
-      }
     } finally {
       derivedReviewApproveInFlightRef.current = false;
     }
   }
 
   function handleCancelDerivedReview() {
-    const wasC3Plus = isC3PlusDerivedReviewSession(cueImpactDerivedReview);
-    const familyId = cueImpactDerivedReview?.familyId ?? null;
-    const datasetForC3 = Array.isArray(dataset) ? dataset : [];
     restoreDerivedReviewSnapshot(reviewBaselineSnapshotRef.current);
-    setCueImpactDerivedReview(null);
+    setUnifiedDerivedReview(null);
     derivedReviewUi.resetReviewUi();
     reviewBaselineSnapshotRef.current = null;
     hideBallPositionController();
     closeOverlay();
-    // After Cue cancel, still offer C3+ on the saved 4-track family.
-    if (!wasC3Plus && familyId) {
-      openC3PlusDerivedPreview(datasetForC3, familyId);
-    }
   }
 
   /** Strategy Save — SRCH-005 + DS-002 → saveFlow.runSaveStrategy */
@@ -2091,7 +2055,7 @@ export default function App({
       resolveAnchorsData,
     });
     if (result?.ok && result.fourTrackWritten && result.familyId && result.updated) {
-      openCueImpactDerivedPreview(result.updated, result.familyId);
+      openUnifiedDerivedPreview(result.updated, result.familyId);
     }
     return result;
   }
@@ -2129,7 +2093,7 @@ export default function App({
       resolveAnchorsData,
     });
     if (result?.ok && result.fourTrackWritten && result.familyId && result.updated) {
-      openCueImpactDerivedPreview(result.updated, result.familyId);
+      openUnifiedDerivedPreview(result.updated, result.familyId);
     }
   }
 
@@ -2212,7 +2176,7 @@ export default function App({
 
     setIsAdminInputSessionActive(true);
     setIsSaved(false);
-    setCueImpactDerivedReview(null);
+    setUnifiedDerivedReview(null);
     derivedReviewUi.resetReviewUi();
     reviewBaselineSnapshotRef.current = null;
   }, [appMode, actions, targetColor, shotEditor.activeSlot, derivedReviewUi]);
@@ -2780,7 +2744,7 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     if (
       appMode !== "ADMIN" ||
-      cueImpactDerivedReview?.status !== "PENDING" ||
+      unifiedDerivedReview?.status !== "PENDING" ||
       derivedReviewUi.reviewMode !== "REVIEW" ||
       !derivedReviewUi.viewingTrack
     ) {
@@ -2789,8 +2753,8 @@ function handleJoyPadPointerCancel(e) {
     applyReviewSourceTrackDisplay(derivedReviewUi.viewingTrack);
   }, [
     appMode,
-    cueImpactDerivedReview?.status,
-    cueImpactDerivedReview?.familyId,
+    unifiedDerivedReview?.status,
+    unifiedDerivedReview?.familyId,
     derivedReviewUi.reviewMode,
     derivedReviewUi.viewingTrack,
   ]);
@@ -3477,7 +3441,7 @@ function handleJoyPadPointerCancel(e) {
       derivedReviewUi.viewingTrack
     ) {
       const frozen = frozenReviewSourceForTrack(
-        cueImpactDerivedReview,
+        derivedReviewPrimarySession,
         derivedReviewUi.viewingTrack
       );
       if (frozen) return frozen.targetBall === "red" ? frozen.balls.second : frozen.balls.target;
@@ -3489,7 +3453,7 @@ function handleJoyPadPointerCancel(e) {
     isDerivedReviewSessionPending,
     derivedReviewUi.reviewMode,
     derivedReviewUi.viewingTrack,
-    cueImpactDerivedReview,
+    derivedReviewPrimarySession,
   ]);
 
   /** USER: 공략 선택 후 coaching/labels gate (기준값 토글과 별도, rail/hydrate 비변경) */
@@ -3833,7 +3797,7 @@ function captureBaselineLabelSlotSnapshot(ssotValues) {
 
 function handlePointerDown(e) {
   const reviewPending =
-    appMode === "ADMIN" && cueImpactDerivedReview?.status === "PENDING";
+    appMode === "ADMIN" && unifiedDerivedReview?.status === "PENDING";
   const inDerivedReview =
     reviewPending && derivedReviewUi.reviewMode === "REVIEW";
   const inDerivedInspect =
@@ -3845,13 +3809,13 @@ function handlePointerDown(e) {
   const pointerRgEarly = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
 
   if (inDerivedReview && pointerRgEarly) {
-    const visible = getVisibleReviewCandidates(
-      cueImpactDerivedReview,
+    const interactive = getUnifiedInteractiveMembers(
+      unifiedDerivedReview,
       derivedReviewUi.viewingTrack
     );
     const hitCandidate = hitTestDerivedReviewMarker({
       pointerRg: pointerRgEarly,
-      candidates: visible,
+      candidates: interactive,
       hitRadiusRg: DERIVED_REVIEW_MARKER_HIT_RADIUS_RG,
     });
     if (hitCandidate) {
@@ -5184,8 +5148,8 @@ function handlePointerCancel(e) {
         isDerivedReviewSessionPending &&
         derivedReviewUi.reviewMode === "REVIEW" && (
         <DerivedCandidatePreviewLayer
-          markers={cueImpactReviewPreviewMarkers(
-            cueImpactDerivedReview,
+          markers={unifiedReviewPreviewMarkers(
+            unifiedDerivedReview,
             derivedReviewUi.viewingTrack
           )}
           scale={SCALE}
@@ -5378,17 +5342,9 @@ function handlePointerCancel(e) {
             <DerivedReviewOverlay
               visible={derivedReviewUi.overlayVisible}
               viewingTrack={derivedReviewUi.viewingTrack}
-              authoredTrack={cueImpactDerivedReview?.authoredTrack}
-              title={
-                isC3PlusDerivedReviewSession(cueImpactDerivedReview)
-                  ? "C3+ Scoring Review"
-                  : "Cue→Impact Derived Review"
-              }
-              reviewKind={
-                isC3PlusDerivedReviewSession(cueImpactDerivedReview)
-                  ? "C3_PLUS"
-                  : "CUE_IMPACT"
-              }
+              authoredTrack={unifiedDerivedReview?.authoredTrack}
+              title="Derived Review"
+              reviewKind="UNIFIED"
               onTrackChange={derivedReviewUi.setViewingTrack}
               onApprove={handleApproveDerivedReview}
               onCancel={handleCancelDerivedReview}
