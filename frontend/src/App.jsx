@@ -230,6 +230,7 @@ import {
 } from "./domain/family/cueImpactDerivedReview";
 import {
   approveC3PlusDerivedReview,
+  classifyC3PlusReviewOpen,
   createC3PlusDerivedReview,
   isC3PlusDerivedReviewSession,
 } from "./domain/family/c3PlusDerivedReview";
@@ -1857,6 +1858,10 @@ export default function App({
         ...projection.adminPatch.sys,
       },
     }));
+    // Prevent stale Extension draft when source track has no payload.
+    const ext = projection.entry?.trajectoryExtensions ?? null;
+    setTrajectoryExtensionDraft(ext ? payloadToDraft(ext) : null);
+    if (!ext) setExtensionActiveHandle(null);
     setAdminTableLayersVisible(true);
     hydrateSlotRuntime(shotEditor.activeSlot);
   }
@@ -1889,6 +1894,10 @@ export default function App({
         ...projection.adminPatch.sys,
       },
     }));
+    // C3+ COPY extensions hydrate; Cue (no extensions) must clear prior draft.
+    const ext = projection.entry?.trajectoryExtensions ?? null;
+    setTrajectoryExtensionDraft(ext ? payloadToDraft(ext) : null);
+    if (!ext) setExtensionActiveHandle(null);
     setAdminTableLayersVisible(true);
     hydrateSlotRuntime(shotEditor.activeSlot);
   }
@@ -1927,6 +1936,26 @@ export default function App({
     isAdminTargetReady,
   });
 
+  function captureC3PlusAuthoredPathNodesFromRuntime() {
+    const nodes = extensionPathNodesRef.current;
+    if (!Array.isArray(nodes) || nodes.length === 0) return false;
+    c3PlusAuthoredPathNodesRef.current = nodes.map((p) =>
+      p == null ? null : { x: p.x, y: p.y }
+    );
+    return true;
+  }
+
+  function notifyC3PlusReviewOpenFeedback(feedback) {
+    if (feedback.kind === "opened") return;
+    if (feedback.kind === "skip_no_sb") {
+      console.info("[C3_PLUS_REVIEW]", feedback.message);
+      userToast.show(feedback.message, { durationMs: 4500 });
+      return;
+    }
+    console.warn("[C3_PLUS_REVIEW]", feedback.code, feedback.message);
+    alert(feedback.message);
+  }
+
   function openCueImpactDerivedPreview(nextDataset, familyId) {
     if (appMode !== "ADMIN" || !familyId) return;
     const review = createCueImpactDerivedReview({
@@ -1942,10 +1971,8 @@ export default function App({
       }
       return;
     }
-    const nodes = extensionPathNodesRef.current;
-    c3PlusAuthoredPathNodesRef.current = Array.isArray(nodes)
-      ? nodes.map((p) => (p == null ? null : { x: p.x, y: p.y }))
-      : null;
+    // Capture authored corrected pathNodes while trajectory is still the SAVE view.
+    captureC3PlusAuthoredPathNodesFromRuntime();
     reviewBaselineSnapshotRef.current = captureDerivedReviewSnapshot();
     setCueImpactDerivedReview(review.session);
     derivedReviewUi.startReview(review.session.authoredTrack);
@@ -1953,9 +1980,13 @@ export default function App({
 
   function openC3PlusDerivedPreview(nextDataset, familyId) {
     if (appMode !== "ADMIN" || !familyId) return;
+    // Prefer live corrected nodes if still available; else keep Cue-open capture.
+    captureC3PlusAuthoredPathNodesFromRuntime();
     const authoredPathNodes = c3PlusAuthoredPathNodesRef.current;
     if (!Array.isArray(authoredPathNodes) || authoredPathNodes.length === 0) {
-      console.warn("[C3_PLUS_REVIEW] missing authored pathNodes; skip");
+      notifyC3PlusReviewOpenFeedback(
+        classifyC3PlusReviewOpen({ missingPathNodes: true })
+      );
       return;
     }
     const review = createC3PlusDerivedReview({
@@ -1963,15 +1994,9 @@ export default function App({
       familyId,
       authoredPathNodes,
     });
-    if (!review.ok) {
-      console.warn("[C3_PLUS_REVIEW] create failed", review.code, review.reason);
-      if (review.code === "FOUR_TRACK_INCONSISTENT") {
-        alert(`C3+ Scoring Review를 시작할 수 없습니다 (4-track 일관성 오류):\n${review.reason}`);
-      }
-      return;
-    }
-    if (review.skipped) {
-      console.info("[C3_PLUS_REVIEW] skipped", review.reason);
+    const feedback = classifyC3PlusReviewOpen({ result: review });
+    if (feedback.kind !== "opened") {
+      notifyC3PlusReviewOpenFeedback(feedback);
       return;
     }
     reviewBaselineSnapshotRef.current = captureDerivedReviewSnapshot();
@@ -5358,6 +5383,11 @@ function handlePointerCancel(e) {
                 isC3PlusDerivedReviewSession(cueImpactDerivedReview)
                   ? "C3+ Scoring Review"
                   : "Cue→Impact Derived Review"
+              }
+              reviewKind={
+                isC3PlusDerivedReviewSession(cueImpactDerivedReview)
+                  ? "C3_PLUS"
+                  : "CUE_IMPACT"
               }
               onTrackChange={derivedReviewUi.setViewingTrack}
               onApprove={handleApproveDerivedReview}

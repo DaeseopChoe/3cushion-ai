@@ -10,6 +10,7 @@ export default function DerivedReviewOverlay({
   viewingTrack,
   authoredTrack,
   title = "Cue→Impact Derived Review",
+  reviewKind = "CUE_IMPACT",
   onTrackChange,
   onApprove,
   onCancel,
@@ -22,7 +23,8 @@ export default function DerivedReviewOverlay({
     <div
       className="derived-review-hud"
       data-derived-review-hud="1"
-      data-derived-review-kind={title}
+      data-derived-review-kind={reviewKind}
+      data-derived-review-title={title}
       style={{
         position: "absolute",
         top: 12,

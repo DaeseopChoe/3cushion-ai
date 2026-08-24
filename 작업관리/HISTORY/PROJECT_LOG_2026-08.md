@@ -1,8 +1,42 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.44  
+Version : v1.45  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-24 (Phase 3A-359J — C3+ Review / Inspect Display Integration)
+
+## Mode
+
+**Agent** · App open feedback + pathNodes capture + Inspect extension draft clear · no generator change · no Push · datasets protected
+
+## Status
+
+| Item | Result |
+|------|--------|
+| **PHASE 3A-359J** | **PASS** |
+| Marker | Existing `DerivedCandidatePreviewLayer` + `balls.cue` (no new renderer) |
+| HUD | `C3+ Scoring Review` · `data-derived-review-kind=C3_PLUS` |
+| Open feedback | `classifyC3PlusReviewOpen` — NO_SB toast vs consistency/pathNodes alert |
+| pathNodes | Capture at Cue open + refresh before C3+ open |
+| Inspect draft | Sync/clear `trajectoryExtensionDraft` from candidate payload |
+| Generator / 4-track / 0.30 | Unchanged |
+
+## Tests
+
+`c3PlusDerivedReview.test.ts` (+359J display contracts) · Cue/derived regressions — **138 PASS** in suite run
+
+## Files
+
+- `App.jsx` · `DerivedReviewOverlay.jsx`
+- `c3PlusDerivedReview.ts` (`classifyC3PlusReviewOpen`) · test
+- MASTER INDEX · PROJECT_LOG
+
+## Next
+
+Manual Admin UI verification · optional scoring-line overlay polish
 
 ---
 

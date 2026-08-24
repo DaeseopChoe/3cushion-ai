@@ -465,3 +465,57 @@ export function isC3PlusDerivedReviewSession(
     (session as C3PlusDerivedReviewSession).kind === C3_PLUS_DERIVED_REVIEW_KIND
   );
 }
+
+/** User-facing open result for App toast/alert — NO_SB ≠ consistency error. */
+export type C3PlusReviewOpenFeedback =
+  | { kind: "opened" }
+  | { kind: "skip_no_sb"; message: string }
+  | { kind: "error"; code: string; message: string };
+
+/**
+ * Classify createC3PlusDerivedReview / pathNodes outcomes for Admin feedback.
+ * Does not mutate dataset. Safe for unit tests without App.
+ */
+export function classifyC3PlusReviewOpen(args: {
+  missingPathNodes?: boolean;
+  result?: CreateC3PlusDerivedReviewResult | null;
+}): C3PlusReviewOpenFeedback {
+  if (args.missingPathNodes) {
+    return {
+      kind: "error",
+      code: "MISSING_PATH_NODES",
+      message:
+        "C3+ Scoring Review를 시작할 수 없습니다: 궤적 pathNodes를 확보하지 못했습니다.",
+    };
+  }
+  const result = args.result;
+  if (!result) {
+    return {
+      kind: "error",
+      code: "UNKNOWN",
+      message: "C3+ Scoring Review를 시작할 수 없습니다.",
+    };
+  }
+  if (result.ok && result.skipped) {
+    return {
+      kind: "skip_no_sb",
+      message:
+        "C3+ 파생 후보 없음: 4-track 모두 Second Ball이 득점 경로에 없습니다 (정상 skip).",
+    };
+  }
+  if (result.ok) {
+    return { kind: "opened" };
+  }
+  if (result.code === C3_PLUS_FOUR_TRACK_INCONSISTENT) {
+    return {
+      kind: "error",
+      code: result.code,
+      message: `C3+ Scoring Review를 시작할 수 없습니다 (4-track 일관성 오류):\n${result.reason}`,
+    };
+  }
+  return {
+    kind: "error",
+    code: result.code,
+    message: `C3+ Scoring Review를 시작할 수 없습니다 (${result.code}):\n${result.reason}`,
+  };
+}

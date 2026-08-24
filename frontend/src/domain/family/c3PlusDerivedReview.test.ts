@@ -12,6 +12,7 @@ import {
 } from "./familyAwareWriter";
 import {
   approveC3PlusDerivedReview,
+  classifyC3PlusReviewOpen,
   createC3PlusDerivedReview,
   isC3PlusDerivedReviewSession,
   prepareC3PlusFourTrackSources,
@@ -24,8 +25,12 @@ import {
   C3_PLUS_DERIVED_RULE,
   C3_PLUS_MEMBER_ORIGIN,
 } from "./generateC3PlusScoringDerivedMembers";
-import { createCueImpactDerivedReview } from "./cueImpactDerivedReview";
+import {
+  createCueImpactDerivedReview,
+  cueImpactReviewPreviewMarkers,
+} from "./cueImpactDerivedReview";
 import { CUE_IMPACT_MEMBER_ORIGIN } from "./generateCueImpactDerivedMembers";
+import { projectDerivedCandidateToRuntimeView } from "./projectDerivedCandidateToRuntimeView";
 import {
   FAMILY_TRACKS,
   transformPoint,
@@ -610,5 +615,113 @@ describe("writeFamilyMembers idempotent C3+ re-approve lineage", () => {
       members: second.session.members,
     });
     expect(rewritten.ok).toBe(true);
+  });
+});
+
+describe("Phase 3A-359J — C3+ Review display contracts", () => {
+  const pathC4 = pathNodesThrough([
+    { id: "C3", p: pt(40, 0) },
+    { id: "C4", p: pt(0, 20) },
+  ]);
+  const ballsHit = {
+    cue: pt(10, 8),
+    target: pt(30, 12),
+    second: pt(20, 10),
+  };
+
+  it("A: opens PENDING C3+ session with kind + members", () => {
+    const written = persistFourTrack({ balls: ballsHit });
+    const review = prepareFromDataset(written.dataset, pathC4);
+    expect(review.ok && !review.skipped).toBe(true);
+    if (!review.ok || review.skipped) return;
+    expect(review.session.status).toBe("PENDING");
+    expect(review.session.kind).toBe("C3_PLUS");
+    expect(isC3PlusDerivedReviewSession(review.session)).toBe(true);
+    expect(review.session.members.length).toBeGreaterThan(0);
+    expect(classifyC3PlusReviewOpen({ result: review }).kind).toBe("opened");
+  });
+
+  it("B: markers use balls.cue and C3+ labels (not Cue 0.30 t)", () => {
+    const written = persistFourTrack({ balls: ballsHit });
+    const review = prepareFromDataset(written.dataset, pathC4);
+    if (!review.ok || review.skipped) throw new Error("expected session");
+    const markers = cueImpactReviewPreviewMarkers(review.session, "B2T_L");
+    expect(markers.length).toBeGreaterThan(0);
+    for (const m of markers) {
+      expect(m.derivedRule).toBe(C3_PLUS_DERIVED_RULE);
+      expect(m.cue).toEqual(
+        review.session.members.find((x) => x.memberId === m.memberId)!.balls.cue
+      );
+      expect(m.tLabel).not.toMatch(/^0\.\d+$/);
+      expect(String(m.derivedStep)).toMatch(/^c3plus:/);
+    }
+  });
+
+  it("C: Inspect projection hydrates extensions and clears when absent", () => {
+    const path = pathNodesThrough([
+      { id: "C3", p: pt(40, 0) },
+      { id: "C4", p: pt(80, 10) },
+      { id: "C5", p: pt(60, 40) },
+    ]);
+    const written = persistFourTrack({
+      balls: { cue: pt(10, 8), target: pt(30, 12), second: pt(40, 39) },
+      extensions: extPayload(pt(20, 40)),
+    });
+    const withExt = prepareFromDataset(written.dataset, path);
+    if (!withExt.ok || withExt.skipped) throw new Error("ext session");
+    const projected = projectDerivedCandidateToRuntimeView({
+      dataset: written.dataset,
+      familyId: "fm_c3h",
+      candidate: withExt.session.members[0]!,
+      slot: "S1",
+    });
+    expect(projected.entry.trajectoryExtensions?.items?.length).toBe(1);
+    expect(projected.balls.cue).toEqual(withExt.session.members[0]!.balls.cue);
+
+    const noExtWritten = persistFourTrack({ balls: ballsHit });
+    const noExt = prepareFromDataset(noExtWritten.dataset, pathC4);
+    if (!noExt.ok || noExt.skipped) throw new Error("noExt session");
+    const projectedBare = projectDerivedCandidateToRuntimeView({
+      dataset: noExtWritten.dataset,
+      familyId: "fm_c3h",
+      candidate: noExt.session.members[0]!,
+      slot: "S1",
+    });
+    expect(projectedBare.entry.trajectoryExtensions).toBeUndefined();
+  });
+
+  it("F/G: classify distinguishes NO_SB skip vs consistency error vs missing path", () => {
+    expect(classifyC3PlusReviewOpen({ missingPathNodes: true }).kind).toBe(
+      "error"
+    );
+    expect(classifyC3PlusReviewOpen({ missingPathNodes: true }).code).toBe(
+      "MISSING_PATH_NODES"
+    );
+
+    const noSb = persistFourTrack({
+      balls: {
+        cue: pt(10, 8),
+        target: pt(30, 12),
+        second: pt(70, 35),
+      },
+    });
+    const skip = prepareFromDataset(noSb.dataset, pathC4);
+    expect(skip.ok && skip.skipped).toBe(true);
+    if (!skip.ok || !skip.skipped) return;
+    const skipFb = classifyC3PlusReviewOpen({ result: skip });
+    expect(skipFb.kind).toBe("skip_no_sb");
+
+    const inconsistent = classifyC3PlusReviewOpen({
+      result: {
+        ok: false,
+        code: "FOUR_TRACK_INCONSISTENT",
+        reason: "Second Ball hit inconsistent",
+        dataset: [],
+      },
+    });
+    expect(inconsistent.kind).toBe("error");
+    expect(inconsistent.code).toBe("FOUR_TRACK_INCONSISTENT");
+    expect(inconsistent.message).toMatch(/일관성/);
+    expect(inconsistent.message).not.toMatch(/정상 skip/);
   });
 });
