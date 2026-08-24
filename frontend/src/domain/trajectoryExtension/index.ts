@@ -106,3 +106,16 @@ export {
   updateDraftEndpoint,
   type ExtensionHandleMark,
 } from "./endpointEdit";
+
+/** Phase 3A-359C — Manual Extension E1/E2 → physical C7/C8 (read-only). */
+export {
+  MANUAL_EXTENSION_DIRECTION_EPS_RG,
+  deriveManualExtensionCushions,
+  deriveManualExtensionCushionsFromPayload,
+  resolveManualExtensionC7,
+  resolveManualExtensionC8,
+  type DeriveManualExtensionCushionsInput,
+  type ManualExtensionCushionFailReason,
+  type ManualExtensionCushionPoint,
+  type ManualExtensionCushionsResult,
+} from "./deriveManualExtensionCushions";

@@ -1,8 +1,53 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.41  
+Version : v1.42  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-24 (Phase 3A-359C — Manual Extension C7/C8 Geometry Helper)
+
+## Mode
+
+**Agent** · read-only geometry helper + focused tests · no C3+ generator · no UI · no schema change · no Push
+
+## Status
+
+| Item | Result |
+|------|--------|
+| **PHASE 3A-359C** | **PASS** |
+| Helper | `deriveManualExtensionCushions` |
+| C7 | E1 rail-normalized (fail-closed if not recoverable rail) |
+| C8 | Manual direction C7→E2 → first next cushion (`findNextCushionHit` policy) |
+| SYS scalars C7/C8 | **NOT** created |
+| Auto reflection / reverse-spin | **NOT** implemented |
+| Durable storage of C7/C8 | **NOT** — derived only |
+| trajectoryExtensions schema | **unchanged** |
+| Protected user datasets | **untouched** |
+
+## Product rules locked
+
+- SYS ends at C6
+- E1 → C7 (physical Rg cushion)
+- E2 → post-C7 manual direction → derived C8
+- C6→C7 kept for future scoring even if cue would stop earlier (energy not modeled here)
+- No mirror / spin / SYS extrapolation
+
+## Tests
+
+`frontend/src/domain/trajectoryExtension/deriveManualExtensionCushions.test.ts` — **13 PASS**  
+Regression smoke: `trajectoryPathDisplayPolicy.test.ts` — **22 PASS**
+
+## Files
+
+- `frontend/src/domain/trajectoryExtension/deriveManualExtensionCushions.ts` (new)
+- `frontend/src/domain/trajectoryExtension/deriveManualExtensionCushions.test.ts` (new)
+- `frontend/src/domain/trajectoryExtension/index.ts` (export)
+
+## Next
+
+C3+ scoring trajectory derived generator may consume this helper read-only (Ask/Agent follow-on). UI C7/C8 markers deferred.
 
 ---
 
