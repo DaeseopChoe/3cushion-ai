@@ -39,12 +39,17 @@ export type MemberOrigin =
  * AUTHORED Members omit this field — do not persist IDENTITY.
  */
 export type SymmetryOp = "H" | "V" | "RPI";
-export type DerivedRule = "CUE_IMPACT_FIRST_30PCT" | "C3_PLUS_2RG";
+export type DerivedRule =
+  | "CUE_IMPACT_FIRST_30PCT"
+  | "C3_PLUS_SCORING_LINE_v1"
+  /** Withdrawn placeholder — parse-compatible only; not product sampling law. */
+  | "C3_PLUS_2RG";
 export type DerivedStep = string;
 
 const SYMMETRY_OPS: ReadonlySet<string> = new Set(["H", "V", "RPI"]);
 const DERIVED_RULES: ReadonlySet<string> = new Set([
   "CUE_IMPACT_FIRST_30PCT",
+  "C3_PLUS_SCORING_LINE_v1",
   "C3_PLUS_2RG",
 ]);
 
@@ -174,7 +179,7 @@ export function expectedDerivedRuleForOrigin(
   origin: MemberOrigin | null | undefined
 ): DerivedRule | null {
   if (origin === "DERIVED_CUE_IMPACT") return "CUE_IMPACT_FIRST_30PCT";
-  if (origin === "DERIVED_C3_PLUS") return "C3_PLUS_2RG";
+  if (origin === "DERIVED_C3_PLUS") return "C3_PLUS_SCORING_LINE_v1";
   return null;
 }
 

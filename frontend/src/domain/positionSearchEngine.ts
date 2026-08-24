@@ -71,7 +71,7 @@ export type StrategyEntry = {
    * Phase 3A-1 derived lineage rule. Present only on Derived Members.
    * Identity axis, not coordinate / position identity.
    */
-  derivedRule?: "CUE_IMPACT_FIRST_30PCT" | "C3_PLUS_2RG";
+  derivedRule?: "CUE_IMPACT_FIRST_30PCT" | "C3_PLUS_SCORING_LINE_v1" | "C3_PLUS_2RG";
   /**
    * Phase 3A-1 derived lineage step key.
    * Stable source-domain key; never a balls/position alias.

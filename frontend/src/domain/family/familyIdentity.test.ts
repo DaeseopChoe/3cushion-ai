@@ -521,7 +521,7 @@ describe("Search / RI consumer preservation", () => {
 describe("Derived provenance foundation", () => {
   it.each([
     ["DERIVED_CUE_IMPACT", "CUE_IMPACT_FIRST_30PCT"],
-    ["DERIVED_C3_PLUS", "C3_PLUS_2RG"],
+    ["DERIVED_C3_PLUS", "C3_PLUS_SCORING_LINE_v1"],
   ] as const)(
     "%s requires source member, rule, and step",
     (memberOrigin, derivedRule) => {
@@ -653,7 +653,7 @@ describe("Derived provenance foundation", () => {
           memberId: "mb_3",
           memberOrigin: "DERIVED_C3_PLUS",
           generatedFromMemberId: "mb_base",
-          derivedRule: "C3_PLUS_2RG",
+          derivedRule: "C3_PLUS_SCORING_LINE_v1",
           derivedStep: "step:0001",
         })
       )

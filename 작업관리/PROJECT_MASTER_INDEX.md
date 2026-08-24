@@ -50,8 +50,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Phase **3A-359C** — Manual Extension C7/C8 Geometry Helper **PASS** |
-| **Next Track** | C3+ scoring trajectory derived generator (consume C7/C8 helper read-only) · UI C7/C8 markers deferred |
+| **Current Mission** | Phase **3A-359F** — C3+ Scoring Derived Generator **PASS** |
+| **Next Track** | C3+ review/approval UI wiring (optional) · App `pathNodes` DI · product polish |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |

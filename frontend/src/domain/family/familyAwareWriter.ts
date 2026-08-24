@@ -125,6 +125,9 @@ export type LogicalFamilyMemberCandidate = {
   targetBall?: TargetBall;
   meta?: StrategyEntry["meta"];
   compatibility: FamilyCompatibilityPayload;
+  /** C3+ reconstruction input — COPY from source (Cue→Impact omits). */
+  trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
+  reflectionOverride?: StrategyEntry["reflectionOverride"];
 };
 
 export type FamilyMemberCandidateSet = {
@@ -389,6 +392,12 @@ export function projectFamilyMemberToCompatibilityEntry(
     ...(member.derivedRule ? { derivedRule: member.derivedRule } : {}),
     ...(member.derivedStep ? { derivedStep: member.derivedStep } : {}),
     ...(member.meta ? { meta: cloneJson(member.meta) } : {}),
+    ...(member.trajectoryExtensions
+      ? { trajectoryExtensions: cloneJson(member.trajectoryExtensions) }
+      : {}),
+    ...(member.reflectionOverride
+      ? { reflectionOverride: cloneJson(member.reflectionOverride) }
+      : {}),
   };
 }
 

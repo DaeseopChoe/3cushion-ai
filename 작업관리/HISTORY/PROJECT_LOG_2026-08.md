@@ -1,8 +1,49 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.42  
+Version : v1.43  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-24 (Phase 3A-359F — C3+ Scoring Derived Generator)
+
+## Mode
+
+**Agent** · generator + focused tests · no UI · no schema rewrite · no Push · datasets protected
+
+## Status
+
+| Item | Result |
+|------|--------|
+| **PHASE 3A-359F** | **PASS** |
+| Scoring path | Variable: C3 → system Origin tail → EXT1? → EXT2? |
+| Origin | Not forced to C6 (`min(chain, sameRail)`) |
+| SB rule | First hit segment; full segment to endpoint; no cut at SB center |
+| E2 end | Handle endpoint when SB on E1→E2 (no projected C8) |
+| No SB | `NO_SB_HIT` fail-closed |
+| Sampling | Hybrid · spacing≤3 · min≥3 · **no** VALID_FRACTION 0.30 |
+| SB closest sample | **Not** mandatory |
+| derivedRule | `C3_PLUS_SCORING_LINE_v1` (not 2Rg) |
+| trajectoryExtensions | **COPY** on derived members |
+| Cue clamp | Family ball-center inset when sample on rail |
+
+## Tests
+
+`generateC3PlusScoringDerivedMembers.test.ts` — **17 PASS**  
+Regressions: Cue→Impact 31 · familyIdentity 31 · familyAwareWriter 16 · 359C cushions 13 — **all green** (108 total in suite run)
+
+## Files (new/updated)
+
+- `frontend/src/domain/family/c3PlusScoringPath.ts`
+- `frontend/src/domain/family/sampleC3PlusScoringLine.ts`
+- `frontend/src/domain/family/generateC3PlusScoringDerivedMembers.ts` (+ test)
+- `frontend/src/domain/trajectory/hitToleranceRg.ts`
+- `familyAwareWriter` · `familyIdentity` · `positionSearchEngine` · `family/index` (minimal)
+
+## Next
+
+C3+ review/approval UI wiring (optional) · App pathNodes DI into generator · sampling product polish
 
 ---
 
