@@ -176,12 +176,13 @@ Current Status
   ✅ Phase 3A-359 Derived Data COMPLETE (Cue→Impact · C3+ · Unified Review · 4-track · History/Recall PASS)
   ✅ Phase 3A-360 Cartesian Product durable (Track×Cue×C3+ · balls.cue←Cue · balls.second←C3+)
   ✅ LocalDB ADMIN Search: Euclidean 2.0 Rg / ball · winner = min Σ Euclidean
+  ✅ 3A-360A Product Coverage Display: APPROVED/History = persisted Product balls
   BUG-B Reset/History stale = UNCONFIRMED (reproduce after BUG-A fix first)
   Working tree: user datasets dirty/untracked — preserve; no Commit/Push of datasets
 
 Next Track
-  Manual Admin UI — LocalDB Search mid-sample (≤~1.5 Rg) nearest match
-  Cite: PROJECT_MASTER_INDEX · HISTORY/PROJECT_LOG_2026-08.md (3A-360 search)
+  3A-360B Manual — History Product coverage markers → LocalDB 2Rg Search
+  Cite: PROJECT_MASTER_INDEX · HISTORY/PROJECT_LOG_2026-08.md (3A-360A)
 ```
 
 | Item | Value |
@@ -203,10 +204,11 @@ Next Track
 | **Derived Data (3A-359)** | ✅ **COMPLETE** — Cue→Impact · C3+ · Unified Review · atomic 4-track |
 | **Cartesian Product (3A-360)** | ✅ **PASS** — durable Track×Cue×C3+ · Product-only Approve |
 | **LocalDB ADMIN Search** | ✅ **Euclidean 2.0 Rg / ball** · min Σ Euclidean winner |
+| **Product Coverage Display (3A-360A)** | ✅ **PASS** — APPROVED/History guide = persisted Product balls |
 | **Family Data Architecture** | Shadow / gated READ in progress (see MASTER · DRAFT) · WRITE SSOT still `positions_dataset` |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) — Family terms not yet adopted |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
-| **Next Track** | **Manual Admin UI** — LocalDB 2Rg Euclidean Search |
+| **Next Track** | **3A-360B Manual Admin UI** — History Product coverage → LocalDB Search |
 | **Next Track Readiness** | Cite MASTER Current Mission / Next Track |
 ### 구현 완료 범위
 
@@ -467,17 +469,19 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : 2026-08-25 — LocalDB ADMIN Search Euclidean 2Rg
-Baseline       : main · Product 02c6607 · user datasets dirty/untracked
-Current Status : adminSearch = Euclidean 2.0 Rg / ball · winner min Σ Euclidean
-                 Product Cartesian contract unchanged
-Code change    : recallCompare/Profiles/Engine · adminLocalDbFlow soft warn 4.0
-Docs           : MASTER v1.82 · LOG v1.49 · HANDOFF
-Next Session   : Manual LocalDB Search between Cue/C3 markers
+Session ID     : 2026-08-25 — 3A-360A Product Coverage Display SSOT
+Baseline       : main · search 9a5144a · Product 02c6607 · user datasets dirty/untracked
+Current Status : APPROVED/History Product coverage = persisted Product balls
+                 Cue move does not move coverage guide
+                 Live buildTrajectory is NOT Product coverage SSOT
+Code change    : productCoverageFromDataset · App.jsx markers · layer dataAttr
+Docs           : MASTER v1.83 · LOG v1.50 · HANDOFF
+Next Session   : 3A-360B Manual History → coverage → LocalDB Search
 Guardrail      : Do not touch user datasets · no Push unless asked
-                 Do not change Product generators / 252 cardinality
+                 Do not change Product generators / T×Nc×N3 formula
+                 Do not change Euclidean 2Rg search
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-25 · LocalDB Euclidean 2Rg Search PASS*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-25 · 3A-360A Product Coverage Display PASS*

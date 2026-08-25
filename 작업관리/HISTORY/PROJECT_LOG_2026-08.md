@@ -1,8 +1,55 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.49  
+Version : v1.50  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-25 (Phase 3A-360A — APPROVED / History Product Coverage Display SSOT)
+
+## Mode
+
+**Agent** · Option B · Display only · Search / Product generator / datasets untouched · no Push
+
+## Contract
+
+```text
+APPROVED / History Product Coverage Display
+  = persisted Product member balls
+  = LocalDB searchable Product coverage
+
+cue coverage    ← unique Product.balls.cue   (active family + track)
+second coverage ← unique Product.balls.second (active family + track)
+
+NOT live buildTrajectory(current balls)
+NOT re-scored C3+ polyline from current cue
+```
+
+Cue move after History does **not** move Product coverage markers.
+
+## Cardinality
+
+`ProductCount = T × Nc × N3` (dynamic). Fixture example 4×3×21=252 is not a global invariant (real export may be 4×4×18=288).
+
+## Status
+
+| Item | Result |
+|------|--------|
+| **PHASE** | **PASS** (auto tests) |
+| Manual UI | Deferred → **3A-360B** |
+| Search 2Rg | Unchanged (`9a5144a`) |
+| Generator | Unchanged |
+
+## Files
+
+- `productCoverageFromDataset.ts` (+ tests)
+- `App.jsx` · `DerivedCandidatePreviewLayer.jsx`
+- MASTER · LOG · HANDOFF
+
+## Next
+
+3A-360B manual validation (History → coverage → Search)
 
 ---
 

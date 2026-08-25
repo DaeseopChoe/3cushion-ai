@@ -12,6 +12,7 @@ export default function DerivedCandidatePreviewLayer({
   padding,
   ballRadiusRg,
   markerOpacity = 0.5,
+  dataAttr = "1",
 }) {
   if (!Array.isArray(markers) || markers.length === 0) return null;
 
@@ -19,7 +20,7 @@ export default function DerivedCandidatePreviewLayer({
   const fill = "rgba(255,255,255,0.12)";
 
   return (
-    <g data-derived-preview="1" pointerEvents="none">
+    <g data-derived-preview={dataAttr} pointerEvents="none">
       {markers.map((marker) => {
         const p = toPx(marker.cue, scale, tableH);
         const cx = p.x + padding;

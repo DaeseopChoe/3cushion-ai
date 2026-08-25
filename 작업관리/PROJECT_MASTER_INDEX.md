@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.82  
+Version: 1.83  
 Last Updated: 2026-08-25  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -50,10 +50,11 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Phase **3A-360** — LocalDB ADMIN Search Euclidean **2.0 Rg** nearest-Ball3 **PASS** |
-| **Next Track** | Manual Admin UI: LocalDB Search mid-sample (≤~1.5 Rg) → nearest Product/AUTHORED |
+| **Current Mission** | Phase **3A-360A** — APPROVED/History Product Coverage Display SSOT **PASS** |
+| **Next Track** | Manual Admin UI: History → Product coverage markers → LocalDB 2Rg Search (3A-360B) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · all 3 balls must pass · winner = min Σ Euclidean |
+| **Product Coverage Display** | APPROVED/History: **persisted Product balls** (not live `buildTrajectory`) |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
@@ -84,10 +85,11 @@ Derived Data
 |-------|--------|
 | **Review samples** | Cue markers ∪ C3+ markers (≠ durable count) |
 | **Durable Product** | `balls.cue`←Cue sample · `balls.second`←C3+ sample · `balls.target`←base |
-| **Cardinality** | `T × Nc × N3` (e.g. 4×3×21=252) · Product-only on Approve |
+| **Cardinality** | `T × Nc × N3` (dynamic; fixture e.g. 4×3×21=252; real sets may be 4×4×18=288) · Product-only on Approve |
 | **Identity** | `DERIVED_CUE_C3_PRODUCT` · `CUE_C3_CARTESIAN_PRODUCT_V1` · `cue:{cueStep}\|c3:{c3Step}` |
 | **Generators** | Separate · no Cue→C3 chaining · base AUTHORED/SYMMETRY only |
 | **Impl** | `buildCueC3ProductMembers.ts` · unified Approve Product-only |
+| **Coverage display SSOT** | APPROVED/History: `productCoverageFromDataset` ← unique Product `balls.cue` / `balls.second` per track |
 
 ### LocalDB ADMIN Spatial Search (adminSearch)
 

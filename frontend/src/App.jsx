@@ -235,6 +235,10 @@ import {
 } from "./domain/family/unifiedDerivedReview";
 import { CUE_IMPACT_MEMBER_ORIGIN } from "./domain/family/generateCueImpactDerivedMembers";
 import {
+  productCoverageFromDataset,
+  productCoveragePreviewMarkers,
+} from "./domain/family/productCoverageFromDataset";
+import {
   projectDerivedCandidateToRuntimeView,
   projectFamilySourceMemberToRuntimeView,
 } from "./domain/family/projectDerivedCandidateToRuntimeView";
@@ -1407,6 +1411,24 @@ export default function App({
   const isDerivedReviewInspectLocked =
     isDerivedReviewSessionPending && derivedReviewUi.isInspectActive;
   const derivedReviewPrimarySession = unifiedPrimarySession(unifiedDerivedReview);
+
+  /** APPROVED / History: searchable Product coverage from persisted Product balls (not live path). */
+  const activeSlotStrategyEntry =
+    shotEditor.slots[shotEditor.activeSlot]?.draft ??
+    shotEditor.slots[shotEditor.activeSlot]?.applied ??
+    null;
+  const approvedProductCoverageMarkers =
+    appMode === "ADMIN" &&
+    !isDerivedReviewSessionPending &&
+    Array.isArray(dataset)
+      ? productCoveragePreviewMarkers(
+          productCoverageFromDataset({
+            dataset,
+            familyId: activeSlotStrategyEntry?.familyId ?? null,
+            track: activeSlotStrategyEntry?.track ?? null,
+          })
+        )
+      : [];
   
   // ============================================
   // USER MODE 코칭 표시 상태
@@ -5157,6 +5179,19 @@ function handlePointerCancel(e) {
           padding={PADDING}
           ballRadiusRg={BALL_RADIUS_RG}
           markerOpacity={0.5}
+        />
+      )}
+      {appMode === "ADMIN" &&
+        !isDerivedReviewSessionPending &&
+        approvedProductCoverageMarkers.length > 0 && (
+        <DerivedCandidatePreviewLayer
+          markers={approvedProductCoverageMarkers}
+          scale={SCALE}
+          tableH={TABLE_H}
+          padding={PADDING}
+          ballRadiusRg={BALL_RADIUS_RG}
+          markerOpacity={0.5}
+          dataAttr="product-coverage"
         />
       )}
       {canEdit && (
