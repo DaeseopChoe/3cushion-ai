@@ -19,7 +19,6 @@ export type RecallQuery = {
 export type RecallMatchMeta = {
   profile: CompareProfileId;
   coarsePassCount: number;
-  usedPermutation: "none" | "swapTargetSecond";
   targetBucketApplied: boolean;
   rankedCandidateCount: number;
 };

@@ -145,7 +145,7 @@ export async function runAdminLocalDbRecall(
     signatures: [...datasetSigKeys],
   });
 
-  // Spatial recall
+  // Spatial recall — Role Ball3 query (Phase 4: target↔target, second↔second)
   const searchQueryTargetBall = ctx.getAdminRecallQueryTargetBall();
   const spatialResult = runSpatialRecall({
     dataset: ds,

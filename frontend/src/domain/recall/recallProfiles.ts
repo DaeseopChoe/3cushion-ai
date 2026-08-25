@@ -1,6 +1,10 @@
 /**
  * Compare profile policy lock (RECALL_SEARCH_SSOT_SPEC_2026-05).
  *
+ * Phase 7C — SEARCH BALL3 = ROLE-BASED DIRECT MATCH:
+ * - query.target ↔ candidate.target, query.second ↔ candidate.second
+ * - Target↔Second permutation removed (no allowTargetSecondPermutation)
+ *
  * LocalDB ADMIN Search (`adminSearch`):
  * - distanceMetric: euclidean (Rg)
  * - coarsePerBall: 2.0 — each ball center must pass independently
@@ -22,7 +26,6 @@ export type RecallProfilePolicy = {
   /** @deprecated Alias of totalDistanceCap — kept for older call sites. */
   totalL1Cap: number | null;
   topK: number;
-  allowTargetSecondPermutation: boolean;
   /** When true, coarse-fail records are excluded (no allRanked fallback). */
   requireCoarsePass: boolean;
   /** strict bucket filter with fallback (admin) vs rank-all (user/passive) */
@@ -50,7 +53,6 @@ export const RECALL_PROFILES: Record<CompareProfileId, RecallProfilePolicy> = {
     coarsePerBall: 6,
     totalDistanceCap: null,
     topK: 1,
-    allowTargetSecondPermutation: false,
     requireCoarsePass: true,
     targetBallFilterMode: "strictWithFallback",
     outputMode: "top1",
@@ -63,7 +65,6 @@ export const RECALL_PROFILES: Record<CompareProfileId, RecallProfilePolicy> = {
     /** Per-ball gate is sufficient; theoretical max aggregate for candidates = 6. */
     totalDistanceCap: null,
     topK: 1,
-    allowTargetSecondPermutation: false,
     requireCoarsePass: true,
     targetBallFilterMode: "rankOnly",
     outputMode: "top1",
@@ -74,19 +75,17 @@ export const RECALL_PROFILES: Record<CompareProfileId, RecallProfilePolicy> = {
     coarsePerBall: 3,
     totalDistanceCap: 8,
     topK: 1,
-    allowTargetSecondPermutation: true,
     requireCoarsePass: true,
     targetBallFilterMode: "rankOnly",
     outputMode: "top1",
     distanceMetric: "manhattan",
   }),
-  /** @deprecated Use userStrict for USER Search. Kept for legacy tests; allows allRanked fallback. */
+  /** @deprecated Use userStrict for USER Search. Kept for legacy tests. */
   userRelaxed: profile({
     id: "userRelaxed",
     coarsePerBall: 10,
     totalDistanceCap: 18,
     topK: 3,
-    allowTargetSecondPermutation: true,
     requireCoarsePass: false,
     targetBallFilterMode: "rankOnly",
     outputMode: "top1",
@@ -97,7 +96,6 @@ export const RECALL_PROFILES: Record<CompareProfileId, RecallProfilePolicy> = {
     coarsePerBall: 12,
     totalDistanceCap: null,
     topK: 3,
-    allowTargetSecondPermutation: true,
     requireCoarsePass: false,
     targetBallFilterMode: "rankOnly",
     outputMode: "hintsOnly",

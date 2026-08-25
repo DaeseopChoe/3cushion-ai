@@ -50,8 +50,8 @@ export function useCoachingController({
     }
     const targetForImpact =
       targetPointForImpact ??
-      balls.target_center ??
-      balls.target;
+      balls.target ??
+      balls.target_center;
     if (!balls.cue || !targetForImpact) {
       return EMPTY;
     }

@@ -1,8 +1,354 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.50  
+Version : v1.60  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-26 (Role-based Ball3 Clean Cut — Phase 7C · Search permutation cleanup)
+
+## Mode
+
+**Agent** · Search/Recall only · no App/geometry/dataset · no Commit/Push
+
+## Contract
+
+```text
+SEARCH BALL3 = ROLE-BASED DIRECT MATCH
+Target/Second permutation = removed
+color metadata does not determine Role
+FIELD NAME == PHYSICAL ROLE
+```
+
+## DELETED
+
+- `swapTargetSecondBalls`
+- `minL1WithTargetSecondPermutation` · `minAggregateWithTargetSecondPermutation`
+- `passesCoarseWithPermutation`
+- `allowTargetSecondPermutation` (profile API)
+- `usedPermutation` (result meta / ranked row)
+- `rankRecordsForRecall.allowPermutation` branch
+
+## AFTER
+
+`rankRecordsForRecall` → `passesCoarseStrictRoles` + `ball3AggregateDistance` only
+
+## Explicitly NOT done
+
+threshold/weight changes · dataset · migration · Commit/Push
+
+## Verification
+
+- vitest Phase 1–7C related suites: **143 PASS** (14 files)
+- `npm run build`: **PASS**
+- permutation helper refs in `frontend/src`: **0**
+- Commit/Push: none
+
+---
+
+# 2026-08-25 (Role-based Ball3 Clean Cut — Phase 7B · App UI color-slot consumers)
+
+## Mode
+
+**Agent** · App.jsx Role field identity only · Search untouched · no Commit/Push
+
+## App BEFORE → AFTER
+
+- `resolveImpactTargetBall` → `uiTargetRoleCoords` (`balls.target`)
+- Frozen review coaching color-slot (`targetBall===red ? second : target`) → `balls.target`
+- `isConfirmedTargetBall` → `ballId === "target"`
+- `isSecondRoleSlot` → `roleId === "second"`
+
+## DELETED (dead after App migration)
+
+`resolveImpactTargetBall` · `isConfirmedTargetBall` · `isSecondRoleSlot` · `resolveRoleForSlotId` · `slotIdForColor` · `colorForSlotId` · `YELLOW_SLOT_ID` · `RED_SLOT_ID` · `getYellowBallCoords` · `getRedBallCoords`
+
+## KEPT
+
+paint / oppositeColor / `uiTargetRoleCoords` / `lockTargetRoleFromClickedBall` / `getBallCoordsBySlotId`
+
+## Explicitly NOT done
+
+Search permutation (`swapTargetSecondBalls` etc.) → **Phase 7C**
+
+## Verification
+
+- vitest Phase 1–7B related suites: **128 PASS** (12 files)
+- `npm run build`: **PASS**
+- App.jsx / ballRole.ts: deleted helper production refs = **0**
+- Search/recallCompare: **untouched**
+- Commit/Push: none
+
+---
+
+# 2026-08-25 (Role-based Ball3 Clean Cut — Phase 7A · dead helper cleanup)
+
+## Mode
+
+**Agent** · DELETE NOW only (production consumer = 0) · no behavior change · no Commit/Push
+
+## DELETED
+
+- `placePhysicalSecondSampleOnBall3` · `ball3FieldFor*` · `readPhysical*`
+- `toColorSlotBallsForLegacyTrajectory`
+- `resolveTargetSlotId` · `resolveSecondSlotId` · `resolveSecondRole`
+- `getBallByRole` · `getTargetBall` · `getSecondBall` · `isTargetRoleSlot`
+
+## DEFERRED (live production consumer)
+
+- App: `resolveImpactTargetBall` · `isConfirmedTargetBall` · `isSecondRoleSlot` (+ slotId/colorForSlotId chain)
+- Search: `swapTargetSecondBalls` / permutation helpers (gated by `allowPermutation` API — shape kept)
+
+## Verification
+
+- vitest Phase 1–6 related suites: **127 PASS** (12 files; obsolete color-slot tests removed)
+- `npm run build`: **PASS**
+- deleted helper names: definition/production/test refs in `frontend/src` = **0**
+- Commit/Push: none
+
+---
+
+# 2026-08-25 (Role-based Ball3 Clean Cut — Phase 6 · C3+ / Product / Coverage)
+
+## Mode
+
+**Agent** · Phase 6 C3+/Product/Coverage only · no helper mass-delete · no Commit/Push
+
+## Contract
+
+```text
+C3+ PHYSICAL SECOND = balls.second
+PRODUCT SCORING SAMPLE P = balls.second
+COVERAGE PHYSICAL SECOND = balls.second
+Target color red/yellow does not change Ball3 field identity
+```
+
+## Changes
+
+- `resolveC3PlusSecondBall` → always `balls.second`
+- Product: `placePhysicalSecondSampleOnRoleBall3` (P → second; Target preserved)
+- Coverage: read `balls.second` directly
+- Tests: CASE A/B Role Product + Coverage fixtures + `c3ProductCoverage.roleSemantics.test.ts`
+
+## Explicitly NOT done
+
+deferred helper DELETE · dataset · migration · geometry formula changes
+
+## Verification
+
+- vitest Phase 1–6 related suites: **130 PASS**
+- `npm run build`: **PASS**
+- Commit/Push: none
+
+---
+
+# 2026-08-25 (Role-based Ball3 Clean Cut — Phase 5 · trajectory + Cue-derived)
+
+## Mode
+
+**Agent** · Phase 5 trajectoryBuilder + Cue-derived only · no C3+/Product/Coverage · no Commit/Push
+
+## Contract
+
+```text
+TRAJECTORY BALL3 = ROLE-BASED
+balls.target = physical Target
+balls.second = physical Second
+targetColor ≠ Role selector
+
+Cue-derived:
+  only balls.cue may move
+  balls.target / balls.second preserve physical roles
+
+H/V/RPI: coordinates transform; Role identity does not
+```
+
+## Changes
+
+- `trajectoryBuilder`: Role-native Target/Second readers; App color-slot bridge removed
+- `resolvePhysicalTarget` → always `balls.target`
+- Tests: `trajectoryBuilder.roleSemantics.test.ts` · Cue CASE A/B Role fixtures
+
+## Explicitly NOT done
+
+C3+ · Product · Coverage · `placePhysicalSecondSampleOnBall3` deletion · dataset · migration
+
+---
+
+# 2026-08-25 (Role-based Ball3 Clean Cut — Phase 4 · Search / Recall)
+
+## Mode
+
+**Agent** · Phase 4 Search/Recall only · no Product/C3+/trajectory · no Commit/Push
+
+## Contract
+
+```text
+SEARCH BALL3 = ROLE-BASED
+query.target ↔ candidate.target
+query.second ↔ candidate.second
+allowTargetSecondPermutation = false (all profiles)
+targetColor / targetBall = metadata only (filter/rank; never field swap)
+```
+
+## Changes
+
+- `recallProfiles`: userStrict / userRelaxed / passiveHint → permutation OFF
+- `recallCompare` swap helpers marked `@deprecated` (kept; unused by canonical profiles)
+- `applyPositionRecall`: documented Role balls untouched
+- Tests: `recall.roleSemantics.test.ts` (A–J) · parity wrong-role update
+
+## Explicitly NOT done
+
+trajectoryBuilder · Cue/C3+/Product/Coverage · helper deletion · dataset · migration
+
+---
+
+# 2026-08-25 (Role-based Ball3 Clean Cut — Phase 3 · SAVE + History)
+
+## Mode
+
+**Agent** · Phase 3 SAVE/History only · no Search/Product/C3+/trajectory · no Commit/Push
+
+## Contract
+
+```text
+SAVE/HISTORY BALL3 = ROLE-BASED
+balls.target = physical Target
+balls.second = physical Second
+targetBall / targetColor = Target color metadata only
+```
+
+## Changes
+
+- `normalizeBallsToBall3` — Role-preserving SSOT (no color swap; no `target_center` emit)
+- History snapshot write — `canonicalizeBallsStateForHistorySnapshot`
+- History restore — Role hydrate (`balls.target` ← snapshot.target)
+- Tests: `slotAutoRecommend.saveHistory.test.ts` (A–F)
+
+## Explicitly NOT done
+
+Search/Recall · trajectoryBuilder · Cue/C3+/Product/Coverage · dataset · migration
+
+## Boundary impact (deferred Phase 4+)
+
+Newly saved Role records + Role UI queries; Search still has `swapTargetSecond` / color-slot Product consumers may disagree until those Phases.
+
+---
+
+# 2026-08-25 (Role-based Ball3 Clean Cut — Phase 2 · UI Role semantics)
+
+## Mode
+
+**Agent** · Phase 2 UI only · no SAVE/Search/History/Product/C3+ semantic cut · no Commit/Push
+
+## Contract (unchanged from Phase 1)
+
+```text
+balls.cue    = physical Cue (white)
+balls.target = physical Target
+balls.second = physical Second
+FIELD NAME == PHYSICAL ROLE
+targetColor = Target color metadata only
+```
+
+## UI changes
+
+- INITIAL / paint / drag / joystick / Target Lock → Role fields
+- paint: target=`targetColor`, second=`opposite(targetColor)`
+- Lock: swap Role coordinates when Second is selected as Target
+- `hydrateBallsStateForUi` → emits `balls.target` (not `target_center`)
+- `toColorSlotBallsForLegacyTrajectory` bridge for trajectoryBuilder (geometry untouched)
+
+## Explicitly NOT done
+
+SAVE semantic · Search · History restore logic · Product/C3+/Coverage · dataset · migration
+
+## Boundary impacts (deferred)
+
+- SAVE via `normalizeBallsToBall3` will persist Role coords into Ball3 while Product/Search may still assume color-slots
+- trajectoryBuilder remains color-slot native (App bridge only)
+
+## Tests
+
+`ballRole.ssot.test.ts` · `ballRole.uiSemantics.test.ts` · `slotAutoRecommend.test.ts` · related hydrate tests
+
+---
+
+# 2026-08-25 (Role-based Ball3 Clean Cut — Phase 1 · domain SSOT)
+
+## Mode
+
+**Agent** · Phase 1 only · domain foundation · no consumer migration · no Commit/Push
+
+## Contract (canonical)
+
+```text
+balls.cue    = physical Cue (white)
+balls.target = physical Target (red|yellow)
+balls.second = physical Second (other object ball)
+FIELD NAME == PHYSICAL ROLE
+targetBall / targetColor = color metadata of physical Target only
+Color ≠ Role — no color→field decoder in Ball3 SSOT
+```
+
+## Scope
+
+- `ballRole.ts` — SSOT rewrite + canonical readers
+- Color-slot / 3A-360C helpers kept as `@deprecated` DEFERRED DELETE (App / Product / Coverage still import)
+- Unit: `ballRole.ssot.test.ts`
+- Docs: TRAJECTORY_EXTENSION_SSOT §6.1 · MASTER · this LOG
+
+## Explicitly NOT done
+
+UI · SAVE · Search · History · trajectoryBuilder · Cue/C3+/Product/Coverage consumer role migration
+
+## Note
+
+3A-360C Product color-slot write remains in consumers until Phase 4. Canonical API: `placePhysicalSecondSampleOnRoleBall3` / `physicalSecondFromBall3`.
+
+---
+
+# 2026-08-25 (Phase 3A-360C — C3+ Product P → physical-second color-slot)
+
+## Mode
+
+**Agent** · Minimal Product write fix · color-slot Ball3 preserved · no dataset migration · no Commit/Push
+
+## Hypothesis (confirmed by tests)
+
+C3+ scoring sample P was always written to `balls.second` (red color-slot).
+When `targetBall=red`, physical second is yellow → must write P to `balls.target`.
+CASE B (`targetBall=yellow`) already matched the old write.
+
+## Contract
+
+```text
+physical role → color-slot → Ball3 field
+  targetBall=red    → physical second = yellow → balls.target = P ; balls.second = base red
+  targetBall=yellow → physical second = red    → balls.second = P ; balls.target = base yellow
+  targetBall missing → legacy: balls.second = P
+```
+
+Helpers: `placePhysicalSecondSampleOnBall3` / `readPhysicalSecondFromBall3` (`ballRole.ts`)
+Coverage: `productCoverageFromDataset` reads physical second via `targetBall` (not raw `balls.second`).
+
+## Tests
+
+`ballRole.productSlot.test.ts` · `buildCueC3ProductMembers.test.ts` (CASE A/B + Search) · `productCoverageFromDataset.test.ts` · `unifiedDerivedReview.test.ts` — PASS
+
+## Files
+
+- `frontend/src/domain/ballRole.ts`
+- `frontend/src/domain/ballRole.productSlot.test.ts`
+- `frontend/src/domain/family/buildCueC3ProductMembers.ts` (+ test)
+- `frontend/src/domain/family/productCoverageFromDataset.ts` (+ test)
+- `작업관리/PROJECT_MASTER_INDEX.md` · this LOG
+
+## Note
+
+Existing LocalDB Products written before this fix still have CASE A collision until Re-Approve regenerates Product members. User datasets not auto-migrated.
 
 ---
 

@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ball3, Point, StrategyEntry } from "../positionSearchEngine";
+import { runSpatialRecall } from "../recall/recallEngine";
 import {
   writeFamilyMembers,
   writeFourTrackFamilyMembers,
@@ -130,7 +131,7 @@ function cueSample(
   };
 }
 
-/** C3+ Review parks sample on balls.cue — Product maps to balls.second. */
+/** C3+ Review parks sample on balls.cue — Product maps P onto balls.second (Role). */
 function c3Sample(
   track: FamilyTrack,
   index: number,
@@ -266,7 +267,7 @@ describe("buildCueC3ProductMembers", () => {
     );
   });
 
-  it("5–9: balls.cue/second/target + base strategy + extensions COPY", () => {
+  it("5–9: balls.cue + physical-second slot + base strategy + extensions COPY", () => {
     const { cueMembers, c3Members } = synthSamples(2, 3);
     const sources = frozenSources();
     const built = buildCueC3ProductMembers({
@@ -289,6 +290,7 @@ describe("buildCueC3ProductMembers", () => {
           encodeCueC3ProductDerivedStep(cue0.derivedStep!, c3_0.derivedStep!)
     )!;
     expect(product.balls.cue).toEqual(cue0.balls.cue);
+    // No targetBall on fixture → legacy: P lands on balls.second
     expect(product.balls.second).toEqual(c3_0.balls.cue);
     expect(product.balls.target).toEqual(sources.B2T_L!.balls.target);
     expect(product.compatibility.sysInputs).toEqual(
@@ -300,6 +302,230 @@ describe("buildCueC3ProductMembers", () => {
     expect(product.memberOrigin).toBe(CUE_C3_PRODUCT_MEMBER_ORIGIN);
     expect(product.derivedRule).toBe(CUE_C3_PRODUCT_DERIVED_RULE);
     expect(product.generatedFromMemberId).toBe("mb_B2T_L");
+  });
+
+  it("CASE A targetBall=red: P → balls.second; base Target preserved on balls.target", () => {
+    const sources = frozenSources();
+    // Role Ball3: physical Target red @ target; Second yellow @ second
+    const roleRedBase = {
+      cue: pt(10, 16),
+      target: pt(60, 20),
+      second: pt(20, 20),
+    };
+    for (const track of FAMILY_TRACKS) {
+      sources[track] = {
+        ...sources[track]!,
+        targetBall: "red",
+        balls: { ...roleRedBase },
+      };
+    }
+    const { cueMembers, c3Members } = synthSamples(1, 1);
+    for (const m of [...cueMembers, ...c3Members]) {
+      m.targetBall = "red";
+      m.balls = {
+        ...m.balls,
+        target: { ...roleRedBase.target },
+        second: { ...roleRedBase.second },
+      };
+    }
+    const built = buildCueC3ProductMembers({
+      familyId: "fm_prod",
+      cueMembers,
+      c3PlusMembers: c3Members,
+      frozenSourcesByTrack: sources,
+    });
+    if (!built.ok) throw new Error(built.reason);
+    for (const product of built.members) {
+      const track = product.track as FamilyTrack;
+      const c3 = c3Members.find((m) => m.track === track)!;
+      const base = sources[track]!;
+      expect(product.targetBall).toBe("red");
+      expect(product.balls.second).toEqual(c3.balls.cue);
+      expect(product.balls.target).toEqual(base.balls.target);
+      expect(product.balls.target).not.toEqual(c3.balls.cue);
+      expect(product.balls.second).not.toEqual(base.balls.target);
+    }
+  });
+
+  it("CASE B targetBall=yellow: P → balls.second; base Target preserved on balls.target", () => {
+    const sources = frozenSources();
+    for (const track of FAMILY_TRACKS) {
+      sources[track] = { ...sources[track]!, targetBall: "yellow" };
+    }
+    const { cueMembers, c3Members } = synthSamples(1, 1);
+    for (const m of [...cueMembers, ...c3Members]) {
+      m.targetBall = "yellow";
+    }
+    const built = buildCueC3ProductMembers({
+      familyId: "fm_prod",
+      cueMembers,
+      c3PlusMembers: c3Members,
+      frozenSourcesByTrack: sources,
+    });
+    if (!built.ok) throw new Error(built.reason);
+    for (const product of built.members) {
+      const track = product.track as FamilyTrack;
+      const c3 = c3Members.find((m) => m.track === track)!;
+      const base = sources[track]!;
+      expect(product.targetBall).toBe("yellow");
+      expect(product.balls.second).toEqual(c3.balls.cue);
+      expect(product.balls.target).toEqual(base.balls.target);
+      expect(product.balls.target).not.toEqual(c3.balls.cue);
+    }
+  });
+
+  it("CASE A/B Product field structure is identical (P always balls.second)", () => {
+    const assertStructure = (targetBall: "red" | "yellow") => {
+      const sources = frozenSources();
+      const roleBase =
+        targetBall === "red"
+          ? { cue: pt(10, 16), target: pt(60, 20), second: pt(20, 20) }
+          : { cue: pt(10, 16), target: pt(20, 20), second: pt(60, 20) };
+      for (const track of FAMILY_TRACKS) {
+        sources[track] = {
+          ...sources[track]!,
+          targetBall,
+          balls: { ...roleBase },
+        };
+      }
+      const { cueMembers, c3Members } = synthSamples(1, 1);
+      for (const m of [...cueMembers, ...c3Members]) {
+        m.targetBall = targetBall;
+        m.balls = {
+          ...m.balls,
+          target: { ...roleBase.target },
+          second: { ...roleBase.second },
+        };
+      }
+      const built = buildCueC3ProductMembers({
+        familyId: "fm_prod",
+        cueMembers,
+        c3PlusMembers: c3Members,
+        frozenSourcesByTrack: sources,
+      });
+      if (!built.ok) throw new Error(built.reason);
+      const product = built.members.find((m) => m.track === "B2T_L")!;
+      const c3 = c3Members.find((m) => m.track === "B2T_L")!;
+      expect(product.balls.second).toEqual(c3.balls.cue);
+      expect(product.balls.target).toEqual(roleBase.target);
+      expect(product.balls.target).not.toEqual(c3.balls.cue);
+      return product;
+    };
+    const a = assertStructure("red");
+    const b = assertStructure("yellow");
+    // Same field roles: second holds P, target holds base Target
+    expect(a.balls.second).toBeTruthy();
+    expect(b.balls.second).toBeTruthy();
+    expect(a.balls.target).not.toEqual(a.balls.second);
+    expect(b.balls.target).not.toEqual(b.balls.second);
+  });
+
+  it("CASE A/B Search: query with physical second at P matches Product (adminSearch)", () => {
+    for (const targetBall of ["red", "yellow"] as const) {
+      const bases = writeFourTrackFamilyMembers([], {
+        balls: baseBalls(),
+        entry: baseEntry("B2T_L", "mb_B2T_L"),
+        targetBall,
+      });
+      if (!bases.ok) throw new Error(bases.reason);
+
+      const frozen: Partial<Record<FamilyTrack, CueImpactReviewFrozenSource>> = {};
+      const cueMembers: LogicalFamilyMemberCandidate[] = [];
+      const c3Members: LogicalFamilyMemberCandidate[] = [];
+
+      for (const track of FAMILY_TRACKS) {
+        const loc = bases.set.members.find((m) => m.track === track);
+        if (!loc) throw new Error(`missing track ${track}`);
+        frozen[track] = {
+          track,
+          memberId: loc.entry.memberId!,
+          balls: loc.balls,
+          entry: loc.entry,
+          runtimeT: "8/8",
+          targetBall,
+        };
+        const dx = FAMILY_TRACKS.indexOf(track) * 6;
+        cueMembers.push({
+          familyId: loc.entry.familyId!,
+          memberId: `mb_cue_${track}_1`,
+          memberOrigin: CUE_IMPACT_MEMBER_ORIGIN,
+          generatedFromMemberId: loc.entry.memberId,
+          derivedRule: "CUE_IMPACT_FIRST_30PCT",
+          derivedStep: "cue_impact:t:0.100000",
+          authoringStrategyId: `as_cue_${track}`,
+          track,
+          targetBall,
+          balls: {
+            cue: pt(12 + dx, 16),
+            target: { ...loc.balls.target },
+            second: { ...loc.balls.second },
+          },
+          compatibility: {
+            signature: loc.entry.signature,
+            sysInputs: { ...(loc.entry.sysInputs ?? {}) },
+          },
+        });
+        c3Members.push({
+          familyId: loc.entry.familyId!,
+          memberId: `mb_c3_${track}_0`,
+          memberOrigin: C3_PLUS_MEMBER_ORIGIN,
+          generatedFromMemberId: loc.entry.memberId,
+          derivedRule: "C3_PLUS_SCORING_LINE_v1",
+          derivedStep: "c3plus:seg:0:t:0.000000",
+          authoringStrategyId: `as_c3_${track}`,
+          track,
+          targetBall,
+          balls: {
+            cue: pt(55 + dx, 7),
+            target: { ...loc.balls.target },
+            second: { ...loc.balls.second },
+          },
+          compatibility: {
+            signature: loc.entry.signature,
+            sysInputs: { ...(loc.entry.sysInputs ?? {}) },
+          },
+        });
+      }
+
+      const built = buildCueC3ProductMembers({
+        familyId: bases.set.familyId,
+        cueMembers,
+        c3PlusMembers: c3Members,
+        frozenSourcesByTrack: frozen,
+      });
+      if (!built.ok) throw new Error(built.reason);
+
+      const written = writeFamilyMembers(bases.dataset, {
+        familyId: bases.set.familyId,
+        members: built.members,
+      });
+      if (!written.ok) throw new Error(written.reason);
+
+      const product = built.members.find((m) => m.track === "B2T_L")!;
+      const hit = runSpatialRecall({
+        dataset: written.dataset,
+        query: { balls: product.balls, targetBall },
+        profile: "adminSearch",
+      });
+      expect(hit.kind).toBe("match");
+      if (hit.kind !== "match") return;
+      expect(hit.record.balls).toEqual(product.balls);
+
+      // Wrong color at P: swap object slots → must not Exact-match this Product layout
+      const wrong: Ball3 = {
+        cue: product.balls.cue,
+        target: product.balls.second,
+        second: product.balls.target,
+      };
+      const miss = runSpatialRecall({
+        dataset: written.dataset,
+        query: { balls: wrong, targetBall },
+        profile: "adminSearch",
+      });
+      if (miss.kind === "match") {
+        expect(miss.record.balls).not.toEqual(product.balls);
+      }
+    }
   });
 
   it("10–11: no Cue-derived as parent; generatedFrom = base", () => {

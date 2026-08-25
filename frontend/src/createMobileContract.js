@@ -1,6 +1,10 @@
 // src/createMobileContract.js
 
 import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel.js";
+import {
+  paintHexForSecondRole,
+  paintHexForTargetRole,
+} from "./domain/ballRole";
 
 /**
  * Phase D
@@ -54,26 +58,30 @@ export function createMobileContract(computationResult) {
       strokeWidth: 1
     });
   }
-  if (balls.target_center) {
-    const p = toPx(balls.target_center);
+  if (balls.target || balls.target_center) {
+    const p = toPx(balls.target ?? balls.target_center);
+    const targetColorMeta =
+      computationResult.targetColor ?? computationResult.targetBall ?? null;
     tableBalls.push({
       id: "target",
       cx: p.x + PADDING,
       cy: p.y + PADDING,
       r: 5,
-      fill: "#fde047",
+      fill: paintHexForTargetRole(targetColorMeta),
       stroke: "#333",
       strokeWidth: 1
     });
   }
   if (balls.second) {
     const p = toPx(balls.second);
+    const targetColorMeta =
+      computationResult.targetColor ?? computationResult.targetBall ?? null;
     tableBalls.push({
       id: "second",
       cx: p.x + PADDING,
       cy: p.y + PADDING,
       r: 5,
-      fill: "#f87171",
+      fill: paintHexForSecondRole(targetColorMeta),
       stroke: "#333",
       strokeWidth: 1
     });

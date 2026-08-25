@@ -1,8 +1,10 @@
 /**
  * adminStrict parity: runSpatialRecall vs legacy runPositionRecall
  * Run: npx tsx src/domain/recall/recallEngine.parity.test.ts
+ * Also collected by vitest via harness describe below.
  */
 
+import { describe, expect, it } from "vitest";
 import { runSpatialRecall } from "./recallEngine";
 import { runPositionRecall, ball3L1Sum } from "../positionRecallEngine";
 import type {
@@ -230,8 +232,8 @@ ok(
   rAdminFar.kind === "no-match" && rAdminFar.reason === "coarse-empty"
 );
 
-// userRelaxed (deprecated): permutation can match when strict roles fail
-console.log("\n=== userRelaxed (deprecated) permutation smoke ===\n");
+// userRelaxed (deprecated): Phase 4 Role Search — no target/second permutation
+console.log("\n=== userRelaxed wrong-role (no swap) ===\n");
 const storedSwapped: Ball3 = {
   cue: { x: 10, y: 10 },
   target: { x: 40, y: 20 },
@@ -242,12 +244,7 @@ const rRelaxed = runSpatialRecall({
   query: { balls: baseBalls },
   profile: "userRelaxed",
 });
-ok("userRelaxed match via swap", rRelaxed.kind === "match");
-ok(
-  "userRelaxed permutation used",
-  rRelaxed.kind === "match" &&
-    rRelaxed.meta.usedPermutation === "swapTargetSecond"
-);
+ok("userRelaxed no match wrong roles", rRelaxed.kind === "no-match");
 
 const rStrict = runSpatialRecall({
   dataset: [makeRecord(storedSwapped, [makeEntry("S1", SIG_A)])],
@@ -267,4 +264,15 @@ ok(
 );
 
 console.log(`\n--- Result: ${passed} passed, ${failed} failed ---`);
-process.exit(failed > 0 ? 1 : 0);
+if (!process.env.VITEST) {
+  process.exit(failed > 0 ? 1 : 0);
+}
+if (failed > 0) {
+  throw new Error(`recallEngine.parity: ${failed} failed`);
+}
+
+describe("recallEngine.parity harness", () => {
+  it("all inline Role/Search parity checks passed", () => {
+    expect(failed).toBe(0);
+  });
+});

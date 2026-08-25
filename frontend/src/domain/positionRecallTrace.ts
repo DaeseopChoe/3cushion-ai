@@ -47,7 +47,6 @@ export type RecallTracePayload = {
     second: ReturnType<typeof ballCompareRow>;
     coarsePass: boolean;
     l1Sum: number;
-    usedPermutation?: "none" | "swapTargetSecond";
   }>;
 };
 
@@ -70,7 +69,6 @@ export function buildRecallTracePayload(
 
   const ranked = rankRecordsForRecall(pool, balls, {
     coarsePerBall: policy.coarsePerBall,
-    allowPermutation: policy.allowTargetSecondPermutation,
     targetBall,
     distanceMetric: policy.distanceMetric,
   });
@@ -90,7 +88,6 @@ export function buildRecallTracePayload(
       second: ballCompareRow("second", b.second, balls.second, tol),
       coarsePass: row.coarsePass,
       l1Sum: row.distance,
-      usedPermutation: row.usedPermutation,
     };
   });
 

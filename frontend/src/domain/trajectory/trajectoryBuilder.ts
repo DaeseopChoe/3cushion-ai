@@ -153,18 +153,35 @@ function labelPayload(anchorOrPoint: unknown): LabelAnchorPayload | null {
   return null;
 }
 
-function resolveSecondBall(
+/**
+ * Phase 5 — TRAJECTORY BALL3 = ROLE-BASED.
+ * physical Target = balls.target; physical Second = balls.second.
+ * targetColor is NOT a field selector (kept on input for callers / paint metadata only).
+ * target_center accepted only as shape alias when balls.target absent.
+ */
+export function resolveTrajectoryTargetBall(
   balls: TrajectoryBuildInput["balls"],
-  targetColor?: string | null
+  _targetColor?: string | null
 ): PathPoint | null {
-  const yellowBall = balls.target_center ?? balls.target ?? null;
-  const redBall = balls.second ?? null;
-  const secondBall =
-    targetColor === "red"
-      ? yellowBall
-      : targetColor === "yellow"
-        ? redBall
-        : redBall ?? yellowBall ?? null;
+  void _targetColor;
+  const targetBall = balls.target ?? balls.target_center ?? null;
+  if (
+    targetBall &&
+    Number.isFinite(targetBall.x) &&
+    Number.isFinite(targetBall.y)
+  ) {
+    return { x: targetBall.x, y: targetBall.y };
+  }
+  return null;
+}
+
+/** Phase 5 Role-native: physical Second = balls.second. */
+export function resolveTrajectorySecondBall(
+  balls: TrajectoryBuildInput["balls"],
+  _targetColor?: string | null
+): PathPoint | null {
+  void _targetColor;
+  const secondBall = balls.second ?? null;
   if (
     secondBall &&
     Number.isFinite(secondBall.x) &&
@@ -175,26 +192,20 @@ function resolveSecondBall(
   return null;
 }
 
+/** @deprecated Use resolveTrajectorySecondBall (Role-native). */
+function resolveSecondBall(
+  balls: TrajectoryBuildInput["balls"],
+  targetColor?: string | null
+): PathPoint | null {
+  return resolveTrajectorySecondBall(balls, targetColor);
+}
+
+/** @deprecated Use resolveTrajectoryTargetBall (Role-native). */
 function resolveTargetBall(
   balls: TrajectoryBuildInput["balls"],
   targetColor?: string | null
 ): PathPoint | null {
-  const yellowBall = balls.target_center ?? balls.target ?? null;
-  const redBall = balls.second ?? null;
-  const targetBall =
-    targetColor === "red"
-      ? redBall
-      : targetColor === "yellow"
-        ? yellowBall
-        : yellowBall ?? redBall ?? null;
-  if (
-    targetBall &&
-    Number.isFinite(targetBall.x) &&
-    Number.isFinite(targetBall.y)
-  ) {
-    return { x: targetBall.x, y: targetBall.y };
-  }
-  return balls.target_center ?? balls.target ?? null;
+  return resolveTrajectoryTargetBall(balls, targetColor);
 }
 
 function resolveAnchorPointOrCoord(

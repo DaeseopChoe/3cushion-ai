@@ -26,30 +26,52 @@ export type LooseBallsLike = {
 };
 
 /**
- * UI ballsState SSOT: 노란공은 target_center (렌더·드래그와 동일 우선순위).
- * Ball3.target만 있는 경우 target_center로 hydrate.
+ * UI ballsState SSOT (Phase 2–3 Role): physical Target → balls.target.
+ * Accepts Ball3.target or legacy target_center shape alias; emits Role field only.
+ * History restore uses this — Role identity preserved (no color→field remap).
  */
 export function hydrateBallsStateForUi(
   balls: LooseBallsLike | null | undefined
 ): Record<string, { x: number; y: number } | undefined> {
   if (!balls || typeof balls !== "object") return {};
-  const target_center = balls.target_center ?? balls.target;
+  const target = balls.target ?? balls.target_center;
   const out: Record<string, { x: number; y: number } | undefined> = {};
-  if (balls.cue) out.cue = balls.cue;
-  if (target_center) out.target_center = target_center;
-  if (balls.second) out.second = balls.second;
-  if (balls.impact) out.impact = balls.impact;
+  if (balls.cue) out.cue = { x: balls.cue.x, y: balls.cue.y };
+  if (target) out.target = { x: target.x, y: target.y };
+  if (balls.second) out.second = { x: balls.second.x, y: balls.second.y };
+  if (balls.impact) out.impact = { x: balls.impact.x, y: balls.impact.y };
   return out;
 }
 
-/** target_center 등 다양한 balls 형식을 Ball3로 정규화 (렌더 SSOT와 동일: target_center 우선) */
+/**
+ * Phase 3 SAVE / LocalDB Ball3 SSOT — Role-preserving normalization.
+ *
+ *   balls.cue    = physical Cue
+ *   balls.target = physical Target
+ *   balls.second = physical Second
+ *
+ * Never swaps target/second by color. Never emits target_center.
+ * target_center is accepted only as a shape alias for missing balls.target.
+ */
 export function normalizeBallsToBall3(balls: LooseBallsLike): Ball3 {
-  const target = balls.target_center ?? balls.target ?? { x: 50, y: 25 };
+  const cue = balls.cue ?? { x: 10, y: 10 };
+  const target = balls.target ?? balls.target_center ?? { x: 50, y: 25 };
+  const second = balls.second ?? { x: 40, y: 20 };
   return {
-    cue: balls.cue ?? { x: 10, y: 10 },
-    target,
-    second: balls.second ?? { x: 40, y: 20 },
+    cue: { x: cue.x, y: cue.y },
+    target: { x: target.x, y: target.y },
+    second: { x: second.x, y: second.y },
   };
+}
+
+/**
+ * History snapshot write: store Role UI balls (no color-slot remapping).
+ * Same mapping as hydrate — ensures snapshot.balls.target = physical Target.
+ */
+export function canonicalizeBallsStateForHistorySnapshot(
+  balls: LooseBallsLike | null | undefined
+): Record<string, { x: number; y: number } | undefined> {
+  return hydrateBallsStateForUi(balls);
 }
 
 export type RunAutoRecommendParams = {

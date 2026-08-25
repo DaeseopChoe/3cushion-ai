@@ -3,6 +3,8 @@
  *
  * Coverage geometry is extracted only from persisted DERIVED_CUE_C3_PRODUCT
  * member balls — never from live buildTrajectory / scoring recompute.
+ *
+ * Phase 6 Role: physical Second coverage source = balls.second (not color-slot).
  */
 
 import type { Point, PositionRecord } from "../positionSearchEngine";
@@ -95,15 +97,18 @@ export function productCoverageFromDataset(args: {
     if (memberTrack !== track) continue;
 
     const cue = loc.balls?.cue;
-    const second = loc.balls?.second;
-    if (!isFinitePoint(cue) || !isFinitePoint(second)) continue;
+    if (!isFinitePoint(cue) || !loc.balls) continue;
+
+    // Phase 6 Role: physical Second sample is always balls.second
+    const physicalSecond = loc.balls.second;
+    if (!isFinitePoint(physicalSecond)) continue;
 
     const memberId = loc.entry.memberId?.trim() || loc.positionId;
     const derivedStep =
       typeof loc.entry.derivedStep === "string" ? loc.entry.derivedStep : "";
 
     upsertUnique(cuePoints, cue, memberId, derivedStep);
-    upsertUnique(secondPoints, second, memberId, derivedStep);
+    upsertUnique(secondPoints, physicalSecond, memberId, derivedStep);
   }
 
   if (cuePoints.length === 0 && secondPoints.length === 0) return null;

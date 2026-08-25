@@ -50,7 +50,6 @@ export function runSpatialRecall(
 
   const allRanked = rankRecordsForRecall(pool, balls, {
     coarsePerBall: policy.coarsePerBall,
-    allowPermutation: policy.allowTargetSecondPermutation,
     targetBall,
     distanceMetric: policy.distanceMetric,
   });
@@ -77,7 +76,6 @@ export function runSpatialRecall(
   const metaBase = {
     profile,
     coarsePassCount,
-    usedPermutation: best.usedPermutation,
     targetBucketApplied,
     rankedCandidateCount: candidateRows.length,
   };

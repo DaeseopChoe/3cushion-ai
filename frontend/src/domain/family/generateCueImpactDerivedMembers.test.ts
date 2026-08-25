@@ -33,6 +33,7 @@ import {
   encodeCueImpactDerivedStep,
   generateCueImpactDerivedMembers,
   generateCueImpactDerivedMembersForTracks,
+  resolvePhysicalTarget,
   sampleCueImpactPoint,
 } from "./generateCueImpactDerivedMembers";
 import { hydrateFamilyMemberRuntimeThickness } from "./familyRuntimeProjection";
@@ -496,8 +497,8 @@ describe("writer integration", () => {
   });
 });
 
-describe("Physical Target resolution", () => {
-  it("uses balls.target for yellow targetBall", () => {
+describe("Physical Target resolution (Phase 5 Role)", () => {
+  it("CASE B targetBall=yellow uses balls.target", () => {
     const balls = collinearBalls(20);
     const result = generateCueImpactDerivedMembers({
       sourceMember: { balls, targetBall: "yellow", entry: authoredEntry() },
@@ -512,21 +513,27 @@ describe("Physical Target resolution", () => {
         (impact.x - balls.cue.x) * (m.balls.cue.y - balls.cue.y) -
         (impact.y - balls.cue.y) * (m.balls.cue.x - balls.cue.x);
       expect(Math.abs(cross)).toBeLessThan(1e-9);
+      expect(m.balls.target).toEqual(balls.target);
+      expect(m.balls.second).toEqual(balls.second);
     }
   });
 
-  it("uses balls.second for red targetBall", () => {
+  it("CASE A targetBall=red uses balls.target (Role field, not second)", () => {
+    // Role Ball3: physical red Target @ balls.target; yellow Second @ balls.second
     const balls: Ball3 = {
       cue: { x: 8, y: 16 },
-      target: { x: 62, y: 12 },
-      second: { x: 8 + 20 + DEFAULT_SCALE.BALL_DIAMETER_RG, y: 16 },
+      target: { x: 8 + 20 + DEFAULT_SCALE.BALL_DIAMETER_RG, y: 16 },
+      second: { x: 62, y: 12 },
     };
+    expect(resolvePhysicalTarget(balls, "red")).toEqual(balls.target);
+    expect(resolvePhysicalTarget(balls, "red")).not.toEqual(balls.second);
+
     const result = generateCueImpactDerivedMembers({
       sourceMember: { balls, targetBall: "red", entry: authoredEntry() },
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const redImpact = calcImpactBall(balls.cue, balls.second, "8/8");
+    const redImpact = calcImpactBall(balls.cue, balls.target, "8/8");
     expect(redImpact).toBeTruthy();
     if (!redImpact) return;
     for (const m of result.members) {
@@ -534,10 +541,16 @@ describe("Physical Target resolution", () => {
         (redImpact.x - balls.cue.x) * (m.balls.cue.y - balls.cue.y) -
         (redImpact.y - balls.cue.y) * (m.balls.cue.x - balls.cue.x);
       expect(Math.abs(cross)).toBeLessThan(1e-9);
+      expect(m.balls.target).toEqual(balls.target);
+      expect(m.balls.second).toEqual(balls.second);
+      expect(m.balls.cue).not.toEqual(balls.cue);
     }
-    const yellowImpact = calcImpactBall(balls.cue, balls.target, "8/8");
-    if (yellowImpact && redImpact) {
-      expect(Math.hypot(yellowImpact.x - redImpact.x, yellowImpact.y - redImpact.y)).toBeGreaterThan(0.1);
+    // targetColor must not select second field
+    const wrongImpact = calcImpactBall(balls.cue, balls.second, "8/8");
+    if (wrongImpact && redImpact) {
+      expect(
+        Math.hypot(wrongImpact.x - redImpact.x, wrongImpact.y - redImpact.y)
+      ).toBeGreaterThan(0.1);
     }
   });
 
@@ -557,6 +570,17 @@ describe("Physical Target resolution", () => {
         (impact.y - balls.cue.y) * (m.balls.cue.x - balls.cue.x);
       expect(Math.abs(cross)).toBeLessThan(1e-9);
     }
+  });
+
+  it("D — targetColor/targetBall is not a field selector", () => {
+    const roleA: Ball3 = {
+      cue: { x: 8, y: 16 },
+      target: { x: 30, y: 16 },
+      second: { x: 62, y: 12 },
+    };
+    expect(resolvePhysicalTarget(roleA, "red")).toEqual(roleA.target);
+    expect(resolvePhysicalTarget(roleA, "yellow")).toEqual(roleA.target);
+    expect(resolvePhysicalTarget(roleA, null)).toEqual(roleA.target);
   });
 });
 

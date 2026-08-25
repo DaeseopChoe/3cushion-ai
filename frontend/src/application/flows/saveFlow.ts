@@ -263,6 +263,8 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     }
   };
 
+  // Phase 3: Role-preserving Ball3 (target=physical Target, second=physical Second).
+  // No color-slot remapping — targetColor is metadata only (datasetTargetBall below).
   const ball3Raw = normalizeBallsToBall3(
     ctx.ballsState as Record<string, unknown>
   ) as Ball3;

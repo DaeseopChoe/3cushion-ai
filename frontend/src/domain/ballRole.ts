@@ -1,26 +1,39 @@
 /**
  * ballRole.ts
- * Ball Role SSOT (Trajectory Extension v1.3 final).
+ * Ball Role + Ball3 SSOT — Role-based Clean Cut Phase 1.
  *
- * Role  = cue | target | second   (behavior)
- * Slot  = cue | target_center | second  (coordinate storage only)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * CANONICAL Ball3 (field name == physical role)
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * Historical slot keys are preserved for Dataset / SAVE / Search (frozen):
- *   target_center = yellow color slot (not "target role")
- *   second        = red color slot (not "second role")
+ *   balls.cue    = physical Cue Ball   (always white)
+ *   balls.target = physical Target Ball (red or yellow)
+ *   balls.second = physical Second Ball (the other object ball)
  *
- * Target Role = first DoubleClick color.
- * Second Role = the other color ball while Target is locked.
+ * Color is NOT a Role. Color does not select which Ball3 field is Target/Second.
+ *
+ *   targetBall / targetColor = color metadata of the physical Target only
+ *   (red | yellow). Second color = opposite(targetColor).
+ *
+ * CASE A: targetBall="red"
+ *   balls.target  = red Target position
+ *   balls.second  = yellow Second position
+ *
+ * CASE B: targetBall="yellow"
+ *   balls.target  = yellow Target position
+ *   balls.second  = red Second position
+ *
+ * Color is metadata only (paint / targetBall filter). Role Clean Cut Phase 1–7C complete.
  */
 
 export type BallRole = "cue" | "target" | "second";
 
-/** Physical color of the object ball (not a Role). */
+/** Physical color of an object ball (metadata — not a Role). */
 export type BallColor = "red" | "yellow";
 
 /**
- * Coordinate slot ids in ballsState / Dataset.
- * Do not treat these names as Roles.
+ * UI / drag coordinate keys (legacy ballsState).
+ * Dataset Ball3 roles are cue | target | second — not these paint slots.
  */
 export type BallSlotId = "cue" | "target_center" | "second" | "target";
 
@@ -34,31 +47,20 @@ export type BallsMap = {
   [key: string]: RgPoint | null | undefined;
 };
 
+/** Target Lock UI state: targetColor = color of physical Target. */
 export type TargetLockState = {
   targetColor: BallColor | null | undefined;
   isTargetSelected: boolean;
 };
 
-/** Yellow object-ball coordinate slot (storage only). */
-export const YELLOW_SLOT_ID: BallSlotId = "target_center";
-
-/** Red object-ball coordinate slot (storage only). */
-export const RED_SLOT_ID: BallSlotId = "second";
+/** Minimal Ball3 object-ball pair (canonical roles). */
+export type Ball3ObjectPair = {
+  target: RgPoint;
+  second: RgPoint;
+};
 
 export function isBallColor(v: unknown): v is BallColor {
   return v === "red" || v === "yellow";
-}
-
-/** Slot id that stores a given object-ball color. */
-export function slotIdForColor(color: BallColor): BallSlotId {
-  return color === "yellow" ? YELLOW_SLOT_ID : RED_SLOT_ID;
-}
-
-/** Object-ball color stored in a slot id (null for cue / unknown). */
-export function colorForSlotId(slotId: string | null | undefined): BallColor | null {
-  if (slotId === "target" || slotId === "target_center") return "yellow";
-  if (slotId === "second") return "red";
-  return null;
 }
 
 /** Opposite object-ball color. */
@@ -67,56 +69,154 @@ export function oppositeColor(color: BallColor): BallColor {
 }
 
 /**
- * Slot id for Target Role.
- * Requires Target Lock (isTargetSelected + valid targetColor).
+ * Color of the physical Second given Target color metadata.
+ * Does not change Ball3 field meaning.
  */
-export function resolveTargetSlotId(
-  lock: TargetLockState
-): BallSlotId | null {
-  if (!lock.isTargetSelected || !isBallColor(lock.targetColor)) return null;
-  return slotIdForColor(lock.targetColor);
+export function secondColorFromTargetColor(
+  targetColor: BallColor | null | undefined
+): BallColor | null {
+  if (!isBallColor(targetColor)) return null;
+  return oppositeColor(targetColor);
+}
+
+/** SVG paint hex for object-ball colors (UI). */
+export const BALL_PAINT_HEX = {
+  white: "#ffffff",
+  yellow: "#fde047",
+  red: "#f87171",
+} as const;
+
+/**
+ * Provisional Target color when unlocked: yellow @ balls.target, red @ balls.second.
+ */
+export const PROVISIONAL_TARGET_COLOR: BallColor = "yellow";
+
+/** Paint hex for physical Target Role (field balls.target). */
+export function paintHexForTargetRole(
+  targetColor: BallColor | null | undefined
+): string {
+  const c = isBallColor(targetColor) ? targetColor : PROVISIONAL_TARGET_COLOR;
+  return c === "red" ? BALL_PAINT_HEX.red : BALL_PAINT_HEX.yellow;
+}
+
+/** Paint hex for physical Second Role (field balls.second). */
+export function paintHexForSecondRole(
+  targetColor: BallColor | null | undefined
+): string {
+  const c = isBallColor(targetColor) ? targetColor : PROVISIONAL_TARGET_COLOR;
+  return oppositeColor(c) === "red" ? BALL_PAINT_HEX.red : BALL_PAINT_HEX.yellow;
 }
 
 /**
- * Slot id for Second Role (= non-target object ball).
- * Requires Target Lock.
+ * UI: resolve Target Role coordinates (prefer balls.target; legacy target_center alias).
  */
-export function resolveSecondSlotId(
-  lock: TargetLockState
-): BallSlotId | null {
-  if (!lock.isTargetSelected || !isBallColor(lock.targetColor)) return null;
-  return slotIdForColor(oppositeColor(lock.targetColor));
-}
-
-/** Alias matching SSOT wording. */
-export function resolveSecondRole(lock: TargetLockState): BallSlotId | null {
-  return resolveSecondSlotId(lock);
+export function uiTargetRoleCoords(
+  balls: BallsMap | null | undefined
+): RgPoint | null {
+  if (!balls) return null;
+  const p = balls.target ?? balls.target_center ?? null;
+  return isValidPoint(p) ? clonePoint(p) : null;
 }
 
 /**
- * Resolve Role for a coordinate slot under current Target Lock.
- * cue is always cue. Object slots are target/second only after Lock.
+ * First object-ball Target Lock under Role UI.
+ * Clicked field is a Role key ("target" | "second").
+ * If "second" is locked as Target, swap coordinates into canonical fields.
  */
-export function resolveRoleForSlotId(
-  slotId: string | null | undefined,
-  lock: TargetLockState
-): BallRole | null {
-  if (!slotId) return null;
-  if (slotId === "cue") return "cue";
-  const color = colorForSlotId(slotId);
-  if (!color) return null;
-  if (!lock.isTargetSelected || !isBallColor(lock.targetColor)) return null;
-  if (color === lock.targetColor) return "target";
-  return "second";
+export function lockTargetRoleFromClickedBall(
+  balls: BallsMap,
+  clickedBallId: "target" | "second",
+  currentTargetColor: BallColor | null | undefined
+): { balls: BallsMap; targetColor: BallColor } {
+  const provisional = isBallColor(currentTargetColor)
+    ? currentTargetColor
+    : PROVISIONAL_TARGET_COLOR;
+  const targetPos = uiTargetRoleCoords(balls);
+  const secondPos = getBallCoordsBySlotId(balls, "second");
+  if (!targetPos || !secondPos) {
+    return {
+      balls: { ...balls },
+      targetColor: provisional,
+    };
+  }
+
+  if (clickedBallId === "target") {
+    return {
+      balls: {
+        cue: balls.cue ?? null,
+        target: clonePoint(targetPos),
+        second: clonePoint(secondPos),
+        ...(balls.impact ? { impact: balls.impact } : {}),
+      },
+      targetColor: provisional,
+    };
+  }
+
+  // Clicked physical Second → becomes Target; swap into Role fields
+  return {
+    balls: {
+      cue: balls.cue ?? null,
+      target: clonePoint(secondPos),
+      second: clonePoint(targetPos),
+      ...(balls.impact ? { impact: balls.impact } : {}),
+    },
+    targetColor: oppositeColor(provisional),
+  };
 }
 
+// ─── Canonical Ball3 role readers (Phase 1 SSOT) ───────────────────────────
+
+/**
+ * Physical Target coordinates from Ball3.
+ * Field `target` IS the Target Role — independent of targetBall color.
+ */
+export function physicalTargetFromBall3(
+  balls: { target: RgPoint } | null | undefined
+): RgPoint | null {
+  if (!balls) return null;
+  return isValidPoint(balls.target) ? clonePoint(balls.target) : null;
+}
+
+/**
+ * Physical Second coordinates from Ball3.
+ * Field `second` IS the Second Role — independent of targetBall color.
+ */
+export function physicalSecondFromBall3(
+  balls: { second: RgPoint } | null | undefined
+): RgPoint | null {
+  if (!balls) return null;
+  return isValidPoint(balls.second) ? clonePoint(balls.second) : null;
+}
+
+/**
+ * Place physical-second scoring sample P onto Ball3.second (canonical).
+ * Physical Target (balls.target) is unchanged.
+ * targetBall is ignored for field selection (color metadata only).
+ */
+export function placePhysicalSecondSampleOnRoleBall3(
+  base: Ball3ObjectPair,
+  sampleP: RgPoint,
+  _targetBall?: BallColor | null
+): Ball3ObjectPair {
+  void _targetBall;
+  return {
+    target: clonePoint(base.target),
+    second: clonePoint(sampleP),
+  };
+}
+
+/**
+ * UI coordinate lookup by ballsState key.
+ * Role fields: cue | target | second. target_center is a legacy alias of target.
+ * Does NOT map color → Role.
+ */
 export function getBallCoordsBySlotId(
   balls: BallsMap | null | undefined,
   slotId: BallSlotId | null | undefined
 ): RgPoint | null {
   if (!balls || !slotId) return null;
   if (slotId === "target_center" || slotId === "target") {
-    const p = balls.target_center ?? balls.target ?? null;
+    const p = balls.target ?? balls.target_center ?? null;
     return isValidPoint(p) ? { x: p.x, y: p.y } : null;
   }
   if (slotId === "second") {
@@ -130,82 +230,8 @@ export function getBallCoordsBySlotId(
   return null;
 }
 
-export function getBallByRole(
-  balls: BallsMap | null | undefined,
-  role: BallRole,
-  lock: TargetLockState
-): { slotId: BallSlotId; point: RgPoint } | null {
-  if (role === "cue") {
-    const point = getBallCoordsBySlotId(balls, "cue");
-    return point ? { slotId: "cue", point } : null;
-  }
-  const slotId =
-    role === "target" ? resolveTargetSlotId(lock) : resolveSecondSlotId(lock);
-  if (!slotId) return null;
-  const point = getBallCoordsBySlotId(balls, slotId);
-  return point ? { slotId, point } : null;
-}
-
-export function getTargetBall(
-  balls: BallsMap | null | undefined,
-  lock: TargetLockState
-) {
-  return getBallByRole(balls, "target", lock);
-}
-
-export function getSecondBall(
-  balls: BallsMap | null | undefined,
-  lock: TargetLockState
-) {
-  return getBallByRole(balls, "second", lock);
-}
-
-export function isTargetRoleSlot(
-  slotId: string | null | undefined,
-  lock: TargetLockState
-): boolean {
-  return resolveRoleForSlotId(slotId, lock) === "target";
-}
-
-export function isSecondRoleSlot(
-  slotId: string | null | undefined,
-  lock: TargetLockState
-): boolean {
-  return resolveRoleForSlotId(slotId, lock) === "second";
-}
-
-/** Yellow slot coords (storage helper — not Target Role). */
-export function getYellowBallCoords(balls: BallsMap | null | undefined) {
-  return getBallCoordsBySlotId(balls, YELLOW_SLOT_ID);
-}
-
-/** Red slot coords (storage helper — not Second Role). */
-export function getRedBallCoords(balls: BallsMap | null | undefined) {
-  return getBallCoordsBySlotId(balls, RED_SLOT_ID);
-}
-
-/**
- * Impact / coaching: Target Role coords when locked; else yellow-then-red fallback.
- */
-export function resolveImpactTargetBall(
-  balls: BallsMap | null | undefined,
-  targetColorSel: BallColor | null | undefined
-): RgPoint | null {
-  if (!balls) return null;
-  if (isBallColor(targetColorSel)) {
-    return getBallCoordsBySlotId(balls, slotIdForColor(targetColorSel));
-  }
-  return getYellowBallCoords(balls) ?? getRedBallCoords(balls);
-}
-
-/** UI emphasis: slot matches locked Target Role color. */
-export function isConfirmedTargetBall(
-  slotId: string | null | undefined,
-  targetColorSel: BallColor | null | undefined,
-  isSelected: boolean
-): boolean {
-  if (!isSelected || !isBallColor(targetColorSel)) return false;
-  return colorForSlotId(slotId) === targetColorSel;
+function clonePoint(p: RgPoint): RgPoint {
+  return { x: p.x, y: p.y };
 }
 
 function isValidPoint(p: RgPoint | null | undefined): p is RgPoint {

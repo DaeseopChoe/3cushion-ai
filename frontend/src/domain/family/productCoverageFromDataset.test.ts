@@ -63,10 +63,11 @@ function productRecord(args: {
 
 function sampleDataset(): PositionRecord[] {
   const familyId = "fm_cov";
-  const target = pt(40, 16);
+  /** Role CASE A: physical Target red @ balls.target; P samples @ balls.second */
+  const redPhysicalTarget = pt(40, 16);
   const rows: PositionRecord[] = [];
 
-  // B2T_L: 2 cue × 2 second = 4 products
+  // B2T_L: 2 cue × 2 physical-second = 4 products
   const cueL = [pt(10, 16), pt(13, 16)];
   const secondL = [pt(20, 8), pt(24, 8)];
   let n = 0;
@@ -79,7 +80,11 @@ function sampleDataset(): PositionRecord[] {
           track: "B2T_L",
           memberId: `mb_L_${n}`,
           derivedStep: `cue:cue_impact:t:0.${i + 1}00000|c3:c3plus:seg:0:t:0.${j + 1}00000`,
-          balls: { cue: cueL[i]!, target, second: secondL[j]! },
+          balls: {
+            cue: cueL[i]!,
+            target: redPhysicalTarget,
+            second: secondL[j]!,
+          },
         })
       );
     }
@@ -94,8 +99,8 @@ function sampleDataset(): PositionRecord[] {
       derivedStep: "cue:cue_impact:t:0.100000|c3:c3plus:v:C3",
       balls: {
         cue: pt(70, 16),
-        target: pt(50, 16),
-        second: pt(60, 8),
+        target: pt(60, 8),
+        second: pt(50, 16),
       },
     })
   );
@@ -109,8 +114,8 @@ function sampleDataset(): PositionRecord[] {
       derivedStep: "cue:cue_impact:t:0.100000|c3:c3plus:v:C3",
       balls: {
         cue: pt(1, 1),
-        target: pt(2, 2),
-        second: pt(3, 3),
+        target: pt(3, 3),
+        second: pt(2, 2),
       },
     })
   );
@@ -119,10 +124,10 @@ function sampleDataset(): PositionRecord[] {
   rows.push({
     positionId: createPositionId({
       cue: pt(10, 16),
-      target,
-      second: pt(20, 30),
+      target: pt(20, 30),
+      second: redPhysicalTarget,
     }),
-    balls: { cue: pt(10, 16), target, second: pt(20, 30) },
+    balls: { cue: pt(10, 16), target: pt(20, 30), second: redPhysicalTarget },
     targetBall: "red",
     schemaVersion: 1,
     strategies: {
@@ -167,7 +172,7 @@ describe("productCoverageFromDataset", () => {
     ]);
   });
 
-  it("B: unique Product second points match stored balls.second", () => {
+  it("B: unique Product second points match balls.second (Role physical Second)", () => {
     const dataset = sampleDataset();
     const cov = productCoverageFromDataset({
       dataset,
@@ -207,17 +212,21 @@ describe("productCoverageFromDataset", () => {
       track: "B2T_L",
     });
     const cue = cov!.cuePoints[0]!.point;
-    const second = cov!.secondPoints[0]!.point;
-    const target = pt(40, 16);
+    const physicalSecond = cov!.secondPoints[0]!.point;
+    const redPhysicalTarget = pt(40, 16);
     const result = runSpatialRecall({
       dataset,
-      query: { balls: { cue, target, second }, targetBall: "red" },
+      query: {
+        balls: { cue, target: redPhysicalTarget, second: physicalSecond },
+        targetBall: "red",
+      },
       profile: "adminSearch",
     });
     expect(result.kind).toBe("match");
     if (result.kind !== "match") return;
     expect(result.record.balls.cue).toEqual(cue);
-    expect(result.record.balls.second).toEqual(second);
+    expect(result.record.balls.target).toEqual(redPhysicalTarget);
+    expect(result.record.balls.second).toEqual(physicalSecond);
     expect(result.distance).toBe(0);
   });
 
@@ -235,11 +244,13 @@ describe("productCoverageFromDataset", () => {
     });
     expect(left!.cuePoints.some((p) => p.point.x === 70)).toBe(false);
     expect(right!.cuePoints.map((p) => p.point)).toEqual([pt(70, 16)]);
-    expect(right!.secondPoints.map((p) => p.point)).toEqual([pt(60, 8)]);
+    // Role: physical Second sample P is always balls.second
+    expect(right!.secondPoints.map((p) => p.point)).toEqual([pt(50, 16)]);
   });
 
   it("E2: all four tracks isolate when present", () => {
     const familyId = "fm_4t";
+    const redPhysicalTarget = pt(40, 16);
     const dataset = FAMILY_TRACKS.map((track, i) =>
       productRecord({
         familyId,
@@ -248,7 +259,7 @@ describe("productCoverageFromDataset", () => {
         derivedStep: `cue:cue_impact:t:0.100000|c3:c3plus:v:C3`,
         balls: {
           cue: pt(10 + i, 16),
-          target: pt(40, 16),
+          target: redPhysicalTarget,
           second: pt(20 + i, 8),
         },
       })

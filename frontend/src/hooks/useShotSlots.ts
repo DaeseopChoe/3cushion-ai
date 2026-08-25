@@ -911,7 +911,9 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
 
   /**
    * Position Recall 결과를 UI 상태에 적용 (옵션 B: 전략만 적용)
-   * - balls / adminState.balls 절대 변경 안 함
+   * Phase 4 Role Search: balls / adminState.balls 절대 변경 안 함
+   * → UI Role Ball3 (query.target / query.second) 그대로 유지
+   * → draft.targetBall = record.targetBall (color metadata only)
    * - draft만 갱신 (applied 유지)
    */
   const applyPositionRecall = (record: PositionRecord) => {

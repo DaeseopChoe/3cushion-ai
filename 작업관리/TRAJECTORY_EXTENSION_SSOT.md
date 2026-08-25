@@ -260,26 +260,39 @@ Extension Domain 내부 자산으로 두는 것이 "계산이 아니라 추천 �
 | Extension의 권한 | **Geometry 소유** · Ball에 대한 **명시적 1회 Projection만** 제공 |
 | Owner 변경 | **없음** |
 
-### 6.1 Role vs Slot (v1.3 final)
+### 6.1 Role vs Color (Clean Cut Phase 1–7C — COMPLETE)
 
 | 계층 | 값 | 의미 |
 |------|-----|------|
-| **Role** | `cue` · `target` · `second` | 동작 / Projection / Target Lock |
-| **Slot (저장)** | `cue` · `target_center` · `second` | 좌표 저장만 (Dataset 키 유지) |
+| **Role (Ball3 / Dataset)** | `cue` · `target` · `second` | **필드명 = physical role** |
+| **Color metadata** | `targetBall` / `targetColor` | physical Target의 색 (`red` \| `yellow`)만 · paint / filter metadata |
+| **App UI (Phase 7B)** | Role field identity | color-slot Role consumer **0** |
+| **Search / Recall (Phase 7C)** | **ROLE → ROLE direct** | Target↔Second **permutation removed** |
+| **Phase 7A** | dead Product/bridge helpers DELETED | — |
 
-- `target_center` = **Yellow 색 슬롯** (Target Role이 아님)
-- `second` = **Red 색 슬롯** (Second Role이 아님)
-- **Target Role** = 최초 DoubleClick한 색의 슬롯
-- **Second Role** = Target Lock 이후 나머지 색 슬롯
+**Canonical Ball3**
+
+- `balls.cue` = physical Cue (white)
+- `balls.target` = physical Target (red 또는 yellow)
+- `balls.second` = physical Second (나머지 object ball)
+- Color는 Role이 아니다. `targetBall`로 Target/Second **필드를 고르지 않는다.**
 
 ```text
-첫 DoubleClick(Red)  → Target=Red  · Second=Yellow(target_center 슬롯)
-첫 DoubleClick(Yellow) → Target=Yellow · Second=Red(second 슬롯)
+CASE A targetBall=red    → balls.target=red pos · balls.second=yellow pos
+CASE B targetBall=yellow → balls.target=yellow pos · balls.second=red pos
 ```
 
-Projection / DoubleClick Lock은 **Role**만 사용한다. Slot 이름은 Dataset 호환용이다.
+**SEARCH BALL3 = ROLE-BASED DIRECT MATCH (Phase 7C)**
 
-Extension은 Second Ball을 **소유하지 않는다.** Dataset 저장은 기존 `balls.*` 슬롯 키를 유지한다 (SAVE 구조 Frozen).
+- `query.target` ↔ `candidate.target`, `query.second` ↔ `candidate.second`
+- Target/Second permutation = **removed**
+- `allowTargetSecondPermutation` / `usedPermutation` / swap helpers = **deleted**
+- color metadata does not determine Role
+- FIELD NAME == PHYSICAL ROLE
+
+**App Ball3 consumer = Role-based (Phase 7B)** · **C3+/Product/Coverage = balls.second for P (Phase 6)**
+
+Projection / DoubleClick Lock의 목표는 **Role 필드**다. Extension은 Second Ball을 **소유하지 않는다.**
 
 **Runtime Attachment / Snap / Follow / Continuous Constraint는 존재하지 않는다 (v1.3).**
 

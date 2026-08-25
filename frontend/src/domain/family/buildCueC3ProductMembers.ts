@@ -3,10 +3,12 @@
  *
  * Orchestration only: does not chain Cue-derived → C3+ generator.
  * C3+ Review candidates store sample points on balls.cue (transient);
- * Product maps that coordinate onto balls.second.
+ * Product maps that scoring point P onto balls.second (Role physical Second).
+ * balls.target preserves base physical Target. targetBall is metadata only.
  */
 
 import { mintAuthoringStrategyId } from "../authoringStrategyId";
+import { placePhysicalSecondSampleOnRoleBall3 } from "../ballRole";
 import type { Ball3, Point, StrategyEntry } from "../positionSearchEngine";
 import type { TrajectoryExtensionPayload } from "../trajectoryExtension/model";
 import {
@@ -107,8 +109,10 @@ function groupByTrack(
 
 /**
  * Build durable Product members from frozen Cue + C3+ review candidates.
- * balls.cue ← Cue sample cue; balls.second ← C3+ sample point (Review balls.cue);
- * balls.target ← base target; extensions ← base COPY.
+ * balls.cue ← Cue sample cue;
+ * balls.second ← C3+ scoring sample P (physical Second Role);
+ * balls.target ← base physical Target (unchanged);
+ * extensions ← base COPY.
  */
 export function buildCueC3ProductMembers(args: {
   familyId: string;
@@ -195,7 +199,22 @@ export function buildCueC3ProductMembers(args: {
       };
     }
     const baseMemberId = base.entry.memberId;
-    const baseTarget = base.balls.target;
+    const resolvedTargetBall =
+      base.targetBall === "yellow" || base.targetBall === "red"
+        ? base.targetBall
+        : undefined;
+    // Phase 6 Role: physical Target is always balls.target
+    const physicalTargetPoint = isFinitePoint(base.balls.target)
+      ? { x: base.balls.target.x, y: base.balls.target.y }
+      : null;
+    if (!physicalTargetPoint) {
+      return {
+        ok: false,
+        code: "INVALID_BALLS",
+        reason: `missing base physical Target (balls.target) on ${track}`,
+        cardinality: cardinalityBase,
+      };
+    }
     const compatibility = extractTemporaryCompatibilityPayload(base.entry);
     const trajectoryExtensions = cloneExtensions(base.entry.trajectoryExtensions);
     const reflectionOverride = base.entry.reflectionOverride
@@ -225,11 +244,17 @@ export function buildCueC3ProductMembers(args: {
         };
       }
 
+      const sampleTargetBall =
+        resolvedTargetBall ??
+        (cueSample.targetBall === "yellow" || cueSample.targetBall === "red"
+          ? cueSample.targetBall
+          : undefined);
+
       for (const c3Sample of c3s) {
         const c3Step = (c3Sample.derivedStep ?? "").trim();
         // Review C3+ candidates park the scoring sample on balls.cue (transient).
-        const secondPoint = c3Sample.balls.cue;
-        if (!c3Step || !isFinitePoint(secondPoint)) {
+        const scoringPointP = c3Sample.balls.cue;
+        if (!c3Step || !isFinitePoint(scoringPointP)) {
           return {
             ok: false,
             code: "INVALID_BALLS",
@@ -246,10 +271,16 @@ export function buildCueC3ProductMembers(args: {
           };
         }
 
+        const c3TargetBall =
+          sampleTargetBall ??
+          (c3Sample.targetBall === "yellow" || c3Sample.targetBall === "red"
+            ? c3Sample.targetBall
+            : undefined);
+
         if (
-          pointsEqual(cuePoint, secondPoint) ||
-          pointsEqual(cuePoint, baseTarget) ||
-          pointsEqual(secondPoint, baseTarget)
+          pointsEqual(cuePoint, scoringPointP) ||
+          pointsEqual(cuePoint, physicalTargetPoint) ||
+          pointsEqual(scoringPointP, physicalTargetPoint)
         ) {
           return {
             ok: false,
@@ -259,12 +290,20 @@ export function buildCueC3ProductMembers(args: {
           };
         }
 
+        const objectSlots = placePhysicalSecondSampleOnRoleBall3(
+          base.balls,
+          scoringPointP
+        );
         const balls: Ball3 = {
           cue: { x: cuePoint.x, y: cuePoint.y },
-          target: { ...baseTarget },
-          second: { x: secondPoint.x, y: secondPoint.y },
+          target: objectSlots.target,
+          second: objectSlots.second,
         };
-        if (!isValidBallCenter(balls.cue) || !isValidBallCenter(balls.second)) {
+        if (
+          !isValidBallCenter(balls.cue) ||
+          !isValidBallCenter(balls.target) ||
+          !isValidBallCenter(balls.second)
+        ) {
           return {
             ok: false,
             code: "OUT_OF_BOUNDS",
@@ -320,11 +359,9 @@ export function buildCueC3ProductMembers(args: {
           authoringStrategyId,
           track,
           balls: cloneBall3(balls),
-          ...(base.targetBall === "yellow" || base.targetBall === "red"
-            ? { targetBall: base.targetBall }
-            : cueSample.targetBall === "yellow" || cueSample.targetBall === "red"
-              ? { targetBall: cueSample.targetBall }
-              : {}),
+          ...(c3TargetBall === "yellow" || c3TargetBall === "red"
+            ? { targetBall: c3TargetBall }
+            : {}),
           compatibility,
           ...(trajectoryExtensions ? { trajectoryExtensions } : {}),
           ...(reflectionOverride ? { reflectionOverride } : {}),
@@ -366,7 +403,7 @@ export function fingerprintCueC3ProductMembers(
   const rows = members
     .map(
       (m) =>
-        `${m.track}|${m.memberOrigin}|${m.derivedStep}|${m.generatedFromMemberId ?? ""}|${m.balls.cue.x},${m.balls.cue.y}|${m.balls.second.x},${m.balls.second.y}`
+        `${m.track}|${m.memberOrigin}|${m.derivedStep}|${m.generatedFromMemberId ?? ""}|${m.balls.cue.x},${m.balls.cue.y}|${m.balls.target.x},${m.balls.target.y}|${m.balls.second.x},${m.balls.second.y}|${m.targetBall ?? ""}`
     )
     .sort();
   return rows.join("\n");

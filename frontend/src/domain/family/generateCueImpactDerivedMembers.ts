@@ -6,14 +6,12 @@
  *
  * Geometry (production primitives only):
  *   C = source.balls.cue
- *   I = calcImpactBall(C, source.balls.target, runtime T)
+ *   I = calcImpactBall(C, source.balls.target, runtime T)  // Role Target
  *   P(t) = C + t * (I - C),  0 < t <= 0.30
  *
- * I is the Cue Ball center at Target contact — not a rail mark, not CO.
- * CO sys / CO→C1 rail geometry are not inputs.
- *
- * Withdrawn (Phase 3A-3 temporary, never persisted):
- *   CO_C1_2RG, sourceDomainLengthRg, evaluateCoC1RgSteps, co_c1:rg:<offset>
+ * Phase 5 — Cue-derived Role SSOT:
+ *   only balls.cue may move; balls.target / balls.second preserve physical roles.
+ *   targetBall is color metadata only (not a field selector).
  */
 
 import { calcImpactBall } from "../../data/system/calculator";
@@ -21,9 +19,15 @@ import { mintAuthoringStrategyId } from "../authoringStrategyId";
 import { createPositionId } from "../positionId";
 import type { Ball3, Point, StrategyEntry, TargetBall } from "../positionSearchEngine";
 
-/** Physical Target = the first object ball the cue must hit. Resolved by color, not by field name. */
-export function resolvePhysicalTarget(balls: Ball3, targetBall?: TargetBall | null): Point {
-  if (targetBall === "red") return balls.second;
+/**
+ * Physical Target = balls.target (Role field).
+ * targetBall is ignored for field selection (metadata only; Phase 5).
+ */
+export function resolvePhysicalTarget(
+  balls: Ball3,
+  _targetBall?: TargetBall | null
+): Point {
+  void _targetBall;
   return balls.target;
 }
 import {

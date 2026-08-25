@@ -165,11 +165,10 @@ import {
   resolveOrigin,
 } from "./domain/trajectoryExtension";
 import {
-  colorForSlotId,
-  getSecondBall,
-  isConfirmedTargetBall,
-  isSecondRoleSlot,
-  resolveImpactTargetBall,
+  lockTargetRoleFromClickedBall,
+  paintHexForSecondRole,
+  paintHexForTargetRole,
+  uiTargetRoleCoords,
 } from "./domain/ballRole";
 import { buildTrajectoryExtensionRenderModel } from "./renderer/trajectory/trajectoryExtensionRenderModel";
 import { resolveTrajectoryExtensionOverlayVisibility } from "./renderer/trajectory/trajectoryExtensionOverlayVisibility";
@@ -377,10 +376,12 @@ function buildAdminRecallTraceSnapshot(args) {
   };
 }
 
-/** 최초 진입·canonical 샷 기본 공 배치 (Rg 그리드) */
+/** 최초 진입·canonical 샷 기본 공 배치 (Rg 그리드)
+ * Phase 2 Role UI: default targetColor=yellow → target=former yellow, second=former red
+ */
 const INITIAL_BALLS_RG = {
   cue: { x: 20, y: 16 },
-  target_center: { x: 20, y: 20 },
+  target: { x: 20, y: 20 },
   second: { x: 60, y: 20 },
 };
 
@@ -1454,21 +1455,33 @@ export default function App({
   frozenCushionPathRg: null,
 });
 
-  /** 볼 더블클릭 — setTargetColor / patchSlotRuntimeMeta SSOT (Role Lock 전용) */
+  /** 볼 더블클릭 — Target Lock = physical Role 선정 (색상 슬롯 아님) */
   function applyTargetFromBallId(ballId) {
     // Target Lock: once selected for this input session, never reassign via DoubleClick
     if (isTargetSelected) return;
 
+    const roleId =
+      ballId === "target_center" || ballId === "target"
+        ? "target"
+        : ballId === "second"
+          ? "second"
+          : null;
+    if (!roleId) return;
+
     const slotId = shotEditor.activeSlot;
-    const ballColor = colorForSlotId(ballId);
-    if (!ballColor) return;
+    const locked = lockTargetRoleFromClickedBall(
+      ballsState,
+      roleId,
+      targetColor
+    );
     stopJoystick();
-    setTargetColor(ballColor);
+    setBallsState(locked.balls);
+    setTargetColor(locked.targetColor);
     setIsTargetSelected(true);
-    actions.patchSlotRuntimeMeta(slotId, { targetBall: ballColor });
+    actions.patchSlotRuntimeMeta(slotId, { targetBall: locked.targetColor });
     setDragState((s) => ({
       ...s,
-      ballId,
+      ballId: roleId,
       joystickVisible: false,
       dragging: false,
     }));
@@ -1714,6 +1727,16 @@ export default function App({
     e.preventDefault();
     e.stopPropagation();
 
+    const roleId =
+      ballId === "target_center" || ballId === "target"
+        ? "target"
+        : ballId === "second"
+          ? "second"
+          : ballId === "cue"
+            ? "cue"
+            : null;
+    if (!roleId || roleId === "cue") return;
+
     const lock = {
       targetColor: targetColorRef.current,
       isTargetSelected: isTargetSelectedRef.current,
@@ -1721,23 +1744,28 @@ export default function App({
 
     // Target Lock: any further DoubleClick must not change Target Role
     if (lock.isTargetSelected) {
-      // Only Second Role Ball → 1× nearest display-segment Projection
-      if (!isSecondRoleSlot(ballId, lock)) return;
+      // Only Second Role Ball (field balls.second) → 1× nearest display-segment Projection
+      if (roleId !== "second") return;
 
-      const second = getSecondBall(ballsStateRef.current, lock);
-      if (!second) return;
+      const secondPos = ballsStateRef.current?.second;
+      if (
+        !secondPos ||
+        !Number.isFinite(secondPos.x) ||
+        !Number.isFinite(secondPos.y)
+      ) {
+        return;
+      }
 
       const proj = projectBallOntoNearestSegment({
-        ball: second.point,
+        ball: secondPos,
         segments: projectionSegmentsRef.current,
       });
       if (!proj) return;
 
-      const slotKey = second.slotId === "target" ? "target_center" : second.slotId;
       setBallsState((prev) => ({
         ...prev,
-        [slotKey]: prev[slotKey]
-          ? { ...prev[slotKey], x: proj.point.x, y: proj.point.y }
+        second: prev.second
+          ? { ...prev.second, x: proj.point.x, y: proj.point.y }
           : { x: proj.point.x, y: proj.point.y },
       }));
       setIsSaved(false);
@@ -1746,7 +1774,7 @@ export default function App({
     }
 
     // Target unlocked: first object-ball DoubleClick assigns Target Role
-    applyTargetFromBallId(ballId);
+    applyTargetFromBallId(roleId);
   }
   function handleWorkspaceLocalStorageCleanup() {
     if (workspaceCleanupMode === WORKSPACE_CLEANUP_CLEAR_ALL) {
@@ -3466,12 +3494,12 @@ function handleJoyPadPointerCancel(e) {
         derivedReviewPrimarySession,
         derivedReviewUi.viewingTrack
       );
-      if (frozen) return frozen.targetBall === "red" ? frozen.balls.second : frozen.balls.target;
+      // Phase 7B Role: physical Target is always balls.target (not color-slot)
+      if (frozen) return uiTargetRoleCoords(frozen.balls);
     }
-    return resolveImpactTargetBall(ballsForCoaching, targetColor);
+    return uiTargetRoleCoords(ballsForCoaching);
   }, [
     ballsForCoaching,
-    targetColor,
     isDerivedReviewSessionPending,
     derivedReviewUi.reviewMode,
     derivedReviewUi.viewingTrack,
@@ -3924,9 +3952,17 @@ function handlePointerDown(e) {
 
   for (const [ballId, ballPos] of Object.entries(balls)) {
     if (!ballPos) continue;
+
+    // Phase 2 Role UI: ignore legacy target_center when balls.target exists;
+    // otherwise treat target_center hit as Role id "target".
+    let hitId = ballId;
+    if (ballId === "target_center") {
+      if (balls.target) continue;
+      hitId = "target";
+    }
     
     // ⭐ impact 드래그 조건
-    if (ballId === "impact") {
+    if (hitId === "impact") {
       // USER 모드: 임펙트볼 드래그 완전 금지
       if (appMode === "USER") continue;
       // ADMIN 모드: FREE 모드일 때만 드래그 가능
@@ -3939,7 +3975,7 @@ function handlePointerDown(e) {
 
     if (dist <= BALL_PICK_RADIUS_RG && dist < minDist) {
       minDist = dist;
-      closestBall = { id: ballId, pos: ballPos };
+      closestBall = { id: hitId, pos: ballPos };
     }
   }
 
@@ -4100,10 +4136,8 @@ function handlePointerMove(e) {
 
     setBallsState((prev) => {
       const cue = prev.cue;
-      const target =
-        resolveImpactTargetBall(prev, targetColor) ??
-        prev.target_center ??
-        prev.target;
+      // Phase 7B Role: physical Target for impact = balls.target
+      const target = uiTargetRoleCoords(prev);
 
       if (!cue || !target) return prev;
 
@@ -4228,15 +4262,27 @@ function handlePointerUp(e) {
   let nextBallPos = success ? draggedBall : dragState.previousPosRg;
 
   if (success) {
-    setBallsState((prev) => ({
-      ...prev,
-      [dragState.ballId]: nextBallPos,
-    }));
+    setBallsState((prev) => {
+      const next = {
+        ...prev,
+        [dragState.ballId]: nextBallPos,
+      };
+      if (dragState.ballId === "target" && next.target_center) {
+        delete next.target_center;
+      }
+      return next;
+    });
   } else if (dragState.previousPosRg) {
-    setBallsState((prev) => ({
-      ...prev,
-      [dragState.ballId]: dragState.previousPosRg,
-    }));
+    setBallsState((prev) => {
+      const next = {
+        ...prev,
+        [dragState.ballId]: dragState.previousPosRg,
+      };
+      if (dragState.ballId === "target" && next.target_center) {
+        delete next.target_center;
+      }
+      return next;
+    });
   }
 
   if (
@@ -4392,6 +4438,7 @@ function handlePointerCancel(e) {
     anchorsBase,
     rawAnchors,
     resolveAnchorCtx,
+    // Phase 5: Role Ball3 passed directly (no color-slot bridge)
     balls,
     targetColor,
     slotRenderSys,
@@ -4786,14 +4833,15 @@ function handlePointerCancel(e) {
     (targetColor === "red" || targetColor === "yellow");
 
   function ballTargetEmphasis(ballId) {
+    // Phase 7B: Target Role emphasis = field identity ("target"), not color/slot
+    const isTargetRoleField =
+      ballId === "target" || ballId === "target_center";
     if (appMode === "USER") {
-      return userSystemTargetHighlight &&
-        isConfirmedTargetBall(ballId, targetColor, true)
+      return userSystemTargetHighlight && isTargetRoleField
         ? "selected"
         : undefined;
     }
-    return canEditPosition &&
-      isConfirmedTargetBall(ballId, targetColor, isTargetSelected)
+    return canEditPosition && isTargetSelected && isTargetRoleField
       ? "selected"
       : undefined;
   }
@@ -5142,14 +5190,14 @@ function handlePointerCancel(e) {
           }
         />
       )}
-      {balls.target_center && (
+      {(balls.target || balls.target_center) && (
         <Ball
-          {...balls.target_center}
-          color="#fde047"
-          emphasis={ballTargetEmphasis("target_center")}
+          {...(balls.target ?? balls.target_center)}
+          color={paintHexForTargetRole(targetColor)}
+          emphasis={ballTargetEmphasis("target")}
           onDoubleClick={
             canEdit
-              ? (e) => handleBallDoubleClickForTarget("target_center", e)
+              ? (e) => handleBallDoubleClickForTarget("target", e)
               : undefined
           }
         />
@@ -5157,7 +5205,7 @@ function handlePointerCancel(e) {
       {balls.second && (
         <Ball
           {...balls.second}
-          color="#f87171"
+          color={paintHexForSecondRole(targetColor)}
           emphasis={ballTargetEmphasis("second")}
           onDoubleClick={
             canEdit

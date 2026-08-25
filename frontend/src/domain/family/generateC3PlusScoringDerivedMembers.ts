@@ -115,20 +115,16 @@ function lineageMap(
   return map;
 }
 
-/** Physical Second Ball center (role-aware). Matches trajectoryBuilder resolveSecondBall. */
+/**
+ * Physical Second Ball center — Phase 6 Role-native.
+ * Always balls.second. targetBall is metadata only (ignored for field selection).
+ */
 export function resolveC3PlusSecondBall(
   balls: Ball3,
-  targetBall?: TargetBall | null
+  _targetBall?: TargetBall | null
 ): C3PlusPoint | null {
-  if (targetBall === "red") {
-    return isFinitePoint(balls.target) ? { ...balls.target } : null;
-  }
-  if (targetBall === "yellow") {
-    return isFinitePoint(balls.second) ? { ...balls.second } : null;
-  }
-  if (isFinitePoint(balls.second)) return { ...balls.second };
-  if (isFinitePoint(balls.target)) return { ...balls.target };
-  return null;
+  void _targetBall;
+  return isFinitePoint(balls.second) ? { ...balls.second } : null;
 }
 
 function cloneExtensions(

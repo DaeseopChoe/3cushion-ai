@@ -434,12 +434,12 @@ describe("Cue→Impact derived review lifecycle", () => {
     }
   });
 
-  it("red-target: generator and review use balls.second as Physical Target", () => {
-    const balls = collinearBalls(20);
+  it("red-target Role: generator and review use balls.target as Physical Target", () => {
+    // Role Ball3: red Target @ target; yellow Second @ second
     const redBalls: Ball3 = {
       cue: { x: 8, y: 16 },
-      target: { x: 62, y: 12 },
-      second: { x: 8 + 20 + DEFAULT_SCALE.BALL_DIAMETER_RG, y: 16 },
+      target: { x: 8 + 20 + DEFAULT_SCALE.BALL_DIAMETER_RG, y: 16 },
+      second: { x: 62, y: 12 },
     };
     const written = writeFourTrackFamilyMembers([], {
       balls: redBalls,
@@ -457,8 +457,8 @@ describe("Cue→Impact derived review lifecycle", () => {
     if (!frozen) return;
     expect(frozen.targetBall).toBe("red");
     const physicalTarget = resolvePhysicalTarget(frozen.balls, frozen.targetBall);
-    expect(physicalTarget).toEqual(frozen.balls.second);
-    expect(physicalTarget).not.toEqual(frozen.balls.target);
+    expect(physicalTarget).toEqual(frozen.balls.target);
+    expect(physicalTarget).not.toEqual(frozen.balls.second);
     const impact = calcImpactBall(frozen.balls.cue, physicalTarget, frozen.runtimeT);
     expect(impact).toBeTruthy();
     if (!impact) return;
@@ -470,18 +470,21 @@ describe("Cue→Impact derived review lifecycle", () => {
         (impact.x - frozen.balls.cue.x) * (c.balls.cue.y - frozen.balls.cue.y) -
         (impact.y - frozen.balls.cue.y) * (c.balls.cue.x - frozen.balls.cue.x);
       expect(Math.abs(cross)).toBeLessThan(1e-9);
+      expect(c.balls.target).toEqual(frozen.balls.target);
+      expect(c.balls.second).toEqual(frozen.balls.second);
     }
-    const wrongImpact = calcImpactBall(frozen.balls.cue, frozen.balls.target, frozen.runtimeT);
+    const wrongImpact = calcImpactBall(frozen.balls.cue, frozen.balls.second, frozen.runtimeT);
     if (wrongImpact && impact) {
       expect(Math.hypot(wrongImpact.x - impact.x, wrongImpact.y - impact.y)).toBeGreaterThan(0.1);
     }
   });
 
   it("frozen targetBall identity is preserved across track switch", () => {
+    // Role Ball3: red Target @ target
     const redBalls: Ball3 = {
       cue: { x: 8, y: 16 },
-      target: { x: 62, y: 12 },
-      second: { x: 8 + 20 + DEFAULT_SCALE.BALL_DIAMETER_RG, y: 16 },
+      target: { x: 8 + 20 + DEFAULT_SCALE.BALL_DIAMETER_RG, y: 16 },
+      second: { x: 62, y: 12 },
     };
     const written = writeFourTrackFamilyMembers([], {
       balls: redBalls,

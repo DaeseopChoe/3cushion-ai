@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.83  
-Last Updated: 2026-08-25  
+Version: 1.93  
+Last Updated: 2026-08-26  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -50,8 +50,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Phase **3A-360A** — APPROVED/History Product Coverage Display SSOT **PASS** |
-| **Next Track** | Manual Admin UI: History → Product coverage markers → LocalDB 2Rg Search (3A-360B) |
+| **Current Mission** | Phase **Role-based Ball3 Clean Cut · Phase 7C** — Search/Recall permutation **REMOVED** · **CLEAN CUT COMPLETE** (uncommitted) |
+| **Next Track** | Commit/Push when user requests · no further Clean Cut code phase |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · all 3 balls must pass · winner = min Σ Euclidean |
 | **Product Coverage Display** | APPROVED/History: **persisted Product balls** (not live `buildTrajectory`) |
@@ -84,12 +84,12 @@ Derived Data
 | Field | Value |
 |-------|--------|
 | **Review samples** | Cue markers ∪ C3+ markers (≠ durable count) |
-| **Durable Product** | `balls.cue`←Cue sample · `balls.second`←C3+ sample · `balls.target`←base |
+| **Durable Product** | **Phase 6 Role-native:** `balls.target` = physical Target · `balls.second` = scoring sample P · Canonical: `placePhysicalSecondSampleOnRoleBall3` |
 | **Cardinality** | `T × Nc × N3` (dynamic; fixture e.g. 4×3×21=252; real sets may be 4×4×18=288) · Product-only on Approve |
 | **Identity** | `DERIVED_CUE_C3_PRODUCT` · `CUE_C3_CARTESIAN_PRODUCT_V1` · `cue:{cueStep}\|c3:{c3Step}` |
 | **Generators** | Separate · no Cue→C3 chaining · base AUTHORED/SYMMETRY only |
-| **Impl** | `buildCueC3ProductMembers.ts` · unified Approve Product-only |
-| **Coverage display SSOT** | APPROVED/History: `productCoverageFromDataset` ← unique Product `balls.cue` / `balls.second` per track |
+| **Impl** | `buildCueC3ProductMembers.ts` · `placePhysicalSecondSampleOnRoleBall3` · `resolveC3PlusSecondBall` → `balls.second` |
+| **Coverage display SSOT** | APPROVED/History: `productCoverageFromDataset` ← unique Product `balls.cue` / **`balls.second`** (Role physical Second) per track |
 
 ### LocalDB ADMIN Spatial Search (adminSearch)
 

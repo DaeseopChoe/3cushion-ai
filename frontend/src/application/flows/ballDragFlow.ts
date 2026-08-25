@@ -41,7 +41,7 @@ export type BallDragFlowContext = {
  * Guard 조건:
  *   - canEdit (ADMIN mode)
  *   - !isAdminInputSessionActive (역산 Skip 규칙 유지)
- *   - ballId ∈ { "cue", "target", "target_center" }
+ *   - ballId ∈ { "cue", "target" } (legacy target_center alias accepted)
  */
 export function runBallDrag(ctx: BallDragFlowContext): void {
   if (
@@ -57,7 +57,8 @@ export function runBallDrag(ctx: BallDragFlowContext): void {
 
   const nextBalls = { ...ctx.balls, [ctx.ballId]: ctx.nextBallPos };
   const cuePos = nextBalls.cue;
-  const targetPos = nextBalls.target_center ?? nextBalls.target;
+  // Phase 2 Role UI: physical Target is balls.target (legacy target_center alias)
+  const targetPos = nextBalls.target ?? nextBalls.target_center;
 
   if (!cuePos || !targetPos) return;
 

@@ -30,8 +30,9 @@ export function useAutoCapture({
     const balls = ballsState ?? viewBalls ?? {};
     const cue = balls.cue;
     const target =
+      (balls as Record<string, { x: number; y: number } | undefined>).target ??
       (balls as Record<string, { x: number; y: number } | undefined>)
-        .target_center ?? balls.target;
+        .target_center;
     if (!cue || !target) return;
 
     const timer = setTimeout(() => {

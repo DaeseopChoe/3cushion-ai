@@ -63,12 +63,15 @@ function offsetSecond(d: number): Ball3 {
 }
 
 describe("adminSearch profile contract", () => {
-  it("uses Euclidean 2.0 per-ball; no aggregate cap", () => {
+  it("uses Euclidean 2.0 per-ball; no aggregate cap; Role direct match", () => {
     const p = getRecallProfile("adminSearch");
     expect(p.distanceMetric).toBe("euclidean");
     expect(p.coarsePerBall).toBe(2.0);
     expect(p.totalDistanceCap).toBeNull();
     expect(p.requireCoarsePass).toBe(true);
+    expect(
+      Object.prototype.hasOwnProperty.call(p, "allowTargetSecondPermutation")
+    ).toBe(false);
   });
 });
 
@@ -238,7 +241,6 @@ describe("adminSearch Euclidean 2Rg gates", () => {
     const query = offsetCue(1.2);
     const rows = rankRecordsForRecall([rec(stored, "s")], query, {
       coarsePerBall: 2.0,
-      allowPermutation: false,
       distanceMetric: "euclidean",
     });
     expect(rows[0]!.coarsePass).toBe(true);

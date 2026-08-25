@@ -32,7 +32,7 @@ export function createCaptureCandidate(params: {
 export function candidateToPositionPayload(candidate: AutoCaptureCandidate) {
   const balls = candidate.balls ?? {};
   const cue = balls.cue ?? { x: 10, y: 10 };
-  const target = balls.target_center ?? balls.target ?? { x: 50, y: 25 };
+  const target = balls.target ?? balls.target_center ?? { x: 50, y: 25 };
   const second = balls.second ?? { x: 40, y: 20 };
   return {
     balls: { cue, target, second },

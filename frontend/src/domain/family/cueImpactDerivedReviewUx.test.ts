@@ -234,7 +234,7 @@ describe("Derived Review UX domain", () => {
 });
 
 describe("Derived Review UI hydration boundary", () => {
-  it("hydrates source-track projection Ball3.target onto ballsState.target_center", () => {
+  it("hydrates source-track projection Ball3.target onto ballsState.target", () => {
     const written = persistFourTrack();
     const review = createCueImpactDerivedReview({
       dataset: written.dataset,
@@ -254,7 +254,8 @@ describe("Derived Review UI hydration boundary", () => {
       expect(projection.balls.target).toEqual(canonical.target);
       expect("target_center" in projection.balls).toBe(false);
       const ui = hydrateBallsStateForUi(projection.balls);
-      expect(ui.target_center).toEqual(canonical.target);
+      expect(ui.target).toEqual(canonical.target);
+      expect(ui.target_center).toBeUndefined();
       expect(ui.cue).toEqual(canonical.cue);
       expect(ui.second).toEqual(canonical.second);
       expect(frozen.balls).toEqual(canonical);
@@ -262,7 +263,7 @@ describe("Derived Review UI hydration boundary", () => {
     }
   });
 
-  it("hydrates INSPECT candidate Ball3.target onto ballsState.target_center", () => {
+  it("hydrates INSPECT candidate Ball3.target onto ballsState.target", () => {
     const written = persistFourTrack();
     const review = createCueImpactDerivedReview({
       dataset: written.dataset,
@@ -278,7 +279,8 @@ describe("Derived Review UI hydration boundary", () => {
       slot: "S1",
     });
     const ui = hydrateBallsStateForUi(projection.balls);
-    expect(ui.target_center).toEqual(canonical.target);
+    expect(ui.target).toEqual(canonical.target);
+    expect(ui.target_center).toBeUndefined();
     expect(ui.cue).toEqual(canonical.cue);
     expect(ui.second).toEqual(canonical.second);
     expect(candidate.balls).toEqual(canonical);

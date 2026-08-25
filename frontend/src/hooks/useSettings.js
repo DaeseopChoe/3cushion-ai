@@ -15,6 +15,7 @@ import { buildEditSourceContext } from "../domain/cueEditSnap";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
+  canonicalizeBallsStateForHistorySnapshot,
 } from "../admin/slotAutoRecommend";
 import {
   buildDatasetExport,
@@ -257,7 +258,11 @@ export function useSettings({
     (strategyUpdatedDataset, runtimeOverride) => {
       canonicalDebugLog("[H_SAVE_ENTRY]", { ts: Date.now() });
       const snapshotAdminState = runtimeOverride?.adminState ?? adminState;
-      const snapshotBallsState = runtimeOverride?.ballsState ?? ballsState;
+      const rawBallsState = runtimeOverride?.ballsState ?? ballsState;
+      // Phase 3: History snapshot stores Role Ball3 (target=physical Target).
+      const snapshotBallsState = canonicalizeBallsStateForHistorySnapshot(
+        rawBallsState
+      );
       const snapshotShotEditor = runtimeOverride?.shotEditor ?? shotEditor;
       const snapshotTargetBall =
         runtimeOverride?.targetBall !== undefined
@@ -282,9 +287,7 @@ export function useSettings({
         exported: false,
         state: {
           adminState: JSON.parse(JSON.stringify(snapshotAdminState)),
-          ballsState: snapshotBallsState
-            ? JSON.parse(JSON.stringify(snapshotBallsState))
-            : null,
+          ballsState: JSON.parse(JSON.stringify(snapshotBallsState)),
           dataset: JSON.parse(
             JSON.stringify(Array.isArray(strategyUpdatedDataset) ? strategyUpdatedDataset : [])
           ),
@@ -330,6 +333,7 @@ export function useSettings({
         return false;
       }
       setAdminState(s.adminState);
+      // Phase 3: Role Ball3 restore — snapshot.target → UI balls.target (no color→field).
       const hydratedBalls = hydrateBallsStateForUi(s.ballsState);
       setBallsState(hydratedBalls);
       setDataset(nextDataset);
@@ -339,6 +343,7 @@ export function useSettings({
       setIsAdminPublishedSearchMatched(false);
       // View-only after History load — Reset re-opens editable session.
       setIsAdminInputSessionActive(false);
+      // targetBall = Target color metadata (paint / lock), not a field decoder
       const restoredTarget = s.targetBall ?? null;
       setTargetColor(restoredTarget);
       setIsTargetSelected(!!restoredTarget);

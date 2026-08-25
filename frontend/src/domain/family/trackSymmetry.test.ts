@@ -86,6 +86,16 @@ describe("Ball3 coordinate transforms", () => {
     expectPoint(rpi.second, { x: 18, y: 28 });
   });
 
+  it("preserves Role field identity under H/V/RPI (Phase 5)", () => {
+    for (const op of OPS) {
+      const out = transformBall3(op, balls);
+      expect(out).toHaveProperty("cue");
+      expect(out).toHaveProperty("target");
+      expect(out).toHaveProperty("second");
+      expect(Object.keys(out).sort()).toEqual(["cue", "second", "target"]);
+    }
+  });
+
   it("H² = V² = RPI² = identity", () => {
     for (const op of OPS) {
       expect(ballsEqual(transformBall3(op, transformBall3(op, balls)), balls)).toBe(
