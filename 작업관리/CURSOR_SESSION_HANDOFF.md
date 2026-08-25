@@ -175,12 +175,13 @@ Current Status
   ✅ BUG-A display-cap nearest-rail IMPLEMENTED (uncommitted)
   ✅ Phase 3A-359 Derived Data COMPLETE (Cue→Impact · C3+ · Unified Review · 4-track · History/Recall PASS)
   ✅ Phase 3A-360 Cartesian Product durable (Track×Cue×C3+ · balls.cue←Cue · balls.second←C3+)
+  ✅ LocalDB ADMIN Search: Euclidean 2.0 Rg / ball · winner = min Σ Euclidean
   BUG-B Reset/History stale = UNCONFIRMED (reproduce after BUG-A fix first)
   Working tree: user datasets dirty/untracked — preserve; no Commit/Push of datasets
 
 Next Track
-  Manual Admin UI verification of Product durable cardinality after Approve
-  Cite: PROJECT_MASTER_INDEX · HISTORY/PROJECT_LOG_2026-08.md (3A-360)
+  Manual Admin UI — LocalDB Search mid-sample (≤~1.5 Rg) nearest match
+  Cite: PROJECT_MASTER_INDEX · HISTORY/PROJECT_LOG_2026-08.md (3A-360 search)
 ```
 
 | Item | Value |
@@ -201,10 +202,11 @@ Next Track
 | **BUG-B** | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 · 재현 전 코드 수정 금지 |
 | **Derived Data (3A-359)** | ✅ **COMPLETE** — Cue→Impact · C3+ · Unified Review · atomic 4-track |
 | **Cartesian Product (3A-360)** | ✅ **PASS** — durable Track×Cue×C3+ · Product-only Approve |
+| **LocalDB ADMIN Search** | ✅ **Euclidean 2.0 Rg / ball** · min Σ Euclidean winner |
 | **Family Data Architecture** | Shadow / gated READ in progress (see MASTER · DRAFT) · WRITE SSOT still `positions_dataset` |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) — Family terms not yet adopted |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
-| **Next Track** | **Manual Admin UI** — Product durable after Approve |
+| **Next Track** | **Manual Admin UI** — LocalDB 2Rg Euclidean Search |
 | **Next Track Readiness** | Cite MASTER Current Mission / Next Track |
 ### 구현 완료 범위
 
@@ -465,18 +467,17 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : 2026-08-25 — Phase 3A-360 Cue×C3+ Cartesian Product
-Baseline       : main · prior 3A-359 docs f2e3211 on origin · user datasets dirty/untracked
-Current Status : Phase 3A-360 PASS — durable Product = Track×Cue×C3+
-                 balls.cue←Cue sample · balls.second←C3+ sample · target←base
-                 Review UI still Cue∪C3 markers · Approve Product-only
-Code change    : buildCueC3ProductMembers · unified Approve · identity origin/rule
-Docs           : MASTER v1.81 · LOG v1.48 · HANDOFF · FAMILY_DATA_ARCHITECTURE_DRAFT
-Next Session   : Manual Admin UI — Product durable cardinality / History-Recall
-Guardrail      : Do not touch user datasets · no Push unless asked · no Cue→C3 chaining
-                 Generators stay separate · C3+ markers display-only · Cue interactive
+Session ID     : 2026-08-25 — LocalDB ADMIN Search Euclidean 2Rg
+Baseline       : main · Product 02c6607 · user datasets dirty/untracked
+Current Status : adminSearch = Euclidean 2.0 Rg / ball · winner min Σ Euclidean
+                 Product Cartesian contract unchanged
+Code change    : recallCompare/Profiles/Engine · adminLocalDbFlow soft warn 4.0
+Docs           : MASTER v1.82 · LOG v1.49 · HANDOFF
+Next Session   : Manual LocalDB Search between Cue/C3 markers
+Guardrail      : Do not touch user datasets · no Push unless asked
+                 Do not change Product generators / 252 cardinality
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-25 · Phase 3A-360 Product PASS*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-25 · LocalDB Euclidean 2Rg Search PASS*

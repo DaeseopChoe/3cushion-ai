@@ -1,19 +1,60 @@
 /**
  * Pure Ball3 compare helpers (shared across profiles).
+ *
+ * Distance metrics:
+ * - manhattan: per-ball |dx|+|dy|; aggregate = sum of three (legacy profiles)
+ * - euclidean: per-ball hypot(dx,dy) in Rg; aggregate = dCue+dTarget+dSecond
+ *   (LocalDB ADMIN Search / adminSearch — Phase 3A-360)
  */
 
 import type { Ball3 } from "../positionSearchEngine";
 import { normalizeTargetBallForKey } from "../positionMergeEngine";
 import type { PositionRecord, TargetBall } from "../positionSearchEngine";
 
+export type RecallDistanceMetric = "manhattan" | "euclidean";
+
+export type Ball3Point = { x: number; y: number };
+
+export function perBallManhattan(a: Ball3Point, b: Ball3Point): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+/** Euclidean center distance in Ball3 table coordinates (Rg). */
+export function perBallEuclidean(a: Ball3Point, b: Ball3Point): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function perBallDistance(
+  a: Ball3Point,
+  b: Ball3Point,
+  metric: RecallDistanceMetric
+): number {
+  return metric === "euclidean" ? perBallEuclidean(a, b) : perBallManhattan(a, b);
+}
+
 export function ball3L1Sum(a: Ball3, b: Ball3): number {
-  const l1 = (p: { x: number; y: number }, q: { x: number; y: number }) =>
-    Math.abs(p.x - q.x) + Math.abs(p.y - q.y);
   return (
-    l1(a.cue, b.cue) +
-    l1(a.target, b.target) +
-    l1(a.second, b.second)
+    perBallManhattan(a.cue, b.cue) +
+    perBallManhattan(a.target, b.target) +
+    perBallManhattan(a.second, b.second)
   );
+}
+
+/** Sum of three per-ball Euclidean distances (Rg). */
+export function ball3EuclideanSum(a: Ball3, b: Ball3): number {
+  return (
+    perBallEuclidean(a.cue, b.cue) +
+    perBallEuclidean(a.target, b.target) +
+    perBallEuclidean(a.second, b.second)
+  );
+}
+
+export function ball3AggregateDistance(
+  a: Ball3,
+  b: Ball3,
+  metric: RecallDistanceMetric
+): number {
+  return metric === "euclidean" ? ball3EuclideanSum(a, b) : ball3L1Sum(a, b);
 }
 
 /** target <-> second swap only; cue fixed */
@@ -37,23 +78,33 @@ export function minL1WithTargetSecondPermutation(
   return { distance: direct, usedPermutation: "none" };
 }
 
-export function perBallManhattan(
-  a: { x: number; y: number },
-  b: { x: number; y: number }
-): number {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+export function minAggregateWithTargetSecondPermutation(
+  query: Ball3,
+  stored: Ball3,
+  metric: RecallDistanceMetric
+): { distance: number; usedPermutation: "none" | "swapTargetSecond" } {
+  if (metric === "manhattan") {
+    return minL1WithTargetSecondPermutation(query, stored);
+  }
+  const direct = ball3EuclideanSum(query, stored);
+  const swapped = ball3EuclideanSum(query, swapTargetSecondBalls(stored));
+  if (swapped < direct) {
+    return { distance: swapped, usedPermutation: "swapTargetSecond" };
+  }
+  return { distance: direct, usedPermutation: "none" };
 }
 
 export function passesCoarseStrictRoles(
   query: Ball3,
   stored: Ball3,
-  tolerance: number
+  tolerance: number,
+  metric: RecallDistanceMetric = "manhattan"
 ): boolean {
   const b = stored;
   return (
-    perBallManhattan(b.cue, query.cue) <= tolerance &&
-    perBallManhattan(b.target, query.target) <= tolerance &&
-    perBallManhattan(b.second, query.second) <= tolerance
+    perBallDistance(b.cue, query.cue, metric) <= tolerance &&
+    perBallDistance(b.target, query.target, metric) <= tolerance &&
+    perBallDistance(b.second, query.second, metric) <= tolerance
   );
 }
 
@@ -61,14 +112,15 @@ export function passesCoarseStrictRoles(
 export function passesCoarseWithPermutation(
   query: Ball3,
   stored: Ball3,
-  tolerance: number
+  tolerance: number,
+  metric: RecallDistanceMetric = "manhattan"
 ): boolean {
-  if (passesCoarseStrictRoles(query, stored, tolerance)) return true;
+  if (passesCoarseStrictRoles(query, stored, tolerance, metric)) return true;
   const swapped = swapTargetSecondBalls(stored);
   return (
-    perBallManhattan(swapped.cue, query.cue) <= tolerance &&
-    perBallManhattan(swapped.target, query.target) <= tolerance &&
-    perBallManhattan(swapped.second, query.second) <= tolerance
+    perBallDistance(swapped.cue, query.cue, metric) <= tolerance &&
+    perBallDistance(swapped.target, query.target, metric) <= tolerance &&
+    perBallDistance(swapped.second, query.second, metric) <= tolerance
   );
 }
 
@@ -101,20 +153,26 @@ export function rankRecordsForRecall(
     coarsePerBall: number;
     allowPermutation: boolean;
     targetBall?: TargetBall | null;
+    /** Default manhattan (legacy). adminSearch uses euclidean. */
+    distanceMetric?: RecallDistanceMetric;
   }
 ): RankedRecallRow[] {
+  const metric: RecallDistanceMetric = policy.distanceMetric ?? "manhattan";
   const want = normalizeTargetBallForKey(policy.targetBall);
   const rows: RankedRecallRow[] = [];
 
   for (const rec of records) {
     const stored = rec.balls;
     const coarsePass = policy.allowPermutation
-      ? passesCoarseWithPermutation(query, stored, policy.coarsePerBall)
-      : passesCoarseStrictRoles(query, stored, policy.coarsePerBall);
+      ? passesCoarseWithPermutation(query, stored, policy.coarsePerBall, metric)
+      : passesCoarseStrictRoles(query, stored, policy.coarsePerBall, metric);
 
     const { distance, usedPermutation } = policy.allowPermutation
-      ? minL1WithTargetSecondPermutation(query, stored)
-      : { distance: ball3L1Sum(query, stored), usedPermutation: "none" as const };
+      ? minAggregateWithTargetSecondPermutation(query, stored, metric)
+      : {
+          distance: ball3AggregateDistance(query, stored, metric),
+          usedPermutation: "none" as const,
+        };
 
     rows.push({
       record: rec,

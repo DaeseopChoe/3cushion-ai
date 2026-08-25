@@ -15,6 +15,7 @@ import {
   type PositionRecord,
 } from "../../domain/positionSearchEngine";
 import { normalizeTargetBallForKey } from "../../domain/positionMergeEngine";
+import { ADMIN_SEARCH_SOFT_DISTANCE_WARN } from "../../domain/recall/recallProfiles";
 import { adminSysFromRecallEntry } from "./recallHydrateFlow";
 
 // ---------------------------------------------------------------------------
@@ -58,7 +59,7 @@ export type AdminLocalDbFlowContext = {
 // module-private helpers
 // ---------------------------------------------------------------------------
 
-const HARD_THRESHOLD_L1 = 14;
+const SOFT_DISTANCE_WARN = ADMIN_SEARCH_SOFT_DISTANCE_WARN;
 
 function isAdminRecallTargetBallMismatch(
   record: PositionRecord,
@@ -216,7 +217,7 @@ export async function runAdminLocalDbRecall(
   }
   ctx.setIsAdminPublishedSearchMatched(true);
 
-  if (result.distance > HARD_THRESHOLD_L1) {
+  if (result.distance > SOFT_DISTANCE_WARN) {
     alert("유사도 낮음");
   }
 

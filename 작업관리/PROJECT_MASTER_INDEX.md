@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.81  
+Version: 1.82  
 Last Updated: 2026-08-25  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -50,9 +50,10 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Phase **3A-360** — Cue × C3+ Cartesian Product Derived Data **PASS** |
-| **Next Track** | Manual Admin UI check (SAVE → Review markers · Approve → Product durable T×Nc×N3) |
+| **Current Mission** | Phase **3A-360** — LocalDB ADMIN Search Euclidean **2.0 Rg** nearest-Ball3 **PASS** |
+| **Next Track** | Manual Admin UI: LocalDB Search mid-sample (≤~1.5 Rg) → nearest Product/AUTHORED |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
+| **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · all 3 balls must pass · winner = min Σ Euclidean |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
@@ -87,6 +88,21 @@ Derived Data
 | **Identity** | `DERIVED_CUE_C3_PRODUCT` · `CUE_C3_CARTESIAN_PRODUCT_V1` · `cue:{cueStep}\|c3:{c3Step}` |
 | **Generators** | Separate · no Cue→C3 chaining · base AUTHORED/SYMMETRY only |
 | **Impl** | `buildCueC3ProductMembers.ts` · unified Approve Product-only |
+
+### LocalDB ADMIN Spatial Search (adminSearch)
+
+> Path: `handleAdminSearch` → `runAdminLocalDbRecall` → `runSpatialRecall(adminSearch)`.
+
+| Field | Value |
+|-------|--------|
+| **Coordinates** | Ball3 table coordinates / **Rg** |
+| **Per-ball metric** | **Euclidean** center distance |
+| **Per-ball tolerance** | **2.0 Rg** (cue ∧ target ∧ second) |
+| **Winner** | minimum `dCue + dTarget + dSecond` |
+| **Tie-break** | `targetBallMatch` → `positionId.localeCompare` |
+| **Aggregate cap** | **none** (per-ball gate primary) |
+| **Soft UI warn** | aggregate > **4.0** → "유사도 낮음" (still match) |
+| **Not changed** | Product cardinality / generators / Published `adminStrict` (Manhattan) |
 
 ### Phase 5 Mission 01 — Real Interpolation (Implemented)
 

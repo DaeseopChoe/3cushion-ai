@@ -1,8 +1,54 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.48  
+Version : v1.49  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-25 (Phase 3A-360 — LocalDB ADMIN Search Euclidean 2Rg Nearest-Ball3)
+
+## Mode
+
+**Agent** · SEARCH MATCHING ONLY · Product/generators/datasets untouched · no Push
+
+## BEFORE → AFTER (`adminSearch`)
+
+| | BEFORE | AFTER |
+|--|--------|-------|
+| Per-ball metric | Manhattan `\|dx\|+\|dy\|` | **Euclidean** `hypot(dx,dy)` |
+| Per-ball cutoff | 5 | **2.0 Rg** |
+| Aggregate ranking | L1 sum of 3 balls | **Σ Euclidean** of 3 balls |
+| Aggregate cap | totalL1Cap 15 | **null** (per-ball gate only) |
+| Soft UI warn | HARD_THRESHOLD_L1 14 | **ADMIN_SEARCH_SOFT_DISTANCE_WARN 4.0** |
+
+## Contract
+
+```text
+candidate ⇔ dCue≤2 ∧ dTarget≤2 ∧ dSecond≤2  (Euclidean Rg)
+winner    ⇔ min(dCue+dTarget+dSecond)
+tie-break ⇔ targetBallMatch → positionId.localeCompare
+```
+
+Manual expectation: Cue/C3 sample spacing ≤3 Rg → midpoint ≤~1.5 → should match nearest sample when other balls also ≤2.
+
+## Status
+
+| Item | Result |
+|------|--------|
+| **PHASE** | **PASS** |
+| Product 3A-360 | Unchanged |
+| Tests | `adminSearchEuclidean2rg.test.ts` + recall parity + family regressions green |
+
+## Files
+
+- `recallCompare.ts` · `recallProfiles.ts` · `recallEngine.ts`
+- `adminLocalDbFlow.ts` · `positionRecallTrace.ts`
+- tests · MASTER · LOG · HANDOFF
+
+## Next
+
+Manual Admin LocalDB Search validation between derived markers
 
 ---
 

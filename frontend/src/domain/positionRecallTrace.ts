@@ -72,6 +72,7 @@ export function buildRecallTracePayload(
     coarsePerBall: policy.coarsePerBall,
     allowPermutation: policy.allowTargetSecondPermutation,
     targetBall,
+    distanceMetric: policy.distanceMetric,
   });
 
   const coarseCandidateCount = ranked.filter((r) => r.coarsePass).length;
@@ -102,7 +103,7 @@ export function buildRecallTracePayload(
     targetFilterApplied,
     withTargetCount: pool.length,
     coarseCandidateCount,
-    totalL1Cap: policy.totalL1Cap,
+    totalL1Cap: policy.totalDistanceCap ?? policy.totalL1Cap,
     top5,
   };
 }

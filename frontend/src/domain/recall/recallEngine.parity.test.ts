@@ -156,21 +156,21 @@ ok("userStrict exact match", rUserExact.kind === "match" && rUserExact.distance 
 const rUserCoarseFail = runSpatialRecall({
   dataset: [makeRecord(publishedExact, [makeEntry("S1", SIG_A)], "pub_exact")],
   query: {
-    balls: { cue: { x: 23, y: 16 }, target: { x: 20, y: 20 }, second: { x: 60, y: 20 } },
+    balls: { cue: { x: 23.01, y: 16 }, target: { x: 20, y: 20 }, second: { x: 60, y: 20 } },
   },
   profile: "userStrict",
 });
 ok(
-  "userStrict coarse fail (3 grid on cue)",
+  "userStrict coarse fail (cue Manhattan > 3)",
   rUserCoarseFail.kind === "no-match" && rUserCoarseFail.reason === "coarse-empty"
 );
 
-// adminSearch: local ADMIN Search (coarse 5, cap 15)
-console.log("\n=== adminSearch ===\n");
+// adminSearch: LocalDB ADMIN Search (Euclidean 2.0 Rg per-ball)
+console.log("\n=== adminSearch (euclidean 2Rg) ===\n");
 const rAdminNear = runSpatialRecall({
   dataset: [
     makeRecord(
-      { cue: { x: 12, y: 10 }, target: { x: 52, y: 25 }, second: { x: 42, y: 20 } },
+      { cue: { x: 11, y: 10 }, target: { x: 50, y: 25 }, second: { x: 40, y: 20 } },
       [makeEntry("S1", SIG_A)],
       "admin_near"
     ),
@@ -178,7 +178,57 @@ const rAdminNear = runSpatialRecall({
   query: { balls: baseBalls },
   profile: "adminSearch",
 });
-ok("adminSearch near match", rAdminNear.kind === "match");
+ok("adminSearch near match (cue+1 Euclidean)", rAdminNear.kind === "match");
+
+const rAdminDiagonalReject = runSpatialRecall({
+  dataset: [makeRecord(baseBalls, [makeEntry("S1", SIG_A)], "diag")],
+  query: {
+    balls: {
+      cue: { x: 11.5, y: 11.5 },
+      target: baseBalls.target,
+      second: baseBalls.second,
+    },
+  },
+  profile: "adminSearch",
+});
+ok(
+  "adminSearch rejects Euclidean>2 (dx=1.5 dy=1.5)",
+  rAdminDiagonalReject.kind === "no-match" &&
+    rAdminDiagonalReject.reason === "coarse-empty"
+);
+
+const rAdminCapBoundary = runSpatialRecall({
+  dataset: [
+    makeRecord(
+      { cue: { x: 12, y: 10 }, target: { x: 50, y: 25 }, second: { x: 40, y: 20 } },
+      [makeEntry("S1", SIG_A)],
+      "admin_exact_2"
+    ),
+  ],
+  query: { balls: baseBalls },
+  profile: "adminSearch",
+});
+ok(
+  "adminSearch cue Euclidean exactly 2.0 matches",
+  rAdminCapBoundary.kind === "match" &&
+    rAdminCapBoundary.distance === 2
+);
+
+const far = makeRecord(
+  { cue: { x: 20, y: 10 }, target: { x: 58, y: 25 }, second: { x: 48, y: 20 } },
+  [makeEntry("S1", SIG_A)],
+  "far_pos"
+);
+
+const rAdminFar = runSpatialRecall({
+  dataset: [far],
+  query: { balls: baseBalls },
+  profile: "adminSearch",
+});
+ok(
+  "adminSearch far coarse fail",
+  rAdminFar.kind === "no-match" && rAdminFar.reason === "coarse-empty"
+);
 
 // userRelaxed (deprecated): permutation can match when strict roles fail
 console.log("\n=== userRelaxed (deprecated) permutation smoke ===\n");
@@ -205,38 +255,6 @@ const rStrict = runSpatialRecall({
   profile: "adminStrict",
 });
 ok("adminStrict no match wrong roles", rStrict.kind === "no-match");
-
-const rAdminCapBoundary = runSpatialRecall({
-  dataset: [
-    makeRecord(
-      { cue: { x: 15, y: 10 }, target: { x: 55, y: 25 }, second: { x: 45, y: 20 } },
-      [makeEntry("S1", SIG_A)],
-      "admin_cap"
-    ),
-  ],
-  query: { balls: baseBalls },
-  profile: "adminSearch",
-});
-ok(
-  "adminSearch cap boundary (L1=15)",
-  rAdminCapBoundary.kind === "match" && rAdminCapBoundary.distance === 15
-);
-
-const far = makeRecord(
-  { cue: { x: 20, y: 10 }, target: { x: 58, y: 25 }, second: { x: 48, y: 20 } },
-  [makeEntry("S1", SIG_A)],
-  "far_pos"
-);
-
-const rAdminFar = runSpatialRecall({
-  dataset: [far],
-  query: { balls: baseBalls },
-  profile: "adminSearch",
-});
-ok(
-  "adminSearch far coarse fail",
-  rAdminFar.kind === "no-match" && rAdminFar.reason === "coarse-empty"
-);
 
 const rCap = runSpatialRecall({
   dataset: [far],

@@ -1,13 +1,25 @@
 /**
  * Compare profile policy lock (RECALL_SEARCH_SSOT_SPEC_2026-05).
+ *
+ * LocalDB ADMIN Search (`adminSearch`):
+ * - distanceMetric: euclidean (Rg)
+ * - coarsePerBall: 2.0 — each ball center must pass independently
+ * - totalDistanceCap: null — per-ball gate is primary; aggregate ranks winners
  */
 
+import type { RecallDistanceMetric } from "./recallCompare";
 import type { CompareProfileId } from "./recallTypes";
 
 export type RecallProfilePolicy = {
   id: CompareProfileId;
+  /** Per-ball coarse cutoff in the profile's distanceMetric units (Rg). */
   coarsePerBall: number;
-  /** L1 cap for match; null = no upper cap */
+  /**
+   * Aggregate distance cap for match (same metric as ranking).
+   * null = no upper cap (rely on per-ball coarse gate).
+   */
+  totalDistanceCap: number | null;
+  /** @deprecated Alias of totalDistanceCap — kept for older call sites. */
   totalL1Cap: number | null;
   topK: number;
   allowTargetSecondPermutation: boolean;
@@ -17,62 +29,85 @@ export type RecallProfilePolicy = {
   targetBallFilterMode: "strictWithFallback" | "rankOnly";
   /** match return mode */
   outputMode: "top1" | "hintsOnly";
+  /** Default manhattan. LocalDB ADMIN Search uses euclidean. */
+  distanceMetric: RecallDistanceMetric;
 };
 
+function profile(
+  partial: Omit<RecallProfilePolicy, "totalL1Cap"> & {
+    totalDistanceCap: number | null;
+  }
+): RecallProfilePolicy {
+  return {
+    ...partial,
+    totalL1Cap: partial.totalDistanceCap,
+  };
+}
+
 export const RECALL_PROFILES: Record<CompareProfileId, RecallProfilePolicy> = {
-  adminStrict: {
+  adminStrict: profile({
     id: "adminStrict",
     coarsePerBall: 6,
-    totalL1Cap: null,
+    totalDistanceCap: null,
     topK: 1,
     allowTargetSecondPermutation: false,
     requireCoarsePass: true,
     targetBallFilterMode: "strictWithFallback",
     outputMode: "top1",
-  },
-  adminSearch: {
+    distanceMetric: "manhattan",
+  }),
+  adminSearch: profile({
     id: "adminSearch",
-    coarsePerBall: 5,
-    totalL1Cap: 15,
+    /** Euclidean Rg — each of cue/target/second must be within this radius. */
+    coarsePerBall: 2.0,
+    /** Per-ball gate is sufficient; theoretical max aggregate for candidates = 6. */
+    totalDistanceCap: null,
     topK: 1,
     allowTargetSecondPermutation: false,
     requireCoarsePass: true,
     targetBallFilterMode: "rankOnly",
     outputMode: "top1",
-  },
-  userStrict: {
+    distanceMetric: "euclidean",
+  }),
+  userStrict: profile({
     id: "userStrict",
     coarsePerBall: 3,
-    totalL1Cap: 8,
+    totalDistanceCap: 8,
     topK: 1,
     allowTargetSecondPermutation: true,
     requireCoarsePass: true,
     targetBallFilterMode: "rankOnly",
     outputMode: "top1",
-  },
+    distanceMetric: "manhattan",
+  }),
   /** @deprecated Use userStrict for USER Search. Kept for legacy tests; allows allRanked fallback. */
-  userRelaxed: {
+  userRelaxed: profile({
     id: "userRelaxed",
     coarsePerBall: 10,
-    totalL1Cap: 18,
+    totalDistanceCap: 18,
     topK: 3,
     allowTargetSecondPermutation: true,
     requireCoarsePass: false,
     targetBallFilterMode: "rankOnly",
     outputMode: "top1",
-  },
-  passiveHint: {
+    distanceMetric: "manhattan",
+  }),
+  passiveHint: profile({
     id: "passiveHint",
     coarsePerBall: 12,
-    totalL1Cap: null,
+    totalDistanceCap: null,
     topK: 3,
     allowTargetSecondPermutation: true,
     requireCoarsePass: false,
     targetBallFilterMode: "rankOnly",
     outputMode: "hintsOnly",
-  },
+    distanceMetric: "manhattan",
+  }),
 };
 
-export function getRecallProfile(profile: CompareProfileId): RecallProfilePolicy {
-  return RECALL_PROFILES[profile];
+export function getRecallProfile(profileId: CompareProfileId): RecallProfilePolicy {
+  return RECALL_PROFILES[profileId];
 }
+
+/** Soft UI warning: aggregate Euclidean sum above this still matches (adminSearch). */
+export const ADMIN_SEARCH_SOFT_DISTANCE_WARN = 4.0;

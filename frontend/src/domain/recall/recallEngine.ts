@@ -52,6 +52,7 @@ export function runSpatialRecall(
     coarsePerBall: policy.coarsePerBall,
     allowPermutation: policy.allowTargetSecondPermutation,
     targetBall,
+    distanceMetric: policy.distanceMetric,
   });
 
   const coarsePassed = allRanked.filter((r) => r.coarsePass);
@@ -97,8 +98,8 @@ export function runSpatialRecall(
   }
 
   if (
-    policy.totalL1Cap != null &&
-    best.distance > policy.totalL1Cap
+    policy.totalDistanceCap != null &&
+    best.distance > policy.totalDistanceCap
   ) {
     return {
       kind: "no-match",
