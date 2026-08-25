@@ -1,8 +1,59 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.47  
+Version : v1.48  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-25 (Phase 3A-360 — Cue × C3+ Cartesian Product Derived Data)
+
+## Mode
+
+**Agent** · Product durable orchestration · generators unchanged · no Push · datasets protected
+
+## Product semantics (locked)
+
+```text
+balls.cue    = Cue→Impact sample coordinate
+balls.second = C3+ scoring-line sample coordinate  (Review C3 candidate parks this on balls.cue)
+balls.target = AUTHORED/SYMMETRY base target
+trajectoryExtensions = base COPY
+generatedFrom = AUTHORED/SYMMETRY base (no Cue→C3 chaining)
+```
+
+## Cardinality
+
+`ProductCount = T × Nc × N3` · example fixture **4 × 3 × 21 = 252** (tests locked)
+
+Review UI remains Cue∪C3 markers (e.g. 12+84=96 sample set). Durable Approve writes **Product-only** (not 96 union, not 348).
+
+## Status
+
+| Item | Result |
+|------|--------|
+| **PHASE 3A-360** | **PASS** |
+| Exact packing | Unique Exact Ball3 per Product → new PositionRecord · 252 write **PASS** |
+| Identity | `DERIVED_CUE_C3_PRODUCT` · `CUE_C3_CARTESIAN_PRODUCT_V1` · composite derivedStep |
+| Approve | Product set ×1 write · commit ×1 (App unchanged path) |
+| ALL NO_SB | Product 0 · Cue Review kept · Approve no-op write |
+| 4-track | Cue/C3 count mismatch · fail-closed |
+| Cue/C3 generators | Unchanged |
+
+## Tests
+
+`buildCueC3ProductMembers.test.ts` · `unifiedDerivedReview.test.ts` · family regressions — green
+
+## Files
+
+- `buildCueC3ProductMembers.ts` (+ test)
+- `unifiedDerivedReview.ts` (+ test)
+- `familyIdentity.ts` · `positionSearchEngine.ts` · `index.ts`
+- MASTER · LOG · HANDOFF · FAMILY DRAFT
+
+## Next
+
+Manual Admin UI: SAVE → Unified Review markers → Approve → Product durable T×Nc×N3 · History/Recall
 
 ---
 

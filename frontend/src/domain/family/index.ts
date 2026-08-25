@@ -24,6 +24,7 @@ export * from "./cueImpactDerivedReview";
 export * from "./c3PlusDerivedReview";
 export * from "./c3PlusFourTrackConsistency";
 export * from "./unifiedDerivedReview";
+export * from "./buildCueC3ProductMembers";
 export * from "./projectDerivedCandidateToRuntimeView";
 export * from "./familyNormalizedSchema";
 export * from "./familyNormalizedFlag";

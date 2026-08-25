@@ -26,13 +26,15 @@ export const MEMBER_ID_PREFIX = "mb_";
  * Origin / generation lineage (persisted on native members).
  * Separate axis from storage compatibility (LEGACY vs FAMILY_NATIVE).
  * Phase 1B writes AUTHORED. Phase 2B writes SYMMETRY.
- * Phase 3A-3D writes DERIVED_CUE_IMPACT. DERIVED_C3_PLUS remains reserved.
+ * Phase 3A-3D writes DERIVED_CUE_IMPACT. Phase 3A-359 writes DERIVED_C3_PLUS.
+ * Phase 3A-360 writes DERIVED_CUE_C3_PRODUCT (Track × Cue × C3+ Cartesian).
  */
 export type MemberOrigin =
   | "AUTHORED"
   | "SYMMETRY"
   | "DERIVED_CUE_IMPACT"
-  | "DERIVED_C3_PLUS";
+  | "DERIVED_C3_PLUS"
+  | "DERIVED_CUE_C3_PRODUCT";
 
 /**
  * Coordinate symmetry operator used to generate a SYMMETRY Member.
@@ -43,7 +45,8 @@ export type DerivedRule =
   | "CUE_IMPACT_FIRST_30PCT"
   | "C3_PLUS_SCORING_LINE_v1"
   /** Withdrawn placeholder — parse-compatible only; not product sampling law. */
-  | "C3_PLUS_2RG";
+  | "C3_PLUS_2RG"
+  | "CUE_C3_CARTESIAN_PRODUCT_V1";
 export type DerivedStep = string;
 
 const SYMMETRY_OPS: ReadonlySet<string> = new Set(["H", "V", "RPI"]);
@@ -51,6 +54,7 @@ const DERIVED_RULES: ReadonlySet<string> = new Set([
   "CUE_IMPACT_FIRST_30PCT",
   "C3_PLUS_SCORING_LINE_v1",
   "C3_PLUS_2RG",
+  "CUE_C3_CARTESIAN_PRODUCT_V1",
 ]);
 
 const MEMBER_ORIGINS: ReadonlySet<string> = new Set([
@@ -58,6 +62,7 @@ const MEMBER_ORIGINS: ReadonlySet<string> = new Set([
   "SYMMETRY",
   "DERIVED_CUE_IMPACT",
   "DERIVED_C3_PLUS",
+  "DERIVED_CUE_C3_PRODUCT",
 ]);
 
 /**
@@ -171,8 +176,12 @@ export function normalizeDerivedStep(raw: unknown): DerivedStep | undefined {
 
 export function isDerivedMemberOrigin(
   origin: MemberOrigin | null | undefined
-): origin is "DERIVED_CUE_IMPACT" | "DERIVED_C3_PLUS" {
-  return origin === "DERIVED_CUE_IMPACT" || origin === "DERIVED_C3_PLUS";
+): origin is "DERIVED_CUE_IMPACT" | "DERIVED_C3_PLUS" | "DERIVED_CUE_C3_PRODUCT" {
+  return (
+    origin === "DERIVED_CUE_IMPACT" ||
+    origin === "DERIVED_C3_PLUS" ||
+    origin === "DERIVED_CUE_C3_PRODUCT"
+  );
 }
 
 export function expectedDerivedRuleForOrigin(
@@ -180,7 +189,31 @@ export function expectedDerivedRuleForOrigin(
 ): DerivedRule | null {
   if (origin === "DERIVED_CUE_IMPACT") return "CUE_IMPACT_FIRST_30PCT";
   if (origin === "DERIVED_C3_PLUS") return "C3_PLUS_SCORING_LINE_v1";
+  if (origin === "DERIVED_CUE_C3_PRODUCT") return "CUE_C3_CARTESIAN_PRODUCT_V1";
   return null;
+}
+
+/** Canonical Product derivedStep: cue:{cueStep}|c3:{c3Step} */
+export function encodeCueC3ProductDerivedStep(
+  cueStep: string,
+  c3Step: string
+): DerivedStep {
+  const cue = typeof cueStep === "string" ? cueStep.trim() : "";
+  const c3 = typeof c3Step === "string" ? c3Step.trim() : "";
+  return `cue:${cue}|c3:${c3}`;
+}
+
+export function parseCueC3ProductDerivedStep(
+  derivedStep: string | null | undefined
+): { cueStep: string; c3Step: string } | null {
+  if (typeof derivedStep !== "string") return null;
+  const raw = derivedStep.trim();
+  const m = /^cue:(.+)\|c3:(.+)$/.exec(raw);
+  if (!m) return null;
+  const cueStep = m[1]?.trim() ?? "";
+  const c3Step = m[2]?.trim() ?? "";
+  if (!cueStep || !c3Step) return null;
+  return { cueStep, c3Step };
 }
 
 /**

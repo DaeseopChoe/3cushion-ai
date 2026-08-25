@@ -174,12 +174,13 @@ Current Status
   ✅ Sample datasets (user-reported): 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 × 4 tracks
   ✅ BUG-A display-cap nearest-rail IMPLEMENTED (uncommitted)
   ✅ Phase 3A-359 Derived Data COMPLETE (Cue→Impact · C3+ · Unified Review · 4-track · History/Recall PASS)
+  ✅ Phase 3A-360 Cartesian Product durable (Track×Cue×C3+ · balls.cue←Cue · balls.second←C3+)
   BUG-B Reset/History stale = UNCONFIRMED (reproduce after BUG-A fix first)
   Working tree: user datasets dirty/untracked — preserve; no Commit/Push of datasets
 
 Next Track
-  New independent Phase (derived-data feature work not required)
-  Cite: PROJECT_MASTER_INDEX · HISTORY/PROJECT_LOG_2026-08.md (3A-359M)
+  Manual Admin UI verification of Product durable cardinality after Approve
+  Cite: PROJECT_MASTER_INDEX · HISTORY/PROJECT_LOG_2026-08.md (3A-360)
 ```
 
 | Item | Value |
@@ -198,11 +199,12 @@ Next Track
 | **Ball Fine Position Controller** | ✅ **COMPLETED** (2026-08-12 · Desktop PASS · Mobile Production PASS · Admin/User PASS · `1eaf76c`) |
 | **BUG-A** | ✅ **IMPLEMENTED** (uncommitted) — display-cap `resolveNearestRail` |
 | **BUG-B** | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 · 재현 전 코드 수정 금지 |
-| **Derived Data (3A-359)** | ✅ **COMPLETE** — Cue→Impact · C3+ · Unified Review · atomic 4-track · History/Recall PASS |
+| **Derived Data (3A-359)** | ✅ **COMPLETE** — Cue→Impact · C3+ · Unified Review · atomic 4-track |
+| **Cartesian Product (3A-360)** | ✅ **PASS** — durable Track×Cue×C3+ · Product-only Approve |
 | **Family Data Architecture** | Shadow / gated READ in progress (see MASTER · DRAFT) · WRITE SSOT still `positions_dataset` |
 | **GLOSSARY_SSOT** | ✅ **Active** (`작업관리/GLOSSARY_SSOT.md`) — Family terms not yet adopted |
 | **Architecture Freeze** | **유지** (`Architecture/` 내용 수정 없음) |
-| **Next Track** | **New independent Phase** (derived-data work not required) |
+| **Next Track** | **Manual Admin UI** — Product durable after Approve |
 | **Next Track Readiness** | Cite MASTER Current Mission / Next Track |
 ### 구현 완료 범위
 
@@ -463,19 +465,18 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
-Session ID     : 2026-08-24 — Phase 3A-359M Derived Data completion docs
-Baseline       : main · HEAD ba4d56c (unified Review) · ahead of origin · user datasets dirty/untracked
-Current Status : PHASE 3A-359 DERIVED DATA COMPLETE
-                 Cue→Impact COMPLETE · C3+ COMPLETE · Unified Review COMPLETE
-                 Atomic 4-track COMPLETE · manual UI PASS · History/Recall PASS
-Code change    : none in 359M (docs only)
-Docs           : MASTER v1.80 · LOG v1.47 · HANDOFF · FAMILY_DATA_ARCHITECTURE_DRAFT (status pointers)
-Next Session   : New independent Phase — derived-data feature work not required
-Readiness      : Cite MASTER / LOG 3A-359M
-Guardrail      : Do not touch user datasets · no Push unless asked · no new WRITE SSOT
-                 Generators stay separate · C3+ markers display-only · Cue markers interactive
+Session ID     : 2026-08-25 — Phase 3A-360 Cue×C3+ Cartesian Product
+Baseline       : main · prior 3A-359 docs f2e3211 on origin · user datasets dirty/untracked
+Current Status : Phase 3A-360 PASS — durable Product = Track×Cue×C3+
+                 balls.cue←Cue sample · balls.second←C3+ sample · target←base
+                 Review UI still Cue∪C3 markers · Approve Product-only
+Code change    : buildCueC3ProductMembers · unified Approve · identity origin/rule
+Docs           : MASTER v1.81 · LOG v1.48 · HANDOFF · FAMILY_DATA_ARCHITECTURE_DRAFT
+Next Session   : Manual Admin UI — Product durable cardinality / History-Recall
+Guardrail      : Do not touch user datasets · no Push unless asked · no Cue→C3 chaining
+                 Generators stay separate · C3+ markers display-only · Cue interactive
 ```
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-24 · Derived Data COMPLETE · Next: new independent Phase*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-08-25 · Phase 3A-360 Product PASS*

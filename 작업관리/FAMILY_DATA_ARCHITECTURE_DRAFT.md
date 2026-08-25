@@ -4,8 +4,8 @@
 Document  : FAMILY_DATA_ARCHITECTURE_DRAFT.md
 Type      : Confirmed Design · partial implementation (uncommitted)
 Authority : Status/Design — consume via PROJECT_MASTER_INDEX
-Date      : 2026-08-18 · CURRENT status refreshed 2026-08-24
-Status    : CONFIRMED DESIGN · Phase 3A-359 Derived Data COMPLETE (Cue→Impact · C3+ scoring · Unified Review) · Phase 3A-349 controlled flag default ON (gated READ) · Phase 3A-347 parity PASS · Phase 3A-345 Exact-ball rematerialize + sourceSlot (schema v2) · Phase 3A-342 gated READ · Phase 3A-339 preserve KEEP positions+meta · FULL H3 DEFERRED · WRITE SSOT still positions_dataset
+Date      : 2026-08-18 · CURRENT status refreshed 2026-08-25
+Status    : CONFIRMED DESIGN · Phase 3A-360 Cartesian Product durable (Track×Cue×C3+) · Phase 3A-359 Derived Review COMPLETE · Phase 3A-349 controlled flag default ON (gated READ) · WRITE SSOT still positions_dataset
 Not       : Official Glossary (until GLOSSARY_SSOT cites) · family_* durable SSOT · Search Index · Approval History +0 · legacy retirement · Full H3 storage split · F12 content fingerprint
 ```
 
@@ -34,7 +34,7 @@ Not       : Official Glossary (until GLOSSARY_SSOT cites) · family_* durable SS
 | **Compatibility hydrate** | via rematerializer — not member-per-record fan-out |
 | **Production parity regressions** | **PASS** (3A-347) · default-ON + OFF rollback (3A-349) |
 | **History** | SAVE **+1** · Approval **+1** (Cue∪C3+ one commit) · restore bumps gen, does **not** sync `family_*` |
-| **Derived Data (3A-359)** | **COMPLETE** — Cue→Impact · C3+ scoring · Unified Review · atomic 4-track · History/Recall PASS |
+| **Derived Data (3A-359/360)** | Review Cue∪C3 **COMPLETE** · durable **Product Track×Cue×C3+** (3A-360) · Product-only Approve |
 | **Transitional H3** | **HARDENED** (3A-337) |
 | **Full H3** | **DEFERRED** |
 | **preserve_dataset** | **positions + meta KEEP** · **family_* DELETE** (3A-339) |
@@ -80,12 +80,13 @@ Sections below (§1–…) describe this **TARGET** design and earlier phase con
 | Family Master / Member **schema + shadow stores** | **IMPLEMENTED** (uncommitted · 3A-321…326) — physical keys exist; **not** production primary SSOT |
 | Family Master / Member as **production corpus SSOT** | **NOT YET** — still `positions_dataset` |
 | 4 Track auto-generation | **IMPLEMENTED** (uncommitted) — AUTHORED SAVE → 4-track writer |
-| Cue→Impact Derived Members | **COMPLETE** (3A-359) — Unified Review; Approval persists Derived via existing writer + shadow dual-write |
+| Cue→Impact Derived Members | **COMPLETE** (3A-359) — Review samples; not final durable alone |
 | SAVE auto-connect Derived (no review) | **NOT IMPLEMENTED** — REVIEW_REQUIRED remains |
-| C3+ Scoring Line Derived Members | **COMPLETE** (3A-359) — Hybrid sampling · display-only markers · atomic 4-track · Unified Review |
+| C3+ Scoring Line Derived Members | **COMPLETE** (3A-359) — Review samples (transient balls.cue parks sample point) |
+| Cue×C3+ Cartesian Product | **COMPLETE** (3A-360) — durable `T×Nc×N3` · balls.cue←Cue · balls.second←C3+ · target←base |
 | C3_PLUS Search Index | **NOT IMPLEMENTED** |
-| Unified Derived Review (Cue ∪ C3+) | **COMPLETE** (3A-359L/M) — one Approve write/commit · Cue interactive · C3+ display-only |
-| Atomic 4-track Derived consistency | **COMPLETE** — `FOUR_TRACK_INCONSISTENT` · ALL NO_SB = normal C3+ skip |
+| Unified Derived Review (Cue ∪ C3+) | **COMPLETE** (3A-359L) — markers; Approve writes **Product-only** (3A-360) |
+| Atomic 4-track Derived consistency | **COMPLETE** — `FOUR_TRACK_INCONSISTENT` · ALL NO_SB = normal C3+/Product skip |
 | Admin commands 원본수정 / 파생수정 / 새로저장 | **CONFIRMED DESIGN** · NEXT Phase 4 |
 | Existing production derived / symmetry rules | **IMPLEMENTED / SSOT** — reuse; do not reinvent |
 | Envelope `cueSet` 1/3 · 1.5gr Sampling | **Architecture Freeze** — Search sampling; **≠** Family Cue→Impact 30% Derived |
@@ -507,8 +508,10 @@ Family A 자체는 유지. B가 생성하지 않는 영역의 A Members는 유�
 
 ### Phase 3 — Derived Members + Search Index
 
-- **3A-3D/3E + 3A-359 COMPLETE:** Cue→Impact first 30% adaptive Derived + Unified Review/Approve (existing writer). SAVE 자동 Derived persistence 없음. REVIEW_REQUIRED only.
-- **3A-359 COMPLETE:** C3+ scoring-line Derived (Hybrid · display-only markers · atomic 4-track) + Unified Cue∪C3+ Review. Generators remain separate. Detail: LOG **3A-359M**.
+- **3A-3D/3E + 3A-359 COMPLETE:** Cue→Impact + C3+ Review samples + Unified Review UX. SAVE 자동 Derived persistence 없음.
+- **3A-360 COMPLETE:** Durable Cartesian Product `Track × CueSample × C3PlusSample`.  
+  `balls.cue`←Cue sample · `balls.second`←C3+ sample · `balls.target`←base · extensions base COPY.  
+  Approve writes Product-only (`T×Nc×N3`, e.g. 4×3×21=252). Review marker cardinality ≠ durable cardinality.
 - Search Index **미구현**
 
 ### Phase 4 — Admin 3 Commands

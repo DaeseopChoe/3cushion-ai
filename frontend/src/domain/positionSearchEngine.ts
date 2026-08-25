@@ -56,7 +56,12 @@ export type StrategyEntry = {
    * Origin / generation lineage. Separate from storage compatibility.
    * New SAVE writes AUTHORED. LEGACY is view-only and is not persisted.
    */
-  memberOrigin?: "AUTHORED" | "SYMMETRY" | "DERIVED_CUE_IMPACT" | "DERIVED_C3_PLUS";
+  memberOrigin?:
+    | "AUTHORED"
+    | "SYMMETRY"
+    | "DERIVED_CUE_IMPACT"
+    | "DERIVED_C3_PLUS"
+    | "DERIVED_CUE_C3_PRODUCT";
   /**
    * Phase 2B Member lineage. AUTHORED omits this.
    * SYMMETRY: AUTHORED memberId. Not positionId / familyId.
@@ -71,7 +76,11 @@ export type StrategyEntry = {
    * Phase 3A-1 derived lineage rule. Present only on Derived Members.
    * Identity axis, not coordinate / position identity.
    */
-  derivedRule?: "CUE_IMPACT_FIRST_30PCT" | "C3_PLUS_SCORING_LINE_v1" | "C3_PLUS_2RG";
+  derivedRule?:
+    | "CUE_IMPACT_FIRST_30PCT"
+    | "C3_PLUS_SCORING_LINE_v1"
+    | "C3_PLUS_2RG"
+    | "CUE_C3_CARTESIAN_PRODUCT_V1";
   /**
    * Phase 3A-1 derived lineage step key.
    * Stable source-domain key; never a balls/position alias.

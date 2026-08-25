@@ -522,6 +522,7 @@ describe("Derived provenance foundation", () => {
   it.each([
     ["DERIVED_CUE_IMPACT", "CUE_IMPACT_FIRST_30PCT"],
     ["DERIVED_C3_PLUS", "C3_PLUS_SCORING_LINE_v1"],
+    ["DERIVED_CUE_C3_PRODUCT", "CUE_C3_CARTESIAN_PRODUCT_V1"],
   ] as const)(
     "%s requires source member, rule, and step",
     (memberOrigin, derivedRule) => {

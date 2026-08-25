@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.80  
-Last Updated: 2026-08-24  
+Version: 1.81  
+Last Updated: 2026-08-25  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -50,9 +50,9 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Phase **3A-359** Derived Data — **COMPLETE** (docs 3A-359M · impl through 3A-359L) |
-| **Next Track** | New independent Phase (derived-data feature work **not required**) |
-| **Derived Data** | Cue→Impact · C3+ Scoring Line · Unified Review · Atomic 4-track · History/Recall — see below |
+| **Current Mission** | Phase **3A-360** — Cue × C3+ Cartesian Product Derived Data **PASS** |
+| **Next Track** | Manual Admin UI check (SAVE → Review markers · Approve → Product durable T×Nc×N3) |
+| **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
@@ -65,28 +65,28 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
 | **Mission 04 Authoring Integration** | ✅ **ABSORBED** (ADR · Missions 01–03 + `product pipeline`) |
 
-### Derived Data (Phase 3A-359) — COMPLETE
+### Derived Data (Phase 3A-359 + 3A-360)
 
-> **Pointer only** — detail: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-359E…M**. Design/contracts: `FAMILY_DATA_ARCHITECTURE_DRAFT.md` · Cue→Impact 0.30 · C3+ Hybrid (no 0.30) · `TRAJECTORY_EXTENSION_SSOT.md` (extensions COPY). Ops: `CURSOR_SESSION_HANDOFF.md`.
+> **Pointer only** — detail: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-359E…M** · **3A-360**. Design: `FAMILY_DATA_ARCHITECTURE_DRAFT.md`.
 
 ```text
 Derived Data
-  ├─ Cue→Impact — COMPLETE
-  ├─ C3+ Scoring Line — COMPLETE
-  ├─ Unified Derived Review — COMPLETE
+  ├─ Cue→Impact generator — COMPLETE (Review samples)
+  ├─ C3+ Scoring Line generator — COMPLETE (Review samples)
+  ├─ Unified Derived Review UX — COMPLETE (Cue∪C3 markers)
+  ├─ Cartesian Product durable (Track×Cue×C3+) — COMPLETE (3A-360)
   ├─ Atomic 4-track Consistency — COMPLETE
-  └─ History / Recall verification — PASS (manual UI 2026-08-24)
+  └─ History / Recall — Product rematerialize path
 ```
 
 | Field | Value |
 |-------|--------|
-| **Product contract** | **DERIVED DATA IMPLEMENTATION: COMPLETE** |
-| **Generators** | Separate Cue→Impact vs C3+ (no merge · no Cue-as-C3+ source · no Cue 0.30 on C3+) |
-| **Review UX** | SAVE → unified Review · Cue markers interactive · C3+ markers **display-only** · Approve once |
-| **4-track** | Semantic parity required · `FOUR_TRACK_INCONSISTENT` blocks C3+ · ALL NO_SB = normal C3+ skip |
-| **Persistence** | Existing family writer / `commitDerivedApprovalDataset` · **no new WRITE SSOT** |
-| **Impl commits** | Generator `58816a1` · Review+atomic `0da4bb5` · display `082f2fa` · unified `ba4d56c` · docs 359M |
-| **Manual UI** | **PASS** 2026-08-24 (SAVE → Review → Approve → History/Recall · 4-track) |
+| **Review samples** | Cue markers ∪ C3+ markers (≠ durable count) |
+| **Durable Product** | `balls.cue`←Cue sample · `balls.second`←C3+ sample · `balls.target`←base |
+| **Cardinality** | `T × Nc × N3` (e.g. 4×3×21=252) · Product-only on Approve |
+| **Identity** | `DERIVED_CUE_C3_PRODUCT` · `CUE_C3_CARTESIAN_PRODUCT_V1` · `cue:{cueStep}\|c3:{c3Step}` |
+| **Generators** | Separate · no Cue→C3 chaining · base AUTHORED/SYMMETRY only |
+| **Impl** | `buildCueC3ProductMembers.ts` · unified Approve Product-only |
 
 ### Phase 5 Mission 01 — Real Interpolation (Implemented)
 

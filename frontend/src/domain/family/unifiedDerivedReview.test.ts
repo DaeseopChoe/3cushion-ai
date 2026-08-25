@@ -16,6 +16,7 @@ import {
 } from "./unifiedDerivedReview";
 import { CUE_IMPACT_MEMBER_ORIGIN } from "./generateCueImpactDerivedMembers";
 import { C3_PLUS_MEMBER_ORIGIN } from "./generateC3PlusScoringDerivedMembers";
+import { CUE_C3_PRODUCT_MEMBER_ORIGIN } from "./buildCueC3ProductMembers";
 import { hitTestDerivedReviewMarker } from "./cueImpactDerivedReview";
 import { FAMILY_TRACKS, transformPoint } from "./trackSymmetry";
 import { resolveTrajectoryHitTolerance } from "../trajectory/hitToleranceRg";
@@ -254,7 +255,7 @@ describe("createUnifiedDerivedReview", () => {
     expect(unified.bag.cueSession.members.length).toBeGreaterThan(0);
   });
 
-  it("F/G: Cancel leaves dataset; Approve writes Cue+C3 in one write", () => {
+  it("F/G: Cancel leaves dataset; Approve writes Product-only (not Cue∪C3 union)", () => {
     const written = persistFour(collinearCueBalls(20));
     const before = structuredClone(written.dataset);
     const unified = createUnifiedDerivedReview({
@@ -265,6 +266,11 @@ describe("createUnifiedDerivedReview", () => {
     });
     if (!unified.ok) throw new Error(unified.reason);
     expect(written.dataset).toEqual(before);
+    expect(unified.bag.productBuildError).toBeNull();
+    expect(unified.bag.productMembers.length).toBeGreaterThan(0);
+    expect(unified.bag.productCardinality?.expected).toBe(
+      unified.bag.productMembers.length
+    );
 
     const approved = approveUnifiedDerivedReview({
       dataset: written.dataset,
@@ -275,16 +281,53 @@ describe("createUnifiedDerivedReview", () => {
     const entries = approved.dataset.flatMap((r) =>
       Object.values(r.strategies ?? {}).filter(Boolean)
     ) as StrategyEntry[];
-    const cueN = entries.filter(
+    const productN = entries.filter(
+      (e) => e.memberOrigin === CUE_C3_PRODUCT_MEMBER_ORIGIN
+    ).length;
+    const cueDurable = entries.filter(
       (e) => e.memberOrigin === CUE_IMPACT_MEMBER_ORIGIN
     ).length;
-    const c3N = entries.filter(
+    const c3Durable = entries.filter(
       (e) => e.memberOrigin === C3_PLUS_MEMBER_ORIGIN
     ).length;
-    expect(cueN).toBeGreaterThan(0);
-    expect(c3N).toBeGreaterThan(0);
-    expect(cueN).toBe(unified.bag.cueSession.members.length);
-    expect(c3N).toBe(unified.bag.c3PlusSession!.members.length);
+    expect(productN).toBe(unified.bag.productMembers.length);
+    expect(cueDurable).toBe(0);
+    expect(c3Durable).toBe(0);
+
+    const sample = unified.bag.productMembers[0]!;
+    const persisted = entries.find((e) => e.memberId === sample.memberId)!;
+    const rec = approved.dataset.find((r) =>
+      Object.values(r.strategies ?? {}).some((e) => e?.memberId === sample.memberId)
+    )!;
+    expect(rec.balls.cue).toEqual(sample.balls.cue);
+    expect(rec.balls.second).toEqual(sample.balls.second);
+    expect(rec.balls.target).toEqual(sample.balls.target);
+    expect(persisted.memberOrigin).toBe(CUE_C3_PRODUCT_MEMBER_ORIGIN);
+    expect(persisted.derivedRule).toBe("CUE_C3_CARTESIAN_PRODUCT_V1");
+  });
+
+  it("ALL NO_SB Approve: Product write 0; dataset unchanged", () => {
+    const written = persistFour({
+      cue: { x: 8, y: 16 },
+      target: { x: 8 + 20 + DEFAULT_SCALE.BALL_DIAMETER_RG, y: 16 },
+      second: { x: 70, y: 35 },
+    });
+    const before = structuredClone(written.dataset);
+    const unified = createUnifiedDerivedReview({
+      dataset: written.dataset,
+      familyId: "fm_uni",
+      authoredPathNodes: pathC4,
+      hitTolerance: HIT,
+    });
+    if (!unified.ok) throw new Error(unified.reason);
+    expect(unified.bag.productMembers.length).toBe(0);
+    const approved = approveUnifiedDerivedReview({
+      dataset: written.dataset,
+      bag: unified.bag,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+    expect(approved.dataset).toEqual(before);
   });
 
   it("NO Cue-derived as C3+ source: sources remain AUTHORED/SYMMETRY only", () => {
@@ -303,6 +346,32 @@ describe("createUnifiedDerivedReview", () => {
       );
       expect(cueDerivedIds.has(m.generatedFromMemberId!)).toBe(false);
     }
+    for (const m of unified.bag.productMembers) {
+      const cueDerivedIds = new Set(
+        unified.bag.cueSession.members.map((c) => c.memberId)
+      );
+      expect(cueDerivedIds.has(m.generatedFromMemberId!)).toBe(false);
+      expect(m.memberOrigin).toBe(CUE_C3_PRODUCT_MEMBER_ORIGIN);
+    }
+  });
+
+  it("Product cardinality = cuePerTrack × c3PerTrack × 4", () => {
+    const written = persistFour(collinearCueBalls(20));
+    const unified = createUnifiedDerivedReview({
+      dataset: written.dataset,
+      familyId: "fm_uni",
+      authoredPathNodes: pathC4,
+      hitTolerance: HIT,
+    });
+    if (!unified.ok || !unified.bag.c3PlusSession) throw new Error("need both");
+    const cueN = unified.bag.cueSession.members.filter(
+      (m) => m.track === "B2T_L"
+    ).length;
+    const c3N = unified.bag.c3PlusSession.members.filter(
+      (m) => m.track === "B2T_L"
+    ).length;
+    expect(unified.bag.productMembers.length).toBe(4 * cueN * c3N);
+    expect(unified.bag.productCardinality?.expected).toBe(4 * cueN * c3N);
   });
 });
 

@@ -1,16 +1,23 @@
 /**
- * Unified Derived Review orchestration (Phase 3A-359L).
+ * Unified Derived Review orchestration (Phase 3A-359L + 3A-360 Product).
  *
- * Generators stay separate. Presentation + one-shot approval only.
- * Cue→Impact = interactive; C3+ = display-only markers.
+ * Generators stay separate. Review UI = Cue ∪ C3+ markers.
+ * Durable Approve writes Track × Cue × C3+ Product members only.
  */
 
 import type { Point, PositionRecord } from "../positionSearchEngine";
 import {
+  reconstructFamilyMembers,
   writeFamilyMembers,
   type FamilyWriteFailureCode,
   type LogicalFamilyMemberCandidate,
 } from "./familyAwareWriter";
+import {
+  buildCueC3ProductMembers,
+  fingerprintCueC3ProductMembers,
+  CUE_C3_PRODUCT_MEMBER_ORIGIN,
+  type CueC3ProductCardinality,
+} from "./buildCueC3ProductMembers";
 import {
   CUE_IMPACT_DERIVED_APPROVAL_POLICY,
   createCueImpactDerivedReview,
@@ -47,6 +54,14 @@ export type UnifiedDerivedReviewBag = {
   c3PlusSession: C3PlusDerivedReviewSession | null;
   /** User-facing C3+ open outcome (skip vs error). */
   c3PlusFeedback: C3PlusReviewOpenFeedback | null;
+  /**
+   * Durable Cartesian Product candidates (Phase 3A-360).
+   * Empty when C3+ skipped / inconsistent / product build failed.
+   */
+  productMembers: LogicalFamilyMemberCandidate[];
+  productFingerprint: string;
+  productCardinality: CueC3ProductCardinality | null;
+  productBuildError: { code: string; reason: string } | null;
 };
 
 export type CreateUnifiedDerivedReviewResult =
@@ -72,7 +87,14 @@ export type ApproveUnifiedDerivedReviewResult =
     }
   | {
       ok: false;
-      code: FamilyWriteFailureCode | "REVIEW_REQUIRED" | "SESSION_INACTIVE" | "CANDIDATE_SET_CHANGED" | "EMPTY_APPROVAL";
+      code:
+        | FamilyWriteFailureCode
+        | "REVIEW_REQUIRED"
+        | "SESSION_INACTIVE"
+        | "CANDIDATE_SET_CHANGED"
+        | "EMPTY_APPROVAL"
+        | "PRODUCT_BUILD_FAILED"
+        | "PRODUCT_SET_CHANGED";
       reason: string;
       dataset: PositionRecord[];
       bag?: UnifiedDerivedReviewBag;
@@ -82,11 +104,88 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function existingProductLineage(
+  dataset: PositionRecord[],
+  familyId: string
+): Array<{
+  derivedStep: string;
+  memberId: string;
+  authoringStrategyId?: string;
+  generatedFromMemberId?: string;
+}> {
+  const out: Array<{
+    derivedStep: string;
+    memberId: string;
+    authoringStrategyId?: string;
+    generatedFromMemberId?: string;
+  }> = [];
+  for (const loc of reconstructFamilyMembers(dataset, familyId)) {
+    if (loc.entry.memberOrigin !== CUE_C3_PRODUCT_MEMBER_ORIGIN) continue;
+    if (!loc.entry.derivedStep || !loc.entry.memberId) continue;
+    out.push({
+      derivedStep: loc.entry.derivedStep,
+      memberId: loc.entry.memberId,
+      ...(loc.entry.authoringStrategyId
+        ? { authoringStrategyId: loc.entry.authoringStrategyId }
+        : {}),
+      ...(loc.entry.generatedFromMemberId
+        ? { generatedFromMemberId: loc.entry.generatedFromMemberId }
+        : {}),
+    });
+  }
+  return out;
+}
+
+function buildProductState(args: {
+  dataset: PositionRecord[];
+  familyId: string;
+  cueSession: CueImpactDerivedReviewSession;
+  c3PlusSession: C3PlusDerivedReviewSession | null;
+}): Pick<
+  UnifiedDerivedReviewBag,
+  "productMembers" | "productFingerprint" | "productCardinality" | "productBuildError"
+> {
+  if (!args.c3PlusSession) {
+    return {
+      productMembers: [],
+      productFingerprint: "",
+      productCardinality: null,
+      productBuildError: null,
+    };
+  }
+
+  const built = buildCueC3ProductMembers({
+    familyId: args.familyId,
+    cueMembers: args.cueSession.members,
+    c3PlusMembers: args.c3PlusSession.members,
+    frozenSourcesByTrack: args.cueSession.frozenSourcesByTrack,
+    existingMembers: existingProductLineage(args.dataset, args.familyId),
+  });
+
+  if (!built.ok) {
+    return {
+      productMembers: [],
+      productFingerprint: "",
+      productCardinality: built.cardinality ?? null,
+      productBuildError: { code: built.code, reason: built.reason },
+    };
+  }
+
+  const members = cloneJson(built.members);
+  return {
+    productMembers: members,
+    productFingerprint: fingerprintCueC3ProductMembers(members),
+    productCardinality: built.cardinality,
+    productBuildError: null,
+  };
+}
+
 /**
  * SAVE 직후: Cue create + C3+ create independently from AUTHOR/SYMMETRY sources.
+ * Then freeze Track×Cue×C3+ Product candidates for Approve (durable Product-only).
  * Cue failure → fail closed (no C3+-only review — Case D deferred).
- * C3+ ALL NO_SB → Cue-only bag (normal).
- * C3+ INCONSISTENT → Cue-only bag + error feedback (no C3+ members).
+ * C3+ ALL NO_SB → Cue-only bag (normal); Product empty.
+ * C3+ INCONSISTENT → Cue-only bag + error feedback; Product empty.
  */
 export function createUnifiedDerivedReview(args: {
   dataset: PositionRecord[];
@@ -136,6 +235,13 @@ export function createUnifiedDerivedReview(args: {
     }
   }
 
+  const productState = buildProductState({
+    dataset,
+    familyId,
+    cueSession: cueResult.session,
+    c3PlusSession,
+  });
+
   const bag: UnifiedDerivedReviewBag = {
     kind: UNIFIED_DERIVED_REVIEW_KIND,
     status: "PENDING",
@@ -144,6 +250,7 @@ export function createUnifiedDerivedReview(args: {
     cueSession: cueResult.session,
     c3PlusSession,
     c3PlusFeedback,
+    ...productState,
   };
 
   return { ok: true, bag, dataset };
@@ -202,6 +309,10 @@ export function unifiedReviewPreviewMarkers(
   return [...cue, ...c3];
 }
 
+/**
+ * Persist frozen Product Candidate Set only (not Cue∪C3 Review union).
+ * ALL NO_SB / no Product: Approve succeeds with dataset unchanged.
+ */
 export function approveUnifiedDerivedReview(args: {
   dataset: PositionRecord[];
   bag: UnifiedDerivedReviewBag;
@@ -259,20 +370,64 @@ export function approveUnifiedDerivedReview(args: {
     }
   }
 
-  const members: LogicalFamilyMemberCandidate[] = [
-    ...cloneJson(bag.cueSession.members),
-    ...(bag.c3PlusSession ? cloneJson(bag.c3PlusSession.members) : []),
-  ];
-  if (members.length === 0) {
+  if (bag.productBuildError) {
     return {
       ok: false,
-      code: "EMPTY_APPROVAL",
-      reason: "no derived members to approve",
+      code: "PRODUCT_BUILD_FAILED",
+      reason: bag.productBuildError.reason,
       dataset,
       bag,
     };
   }
 
+  const productFp = fingerprintCueC3ProductMembers(bag.productMembers);
+  if (productFp !== bag.productFingerprint) {
+    return {
+      ok: false,
+      code: "PRODUCT_SET_CHANGED",
+      reason: "Product Candidate Set changed",
+      dataset,
+      bag,
+    };
+  }
+
+  // ALL NO_SB / C3+ skip: no Product to persist — Approve closes Review only.
+  if (!bag.c3PlusSession || bag.productMembers.length === 0) {
+    if (bag.c3PlusSession && bag.productMembers.length === 0) {
+      return {
+        ok: false,
+        code: "EMPTY_APPROVAL",
+        reason: "C3+ Review present but Product Candidate Set is empty",
+        dataset,
+        bag,
+      };
+    }
+    return {
+      ok: true,
+      dataset,
+      bag: {
+        ...bag,
+        status: "APPROVED",
+        cueSession: { ...bag.cueSession, status: "APPROVED" },
+        c3PlusSession: null,
+      },
+    };
+  }
+
+  if (
+    bag.productCardinality &&
+    bag.productMembers.length !== bag.productCardinality.expected
+  ) {
+    return {
+      ok: false,
+      code: "PRODUCT_BUILD_FAILED",
+      reason: `Product cardinality mismatch: expected ${bag.productCardinality.expected}, got ${bag.productMembers.length}`,
+      dataset,
+      bag,
+    };
+  }
+
+  const members = cloneJson(bag.productMembers);
   const written = writeFamilyMembers(dataset, {
     familyId: bag.familyId,
     members,
@@ -309,4 +464,8 @@ export function notifyPayloadForUnifiedC3PlusFeedback(
   return fb;
 }
 
-export { frozenReviewSourceForTrack, C3_PLUS_FOUR_TRACK_INCONSISTENT };
+export {
+  frozenReviewSourceForTrack,
+  C3_PLUS_FOUR_TRACK_INCONSISTENT,
+  CUE_C3_PRODUCT_MEMBER_ORIGIN,
+};
