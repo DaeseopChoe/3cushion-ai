@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.93  
+Version: 1.95  
 Last Updated: 2026-08-26  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -50,10 +50,13 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | Phase **Role-based Ball3 Clean Cut · Phase 7C** — Search/Recall permutation **REMOVED** · **CLEAN CUT COMPLETE** (uncommitted) |
-| **Next Track** | Commit/Push when user requests · no further Clean Cut code phase |
+| **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
+| **Next Track** | Commit/Push when user requests (Issue A code + docs; exclude user dataset dirty) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
-| **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · all 3 balls must pass · winner = min Σ Euclidean |
+| **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
+| **ADMIN Recall→Edit** | **POLICY A (canonical):** view-only Recall · **Reset only** → edit · Target dblclick ≠ session API · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
+| **Issue B (History Local Search variance)** | **CLOSED — NO ADDITIONAL SEARCH/DATASET CHANGE** · detail → `HISTORY/PROJECT_LOG_2026-08.md` |
+| **Ball3 Role SSOT** | **UNCHANGED** · field name == physical role · Search Role-direct |
 | **Product Coverage Display** | APPROVED/History: **persisted Product balls** (not live `buildTrajectory`) |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
@@ -93,18 +96,25 @@ Derived Data
 
 ### LocalDB ADMIN Spatial Search (adminSearch)
 
-> Path: `handleAdminSearch` → `runAdminLocalDbRecall` → `runSpatialRecall(adminSearch)`.
+> Path: `handleAdminSearch` → `runAdminLocalDbRecall` → `runSpatialRecall(adminSearch)`.  
+> **Corpus** = persisted `PositionRecord` Ball3 samples (React `dataset` after History load / working corpus).  
+> **Not** trajectory geometry · **Not** Coverage markers as candidate expansion.
 
 | Field | Value |
 |-------|--------|
 | **Coordinates** | Ball3 table coordinates / **Rg** |
+| **Role match** | `cue↔cue` · `target↔target` · `second↔second` (permutation removed) |
 | **Per-ball metric** | **Euclidean** center distance |
-| **Per-ball tolerance** | **2.0 Rg** (cue ∧ target ∧ second) |
+| **Per-ball tolerance** | **2.0 Rg** (cue ∧ target ∧ second; all must pass) |
 | **Winner** | minimum `dCue + dTarget + dSecond` |
 | **Tie-break** | `targetBallMatch` → `positionId.localeCompare` |
 | **Aggregate cap** | **none** (per-ball gate primary) |
 | **Soft UI warn** | aggregate > **4.0** → "유사도 낮음" (still match) |
+| **Trajectory / Coverage** | Visualization only — **do not** create Search candidates |
+| **NO MATCH** | No persisted sample within coarse gate → **expected** ("해당 데이터 없음") |
 | **Not changed** | Product cardinality / generators / Published `adminStrict` (Manhattan) |
+
+> Edit-session after Recall: **POLICY A** — see `TRAJECTORY_EXTENSION_SSOT.md` §7 · Issue B close: `HISTORY/PROJECT_LOG_2026-08.md`.
 
 ### Phase 5 Mission 01 — Real Interpolation (Implemented)
 

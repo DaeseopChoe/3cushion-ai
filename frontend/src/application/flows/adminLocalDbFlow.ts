@@ -16,6 +16,10 @@ import {
 } from "../../domain/positionSearchEngine";
 import { normalizeTargetBallForKey } from "../../domain/positionMergeEngine";
 import { ADMIN_SEARCH_SOFT_DISTANCE_WARN } from "../../domain/recall/recallProfiles";
+import {
+  resolveAdminRecallTargetMeta,
+  type AdminTargetBall,
+} from "../../domain/system/adminEditSessionContract";
 import { adminSysFromRecallEntry } from "./recallHydrateFlow";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +43,10 @@ export type AdminLocalDbFlowContext = {
   setIsAdminPublishedSearchMatched: (value: boolean) => void;
   setAdminTableLayersVisible: (value: boolean) => void;
   setShowCoaching: (value: boolean) => void;
+  /** View-only after match — Reset re-opens editable session (History parity). */
+  setIsAdminInputSessionActive: (value: boolean) => void;
+  /** Hydrate Target color metadata for Ready after Reset unlock. */
+  hydrateAdminRecallTarget: (targetBall: AdminTargetBall | null) => void;
 
   // ACTION
   applyPositionRecall: (record: PositionRecord) => void;
@@ -190,11 +198,15 @@ export async function runAdminLocalDbRecall(
 
   // Apply recall
   ctx.applyPositionRecall(result.record);
-  if (searchQueryTargetBall) {
-    ctx.patchSlotRuntimeMeta(ctx.activeSlot, {
-      targetBall: searchQueryTargetBall,
-    });
+  // Target color metadata: query lock preferred, else record (Ready after Reset unlock).
+  const targetMeta = resolveAdminRecallTargetMeta({
+    searchQueryTargetBall,
+    recordTargetBall: result.record?.targetBall,
+  });
+  if (targetMeta) {
+    ctx.patchSlotRuntimeMeta(ctx.activeSlot, { targetBall: targetMeta });
   }
+  ctx.hydrateAdminRecallTarget(targetMeta);
 
   // Hydrate adminState.sys
   const recallEntry = (result.record?.strategies as Record<string, unknown> | undefined)?.[ctx.activeSlot];
@@ -221,13 +233,14 @@ export async function runAdminLocalDbRecall(
     alert("유사도 낮음");
   }
 
-  // HELPER: begin admin input session
+  // Sync table balls into slots, then leave view-only until Reset (History parity).
   if (!ctx.beginAdminInputSession()) {
     // session 시작 실패 — recall은 match이지만 layer 표시 생략
     return true;
   }
+  ctx.setIsAdminInputSessionActive(false);
 
-  // Post-match display
+  // Post-match display (view-only: SYS/SAVE gated off until Reset)
   ctx.setAdminTableLayersVisible(true);
   ctx.setShowCoaching(true);
 

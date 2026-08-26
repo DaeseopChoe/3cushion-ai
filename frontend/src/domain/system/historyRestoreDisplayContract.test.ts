@@ -84,14 +84,30 @@ describe("History restore → Admin table layers (view vs edit)", () => {
   it("T3: Reset keeps data and sets session true (source contract)", () => {
     const app = readSrc("App.jsx");
     const resetStart = app.indexOf("const handleAdminWorkReset");
-    const resetEnd = app.indexOf("}, [appMode, actions, targetColor", resetStart);
+    const resetEnd = app.indexOf("}, [", resetStart);
     expect(resetStart).toBeGreaterThan(-1);
     expect(resetEnd).toBeGreaterThan(resetStart);
     const resetBody = app.slice(resetStart, resetEnd);
     expect(resetBody).toMatch(/setIsAdminInputSessionActive\(true\)/);
+    expect(resetBody).toMatch(/extractSlotTargetBall|readyTarget/);
     expect(resetBody).not.toMatch(/clearAdminWorkSlots/);
     expect(resetBody).not.toMatch(/setAdminTableLayersVisible\(false\)/);
     expect(resetBody).not.toMatch(/resetTrajectory/);
+  });
+
+  it("T3b: LocalDB match leaves session view-only until Reset (source contract)", () => {
+    const localDb = readSrc("application/flows/adminLocalDbFlow.ts");
+    expect(localDb).toMatch(/setIsAdminInputSessionActive\(false\)/);
+    expect(localDb).toMatch(/hydrateAdminRecallTarget/);
+    expect(localDb).toMatch(/resolveAdminRecallTargetMeta/);
+  });
+
+  it("T3c: POLICY A — Target dblclick does not resume edit while view-only (source)", () => {
+    const app = readSrc("App.jsx");
+    expect(app).toMatch(/shouldBlockTargetDblclickEditSession/);
+    expect(app).toMatch(
+      /POLICY A: Recall\/History view-only|POLICY A: explicit Lock hydrate/
+    );
   });
 
   it("T4: same Track keeps reflectionOverride (display path does not strip)", () => {

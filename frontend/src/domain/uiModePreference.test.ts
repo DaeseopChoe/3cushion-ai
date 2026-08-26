@@ -140,7 +140,7 @@ describe("uiModePreference wiring (source contracts)", () => {
   it("T10: Reset does not write uiMode", () => {
     const app = readSrc("App.jsx");
     const start = app.indexOf("const handleAdminWorkReset");
-    const end = app.indexOf("}, [appMode, actions, targetColor", start);
+    const end = app.indexOf("}, [", start);
     const body = app.slice(start, end);
     expect(body).not.toMatch(/writeUiModePreference/);
     expect(body).not.toMatch(/app_ui_mode_v1/);

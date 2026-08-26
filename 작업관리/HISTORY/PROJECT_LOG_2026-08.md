@@ -1,8 +1,125 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.60  
+Version : v1.62  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-26 (Docs — POLICY A SSOT + Issue B CLOSED)
+
+## Mode
+
+**Agent** · documentation only · **no code / dataset / migration / Commit / Push**
+
+## Canonical owners
+
+| Topic | Canonical | Others |
+|-------|-----------|--------|
+| Recall → Edit (POLICY A) | `TRAJECTORY_EXTENSION_SSOT.md` §7 | MASTER status pointer |
+| LocalDB Search metrics / NO MATCH | `PROJECT_MASTER_INDEX.md` LocalDB table | TRAJECTORY §7.1.1 short clarify |
+| Issue B investigation + close | **this LOG entry** | MASTER status = CLOSED |
+
+## POLICY A — UI verified + documented
+
+App verification:
+
+- LocalDB/History Recall → controls disabled (view-only)
+- Target double-click while recalled → does **not** open edit-session
+- Reset → unlock + Ready + session → SYS / HP/T / STR / AI / SAVE usable
+
+Contract (canonical text in TRAJECTORY §7):
+
+```text
+Recall = view-only (session=false)
+Target dblclick ≠ edit-session API while view-only
+Reset = ONLY canonical Recall→Edit transition
+Second dblclick Projection unchanged
+```
+
+Code owners (impl, uncommitted): `App.jsx` · `application/flows/adminLocalDbFlow.ts` · `domain/system/adminEditSessionContract.ts` · `hooks/useSettings.js`
+
+## Issue B — CLOSED / NO ADDITIONAL SEARCH/DATASET CHANGE
+
+### Observed
+
+Some History snapshots appeared to LocalDB-match differently when moving Second along the on-screen trajectory (v001/v002 vs v003/v004 user report).
+
+### Prior hypothesis (REJECTED / superseded)
+
+Early audit hypothesized **“v001/v002 sparse authored-only vs v003/v004 dense Product”** as the Search difference.
+
+**Later DevTools `workspace_history` counts (옆돌리기 / 5_half_system):**
+
+| Snapshot | records | AUTHORED | SYMMETRY | DERIVED_CUE_C3_PRODUCT |
+|----------|--------:|---------:|---------:|-----------------------:|
+| v001 | 4 | 1 | 3 | 0 |
+| v002 | 256 | 1 | 3 | 252 |
+| v003 | 256 | 1 | 3 | 252 |
+| v004 | 256 | 1 | 3 | 252 |
+
+→ **v002 is not sparse**; density-only explanation of v002 vs v003/v004 **discarded**.  
+Exact `balls.second` / `positionId` content identity across v002–v004 remains **unverified** (no byte-level snapshot file in repo at close).
+
+### Investigation (code)
+
+- LocalDB: `handleAdminSearch` → `runAdminLocalDbRecall` → `runSpatialRecall(adminSearch)`
+- Query Ball3 from `normalizeBallsToBall3(ballsState)` · Role-direct · Euclidean · **2.0 Rg / ball** coarse
+- Corpus = React `dataset` after History `setDataset(normalize(snapshot.state.dataset))` — no LocalDB family rematerialize swap
+- Same dataset + same query → **deterministic** result
+- Trajectory / Coverage visualization **does not** expand Search candidates
+- No Search non-determinism / permutation regression evidence
+- No confirmed Search code defect or dataset defect requiring change
+
+### Decision
+
+| Action | |
+|--------|--|
+| Search code change | **NONE** |
+| 2Rg / Role SSOT change | **NONE** |
+| Dataset / migration | **NONE** |
+| Issue status | **CLOSED — NO ADDITIONAL SEARCH/DATASET CHANGE** |
+
+### Reopen condition
+
+Reopen Issue B only if: same History snapshot + same Ball3 query yields divergent LocalDB results, **or** a persisted candidate is within per-Role 2Rg of the query yet coarse still returns no-match (reproducible).
+
+### Expected NO MATCH
+
+Ball on a drawn trajectory line **≠** Recall guarantee. Outside persisted Ball3 sample coarse gate → `"해당 데이터 없음"` is **expected behavior**.
+
+---
+
+# 2026-08-26 (POLICY A — Recall view-only · Reset = only Recall→Edit)
+
+## Mode
+
+**Agent** · Issue A only · no Search/2Rg/Product/C3+/dataset · no Commit/Push
+
+## Contract
+
+```text
+Recall (LocalDB / History) = view-only → session=false
+Reset = only canonical Recall→Edit transition
+Target dblclick does not resume edit session while recalled Target/view-only
+Second dblclick Projection unchanged
+Role-based Ball3 SSOT unchanged
+```
+
+## Root cause (fixed)
+
+Recall hydrate set Target Lock when meta present, but did not clear stale lock when meta absent.
+Unlocked Target dblclick could call `beginAdminInputSession` after Recall → non-deterministic “sometimes works”.
+
+## AFTER
+
+- Explicit Lock hydrate (meta → lock; no meta → unlock)
+- View-only guard: layers on + session off → block Target dblclick edit-session path
+- Reset contract retained (unlock + Ready + session true)
+
+## Explicitly NOT done (at Issue A code time)
+
+Issue B (later **CLOSED** in docs entry above) · Search · Euclidean 2Rg · Product · C3+ · dataset · Commit/Push
 
 ---
 

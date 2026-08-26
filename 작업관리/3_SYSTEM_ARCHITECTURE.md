@@ -1,7 +1,7 @@
 본 문서는 3Cushion AI의 **계산 구조와 시스템 데이터 계층**만 다룬다.
 UI 구조, 렌더 구조, 리팩터링 청사진은 FRONTEND_ARCHITECTURE 문서에서 관리한다.
 
-> Last Updated: 2026-07-28 — Display Formatter 경계 문장 최소 보강 (UI/Shell/Toolbar 상세 없음)
+> Last Updated: 2026-08-26 — Admin Mode POLICY A Recall→Edit pointer (계산 계층 변경 없음)
 
 **표시 Formatter 경계:** `buildSysCalcDisplayModel`은 계산 엔진이 아니라 **표시 전용 Formatter**이며, USER Calculation Overlay가 이를 공유해도 SYS 계산 엔진의 책임과 결과는 변경되지 않는다.
 
@@ -131,6 +131,8 @@ anchors 비의존
 expr 기반 순수 계산
 
 디버깅/검증 목적
+
+**ADMIN Recall → Edit (POLICY A pointer):** LocalDB/History Recall은 view-only(`session=false`). Target 더블클릭으로 edit-session을 열지 않는다. **Reset만** Recall→Edit canonical 전환. 상세 계약: `TRAJECTORY_EXTENSION_SSOT.md` §7 · 상태: `PROJECT_MASTER_INDEX.md`.
 
 흐름:
 

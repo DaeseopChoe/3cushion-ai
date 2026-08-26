@@ -21,6 +21,7 @@
 | v1.2 | Reflection Table 철학 명문화 — Reverse Spin 물리 엔진이 아님 · 표준 Default Proposal만 생성 |
 | v1.3 | Runtime Snap / Constraint / Attachment 제거 · Target Lock + DoubleClick Projection · Role vs Slot · Handle Pointer Priority |
 | **v1.4** | **Product Complete** · USER Search Runtime Activation · **`activateStrategySlot`** · Search ↔ Strategy Pick **단일 Runtime 경로** · Search 전용 Hydrate **없음** |
+| v1.4.1 | **POLICY A** · Recall view-only · Reset = only Recall→Edit · Target dblclick ≠ session resume while view-only · Search ≠ trajectory proximity · Role Ball3 unchanged |
 
 ---
 
@@ -323,6 +324,30 @@ Lock 유지 중
   Second Role DoubleClick → Projection만
   어떤 Ball DoubleClick도 Target Role 변경 금지
 ```
+
+**POLICY A — Recall → Edit (ADMIN)** · *canonical edit-session contract*
+
+```text
+Recall (LocalDB / History) = view-only
+  → isAdminInputSessionActive = false
+  → Target Lock hydrate is explicit (meta → lock; no meta → unlock; no stale lock)
+  → Target dblclick does NOT resume edit session while view-only
+  → Second dblclick Projection unchanged (§7.3)
+Reset = ONLY canonical Recall→Edit transition
+  → unlock Target Lock
+  → restore Target Ready metadata (color / slot targetBall)
+  → session true → SYS / HP/T / STR / AI / SAVE when Ready
+Role-based Ball3 SSOT unchanged (field name == physical role)
+```
+
+> Status pointer / Issue B: `PROJECT_MASTER_INDEX.md` · detail log: `HISTORY/PROJECT_LOG_2026-08.md`.  
+> Impl (non-SSOT): `App.jsx` · `adminLocalDbFlow.ts` · `adminEditSessionContract.ts` · `useSettings.js`.
+
+### 7.1.1 LocalDB Search vs trajectory (existing contract — clarified)
+
+Search space = **persisted Ball3 samples** on each `PositionRecord` (Role-direct Euclidean; adminSearch **2.0 Rg / ball** — metrics in MASTER).  
+Trajectory / Product Coverage **display** ≠ Search candidate set.  
+Ball on a drawn trajectory line **does not** guarantee LocalDB match.
 
 ### 7.2 Runtime Attachment — **없음**
 

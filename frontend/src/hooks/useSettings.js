@@ -17,6 +17,7 @@ import {
   normalizeBallsToBall3,
   canonicalizeBallsStateForHistorySnapshot,
 } from "../admin/slotAutoRecommend";
+import { normalizeAdminTargetBall } from "../domain/system/adminEditSessionContract";
 import {
   buildDatasetExport,
   normalizeDatasetExport,
@@ -341,12 +342,12 @@ export function useSettings({
       setWorkspaceHistoryVersion((v) => v + 1);
       setIsSaved(false);
       setIsAdminPublishedSearchMatched(false);
-      // View-only after History load — Reset re-opens editable session.
+      // View-only after History load — Reset re-opens editable session (POLICY A).
       setIsAdminInputSessionActive(false);
-      // targetBall = Target color metadata (paint / lock), not a field decoder
-      const restoredTarget = s.targetBall ?? null;
+      // Explicit Target Lock hydrate — no stale previous lock (POLICY A).
+      const restoredTarget = normalizeAdminTargetBall(s.targetBall);
       setTargetColor(restoredTarget);
-      setIsTargetSelected(!!restoredTarget);
+      setIsTargetSelected(restoredTarget != null);
 
       // Edit Source for Cue-Only Edit Snap (Authoring session state only).
       try {

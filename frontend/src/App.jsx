@@ -2,6 +2,10 @@
 import { flushSync } from "react-dom";
 import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
 import { resolveSlotSys } from "./domain/system/slotSysViewModel";
+import {
+  resolveAdminResetTargetMeta,
+  shouldBlockTargetDblclickEditSession,
+} from "./domain/system/adminEditSessionContract";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
 import {
   createEmptyAdminSysSnapshot,
@@ -1773,6 +1777,17 @@ export default function App({
       return;
     }
 
+    // POLICY A: Recall/History view-only (layers on + session off) —
+    // Target dblclick must not open edit session. Reset is canonical.
+    if (
+      shouldBlockTargetDblclickEditSession({
+        isAdminInputSessionActive,
+        adminTableLayersVisible,
+      })
+    ) {
+      return;
+    }
+
     // Target unlocked: first object-ball DoubleClick assigns Target Role
     applyTargetFromBallId(roleId);
   }
@@ -2209,6 +2224,7 @@ export default function App({
   /**
    * ADMIN Reset — keep hydrated Position/slot/adminState data;
    * re-open edit gates (Target Lock unlock + session active). Does not touch dataset.
+   * Shared contract with History restore: view-only recall → Reset → editable.
    */
   const handleAdminWorkReset = useCallback(() => {
     if (appMode !== "ADMIN") return;
@@ -2216,20 +2232,38 @@ export default function App({
     hideBallPositionController();
     closeOverlay();
 
-    // Target Lock unlock only — keep targetColor and slot.targetBall so Ready/SAVE stay valid.
+    // Unlock Target Lock; keep color metadata on UI + slot so Ready stays valid via slot fallback.
+    const readyTarget = resolveAdminResetTargetMeta({
+      targetColor,
+      slotTargetBall: extractSlotTargetBall(
+        shotEditor.slots[shotEditor.activeSlot]
+      ),
+    });
     setIsTargetSelected(false);
-    if (targetColor === "red" || targetColor === "yellow") {
+    if (readyTarget) {
+      setTargetColor(readyTarget);
       actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
-        targetBall: targetColor,
+        targetBall: readyTarget,
       });
     }
 
     setIsAdminInputSessionActive(true);
+    if (ballsState?.cue) {
+      actions.syncBallsToAllSlots(ballsState);
+    }
     setIsSaved(false);
     setUnifiedDerivedReview(null);
     derivedReviewUi.resetReviewUi();
     reviewBaselineSnapshotRef.current = null;
-  }, [appMode, actions, targetColor, shotEditor.activeSlot, derivedReviewUi]);
+  }, [
+    appMode,
+    actions,
+    targetColor,
+    shotEditor.activeSlot,
+    shotEditor.slots,
+    ballsState,
+    derivedReviewUi,
+  ]);
 
   const handleAdminSearch = useCallback(async () => {
     if (appMode !== "ADMIN") return;
@@ -2246,6 +2280,17 @@ export default function App({
       setIsAdminPublishedSearchMatched,
       setAdminTableLayersVisible,
       setShowCoaching,
+      setIsAdminInputSessionActive,
+      hydrateAdminRecallTarget: (tb) => {
+        // POLICY A: explicit Lock hydrate — never keep stale previous lock.
+        if (tb === "red" || tb === "yellow") {
+          setTargetColor(tb);
+          setIsTargetSelected(true);
+        } else {
+          setTargetColor(null);
+          setIsTargetSelected(false);
+        }
+      },
       applyPositionRecall: actions.applyPositionRecall,
       patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
       clearAdminSearchDisplayRuntime,
@@ -2270,6 +2315,7 @@ export default function App({
     setIsAdminPublishedSearchMatched,
     setAdminTableLayersVisible,
     setShowCoaching,
+    setIsAdminInputSessionActive,
     actions.applyPositionRecall,
     actions.patchSlotRuntimeMeta,
     clearAdminSearchDisplayRuntime,

@@ -246,6 +246,8 @@ async function runLocalDbParity(args: {
     setIsAdminPublishedSearchMatched: vi.fn(),
     setAdminTableLayersVisible: vi.fn(),
     setShowCoaching: vi.fn(),
+    setIsAdminInputSessionActive: vi.fn(),
+    hydrateAdminRecallTarget: vi.fn(),
     applyPositionRecall: (record) => {
       capture.appliedRecord = record;
       capture.drafts = applyPositionRecallCapture(record);
