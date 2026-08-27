@@ -86,6 +86,19 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Verification** | 사용자 앱 검증 완료 보고 · targeted tests PASS · production build PASS · Full Vitest 신규 B5 failure 0 |
 | **Architecture** | SYS formula · Fg/Rg contract · trajectory/Impact physics · dataset/History/WRITE SSOT 불변 |
 
+### Table Redesign / Label Clarity (2026-08-27)
+
+> **Pointer only** — 상세 완료 기록: `HISTORY/PROJECT_LOG_2026-08.md` 최신 **Table Redesign Finalization** 항목.
+
+| Item | Status |
+|------|--------|
+| **Table presentation** | ✅ **COMPLETE** — Natural Oak / Light Walnut frame · separator · dark diamonds |
+| **Frame/rail scale text** | ✅ **COMPLETE** — white raw scale + dark espresso halo |
+| **System scale identifiers** | ✅ **COMPLETE** — anchor/source mark 기반 group identifier · ADMIN caption gate |
+| **CO/C1 presentation** | ✅ **COMPLETE** — identifier/value text `#FFFFFF` 통일 + existing halo |
+| **Architecture** | Presentation-only · geometry · calculation · interaction · dataset/schema 불변 |
+| **Release state** | Visual review approved · commit/push/deploy completion은 LOG에 기록 |
+
 ### Derived Data (Phase 3A-359 + 3A-360)
 
 > **Pointer only** — detail: `HISTORY/PROJECT_LOG_2026-08.md` Phase **3A-359E…M** · **3A-360**. Design: `FAMILY_DATA_ARCHITECTURE_DRAFT.md`.

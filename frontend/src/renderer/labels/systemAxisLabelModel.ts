@@ -55,7 +55,7 @@ export function buildSystemAxisLabelModel({
     appMode === "USER" && userAxisGridLabelsActive
       ? Object.fromEntries(
           visibleKeysForLabels
-            .filter((k) => k !== "C2" && labelAnchorsForRaw[k])
+            .filter((k) => labelAnchorsForRaw[k])
             .map((k) => [k, labelAnchorsForRaw[k]])
         )
       : labelAnchorsForRaw;

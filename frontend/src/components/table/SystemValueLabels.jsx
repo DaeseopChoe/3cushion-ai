@@ -3,6 +3,8 @@ import { toPx } from "../../utils/geometry/coords";
 import { cushionMarkToDisplayLabel } from "../../utils/cushionDisplayLabel";
 import { getLabelNumericSuffix } from "../../domain/anchorCoordinateEngine";
 import {
+  CAPTION_FONT_SIZE,
+  computeGroupLabelPosition,
   computeGroupCaptionPlacements,
   detectAxisSideFromFg,
   getMarkLabelColor,
@@ -39,6 +41,34 @@ function byPriority(a, b) {
 const MARK_LABEL_INSET_PX = 16;
 const MARK_LABEL_SIDE_GAP_PX = 14;
 const MARK_RAIL_EPS = 0.6;
+const FRAME_SCALE_FILL = "#FFFFFF";
+const CO_C1_SCALE_FILL = "#FFFFFF";
+const FRAME_SCALE_HALO_FILTER = "drop-shadow(0 0 0.75px #33251B)";
+const SEMANTIC_MARK_LABELS = new Set(["C4", "C5", "C6"]);
+
+function isFrameScaleCoord(coord) {
+  const x = Number(coord?.x);
+  const y = Number(coord?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+  return (
+    Math.abs(x + 2.25) <= MARK_RAIL_EPS ||
+    Math.abs(x - 82.25) <= MARK_RAIL_EPS ||
+    Math.abs(y + 2.25) <= MARK_RAIL_EPS ||
+    Math.abs(y - 42.25) <= MARK_RAIL_EPS
+  );
+}
+
+function applyFrameScaleHalo(node, enabled) {
+  return enabled ? (
+    <g style={{ filter: FRAME_SCALE_HALO_FILTER }}>{node}</g>
+  ) : (
+    node
+  );
+}
+
+function isCoC1Mark(mark) {
+  return mark === "CO" || mark === "C1";
+}
 
 function detectMarkRail(coord) {
   const x = Number(coord?.x);
@@ -296,7 +326,13 @@ function applyRawLabelFrameNudges(label, x, y, enabled) {
   return { x: nx, y: ny };
 }
 
-function rawLabelColor(label) {
+function rawLabelColor(label, frameScaleContrast = false) {
+  if (isCoC1Mark(label)) {
+    return CO_C1_SCALE_FILL;
+  }
+  if (frameScaleContrast && !SEMANTIC_MARK_LABELS.has(label)) {
+    return FRAME_SCALE_FILL;
+  }
   return getMarkLabelColor(label);
 }
 
@@ -340,28 +376,76 @@ function renderGroupLabels(captionBuckets, scale, tableH, padding, labelScale, t
     tableBounds,
     labelScale
   );
-  return placements.map((placement) => {
+  const frameCaptionKeys = new Set(
+    bucketInputs
+      .filter(({ points }) =>
+        points.some((point) =>
+          isFrameScaleCoord({ x: point.fgX, y: point.fgY })
+        )
+      )
+      .map(({ side, mark }) => `${side}:${mark}`)
+  );
+  const placementKeys = new Set(
+    placements.map((placement) => `${placement.side}:${placement.mark}`)
+  );
+  const fallbackPlacements = bucketInputs
+    .filter(({ side, mark }) => !placementKeys.has(`${side}:${mark}`))
+    .map(({ side, mark, points }) => {
+      const pos = computeGroupLabelPosition(
+        side,
+        points,
+        tableBounds,
+        mark,
+        undefined,
+        labelScale
+      );
+      if (!pos) return null;
+      return {
+        mark,
+        side,
+        x: pos.x,
+        y: pos.y,
+        rotationDeg: side === "left" ? -90 : side === "right" ? 90 : 0,
+        fontSize: CAPTION_FONT_SIZE * labelScale,
+        fill: getMarkLabelColor(mark),
+      };
+    })
+    .filter(Boolean);
+
+  return [...placements, ...fallbackPlacements].map((placement) => {
     const labelId = `CAP-${placement.side}-${placement.mark}`;
+    const displayMark = cushionMarkToDisplayLabel(placement.mark);
+    const isFrameCaption = frameCaptionKeys.has(
+      `${placement.side}:${placement.mark}`
+    );
+    const identifierFill =
+      isFrameCaption && isCoC1Mark(placement.mark)
+        ? CO_C1_SCALE_FILL
+        : placement.fill;
+    const captionNode = (
+      <g
+        key={labelId}
+        transform={
+          placement.rotationDeg !== 0
+            ? `rotate(${placement.rotationDeg}, ${placement.x}, ${placement.y})`
+            : undefined
+        }
+      >
+        <LabelText
+          x={placement.x}
+          y={placement.y}
+          text={displayMark}
+          fontSize={placement.fontSize}
+          color={identifierFill}
+          {...buildLabelTextProps(labelId, touchCtx)}
+        />
+      </g>
+    );
     return {
       id: labelId,
-      node: (
-        <g
-          key={labelId}
-          transform={
-            placement.rotationDeg !== 0
-              ? `rotate(${placement.rotationDeg}, ${placement.x}, ${placement.y})`
-              : undefined
-          }
-        >
-          <LabelText
-            x={placement.x}
-            y={placement.y}
-            text={placement.text}
-            fontSize={placement.fontSize}
-            color={placement.fill}
-            {...buildLabelTextProps(labelId, touchCtx)}
-          />
-        </g>
+      node: applyFrameScaleHalo(
+        captionNode,
+        frameCaptionKeys.has(`${placement.side}:${placement.mark}`)
       ),
     };
   });
@@ -385,6 +469,7 @@ function buildRawLabelEntries(
   const rawFontSize = SYS_LABEL_BASE_FONT_SIZE * labelScale;
 
   const pushGroup = (label, coord, value, idx) => {
+    const frameScaleContrast = isFrameScaleCoord(coord);
     let { x, y } = coord;
     ({ x, y } = applyRawLabelFrameNudges(label, x, y, applyCushionNudges));
 
@@ -392,22 +477,23 @@ function buildRawLabelEntries(
     const pxX = p.x + padding;
     const pxY = p.y + padding;
 
-    const fillColor = rawLabelColor(label);
+    const fillColor = rawLabelColor(label, frameScaleContrast);
     const labelId = `RAW-${label}-${idx}`;
+    const labelNode = (
+      <LabelText
+        key={labelId}
+        x={pxX}
+        y={pxY}
+        text={value != null ? String(value) : ""}
+        fontSize={rawFontSize}
+        color={fillColor}
+        {...buildLabelTextProps(labelId, touchCtx)}
+      />
+    );
 
     entries.push({
       id: labelId,
-      node: (
-        <LabelText
-          key={labelId}
-          x={pxX}
-          y={pxY}
-          text={value != null ? String(value) : ""}
-          fontSize={rawFontSize}
-          color={fillColor}
-          {...buildLabelTextProps(labelId, touchCtx)}
-        />
-      ),
+      node: applyFrameScaleHalo(labelNode, frameScaleContrast),
     });
 
     if (showAxisCaptions) {

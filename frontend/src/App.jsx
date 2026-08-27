@@ -463,6 +463,12 @@ const POINT_OFFSET_MM = 80;
 const CUSHION_RG = CUSHION_MM / RG_UNIT_MM;
 const FRAME_RG = FRAME_MM / RG_UNIT_MM;
 const POINT_OFFSET_RG = POINT_OFFSET_MM / RG_UNIT_MM;
+const WOOD_FRAME_GRADIENT_ID = "table-wood-frame-gradient";
+const WOOD_FRAME_BASE = "#B77A45";
+const WOOD_FRAME_HIGHLIGHT = "#C98D55";
+const WOOD_FRAME_SHADOW = "#8D582F";
+const WOOD_FRAME_SEPARATOR = "#5A3824";
+const DIAMOND_COLOR = "#3A2A20";
 
 // ==================================================
 // 🔵 Physics Engine Block (Phase 2 분리 대상)
@@ -624,13 +630,26 @@ function RailFrame() {
 
   return (
     <g>
+      <defs>
+        <linearGradient
+          id={WOOD_FRAME_GRADIENT_ID}
+          x1="0%"
+          y1="0%"
+          x2="100%"
+          y2="100%"
+        >
+          <stop offset="0%" stopColor={WOOD_FRAME_HIGHLIGHT} />
+          <stop offset="52%" stopColor={WOOD_FRAME_BASE} />
+          <stop offset="100%" stopColor={WOOD_FRAME_SHADOW} />
+        </linearGradient>
+      </defs>
       {/* 프레임 전체 (단일 사각형, 외곽 라운딩) */}
       <rect
         x={PADDING - cushionW - frameW}
         y={PADDING - cushionW - frameW}
         width={TABLE_W + 2 * (cushionW + frameW)}
         height={TABLE_H + 2 * (cushionW + frameW)}
-        fill="#6B3410"
+        fill={`url(#${WOOD_FRAME_GRADIENT_ID})`}
         rx={outerRadius}
         ry={outerRadius}
       />
@@ -642,6 +661,16 @@ function RailFrame() {
         width={TABLE_W + 2 * cushionW}
         height={TABLE_H + 2 * cushionW}
         fill="#1e40af"
+      />
+      <rect
+        x={PADDING - cushionW}
+        y={PADDING - cushionW}
+        width={TABLE_W + 2 * cushionW}
+        height={TABLE_H + 2 * cushionW}
+        fill="none"
+        stroke={WOOD_FRAME_SEPARATOR}
+        strokeWidth={1.5}
+        pointerEvents="none"
       />
 
       {/* 당구대 (파란색) */}
@@ -656,14 +685,14 @@ function RailFrame() {
       {/* 포인트 (흰색) */}
       {[0, 10, 20, 30, 40, 50, 60, 70, 80].map((x) => (
         <React.Fragment key={`px-${x}`}>
-          <circle cx={x * SCALE + PADDING} cy={TABLE_H + PADDING + pointOffset} r={3} fill="#111" />
-          <circle cx={x * SCALE + PADDING} cy={PADDING - pointOffset} r={3} fill="#111" />
+          <circle cx={x * SCALE + PADDING} cy={TABLE_H + PADDING + pointOffset} r={2.7} fill={DIAMOND_COLOR} />
+          <circle cx={x * SCALE + PADDING} cy={PADDING - pointOffset} r={2.7} fill={DIAMOND_COLOR} />
         </React.Fragment>
       ))}
       {[0, 10, 20, 30, 40].map((y) => (
         <React.Fragment key={`py-${y}`}>
-          <circle cx={PADDING - pointOffset} cy={(TABLE_H_UNITS - y) * SCALE + PADDING} r={3} fill="#111" />
-          <circle cx={TABLE_W + PADDING + pointOffset} cy={(TABLE_H_UNITS - y) * SCALE + PADDING} r={3} fill="#111" />
+          <circle cx={PADDING - pointOffset} cy={(TABLE_H_UNITS - y) * SCALE + PADDING} r={2.7} fill={DIAMOND_COLOR} />
+          <circle cx={TABLE_W + PADDING + pointOffset} cy={(TABLE_H_UNITS - y) * SCALE + PADDING} r={2.7} fill={DIAMOND_COLOR} />
         </React.Fragment>
       ))}
     </g>
@@ -5562,7 +5591,11 @@ function handlePointerCancel(e) {
       (userShowTrajectoryLabels || userShowSystemValuesOnly) && (
       <SystemValueLabels
         showSystemValuesOnly={userShowSystemValuesOnly}
-        showAxisCaptions={!!userDisplayFlags?.showAxisCaptions}
+        showAxisCaptions={
+          appMode === "ADMIN"
+            ? showSystemGrid
+            : !!userDisplayFlags?.showAxisCaptions
+        }
         labelScale={sysLabelScale}
         showSystemGrid={
           appMode === "USER"

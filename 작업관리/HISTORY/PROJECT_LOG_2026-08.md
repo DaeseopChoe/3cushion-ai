@@ -6,6 +6,71 @@ Status : Active Project Log
 
 ---
 
+# 2026-08-27 (Table Redesign Finalization — Frame, Scale, and Identifier Clarity)
+
+## Mode
+
+**Agent** · Table Redesign presentation finalization · documentation and release checkpoint
+
+## Scope
+
+Table presentation and label readability were finalized without changing calculation, geometry, interaction, persistence, or dataset contracts.
+
+### Table presentation
+
+- Natural Oak / Light Walnut frame gradient retained
+- subtle inner separator retained
+- dark brown diamonds retained
+- navy outer background retained
+- existing cushion/cloth geometry and colors retained
+
+### Frame/rail scale readability
+
+- External TOP / BOTTOM / LEFT / RIGHT raw scale values use `#FFFFFF`
+- External raw scale labels use a subtle dark espresso halo: `#33251B`
+- CO/C1 raw/value text uses `#FFFFFF`
+- Raw label coordinates, values, anchors, font geometry, and placement are unchanged
+
+### System scale identifiers
+
+- Restored source-driven group identifiers such as `CO`, `C1`, `C3`, `C4`, `C5`, and `C6`
+- Source remains `trackAnchorItems` anchor ID mark/value data
+- Pipeline remains:
+
+```text
+trackAnchorItems
+  → buildSystemAxisLabelModel
+  → captionBuckets
+  → group placement
+  → SystemValueLabels
+```
+
+- ADMIN caption gate uses the existing `showSystemGrid` state
+- C2 is not synthesized when the active anchor source does not contain C2
+- CO/C1 identifiers use `#FFFFFF` while retaining the existing dark espresso halo
+
+### Architecture and semantic guards
+
+- SYS formula, Fg/Rg calculation, mappings, trajectory, Impact, Draft/Apply, Ball Guide, CO/C1 editing, SAVE, History/Recall, dataset/schema, and WRITE SSOT are unchanged
+- `SYSTEM_ARCHITECTURE.md` and `CALCULATION_RULES.md` were reviewed; no calculation or architecture contract change requires an update
+- Semantic C3/C4/C5/C6, trajectory, baseline, Guide, Impact, Ball, cloth, and editing colors remain unchanged
+
+## Verification
+
+- User visual review: **APPROVED**
+- Production build: **PASS**
+- `git diff --check`: **PASS**
+- `userDisplayFlags.test.ts`: **7/7 PASS**
+- `systemAxisCaption.test.ts`: **15/16 PASS**
+- Existing baseline failure remains at `systemAxisCaption.test.ts:168`; no new failure attributed to Table Redesign
+- Existing user dataset and working-tree changes remain preserved
+
+## Release checkpoint
+
+Commit, push, and Vercel production deployment are completed in the release follow-up for this entry.
+
+---
+
 # 2026-08-27 (Precision Editing B1~B5 — Completion Documentation)
 
 ## Mode
