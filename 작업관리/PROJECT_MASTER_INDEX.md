@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.96  
+Version: 1.97
 Last Updated: 2026-08-27  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -97,7 +97,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **System scale identifiers** | ✅ **COMPLETE** — anchor/source mark 기반 group identifier · ADMIN caption gate |
 | **CO/C1 presentation** | ✅ **COMPLETE** — identifier/value text `#FFFFFF` 통일 + existing halo |
 | **Architecture** | Presentation-only · geometry · calculation · interaction · dataset/schema 불변 |
-| **Release state** | Visual review approved · commit/push/deploy completion은 LOG에 기록 |
+| **Release state** | Visual review approved · `b764d5a` pushed · Vercel Production verified |
 
 ### Derived Data (Phase 3A-359 + 3A-360)
 

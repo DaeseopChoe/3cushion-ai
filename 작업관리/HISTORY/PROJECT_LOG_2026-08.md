@@ -1,6 +1,6 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.63  
+Version : v1.64
 Period : 2026-08  
 Status : Active Project Log
 
@@ -59,7 +59,7 @@ trackAnchorItems
 
 - User visual review: **APPROVED**
 - Production build: **PASS**
-- `git diff --check`: **PASS**
+- `git diff --check` (CRLF-aware): **PASS**
 - `userDisplayFlags.test.ts`: **7/7 PASS**
 - `systemAxisCaption.test.ts`: **15/16 PASS**
 - Existing baseline failure remains at `systemAxisCaption.test.ts:168`; no new failure attributed to Table Redesign
@@ -67,7 +67,15 @@ trackAnchorItems
 
 ## Release checkpoint
 
-Commit, push, and Vercel production deployment are completed in the release follow-up for this entry.
+| Item | Result |
+|------|--------|
+| Commit | `b764d5ac5424bc4e46b5603ff61af7de2241d81f` · `feat(table): finalize frame redesign and label clarity` |
+| Push | **PASS** · `origin/main` matches local `HEAD` |
+| Vercel | **PASS** · existing GitHub → Vercel Git integration · Production deployment `6124708577` |
+| Deployed SHA | `b764d5ac5424bc4e46b5603ff61af7de2241d81f` |
+| Deployment URL | `https://3cushion-o5u3zrrab-3cushionai.vercel.app` |
+| Production URL | `https://3cushion-ai.vercel.app` |
+| HTTP / visual smoke test | **PASS** · Natural Oak frame, white raw scales, dark espresso halo, CO/C1 white identifiers/values, semantic C3/C4 colors, geometry and trajectory visible |
 
 ---
 
