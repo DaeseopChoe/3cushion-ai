@@ -1,8 +1,214 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.62  
+Version : v1.63  
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-27 (Precision Editing B1~B5 — Completion Documentation)
+
+## Mode
+
+**Agent** · documentation update only · implementation already complete · **no Commit / Push / Deploy**
+
+## Canonical owners
+
+| Topic | Canonical | Documentation role |
+|-------|-----------|--------------------|
+| Project current status | `작업관리/PROJECT_MASTER_INDEX.md` | B1~B5 location/status pointer |
+| Precision Editing completion detail | **this LOG entry** | implementation, interaction, verification history |
+| Ball Guide runtime state | `frontend/src/hooks/useBallGuide.ts` | runtime-only state owner |
+| Ball Guide interaction | `frontend/src/interaction/ballGuideInteractionPolicy.ts` | H/V axis, hit-test, step, priority |
+| CO/C1 Mark axis | `frontend/src/domain/trajectory/baselineMarkAxisSnap.ts` | canonical Fg/Rg axis/domain descriptor |
+| CO/C1 Draft state | `frontend/src/overlay/state/baselineDraftState.ts` | Draft lifecycle and coordinate update |
+| CO/C1 Apply | `frontend/src/application/flows/baselineDraftApplyFlow.ts` | Draft → Apply → SYS commit sequence |
+| Impact precision geometry | `frontend/src/domain/trajectory/baselineImpactSnap.ts` | pure adapter and line/axis candidate |
+
+## Scope and completion
+
+Precision Editing B1~B5 is recorded as **COMPLETE**. The feature family consists of:
+
+- **B1** Ball Guide runtime session and static H/V render
+- **B2-1** Guide endpoint handle drag
+- **B2-2** Guide fine nudge arrows
+- **B2-3** Guide Alt+drag precision
+- **B3-1** Same-Ball click snap — **not adopted** because it conflicts with the existing Ball double-click contract
+- **B3-2** Dedicated Guide intersection Snap action — adopted replacement
+- **B3-3** Ball editing presentation simplification and shared Guide-session lifetime
+- **B4-1** CO/C1 canonical-axis fine nudge arrows
+- **B5-1** Active Impact source and pure line-to-Mark-axis geometry
+- **B5-2** CO/C1 native double-click Impact snap through the existing Apply path
+
+## Ball Guide
+
+| Contract | Result |
+|----------|--------|
+| Ball selection | Selected Ball center becomes the origin for Horizontal and Vertical Guides |
+| Different Ball selection | Existing Guide is replaced by the newly selected Ball's Guide |
+| Outside/session dismissal | Outside selection and related session termination remove the Guide |
+| State | Runtime-only; not durable application data |
+| Coordinates | Guide values remain Rg physical coordinates |
+| Persistence | Guide state is not written to SAVE, History, dataset, or schema |
+
+## Guide editing
+
+- Horizontal Guide moves only `horizontalY`.
+- Vertical Guide moves only `verticalX`.
+- Both Guide endpoints have drag handles.
+- Fine arrows are axis-directional:
+  - Horizontal: `↑ / ↓`
+  - Vertical: `← / →`
+- Fine step is exactly **0.1 Rg**.
+- Desktop Guide Alt+drag uses `normal delta × 0.1`; the factor is fixed at pointer-down.
+- Guide handle/arrow hit-tests take priority over adjacent Ball interaction.
+- Existing Ball drag, Joystick, and Ball double-click contracts remain separate.
+
+## Guide Snap and Ball editing presentation
+
+The originally considered same-Ball click → intersection snap was not adopted. Browser click sequencing would allow the snap to run before the existing Ball double-click handlers for Target Role and Second projection. The adopted B3-2 action is a dedicated Snap action near the Guide intersection:
+
+```text
+intersection = { x: verticalX, y: horizontalY }
+selected Ball center → intersection
+```
+
+The action reuses the existing Ball update, bounds, dirty, and state-update path. The visual hit area is separated from the visual offset and edge-clamped.
+
+The former Ball Fine directional arrows were removed. The Ball movement handle remains, and its live coordinate text remains part of the same Ball editing presentation. Guide, movement handle, and coordinate text are dismissed together when the editing session ends.
+
+## CO/C1 Fine Adjustment
+
+- Freedom is taken from the actual canonical Mark axis:
+  - Horizontal axis → `← / →`
+  - Vertical axis → `↑ / ↓`
+- Fine step is exactly **0.1 Rg**.
+- Corner axis ambiguity fails closed; no arbitrary horizontal/vertical choice is made.
+- Existing path is reused:
+
+```text
+Draft coordinate
+  → runBaselineDraftApply
+  → resolveBaselineDragSysCommit
+  → commitDraftSys
+```
+
+- No new SYS formula or coordinate-to-SYS path was introduced.
+- Fg/Rg domains and Mark constants remain owned by the existing axis contract.
+
+## CO/C1 Alt+drag decision
+
+CO/C1 Alt+drag precision is explicitly **not implemented**. The product decision is that the existing 0.1 Rg fine arrows are sufficient. Ball Guide Alt+drag remains implemented and unchanged.
+
+## B5-1 Impact source and geometry
+
+### Active Impact source
+
+Production source inspection established:
+
+- **CONTACT visible Impact:** `useCoachingController` uses `calcImpactBall(cue, target, T)`.
+- **FREE visible Impact:** `balls.impact` is preferred, with `calcImpactBall(cue, target, T)` as fallback.
+- **Trajectory `impact.raw`:** `calculateImpact(...)` physics result; it is a distinct meaning and is not silently used as the visible Impact source.
+- **Trajectory `impact.contactRg`:** `balls.impact ?? calcImpactBall(...)`; it may be supplied only as an equivalent-source consistency check.
+
+Precision policy is therefore:
+
+```text
+visible Impact Ball center = authoritative
+optional equivalent trajectory contact source = consistency check only
+mismatch / invalid source = fail closed
+```
+
+The adapter returns an Rg point and never averages, interpolates, or substitutes a trajectory raw result.
+
+### Mark axis and candidate
+
+`baselineImpactSnap.ts` uses the existing `MarkAxisLock` descriptor from `baselineMarkAxisSnap.ts`. The candidate is calculated with a vector/parametric line:
+
+```text
+P(t) = fixed + t * (Impact - fixed)
+```
+
+The allowed Mark axis supplies the constant coordinate and its existing domain. Candidate acceptance requires:
+
+- finite fixed and Impact coordinates
+- non-zero fixed → Impact vector
+- non-parallel line/axis
+- candidate inside the real Fg/Rg Mark domain
+- `movingCandidate → Impact → fixed` collinear/between ordering
+
+No clamp or nearest-point fallback is applied. Invalid, parallel, coincident, out-of-domain, opposite-extrapolation, and source-mismatch cases return failure.
+
+## B5-2 CO/C1 Impact Snap
+
+Native SVG `dblclick` handling is connected at the table interaction boundary and hit-tests only CO/C1 baseline endpoints. Other Marks, C2, Extension, Guide, Ball, and Impact-ball double-click paths are excluded.
+
+| Double-click target | Moving Mark | Fixed Mark |
+|---------------------|-------------|------------|
+| CO | CO | C1 |
+| C1 | C1 | CO |
+
+The selected corner axis is reused from the existing baseline axis session. If no selected corner axis exists, the operation fails closed; pointer position is not used to invent a new corner axis.
+
+Successful flow:
+
+```text
+CO/C1 native double-click
+  → moving/fixed resolution
+  → resolveActiveImpactForPrecision
+  → resolveBaselineImpactSnapCandidate
+  → existing Baseline Draft coordinate
+  → runBaselineDraftApply
+  → resolveBaselineDragSysCommit
+  → commitDraftSys
+```
+
+The second double-click pointer phase does not start a second baseline drag/apply session. On Apply/SYS failure, the pre-snap Draft snapshot is restored. Ball coordinates and Ball Guide state are not modified.
+
+## Architecture invariants
+
+The following contracts were not changed by Precision Editing:
+
+- SYS formula and `calculateByProfileExpr`
+- Fg/Rg calculation contract
+- trajectory calculation and `trajectoryBuilder` geometry
+- Impact physics and Cue→Impact generators
+- C3+ generator and 4-track consistency
+- Derived Review
+- Family writer
+- History/Recall schema
+- dataset schema and WRITE SSOT
+- `trajectoryExtensions` contract
+
+Ball Guide is a runtime presentation/editing aid, not SYS or trajectory-input SSOT. CO/C1 Impact Snap changes baseline coordinates only through the existing Draft → Apply → SYS commit path.
+
+## Verification
+
+### User app verification report
+
+The following manual app checks were reported complete:
+
+- Guide H/V movement
+- Guide Snap moving the Ball center exactly to the Guide intersection
+- live Ball coordinate updates
+- CO/C1 0.1 Rg fine arrows
+- CO double-click → visible Impact center snap
+- C1 double-click → visible Impact center snap
+
+### Automated verification
+
+- B1~B5 targeted regression: **PASS**
+- Production build: **PASS**
+- Full Vitest: the existing baseline failure set remains; no B5-related new failure was observed.
+- Existing full-suite failures are the known `No test suite found` files and the existing `systemAxisCaption` assertion. They are not attributed to Precision Editing.
+
+### Git and persistence guard
+
+- Existing B1~B4/B3-3 changes remain uncommitted and preserved.
+- Existing user dataset deletion status remains preserved.
+- Existing `FAMILY_DATA_ARCHITECTURE_DRAFT.md` modification remains preserved.
+- No dataset/schema/history/write-path changes were made for this documentation update.
+- Commit, Push, and deploy were not performed.
 
 ---
 

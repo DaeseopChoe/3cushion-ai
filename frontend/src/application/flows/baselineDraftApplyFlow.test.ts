@@ -3,6 +3,7 @@ import fiveHalfAnchors from "../../data/systems/5_half_system/anchors.json";
 import { getAnchorCoordFromSys } from "../../domain/anchorLookupEngine";
 import { bindDomainContractSupply } from "../../domain/runtimeContractSupply";
 import { runBaselineDraftApply } from "./baselineDraftApplyFlow";
+import { resolveBaselineImpactSnapCandidate } from "../../interaction/baselineImpactSnapInteraction";
 
 const SYSTEM_ID = "5_half_system";
 
@@ -114,6 +115,73 @@ describe("runBaselineDraftApply", () => {
     });
     expect(runBaselineDraftApply(ctx)).toBe(false);
     expect(commitDraftSys).not.toHaveBeenCalled();
+    expect(clearAppliedBaselineDraftMark).toHaveBeenCalledWith("CO");
+  });
+
+  it("applies a CO Impact candidate through the existing commit path", () => {
+    const candidate = resolveBaselineImpactSnapCandidate({
+      movingMark: "CO",
+      coRg: { x: 30, y: -2.25 },
+      c1Rg: { x: 40, y: 42.25 },
+      activeImpactRg: { x: 40, y: 20 },
+      allowedAxis: {
+        rail: "BOTTOM",
+        varying: "x",
+        constantAxis: "y",
+        constantValue: -2.25,
+        varyMin: -2.25,
+        varyMax: 82.25,
+      },
+    });
+    expect(candidate).toEqual({ x: 40, y: -2.25 });
+
+    const { ctx, commitDraftSys } = baseCtx({
+      baselineDraftState: {
+        activeMark: "CO",
+        coRg: candidate,
+        c1Rg: { x: 40, y: 42.25 },
+      },
+    });
+    expect(runBaselineDraftApply(ctx)).toBe(true);
+    expect(commitDraftSys).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies a C1 Impact candidate through the existing commit path", () => {
+    const candidate = resolveBaselineImpactSnapCandidate({
+      movingMark: "C1",
+      coRg: { x: 40, y: -2.25 },
+      c1Rg: { x: 30, y: 42.25 },
+      activeImpactRg: { x: 40, y: 20 },
+      allowedAxis: {
+        rail: "TOP",
+        varying: "x",
+        constantAxis: "y",
+        constantValue: 42.25,
+        varyMin: -2.25,
+        varyMax: 82.25,
+      },
+    });
+    expect(candidate).toEqual({ x: 40, y: 42.25 });
+
+    const { ctx, commitDraftSys } = baseCtx({
+      mark: "C1",
+      baselineDraftState: {
+        activeMark: "C1",
+        coRg: { x: 40, y: -2.25 },
+        c1Rg: candidate,
+      },
+    });
+    expect(runBaselineDraftApply(ctx)).toBe(true);
+    expect(commitDraftSys).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the candidate without partial apply when SYS commit fails", () => {
+    const commitDraftSys = vi.fn().mockReturnValue({ ok: false });
+    const { ctx, clearAppliedBaselineDraftMark } = baseCtx({
+      commitDraftSys,
+    });
+    expect(runBaselineDraftApply(ctx)).toBe(false);
+    expect(commitDraftSys).toHaveBeenCalledTimes(1);
     expect(clearAppliedBaselineDraftMark).toHaveBeenCalledWith("CO");
   });
 });

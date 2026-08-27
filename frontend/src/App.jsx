@@ -85,12 +85,8 @@ import { useSysLabelScale } from "./renderer/labels/labelScalePolicy";
 import {
   JOYSTICK_BASE_R_PX,
   JOYSTICK_KNOB_R_PX,
-  FINE_CTRL_ZONE_INNER_PX,
-  FINE_CTRL_ZONE_OUTER_PX,
   computeJoystickCenterRg,
-  computeFineControllerCenterRg,
   isPointerOnJoystick,
-  resolveFineControllerHit,
 } from "./interaction/joystickInteractionPolicy";
 import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRenderModel";
 import { buildBaselineHandleModel } from "./renderer/trajectory/baselineHandleModel";
@@ -99,14 +95,19 @@ import { buildTrajectoryPathAttrModel } from "./renderer/trajectory/trajectoryPa
 import { buildSystemAxisLabelModel } from "./renderer/labels/systemAxisLabelModel";
 import { buildRgAnchors } from "./renderer/trajectory/anchorConversionModel";
 import {
+  nudgeMarkCoordAlongAxis,
   projectPointerToMarkAxis,
   readBaselineHandleCoord,
+  resolveMarkAxisLockForAxis,
+  resolveMarkAxisForPointer,
+  resolveUniqueMarkAxis,
 } from "./domain/trajectory/baselineMarkAxisSnap";
 import {
   computeThicknessFromImpact,
   snapImpactToOrbit,
 } from "./utils/physics/ImpactEngine";
 import SystemValueLabels from "./components/table/SystemValueLabels";
+import BaselineFineNudgeLayer from "./components/table/BaselineFineNudgeLayer";
 import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
 import ModalShell from "./components/common/ModalShell";
 import UserOverlayShell from "./components/common/UserOverlayShell.jsx";
@@ -177,8 +178,26 @@ import {
 import { buildTrajectoryExtensionRenderModel } from "./renderer/trajectory/trajectoryExtensionRenderModel";
 import { resolveTrajectoryExtensionOverlayVisibility } from "./renderer/trajectory/trajectoryExtensionOverlayVisibility";
 import { useBaselineDraft } from "./overlay/state/baselineDraftState";
+import { useBallGuide } from "./hooks/useBallGuide";
+import {
+  ballGuideArrowDeltaRg,
+  GUIDE_ALT_DRAG_FACTOR,
+  resolveBallGuideSnapActionHit,
+  resolveBallGuideArrowHit,
+  resolveBallGuideHandleHit,
+} from "./interaction/ballGuideInteractionPolicy";
 import { useTrajectoryExtensionHandleDrag } from "./overlay/state/trajectoryExtensionHandleDrag";
 import { useC2RailHandleDrag } from "./overlay/state/c2RailHandleDrag";
+import {
+  getBaselineFineNudgeArrowDescriptors,
+  getBaselineFineNudgeArrowDelta,
+  resolveBaselineFineNudgeArrowHit,
+} from "./interaction/baselineFineNudgePolicy";
+import {
+  resolveBaselineImpactSnapCandidate,
+  resolveBaselineImpactSnapTarget,
+} from "./interaction/baselineImpactSnapInteraction";
+import BallGuideLayer from "./components/table/BallGuideLayer";
 import {
   normalizeReflectionOverride,
   reflectionOverrideToPoint,
@@ -251,6 +270,7 @@ import { useCueImpactDerivedReviewUi } from "./hooks/useCueImpactDerivedReviewUi
 import { runBallDrag } from "./application/flows/ballDragFlow";
 import { runTrajectoryHydrate } from "./application/flows/trajectoryHydrateFlow";
 import { runBaselineDraftApply } from "./application/flows/baselineDraftApplyFlow";
+import { resolveActiveImpactForPrecision } from "./domain/trajectory/baselineImpactSnap";
 import {
   hydrateBallsStateForUi,
   normalizeBallsToBall3,
@@ -1493,11 +1513,13 @@ export default function App({
   }
 
   const svgRef = useRef(null);
+  const baselineDoubleClickSuppressApplyRef = useRef(false);
   const baselineDraftDragContextRef = useRef({
     canEndpointDraftDrag: () => false,
     captureLabelSlotSnapshot: () => ({ CO_f: null, C1_f: null }),
     snapCoPointerRg: () => null,
     snapC1PointerRg: () => null,
+    nudgeBaselineCoord: () => null,
   });
   const {
     baselineDraftState,
@@ -1507,15 +1529,31 @@ export default function App({
     endCoBaselineDraftDrag,
     endC1BaselineDraftDrag,
     handleBaselineDraftPointerMove,
+    nudgeBaselineDraft,
+    setBaselineDraftCoordinate,
+    restoreBaselineDraftState,
   } = useBaselineDraft({
     appMode,
     showBaseLine,
     svgRef,
     dragContextRef: baselineDraftDragContextRef,
   });
+  const {
+    guideState,
+    guideDragState,
+    selectBallForGuide,
+    startGuideDrag,
+    moveGuideDrag,
+    endGuideDrag,
+    nudgeGuide,
+    clearGuide,
+  } = useBallGuide();
+  useEffect(() => {
+    clearBallPointerInteractionState();
+  }, [appMode, clearGuide]);
   const derivedRef = useRef({ impact: null, cushionPathAttr: null, cushionPathRg: null });
 
-  // Joystick (mobile fine control)
+  // Joystick (mobile movement control)
   const joyIntervalRef = useRef(null);
   const joyDragRef = useRef({ active: false, pointerId: null, lastX: 0, lastY: 0, ballId: null });
   /** 테이블 SVG 볼 드래그 시 직전 포인터 Rg — delta 기반 이동(Ctrl/Shift 스케일)용 */
@@ -1523,113 +1561,31 @@ export default function App({
   const JOYSTICK_STEP = 0.1; // Rg
   const JOYSTICK_REPEAT_MS = 60;
 
-  const FINE_TAP_STEP = 0.1;
-  const FINE_HOLD_STEP = 0.2;
-  const FINE_CTRL_LONG_PRESS_MS = 1000;
-  const FINE_CTRL_REPEAT_MS = 150;
-  const fineCtrlTimerRef = useRef(null);
-  const fineCtrlIntervalRef = useRef(null);
-  /** Fine interaction via SVG coordinate hit (Ball miss 이후만). DOM Fine hit는 Ball dblclick을 가로채지 않음. */
-  const finePtrRef = useRef({
-    active: false,
-    pointerId: null,
-    kind: null,
-  });
-
-  function fineNudgeBall(ballId, dx, dy) {
-    if (!ballId) return;
-    setBallsState((prev) => {
-      const cur = prev?.[ballId];
-      if (!cur) return prev;
-      let minX = 0.5, maxX = 79.5, minY = 0.5, maxY = 39.5;
-      if (ballId === "impact" && impactMode === "FREE") {
-        minX = -CUSHION_RG; maxX = 80 + CUSHION_RG;
-        minY = -CUSHION_RG; maxY = 40 + CUSHION_RG;
-      }
-      const next = {
-        x: clamp(dx !== 0 ? Math.round((cur.x + dx) * 10) / 10 : cur.x, minX, maxX),
-        y: clamp(dy !== 0 ? Math.round((cur.y + dy) * 10) / 10 : cur.y, minY, maxY),
-      };
-      return { ...prev, [ballId]: next };
-    });
-    invalidateSavedAndRecalledForBallId(ballId);
-  }
-
   function hideBallPositionController() {
     stopJoystick();
-    stopFineCtrl();
-    finePtrRef.current = { active: false, pointerId: null, kind: null };
+    clearGuide();
     setDragState((s) => ({ ...s, joystickVisible: false }));
   }
 
-  function stopFineCtrl() {
-    if (fineCtrlTimerRef.current != null) {
-      window.clearTimeout(fineCtrlTimerRef.current);
-      fineCtrlTimerRef.current = null;
-    }
-    if (fineCtrlIntervalRef.current != null) {
-      window.clearInterval(fineCtrlIntervalRef.current);
-      fineCtrlIntervalRef.current = null;
-    }
-  }
-
-  function isFinePtr(e) {
-    return (
-      finePtrRef.current.active &&
-      finePtrRef.current.pointerId === e?.pointerId
-    );
-  }
-
-  /** Fine-only hit (Ball miss 이후). Capture는 directional만 — Ball pointerdown capture SSOT와 분리. */
-  function beginFineInteraction(e, fineHit) {
-    e.preventDefault();
-    finePtrRef.current = {
-      active: true,
-      pointerId: e.pointerId,
-      kind: fineHit.kind,
+  function stopBallPointerInteractionPreservingGuide() {
+    stopJoystick();
+    joyDragRef.current = {
+      active: false,
+      pointerId: null,
+      lastX: 0,
+      lastY: 0,
+      ballId: null,
     };
-
-    if (fineHit.kind === "center") {
-      return;
-    }
-
-    if (svgRef.current && e.pointerId != null) {
-      try {
-        svgRef.current.setPointerCapture(e.pointerId);
-      } catch (_) {
-        /* ignore */
-      }
-    }
-
-    const id = dragState.ballId;
-    if (!id) return;
-    stopFineCtrl();
-    fineNudgeBall(id, fineHit.dirX * FINE_TAP_STEP, fineHit.dirY * FINE_TAP_STEP);
-    fineCtrlTimerRef.current = window.setTimeout(() => {
-      fineCtrlTimerRef.current = null;
-      fineCtrlIntervalRef.current = window.setInterval(() => {
-        fineNudgeBall(id, fineHit.dirX * FINE_HOLD_STEP, fineHit.dirY * FINE_HOLD_STEP);
-      }, FINE_CTRL_REPEAT_MS);
-    }, FINE_CTRL_LONG_PRESS_MS);
-  }
-
-  function endFineInteraction(_e) {
-    stopFineCtrl();
-    const pid = finePtrRef.current.pointerId;
-    finePtrRef.current = { active: false, pointerId: null, kind: null };
-    window.getSelection()?.removeAllRanges();
-    if (svgRef.current && pid != null) {
-      try {
-        svgRef.current.releasePointerCapture(pid);
-      } catch (_) {
-        /* ignore */
-      }
-    }
-  }
-
-  function handleFineContextMenu(e) {
-    e.preventDefault();
-    e.stopPropagation();
+    ballDragLastPointerRgRef.current = null;
+    setDragState((s) => ({
+      ...s,
+      dragging: false,
+      grabOffsetRg: { x: 0, y: 0 },
+      previousPosRg: null,
+      frozenImpact: null,
+      frozenCushionPathAttr: null,
+      frozenCushionPathRg: null,
+    }));
   }
 
   // KD-Tree 인덱스 (dataset 변경 시 rebuild; USER strategyCountMap 등)
@@ -1664,8 +1620,7 @@ export default function App({
 
   function clearBallPointerInteractionState() {
     stopJoystick();
-    stopFineCtrl();
-    finePtrRef.current = { active: false, pointerId: null, kind: null };
+    clearGuide();
     joyDragRef.current = {
       active: false,
       pointerId: null,
@@ -1849,14 +1804,17 @@ export default function App({
   });
 
   /** P0-4c-2: ✓ 버튼 / pointerup → baseline draft Apply flow */
-  function onBaselineDraftApplyClick(mark) {
+  function onBaselineDraftApplyClick(
+    mark,
+    baselineDraftStateOverride = baselineDraftState
+  ) {
     console.log("[BASELINE APPLY BUTTON]", mark);
     const ok = runBaselineDraftApply({
       mark,
       appMode,
       showBaseLine,
       overlayState,
-      baselineDraftState,
+      baselineDraftState: baselineDraftStateOverride,
       trackForAnchors,
       systemIdForGrid,
       activeSlot: shotEditor.activeSlot,
@@ -1869,6 +1827,7 @@ export default function App({
       clearAppliedBaselineDraftMark,
     });
     if (ok) setAdminTableLayersVisible(true);
+    return ok;
   }
 
   /** SYS/HPT/STR/AI 닫을 때 Stage가 슬롯 버튼으로 currentButtonId를 되돌림 */
@@ -2324,6 +2283,7 @@ export default function App({
   ]);
 
   const clearUserSearchDisplayRuntime = useCallback(() => {
+    clearBallPointerInteractionState();
     setUserTableDisplaySlotId(null);
     trajectory.resetTrajectory();
     setAdminState((prev) => ({
@@ -2332,10 +2292,11 @@ export default function App({
     }));
     setOverlayContent(null);
     setOverlayState({ open: false, type: null });
-  }, [trajectory]);
+  }, [clearGuide, trajectory]);
 
   /** USER Reset: balls 유지, 표시/runtime Search draft 제거 (SRCH-004 → resetFlow) */
   const handleUserSearchReset = useCallback(() => {
+    clearBallPointerInteractionState();
     runUserSearchReset({
       appMode,
       slots: shotEditor.slots,
@@ -2366,11 +2327,13 @@ export default function App({
     setAdminState,
     setUserLastSearchRecord,
     actions.clearSearchSlotDrafts,
+    clearGuide,
     resetUserSearchTargetSelection,
   ]);
 
   /** ADMIN→USER: 새로고침 직후 USER 초기 화면과 동일하게 Editing Session 전체 종료. */
   const resetUserSearchSessionOnAdminExit = useCallback(() => {
+    clearBallPointerInteractionState();
     actions.clearSearchSlotDrafts();
     setUserLastSearchRecord(null);
     setUserTableDisplaySlotId(null);
@@ -2422,7 +2385,7 @@ export default function App({
       sys: createEmptyAdminSysSnapshot(),
       balls: { ...INITIAL_BALLS_RG },
     }));
-  }, [actions, trajectory]);
+  }, [actions, clearGuide, trajectory]);
 
   /** USER Search: published corpus → userStrict recall → draft apply → Runtime Activation (pick과 동일).
    * Phase 5 Mission 01: optional parallel Real Interpolation (VITE_REAL_INTERPOLATION_SEARCH=1).
@@ -2666,6 +2629,33 @@ export default function App({
       return { ...prev, [ballId]: next };
     });
     invalidateSavedAndRecalledForBallId(ballId);
+  }
+
+  function snapBallToGuideIntersection(ballId, target) {
+    if (
+      !ballId ||
+      !target ||
+      !Number.isFinite(target.x) ||
+      !Number.isFinite(target.y)
+    ) {
+      return false;
+    }
+
+    const current = ballsStateRef.current?.[ballId];
+    if (
+      !current ||
+      !Number.isFinite(current.x) ||
+      !Number.isFinite(current.y)
+    ) {
+      return false;
+    }
+
+    const dx = target.x - current.x;
+    const dy = target.y - current.y;
+    if (Math.hypot(dx, dy) <= 1e-9) return false;
+
+    nudgeBall(ballId, dx, dy);
+    return true;
   }
 
   function startJoystick(direction) {
@@ -3455,6 +3445,7 @@ function handleJoyPadPointerCancel(e) {
   // ballsState 초기화 — 타겟은 slot SSOT에서 복원 (view 도착이 더블클릭보다 늦어도 유지)
   useEffect(() => {
     if (view && view.ui && view.ui.balls) {
+      clearBallPointerInteractionState();
       setBallsState(hydrateBallsStateForUi(view.ui.balls));
       setIsSaved(false);
       setIsAdminPublishedSearchMatched(false);
@@ -3470,7 +3461,7 @@ function handleJoyPadPointerCancel(e) {
         setTargetColor(null);
       }
     }
-  }, [view]);
+  }, [clearGuide, view]);
 
   // Strategy Auto Capture: 1초간 안정 시 dataset candidate 생성 (MISC-002 → domain/dataset/autoCapture)
   useAutoCapture({
@@ -3780,6 +3771,14 @@ function handleJoyPadPointerCancel(e) {
       ),
     captureLabelSlotSnapshot: () =>
       captureBaselineLabelSlotSnapshot(baselineLabelSsotRef.current),
+    getCoHandleRg: () => baselineCoHandleRgRef.current,
+    getC1HandleRg: () => baselineC1HandleRgRef.current,
+    resolveCoAxis: (pointerRg, markCoord) =>
+      resolveMarkAxisForPointer(pointerRg, markCoord),
+    resolveC1Axis: (pointerRg, markCoord) =>
+      resolveMarkAxisForPointer(pointerRg, markCoord),
+    nudgeBaselineCoord: (coord, axis, delta) =>
+      nudgeMarkCoordAlongAxis(coord, axis, delta),
     snapCoPointerRg: (pointerRg) => {
       const markCoord =
         baselineDraftState.coRg ??
@@ -3891,6 +3890,89 @@ function captureBaselineLabelSlotSnapshot(ssotValues) {
   };
 }
 
+function handleBaselineMouseDown(e) {
+  if (e.detail !== 2) {
+    baselineDoubleClickSuppressApplyRef.current = false;
+    return;
+  }
+  const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
+  baselineDoubleClickSuppressApplyRef.current = !!resolveBaselineImpactSnapTarget({
+    pointerRg,
+    coRg: baselineDraftState.coRg ?? baselineCoHandleRgRef.current,
+    c1Rg: baselineDraftState.c1Rg ?? baselineC1HandleRgRef.current,
+  });
+}
+
+function handleBaselineImpactDoubleClick(e) {
+  if (
+    appMode !== "ADMIN" ||
+    !canEdit ||
+    !showBaseLine ||
+    overlayState.open ||
+    !isBaselineEndpointEditingEnabled(
+      trajectoryContractView?.baselineHandle,
+      trackForAnchors
+    )
+  ) {
+    return;
+  }
+
+  const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
+  const coRg = baselineDraftState.coRg ?? baselineCoHandleRgRef.current;
+  const c1Rg = baselineDraftState.c1Rg ?? baselineC1HandleRgRef.current;
+  const movingMark = resolveBaselineImpactSnapTarget({
+    pointerRg,
+    coRg,
+    c1Rg,
+  });
+
+  if (!movingMark) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const selectedAxis =
+    movingMark === "CO"
+      ? baselineDraftState.coAxis
+      : baselineDraftState.c1Axis;
+  const axis =
+    selectedAxis ?? resolveUniqueMarkAxis(
+      movingMark === "CO" ? coRg : c1Rg
+    );
+  const allowedAxis = axis
+    ? resolveMarkAxisLockForAxis(
+        movingMark === "CO" ? coRg : c1Rg,
+        axis
+      )
+    : null;
+  if (!allowedAxis || !activeImpactForPrecision) return;
+
+  const candidate = resolveBaselineImpactSnapCandidate({
+    movingMark,
+    coRg,
+    c1Rg,
+    activeImpactRg: activeImpactForPrecision,
+    allowedAxis,
+  });
+  if (!candidate) return;
+
+  const previousDraftState = baselineDraftState;
+  const previousLabelSnapshot = {
+    ...baselineLabelSlotSnapshotRef.current,
+  };
+  const nextDraft = setBaselineDraftCoordinate(
+    movingMark,
+    candidate,
+    axis
+  );
+  if (!nextDraft) return;
+
+  const applied = onBaselineDraftApplyClick(movingMark, nextDraft);
+  if (!applied) {
+    restoreBaselineDraftState(previousDraftState, previousLabelSnapshot);
+  }
+}
+
 function handlePointerDown(e) {
   const reviewPending =
     appMode === "ADMIN" && unifiedDerivedReview?.status === "PENDING";
@@ -3930,7 +4012,8 @@ function handlePointerDown(e) {
 
   if (!pointerRgEarly) return;
 
-  // Priority: Extension → C2 → Baseline → Joystick → Ball → Fine → Empty dismiss
+  // Priority: Extension → C2 → Baseline/fine arrow → Guide handle →
+  // Guide arrow → Guide Snap → Joystick → Ball → Empty dismiss
   if (
     pointerRgEarly &&
     tryStartExtensionHandleDrag(
@@ -3950,6 +4033,42 @@ function handlePointerDown(e) {
     return;
   }
 
+  const baselineFineNudgeArrowHit = resolveBaselineFineNudgeArrowHit(
+    pointerRgEarly,
+    baselineHandleModel.co || baselineHandleModel.c1
+      ? baselineFineNudgeArrows
+      : []
+  );
+  if (baselineFineNudgeArrowHit) {
+    e.preventDefault();
+    e.stopPropagation();
+    const nextDraft = nudgeBaselineDraft(
+      baselineFineNudgeArrowHit.mark,
+      baselineFineNudgeArrowHit.axis,
+      getBaselineFineNudgeArrowDelta(baselineFineNudgeArrowHit.direction)
+    );
+    if (nextDraft) {
+      onBaselineDraftApplyClick(baselineFineNudgeArrowHit.mark, nextDraft);
+    }
+    return;
+  }
+
+  const nativeDoubleClickTarget =
+    e.detail === 2
+      ? resolveBaselineImpactSnapTarget({
+          pointerRg: pointerRgEarly,
+          coRg: baselineDraftState.coRg ?? baselineCoHandleRgRef.current,
+          c1Rg: baselineDraftState.c1Rg ?? baselineC1HandleRgRef.current,
+        })
+      : null;
+  if (nativeDoubleClickTarget) {
+    // Keep the native dblclick event alive while preventing the second
+    // pointerdown from starting a second baseline drag session.
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+
   if (
     pointerRgEarly &&
     tryStartBaselineEndpointDraftDrag(
@@ -3959,10 +4078,70 @@ function handlePointerDown(e) {
       baselineDraftState.c1Rg ?? baselineC1HandleRgRef.current
     )
   ) {
+    clearBallPointerInteractionState();
     console.log("[BASELINE SVG POINTERDOWN]", "baseline drag captured", {
       pointerId: e.pointerId,
       target: e.target?.nodeName,
     });
+    return;
+  }
+
+  const guideHandleHit = resolveBallGuideHandleHit(
+    pointerRgEarly,
+    guideState,
+    TABLE_W / SCALE,
+    TABLE_H / SCALE
+  );
+  if (guideHandleHit) {
+    e.preventDefault();
+    stopBallPointerInteractionPreservingGuide();
+    const startValue =
+      guideHandleHit.axis === "horizontal"
+        ? guideState.horizontalY
+        : guideState.verticalX;
+    startGuideDrag(
+      guideHandleHit.axis,
+      e.pointerId,
+      pointerRgEarly,
+      startValue,
+      e.altKey ? GUIDE_ALT_DRAG_FACTOR : 1
+    );
+    try {
+      svgRef.current.setPointerCapture(e.pointerId);
+    } catch {
+      // Continue without capture if the pointer was already released.
+    }
+    return;
+  }
+
+  const guideArrowHit = resolveBallGuideArrowHit(
+    pointerRgEarly,
+    guideState,
+    TABLE_W / SCALE,
+    TABLE_H / SCALE
+  );
+  if (guideArrowHit) {
+    e.preventDefault();
+    e.stopPropagation();
+    nudgeGuide(
+      guideArrowHit.axis,
+      ballGuideArrowDeltaRg(guideArrowHit.direction)
+    );
+    return;
+  }
+
+  const guideSnapHit = resolveBallGuideSnapActionHit(
+    pointerRgEarly,
+    guideState,
+    TABLE_W / SCALE,
+    TABLE_H / SCALE
+  );
+  if (guideSnapHit) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (guideState.ballId && balls[guideState.ballId]) {
+      snapBallToGuideIntersection(guideState.ballId, guideSnapHit.target);
+    }
     return;
   }
 
@@ -3981,6 +4160,7 @@ function handlePointerDown(e) {
       SCALE
     )
   ) {
+    // Direct movement belongs to the same selected-Ball session.
     beginJoyDrag(e, dragState.ballId, svgRef.current);
     return;
   }
@@ -4025,55 +4205,13 @@ function handlePointerDown(e) {
     }
   }
 
-  // Empty space / Fine-only: Ball miss 이후에만 Fine 좌표 hit (Ball > Fine)
+  // Empty space: dismiss the complete Ball editing session.
   if (!closestBall) {
-    if (
-      dragState.joystickVisible &&
-      dragState.ballId &&
-      balls[dragState.ballId]
-    ) {
-      const fineHit = resolveFineControllerHit(
-        pointerRg,
-        balls[dragState.ballId],
-        BALL_RADIUS_RG,
-        SCALE
-      );
-      if (fineHit) {
-        beginFineInteraction(e, fineHit);
-        return;
-      }
-    }
-
-    if (dragState.joystickVisible) {
-      stopJoystick();
-      stopFineCtrl();
-      finePtrRef.current = { active: false, pointerId: null, kind: null };
-      joyDragRef.current = {
-        active: false,
-        pointerId: null,
-        lastX: 0,
-        lastY: 0,
-        ballId: null,
-      };
-      ballDragLastPointerRgRef.current = null;
-      setDragState((s) => ({
-        ...s,
-        dragging: false,
-        ballId: null,
-        grabOffsetRg: { x: 0, y: 0 },
-        previousPosRg: null,
-        joystickVisible: false,
-        frozenImpact: null,
-        frozenCushionPathAttr: null,
-        frozenCushionPathRg: null,
-      }));
-    }
+    clearBallPointerInteractionState();
     return;
   }
 
-  // Ball hit: select / switch immediately (one-touch ball→ball) — Fine보다 우선
-  stopFineCtrl();
-  finePtrRef.current = { active: false, pointerId: null, kind: null };
+  // Ball hit: select / switch immediately (one-touch ball→ball)
   if (dragState.joystickVisible) {
     stopJoystick();
   }
@@ -4089,6 +4227,10 @@ function handlePointerDown(e) {
     x: pointerRg.x - closestBall.pos.x,
     y: pointerRg.y - closestBall.pos.y,
   };
+
+  // Ball Guide is runtime-only. Re-selecting the same ball preserves its
+  // session; selecting another ball replaces the guide at that ball center.
+  selectBallForGuide(closestBall.id, closestBall.pos);
 
   ballDragLastPointerRgRef.current = { x: pointerRg.x, y: pointerRg.y };
 
@@ -4111,7 +4253,40 @@ function handlePointerDown(e) {
   // Ball <circle>에서 table SVG로 바뀌어 Ball.onDoubleClick이 끊긴다.
 }
 
+function isGuideDragPointer(e) {
+  return (
+    guideDragState.active &&
+    guideDragState.pointerId != null &&
+    guideDragState.pointerId === e?.pointerId
+  );
+}
+
+function releaseGuidePointer(e) {
+  if (!svgRef.current || e?.pointerId == null) return;
+  try {
+    svgRef.current.releasePointerCapture(e.pointerId);
+  } catch {
+    // Pointer capture may already have been released by the browser.
+  }
+}
+
 function handlePointerMove(e) {
+  if (isGuideDragPointer(e)) {
+    if (!svgRef.current) return;
+    const pointerRg = pointerToRg(
+      e,
+      svgRef.current,
+      SCALE,
+      TABLE_H,
+      PADDING
+    );
+    if (!pointerRg || !guideDragState.axis) return;
+    moveGuideDrag(
+      pointerRg
+    );
+    return;
+  }
+
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
 
@@ -4269,14 +4444,18 @@ function handlePointerMove(e) {
 }
 
 function handlePointerUp(e) {
-  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
-  if (overlayState.open) return;
+  const suppressBaselineApply =
+    baselineDoubleClickSuppressApplyRef.current;
+  baselineDoubleClickSuppressApplyRef.current = false;
 
-  if (isFinePtr(e)) {
-    e.preventDefault();
-    endFineInteraction(e);
+  if (isGuideDragPointer(e)) {
+    endGuideDrag(e.pointerId);
+    releaseGuidePointer(e);
     return;
   }
+
+  // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
+  if (overlayState.open) return;
 
   if (isJoyDragPointer(e)) {
     endJoyDrag(e, svgRef.current);
@@ -4285,18 +4464,21 @@ function handlePointerUp(e) {
 
   if (endC2HandleDrag(e)) return;
   if (endCoBaselineDraftDrag(e)) {
-    onBaselineDraftApplyClick("CO");
+    if (!suppressBaselineApply) {
+      onBaselineDraftApplyClick("CO");
+    }
     return;
   }
   if (endC1BaselineDraftDrag(e)) {
-    onBaselineDraftApplyClick("C1");
+    if (!suppressBaselineApply) {
+      onBaselineDraftApplyClick("C1");
+    }
     return;
   }
   if (endExtensionHandleDrag(e)) return;
 
   if (!dragState.dragging || !dragState.ballId) return;
   stopJoystick();
-  stopFineCtrl();
 
   const draggedBall = { ...balls[dragState.ballId] };
   const otherBalls = Object.entries(balls)
@@ -4372,10 +4554,14 @@ function handlePointerUp(e) {
 }
 
 function handlePointerCancel(e) {
-  if (isFinePtr(e)) {
-    endFineInteraction(e);
+  baselineDoubleClickSuppressApplyRef.current = false;
+
+  if (isGuideDragPointer(e)) {
+    endGuideDrag(e.pointerId);
+    releaseGuidePointer(e);
     return;
   }
+
   if (endC2HandleDrag(e)) return;
   if (endCoBaselineDraftDrag(e)) {
     clearAppliedBaselineDraftMark("CO");
@@ -4387,7 +4573,6 @@ function handlePointerCancel(e) {
   }
   if (endExtensionHandleDrag(e)) return;
   stopJoystick();
-  stopFineCtrl();
   // cancel은 드래그 종료로 처리
   handlePointerUp(e);
 }
@@ -4523,6 +4708,22 @@ function handlePointerCancel(e) {
       reflectedDiagnostics,
     },
   } = trajectoryBuild;
+
+  const calculatedVisibleImpactRg =
+    ballsForCoaching.cue && coachingImpactTarget
+      ? calcImpactBall(
+          ballsForCoaching.cue,
+          coachingImpactTarget,
+          systemCtrl.T
+        )
+      : null;
+  const activeImpactForPrecision = resolveActiveImpactForPrecision({
+    impactMode,
+    contactVisibleImpactRg: calculatedVisibleImpactRg,
+    freeStoredImpactRg: ballsForCoaching.impact,
+    freeCalculatedFallbackImpactRg: calculatedVisibleImpactRg,
+    trajectoryContactImpactRg: impactContactRg,
+  });
 
   const CO_line = coLine;
   const C1_line = c1Line;
@@ -5067,6 +5268,34 @@ function handlePointerCancel(e) {
       ),
     }
   );
+  const resolveBaselineNudgeAxis = (coord, selectedAxis) => {
+    if (selectedAxis) {
+      return nudgeMarkCoordAlongAxis(coord, selectedAxis, 0)
+        ? selectedAxis
+        : null;
+    }
+    return resolveUniqueMarkAxis(coord);
+  };
+  const baselineCoNudgeAxis = resolveBaselineNudgeAxis(
+    baselineCoHandleRgRef.current,
+    baselineDraftState.coAxis
+  );
+  const baselineC1NudgeAxis = resolveBaselineNudgeAxis(
+    baselineC1HandleRgRef.current,
+    baselineDraftState.c1Axis
+  );
+  const baselineFineNudgeArrows = [
+    ...getBaselineFineNudgeArrowDescriptors({
+      mark: "CO",
+      coord: baselineCoHandleRgRef.current,
+      axis: baselineCoNudgeAxis,
+    }),
+    ...getBaselineFineNudgeArrowDescriptors({
+      mark: "C1",
+      coord: baselineC1HandleRgRef.current,
+      axis: baselineC1NudgeAxis,
+    }),
+  ];
 
   const coBaselineHandleNode = baselineHandleModel.co ? (
     <g
@@ -5149,15 +5378,42 @@ function handlePointerCancel(e) {
       viewBox={`0 0 ${TABLE_W + 2 * PADDING} ${TABLE_H + 2 * PADDING}`}
       preserveAspectRatio="xMidYMid meet"
       style={{ touchAction: "none", overflow: "visible" }}
+      onMouseDown={handleBaselineMouseDown}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
+      onDoubleClick={handleBaselineImpactDoubleClick}
     >
       <RailFrame />
       <TableGrid />
+      {guideState.active &&
+        guideState.ballId &&
+        balls[guideState.ballId] && (
+          <BallGuideLayer
+            active={guideState.active}
+            ballId={guideState.ballId}
+            horizontalY={guideState.horizontalY}
+            verticalX={guideState.verticalX}
+            scale={SCALE}
+            tableW={TABLE_W}
+            tableH={TABLE_H}
+            padding={PADDING}
+          />
+        )}
       {coBaselineHandleNode}
       {c1BaselineHandleNode}
+      {(baselineHandleModel.co || baselineHandleModel.c1) && (
+        <BaselineFineNudgeLayer
+          coRg={baselineCoHandleRgRef.current}
+          coAxis={baselineCoNudgeAxis}
+          c1Rg={baselineC1HandleRgRef.current}
+          c1Axis={baselineC1NudgeAxis}
+          scale={SCALE}
+          tableH={TABLE_H}
+          padding={PADDING}
+        />
+      )}
       {c2RailHandleNode}
       {adminTableLayersActive && userShowTrajectoryOnTable && (
       <ImpactLines
@@ -5368,90 +5624,19 @@ function handlePointerCancel(e) {
       {/* knob (static visual; movement is via drag vector) */}
       <circle cx={cx} cy={cy} r={KNOB_R} fill="rgba(255,255,255,0.85)" />
       <circle cx={cx} cy={cy} r={KNOB_R - 6} fill="rgba(15,23,42,0.35)" />
-    </g>
-  );
-})()}
-      {dragState.joystickVisible &&
-        canEditPosition &&
-        dragState.ballId &&
-        balls[dragState.ballId] && (() => {
-  const bp = balls[dragState.ballId];
-  const fc = computeFineControllerCenterRg(bp, BALL_RADIUS_RG, SCALE);
-  const fp = toPx({ x: fc.x, y: fc.y }, SCALE, TABLE_H);
-  const fcx = fp.x + PADDING;
-  const fcy = fp.y + PADDING;
-  const arrowSize = 15;
-  const arrowOffset = 32;
-  const coordX = bp.x.toFixed(1);
-  const coordY = bp.y.toFixed(1);
-
-  const arrows = [
-    { id: "up",    dirX: 0, dirY: 1,  ox: 0, oy: -arrowOffset, label: "▲" },
-    { id: "down",  dirX: 0, dirY: -1, ox: 0, oy: arrowOffset,  label: "▼" },
-    { id: "left",  dirX: -1, dirY: 0, ox: -arrowOffset * 1.8, oy: 0, label: "◀" },
-    { id: "right", dirX: 1, dirY: 0,  ox: arrowOffset * 1.8, oy: 0,  label: "▶" },
-  ];
-
-  const zones = [
-    { id: "up",    dirX: 0, dirY: 1,  x: fcx - FINE_CTRL_ZONE_OUTER_PX, y: fcy - FINE_CTRL_ZONE_OUTER_PX, w: FINE_CTRL_ZONE_OUTER_PX * 2, h: FINE_CTRL_ZONE_OUTER_PX - FINE_CTRL_ZONE_INNER_PX },
-    { id: "down",  dirX: 0, dirY: -1, x: fcx - FINE_CTRL_ZONE_OUTER_PX, y: fcy + FINE_CTRL_ZONE_INNER_PX, w: FINE_CTRL_ZONE_OUTER_PX * 2, h: FINE_CTRL_ZONE_OUTER_PX - FINE_CTRL_ZONE_INNER_PX },
-    { id: "left",  dirX: -1, dirY: 0, x: fcx - FINE_CTRL_ZONE_OUTER_PX, y: fcy - FINE_CTRL_ZONE_INNER_PX, w: FINE_CTRL_ZONE_OUTER_PX - FINE_CTRL_ZONE_INNER_PX, h: FINE_CTRL_ZONE_INNER_PX * 2 },
-    { id: "right", dirX: 1, dirY: 0,  x: fcx + FINE_CTRL_ZONE_INNER_PX, y: fcy - FINE_CTRL_ZONE_INNER_PX, w: FINE_CTRL_ZONE_OUTER_PX - FINE_CTRL_ZONE_INNER_PX, h: FINE_CTRL_ZONE_INNER_PX * 2 },
-  ];
-
-  const fineHitStyle = {
-    // DOM hit 비활성 — Fine은 SVG 좌표 hit (Ball miss 이후). Ball > Fine 보장.
-    pointerEvents: "none",
-    touchAction: "none",
-    userSelect: "none",
-    WebkitUserSelect: "none",
-    WebkitTouchCallout: "none",
-  };
-
-  return (
-    <g
-      style={{
-        pointerEvents: "none",
-        touchAction: "none",
-        userSelect: "none",
-        WebkitUserSelect: "none",
-        WebkitTouchCallout: "none",
-      }}
-      onContextMenu={handleFineContextMenu}
-    >
-      <rect
-        x={fcx - FINE_CTRL_ZONE_INNER_PX}
-        y={fcy - FINE_CTRL_ZONE_INNER_PX}
-        width={FINE_CTRL_ZONE_INNER_PX * 2}
-        height={FINE_CTRL_ZONE_INNER_PX * 2}
-        fill="transparent"
-        style={fineHitStyle}
-      />
-      {zones.map((z) => (
-        <rect
-          key={z.id}
-          x={z.x} y={z.y} width={z.w} height={z.h}
-          fill="transparent"
-          style={fineHitStyle}
-        />
-      ))}
       <text
-        x={fcx} y={fcy}
-        textAnchor="middle" dominantBaseline="central"
+        data-ball-coordinate="1"
+        x={cx + (bp.x <= 40 ? BASE_R + 14 : -(BASE_R + 14))}
+        y={cy}
+        textAnchor={bp.x <= 40 ? "start" : "end"}
+        dominantBaseline="middle"
         fill="rgba(255,255,255,0.85)"
-        fontSize="22" fontWeight="400"
-        style={{ pointerEvents: "none", userSelect: "none" }}
-      >({coordX}, {coordY})</text>
-      {arrows.map((a) => (
-        <text
-          key={a.id}
-          x={fcx + a.ox} y={fcy + a.oy}
-          textAnchor="middle" dominantBaseline="central"
-          fill="rgba(255,255,255,0.8)"
-          fontSize={arrowSize} fontWeight="400"
-          style={{ pointerEvents: "none", userSelect: "none" }}
-        >{a.label}</text>
-      ))}
+        fontSize="16"
+        fontWeight="400"
+        pointerEvents="none"
+      >
+        ({bp.x.toFixed(1)}, {bp.y.toFixed(1)})
+      </text>
     </g>
   );
 })()}

@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.95  
-Last Updated: 2026-08-26  
+Version: 1.96  
+Last Updated: 2026-08-27  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -69,6 +69,22 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
 | **Mission 04 Authoring Integration** | ✅ **ABSORBED** (ADR · Missions 01–03 + `product pipeline`) |
+
+### Precision Editing (B1~B5 · 2026-08-27)
+
+> **Pointer only** — 상세 완료 기록: `HISTORY/PROJECT_LOG_2026-08.md` 최신 **Precision Editing B1~B5** 항목.  
+> Feature SSOT를 별도 중복 문서로 만들지 않으며, 기존 Ball / Baseline / Apply 계약을 소비한다.
+
+| Item | Status |
+|------|--------|
+| **Ball Guide** | ✅ **COMPLETE** — 선택 Ball 기준 H/V Guide · handle/arrow/Alt+drag · dedicated intersection Snap |
+| **Ball editing presentation** | ✅ **COMPLETE** — Fine directional arrows 제거 · movement handle + live coordinate 유지 |
+| **CO/C1 Fine Adjustment** | ✅ **COMPLETE** — canonical Mark axis 기반 0.1 Rg arrows · 기존 Draft → Apply → SYS commit |
+| **CO/C1 Impact Snap** | ✅ **COMPLETE** — native double-click · visible Impact authoritative · existing Apply/SYS path |
+| **Runtime / persistence** | Ball Guide는 runtime-only · Guide state는 SAVE/History/dataset/schema에 저장하지 않음 |
+| **Explicit exclusion** | CO/C1 Alt+drag는 구현하지 않음 · Guide Alt+drag는 유지 |
+| **Verification** | 사용자 앱 검증 완료 보고 · targeted tests PASS · production build PASS · Full Vitest 신규 B5 failure 0 |
+| **Architecture** | SYS formula · Fg/Rg contract · trajectory/Impact physics · dataset/History/WRITE SSOT 불변 |
 
 ### Derived Data (Phase 3A-359 + 3A-360)
 

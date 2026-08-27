@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { VaryingAxis } from "../../domain/trajectory/baselineMarkAxisSnap";
 
 export type BaselineDraftMark = "CO" | "C1";
 
@@ -15,8 +16,10 @@ export type RgPoint = { x: number; y: number };
 export type BaselineDraftState = {
   coSysValue: number | null;
   coRg: RgPoint | null;
+  coAxis: VaryingAxis | null;
   c1SysValue: number | null;
   c1Rg: RgPoint | null;
+  c1Axis: VaryingAxis | null;
   activeMark: BaselineDraftMark | null;
   draggingMark: BaselineDraftMark | null;
 };
@@ -24,8 +27,10 @@ export type BaselineDraftState = {
 export const EMPTY_BASELINE_DRAFT: BaselineDraftState = {
   coSysValue: null,
   coRg: null,
+  coAxis: null,
   c1SysValue: null,
   c1Rg: null,
+  c1Axis: null,
   activeMark: null,
   draggingMark: null,
 };
@@ -41,6 +46,21 @@ export type BaselineDraftDragContext = {
   captureLabelSlotSnapshot: () => BaselineLabelSlotSnapshot;
   snapCoPointerRg: (pointerRg: RgPoint) => RgPoint | null;
   snapC1PointerRg: (pointerRg: RgPoint) => RgPoint | null;
+  getCoHandleRg?: () => RgPoint | null;
+  getC1HandleRg?: () => RgPoint | null;
+  nudgeBaselineCoord?: (
+    coord: RgPoint,
+    axis: VaryingAxis,
+    delta: number
+  ) => RgPoint | null;
+  resolveCoAxis?: (
+    pointerRg: RgPoint,
+    markCoord: RgPoint
+  ) => VaryingAxis | null;
+  resolveC1Axis?: (
+    pointerRg: RgPoint,
+    markCoord: RgPoint
+  ) => VaryingAxis | null;
 };
 
 export type UseBaselineDraftOptions = {
@@ -60,6 +80,10 @@ export function useBaselineDraft({
 }: UseBaselineDraftOptions) {
   const [baselineDraftState, setBaselineDraftState] =
     useState<BaselineDraftState>(EMPTY_BASELINE_DRAFT);
+  const baselineDraftStateRef = useRef<BaselineDraftState>(
+    EMPTY_BASELINE_DRAFT
+  );
+  baselineDraftStateRef.current = baselineDraftState;
   const baselineLabelSlotSnapshotRef = useRef<BaselineLabelSlotSnapshot>({
     CO_f: null,
     C1_f: null,
@@ -142,11 +166,14 @@ export function useBaselineDraft({
 
       baselineLabelSlotSnapshotRef.current =
         dragContextRef.current.captureLabelSlotSnapshot();
+      const coAxis =
+        dragContextRef.current.resolveCoAxis?.(pointerRg, coHandleRg) ?? null;
       setBaselineDraftState((prev) => ({
         ...prev,
         activeMark: "CO",
         draggingMark: "CO",
         coRg: { x: coHandleRg.x, y: coHandleRg.y },
+        coAxis,
         coSysValue: null,
       }));
       try {
@@ -180,11 +207,14 @@ export function useBaselineDraft({
 
       baselineLabelSlotSnapshotRef.current =
         dragContextRef.current.captureLabelSlotSnapshot();
+      const c1Axis =
+        dragContextRef.current.resolveC1Axis?.(pointerRg, c1HandleRg) ?? null;
       setBaselineDraftState((prev) => ({
         ...prev,
         activeMark: "C1",
         draggingMark: "C1",
         c1Rg: { x: c1HandleRg.x, y: c1HandleRg.y },
+        c1Axis,
         c1SysValue: null,
       }));
       try {
@@ -304,6 +334,121 @@ export function useBaselineDraft({
     [baselineDraftState.draggingMark, dragContextRef]
   );
 
+  const nudgeBaselineDraft = useCallback(
+    (
+      mark: BaselineDraftMark,
+      axis: VaryingAxis,
+      delta = 0.1
+    ): BaselineDraftState | null => {
+      const previous = baselineDraftStateRef.current;
+      const previousAxis =
+        mark === "CO" ? previous.coAxis : previous.c1Axis;
+      if (previousAxis && previousAxis !== axis) return null;
+
+      const currentCoord =
+        mark === "CO"
+          ? previous.coRg ?? dragContextRef.current.getCoHandleRg?.() ?? null
+          : previous.c1Rg ?? dragContextRef.current.getC1HandleRg?.() ?? null;
+      const nextCoord =
+        currentCoord &&
+        dragContextRef.current.nudgeBaselineCoord?.(
+          currentCoord,
+          axis,
+          delta
+        );
+      if (!nextCoord) return null;
+      if (
+        currentCoord &&
+        Math.abs(nextCoord.x - currentCoord.x) <= 1e-12 &&
+        Math.abs(nextCoord.y - currentCoord.y) <= 1e-12
+      ) {
+        return null;
+      }
+
+      baselineLabelSlotSnapshotRef.current =
+        dragContextRef.current.captureLabelSlotSnapshot();
+      const next: BaselineDraftState = {
+        ...previous,
+        activeMark: mark,
+        draggingMark: null,
+        ...(mark === "CO"
+          ? {
+              coRg: nextCoord,
+              coAxis: axis,
+              coSysValue: null,
+            }
+          : {
+              c1Rg: nextCoord,
+              c1Axis: axis,
+              c1SysValue: null,
+            }),
+      };
+      baselineDraftStateRef.current = next;
+      setBaselineDraftState(next);
+      return next;
+    },
+    [dragContextRef]
+  );
+
+  const setBaselineDraftCoordinate = useCallback(
+    (
+      mark: BaselineDraftMark,
+      coord: RgPoint | null | undefined,
+      axis: VaryingAxis
+    ): BaselineDraftState | null => {
+      if (
+        !coord ||
+        !Number.isFinite(coord.x) ||
+        !Number.isFinite(coord.y) ||
+        (axis !== "x" && axis !== "y")
+      ) {
+        return null;
+      }
+
+      const previous = baselineDraftStateRef.current;
+      const previousAxis =
+        mark === "CO" ? previous.coAxis : previous.c1Axis;
+      if (previousAxis && previousAxis !== axis) return null;
+
+      baselineLabelSlotSnapshotRef.current =
+        dragContextRef.current.captureLabelSlotSnapshot();
+      const next: BaselineDraftState = {
+        ...previous,
+        activeMark: mark,
+        draggingMark: null,
+        ...(mark === "CO"
+          ? {
+              coRg: { x: coord.x, y: coord.y },
+              coAxis: axis,
+              coSysValue: null,
+            }
+          : {
+              c1Rg: { x: coord.x, y: coord.y },
+              c1Axis: axis,
+              c1SysValue: null,
+            }),
+      };
+      baselineDraftStateRef.current = next;
+      setBaselineDraftState(next);
+      return next;
+    },
+    [dragContextRef]
+  );
+
+  const restoreBaselineDraftState = useCallback(
+    (
+      state: BaselineDraftState,
+      labelSlotSnapshot?: BaselineLabelSlotSnapshot
+    ) => {
+      baselineDraftStateRef.current = state;
+      if (labelSlotSnapshot) {
+        baselineLabelSlotSnapshotRef.current = labelSlotSnapshot;
+      }
+      setBaselineDraftState(state);
+    },
+    []
+  );
+
   return {
     baselineDraftState,
     baselineLabelSlotSnapshotRef,
@@ -312,5 +457,8 @@ export function useBaselineDraft({
     endCoBaselineDraftDrag,
     endC1BaselineDraftDrag,
     handleBaselineDraftPointerMove,
+    nudgeBaselineDraft,
+    setBaselineDraftCoordinate,
+    restoreBaselineDraftState,
   };
 }

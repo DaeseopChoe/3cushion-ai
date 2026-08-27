@@ -19,10 +19,10 @@ const RG_TOP_Y = 40;
 const RG_LEFT_X = 0;
 const RG_RIGHT_X = 80;
 
-type MarkRail = "BOTTOM" | "TOP" | "LEFT" | "RIGHT";
-type VaryingAxis = "x" | "y";
+export type MarkRail = "BOTTOM" | "TOP" | "LEFT" | "RIGHT";
+export type VaryingAxis = "x" | "y";
 
-type MarkAxisLock = {
+export type MarkAxisLock = {
   rail: MarkRail;
   varying: VaryingAxis;
   constantAxis: VaryingAxis;
@@ -174,6 +174,95 @@ function projectOntoLock(pointer: AxisPoint, lock: MarkAxisLock): AxisPoint {
   return {
     x: lock.constantValue,
     y: clamp(pointer.y, lock.varyMin, lock.varyMax),
+  };
+}
+
+function lockForVaryingAxis(
+  coord: AxisPoint,
+  axis: VaryingAxis
+): MarkAxisLock | null {
+  return locksForMarkCoord(coord).find((lock) => lock.varying === axis) ?? null;
+}
+
+/** Additive descriptor access for consumers that must preserve Mark axis SSOT. */
+export function resolveMarkAxisLockForAxis(
+  markCoord: AxisPoint | null | undefined,
+  axis: VaryingAxis
+): MarkAxisLock | null {
+  if (!isFinitePoint(markCoord)) return null;
+  return lockForVaryingAxis(markCoord, axis);
+}
+
+/**
+ * Resolve the existing Mark axis for a pointer-down session.
+ * A tied corner hit is intentionally unresolved; callers must fail closed.
+ */
+export function resolveMarkAxisForPointer(
+  pointer: AxisPoint | null | undefined,
+  markCoord: AxisPoint | null | undefined
+): VaryingAxis | null {
+  if (!isFinitePoint(pointer) || !isFinitePoint(markCoord)) return null;
+  const locks = locksForMarkCoord(markCoord);
+  if (locks.length === 0) return null;
+  if (locks.length === 1) return locks[0].varying;
+
+  let chosen: MarkAxisLock | null = null;
+  let bestDistance = Infinity;
+  let secondBestDistance = Infinity;
+  for (const lock of locks) {
+    const distance = distanceToLockLine(pointer, lock);
+    if (distance < bestDistance) {
+      secondBestDistance = bestDistance;
+      bestDistance = distance;
+      chosen = lock;
+    } else if (distance < secondBestDistance) {
+      secondBestDistance = distance;
+    }
+  }
+
+  if (
+    !chosen ||
+    !Number.isFinite(bestDistance) ||
+    !Number.isFinite(secondBestDistance) ||
+    Math.abs(secondBestDistance - bestDistance) <= FRAME_TOL
+  ) {
+    return null;
+  }
+  return chosen.varying;
+}
+
+/** Resolve a unique axis when the current Mark coordinate is not a corner. */
+export function resolveUniqueMarkAxis(
+  markCoord: AxisPoint | null | undefined
+): VaryingAxis | null {
+  if (!isFinitePoint(markCoord)) return null;
+  const locks = locksForMarkCoord(markCoord);
+  return locks.length === 1 ? locks[0].varying : null;
+}
+
+/**
+ * Move a Mark coordinate along one already-resolved axis.
+ * The existing Fg/Rg lock supplies both the varying-axis domain and
+ * the constant-axis value; no Ball bounds are involved.
+ */
+export function nudgeMarkCoordAlongAxis(
+  markCoord: AxisPoint | null | undefined,
+  axis: VaryingAxis,
+  delta: number
+): AxisPoint | null {
+  if (!isFinitePoint(markCoord) || !Number.isFinite(delta)) return null;
+  const lock = lockForVaryingAxis(markCoord, axis);
+  if (!lock) return null;
+
+  if (axis === "x") {
+    return {
+      x: clamp(markCoord.x + delta, lock.varyMin, lock.varyMax),
+      y: lock.constantValue,
+    };
+  }
+  return {
+    x: lock.constantValue,
+    y: clamp(markCoord.y + delta, lock.varyMin, lock.varyMax),
   };
 }
 

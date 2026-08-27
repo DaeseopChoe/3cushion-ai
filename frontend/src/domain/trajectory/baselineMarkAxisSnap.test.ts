@@ -3,8 +3,11 @@ import fiveHalfAnchors from "../../data/systems/5_half_system/anchors.json";
 import { getAnchorCoordFromSys } from "../anchorLookupEngine";
 import { bindDomainContractSupply } from "../runtimeContractSupply";
 import {
+  nudgeMarkCoordAlongAxis,
   projectPointerToMarkAxis,
   readBaselineHandleCoord,
+  resolveMarkAxisForPointer,
+  resolveUniqueMarkAxis,
 } from "./baselineMarkAxisSnap";
 
 const SYSTEM_ID = "5_half_system";
@@ -97,5 +100,54 @@ describe("projectPointerToMarkAxis", () => {
     expect(
       projectPointerToMarkAxis({ x: 40, y: 20 }, { x: 40, y: 20 })
     ).toBeNull();
+  });
+});
+
+describe("baseline fine nudge axis resolution", () => {
+  it("resolves horizontal Mark freedom as x", () => {
+    expect(resolveUniqueMarkAxis({ x: 40, y: -2.25 })).toBe("x");
+    expect(
+      resolveMarkAxisForPointer({ x: 55, y: 18 }, { x: 40, y: -2.25 })
+    ).toBe("x");
+  });
+
+  it("resolves vertical Mark freedom as y", () => {
+    expect(resolveUniqueMarkAxis({ x: -2.25, y: 10 })).toBe("y");
+    expect(
+      resolveMarkAxisForPointer({ x: 40, y: 22 }, { x: -2.25, y: 10 })
+    ).toBe("y");
+  });
+
+  it("fails closed for an exactly tied corner axis", () => {
+    const corner = { x: -2.25, y: -2.25 };
+    expect(resolveUniqueMarkAxis(corner)).toBeNull();
+    expect(resolveMarkAxisForPointer(corner, corner)).toBeNull();
+  });
+
+  it("nudges only the selected x or y axis in its existing domain", () => {
+    expect(nudgeMarkCoordAlongAxis({ x: 40, y: -2.25 }, "x", 0.1)).toEqual({
+      x: 40.1,
+      y: -2.25,
+    });
+    expect(nudgeMarkCoordAlongAxis({ x: -2.25, y: 10 }, "y", 0.1)).toEqual({
+      x: -2.25,
+      y: 10.1,
+    });
+    expect(nudgeMarkCoordAlongAxis({ x: -2.25, y: 10 }, "x", 0.1)).toBeNull();
+    expect(nudgeMarkCoordAlongAxis({ x: 0, y: 0 }, "x", -0.1)).toEqual({
+      x: 0,
+      y: 0,
+    });
+  });
+
+  it("clamps along the existing Fg/Rg axis domain", () => {
+    expect(nudgeMarkCoordAlongAxis({ x: -2.25, y: -2.25 }, "x", -1)).toEqual({
+      x: -2.25,
+      y: -2.25,
+    });
+    expect(nudgeMarkCoordAlongAxis({ x: 40, y: 0 }, "x", 100)).toEqual({
+      x: 80,
+      y: 0,
+    });
   });
 });
