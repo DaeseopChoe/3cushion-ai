@@ -7,6 +7,7 @@ import {
   buildSnapshotName,
   findSnapshotById,
   deleteSnapshotById,
+  deleteSnapshotsByIds,
   deleteOldest30,
   updateSnapshotsExported,
 } from "../domain/workspaceHistory";
@@ -386,8 +387,13 @@ export function useSettings({
     setEditSourceContext(null);
   }, []);
 
-  const handleDeleteWorkspaceSnapshot = useCallback((id) => {
-    deleteSnapshotById(id);
+  const handleDeleteWorkspaceSnapshot = useCallback((idOrIds) => {
+    if (!idOrIds) return;
+    if (Array.isArray(idOrIds)) {
+      deleteSnapshotsByIds(idOrIds);
+    } else {
+      deleteSnapshotById(idOrIds);
+    }
     setWorkspaceHistoryVersion((v) => v + 1);
   }, []);
 

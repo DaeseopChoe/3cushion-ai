@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.99
+Version: 2.00
 Last Updated: 2026-08-28  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -63,6 +63,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
 | **Working tree** | **대량 uncommitted 보존** · Commit/Push는 사용자 요청 전까지 금지 |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
+| **ADMIN History Overlay UX** | ✅ **COMPLETE** (2026-08-28 · Selection/Shift/Density/Delete/Sizing · 브라우저 검증 완료 · **Commit/Push 대기**) |
 | **Ball Fine Position Controller** | ✅ **COMPLETE** (`1eaf76c` · Desktop PASS · Mobile Production PASS · Admin/User PASS) |
 | **Git baseline (pre–Fine Controller)** | `9678b69d0f82b82a685de86cb42eec07e18cb53f` |
 | **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
@@ -1528,6 +1529,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 - **Trajectory Extension (2026-08-03~04) — Task Closed** — 독립 Overlay · Role SSOT · Target Lock + DoubleClick Projection · SAVE/`StrategyEntry.trajectoryExtensions` · Hydrate whitelist · ADMIN/USER 적색 stroke · **`activateStrategySlot()`** 로 USER Search ↔ Strategy Pick Runtime 경로 통합 · Search 전용 Hydrate 없음 · SAVE → Export → Published → Search/Recall → Render 파이프라인 완료 · SSOT `TRAJECTORY_EXTENSION_SSOT.md` v1.4
 - **USER Overlay Centering SSOT (2026-08-12) — COMPLETE** — Root Cause B+C (stale panel dimensions + content reflow) · Panel ResizeObserver · table-area center invariant · Open/Switch/Zoom reset · Drag temporary offset 유지 · 브라우저 검증 · build PASS · **Commit/Push 대기** · `UserOverlayShell.jsx` · `OVERLAY_LAYOUT_SSOT_v1.2.md` §8
 - **Ball Fine Position Controller (2026-08-12) — COMPLETE** — Joystick + Fine Controller temporary Ball Position Controller · Tap 0.1 · Hold 1.0s · 0.2/150ms · 3 Rg gap · CENTER dead zone · fontSize 22 · Fine-scoped WebKit selection/callout suppression · Desktop / Mobile Production / Admin/User **PASS** · Search/RI/Calculator/Trajectory **미변경** · production `1eaf76c` · `App.jsx` · `joystickInteractionPolicy.ts`
+- **ADMIN Workspace History Overlay UX (2026-08-28) — COMPLETE** — 상단 [전체선택]/[로컬데이터]/[Unexported] 컨트롤 구조 개편 · 탭 전환 시 Selection/Shift reset · 양쪽 뷰 Checkbox 및 Shift 범위 선택 · Row click(onLoad 복원) vs Checkbox(선택) 완전 분리 · 단일 Delete (n) 파이프라인 (window.confirm 확인 후 일괄 삭제) · Export 워크플로 유지 · Checkbox 24x24 & Hit-Area 36x36 확대 · Row 세로 padding 7px(높이 ~44px) 고밀도화(화면당 노출 2배 증가) · Modal 세로 높이 ~1.5배 확장(height min(820px, 90vh), max-height min(860px, 92vh)) · List Body 독립 세로 스크롤 · `WorkspaceHistoryModal.jsx`, `workspaceHistory.ts`, `useSettings.js`, `index.css` · SSOT: `OVERLAY_LAYOUT_SSOT_v1.2.md` §14, `2_FRONTEND_ARCHITECTURE_BASELINE_v1.md`
 
 ### 진행 중
 

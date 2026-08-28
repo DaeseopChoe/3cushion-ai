@@ -722,3 +722,45 @@ Production: `1eaf76c0102071893c2bc561cfe72d972d53b55f` · Desktop / Mobile Produ
 - Ball coordinate 의미 변경 (physical center SSOT 유지)
 
 > **상세 이력:** `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-12 (Ball Fine Position Controller)
+
+---
+
+## ADMIN Workspace History Overlay Architecture (2026-08-28)
+
+ADMIN Workspace History 모달의 **계층 구조 · 책임 경계 · 인터랙션 분리** 기준선이다.
+
+### 1. 컴포넌트 계층 구조
+
+```text
+App.jsx (showHistoryModal, workspaceHistory, handlers)
+  ↓
+WorkspaceHistoryModal.jsx (상단 Controls, Checkbox, Shift 선택, 고밀도 행, Delete 파이프라인, Export)
+  ↓
+ModalShell.jsx (variant="history", panelClassName="modal-panel--history", 드래그, 닫기, Selection 초기화)
+```
+
+### 2. 레이어별 책임
+
+| 레이어 / 모듈 | 역할 및 책임 | 비책임 (금지) |
+|---|---|---|
+| **`ModalShell.jsx`** | 공통 관리자 모달 프레임워크 (Backdrop, Draggable, Placement, `open` 시 Selection 클리어) | 히스토리 내부 비즈니스 로직 소유 금지 |
+| **`WorkspaceHistoryModal.jsx`** | History 전용 View/Action UI (전체선택 토글, 로컬데이터/Unexported 탭, Checkbox/Shift 선택, Row 복원 연동, `Delete (n)`, `Export`) | 직접 storage mutate 금지 (핸들러 위임) |
+| **`useSettings.js`** | App과 Domain 사이의 bridge (`handleLoadWorkspaceSnapshot`, `handleDeleteWorkspaceSnapshot`, `handleExportSnapshots`, version trigger) | UI 레이아웃 직접 통제 금지 |
+| **`workspaceHistory.ts`** | 스냅샷 누적/로드/삭제/Export 상태 갱신 (`loadWorkspaceHistory`, `deleteSnapshotsByIds`, `updateSnapshotsExported`, `saveWorkspaceHistory`) | React 렌더링/UI 상태 소유 금지 |
+
+### 3. USER Overlay와의 완전한 분리
+
+- `UserOverlayShell` (USER AI / HPT / CALC Overlay Centering SSOT) ≠ `ModalShell` / `WorkspaceHistoryModal`
+- USER Overlay의 `table-area` center placement, typography scale, ratio token과 ADMIN History Overlay는 서로 완전히 독립된 레이어이다.
+
+### 4. 인터랙션 및 삭제 파이프라인 불변식
+
+1. **Row Click vs Checkbox Click 분리:**
+   - Row 본문 클릭: `onLoad(snap.id)` → 기존 Admin Workspace Load/Restore 100% 실행.
+   - Checkbox / Hit-Area 클릭: `e.stopPropagation()` → Selection 토글만 수행 (Workspace Load 실행 차단).
+2. **단일 Delete 파이프라인:**
+   - 개별 행 삭제 버튼 제거 → 하단 단일 `Delete (n)` 버튼 통합 (`window.confirm` 확인 후 일괄 삭제).
+3. **View 전환 정합성:**
+   - 로컬데이터 ↔ Unexported 전환 시 `selectedIds` 및 Shift 범위 인덱스 자동 초기화.
+
+> **상세 이력:** `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-28 (ADMIN Workspace History Overlay UX)

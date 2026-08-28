@@ -1,8 +1,83 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.66
+Version : v1.67
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-28 (ADMIN Workspace History Overlay UX — Selection, Range, Sizing, Density & Unified Delete)
+
+## Mode
+
+**Agent** · ADMIN Workspace History Overlay UX Refactoring · Selection & Delete Pipeline Integration · Density & Sizing Polish · Docs Sync
+
+## Background & Initial Problems
+
+ADMIN 화면의 Workspace History Overlay에서 스냅샷 관리 및 조회 시 다음 문제점들이 확인됨:
+1. **All 버튼 무반응/오작동:** 상단의 `All` 버튼이 "전체 선택" 액션이 아닌 `tab === "all"` 전환 버튼으로 바인딩되어 있어, 기본 로컬데이터 화면에서 클릭해도 아무 반응이 없음.
+2. **로컬데이터 탭 체크박스 비활성화:** `<input type="checkbox" disabled={tab !== "unexported"} />`로 하드코딩되어 있어, 기본 로컬 화면에서 체크박스 선택이 불가.
+3. **작은 모달 크기로 인한 공간 낭비:** 폭 540px, 높이 540px 수준의 소형 모달로 당구대 내부 세로 공간을 거의 활용하지 못함.
+4. **체크박스 조작성 부족 및 오조작 위험:** 체크박스 visual 크기(18px)가 작아, 체크박스 클릭 시도 중 부모 Row를 클릭하여 의도치 않게 Workspace Load(데이터 복원)가 실행될 위험 존재.
+5. **분산된 삭제 UX:** 각 행 우측의 `❌ 삭제` 버튼 및 하단의 임의 Bulk 삭제(`Delete 30개`)로 인해 삭제 진입점이 분산되어 관리 효율 저하.
+
+## Root Cause Analysis
+
+- **All 역할 혼재:** 전체 선택 Action과 목록 Filter View의 개념이 탭 버튼 하나에 혼재되어 있었음.
+- **체크박스 disabled 조건:** Unexported 탭에서만 체크박스를 활성화하는 과거 제약이 남아 있었음.
+- **모달 사이징 정책:** 일반 소형 다이얼로그 스타일(`modal-panel--history`)을 답습하여 데이터 관리용 대형 패널 역할을 수행하기에 세로 공간이 부족했음.
+- **Hit-Area 부재:** 체크박스 클릭 영역이 input 엘리먼트 자체에 한정되어 Row 본문 클릭과의 경계가 협소했음.
+
+## Fix & Implemented Solutions
+
+1. **상단 컨트롤 UX 구조 개편:**
+   - `[ 전체선택 / 전체선택 해제 ]`: Action 토글 버튼 (`currentList` 전체 선택/해제).
+   - `[ 로컬데이터 ]`: 전체 Workspace History 표시 View 필터 (`tab === "all"`).
+   - `[ Unexported ]`: 미Export Workspace(`exported !== true`) 표시 View 필터.
+2. **View 전환 시 Selection Reset:**
+   - 로컬데이터 ↔ Unexported 탭 전환 시 `selectedIds = []` 및 Shift 범위 인덱스 자동 초기화 → 타 뷰 데이터 오삭제 원천 방지.
+3. **개별 Checkbox 활성화 & Shift 범위 선택:**
+   - `disabled` 제약 제거로 양쪽 뷰 모두 체크박스 동작.
+   - `lastCheckedIndexRef`를 활용한 `Shift + Checkbox` 범위 일괄 선택/해제 지원.
+4. **Row Click vs Checkbox Click 완전 분리 (Regression Guard):**
+   - Checkbox / Hit-Area: `e.stopPropagation()` 처리로 부모 Row로의 버블링 완전 차단.
+   - Row 본문 클릭: 기존 `onLoad(snap.id)` → Admin Workspace 복원 기능 100% 보존.
+5. **단일 Delete 파이프라인 통합:**
+   - 행별 `❌ 삭제` 및 `Delete 30개` 버튼 제거.
+   - 하단 `Delete (n)` 단일 버튼 통합 (0개 시 disabled, 1개 이상 시 enabled).
+   - `window.confirm("선택한 Workspace n개를 삭제하시겠습니까?")` 확인 후 `deleteSnapshotsByIds(ids)` 호출 → localStorage 일괄 갱신 및 목록 즉시 리프레시.
+6. **Export 파이프라인 보존:**
+   - Unexported 탭에서 선택 후 `Export` 클릭 시 기존 `handleExportSnapshots` 정상 연동.
+7. **모달 세로 높이 ~1.5배 확장 & 독립 스크롤:**
+   - `width: min(880px, 94vw); max-width: 960px;` (기존 안정 폭 유지).
+   - `height: min(820px, 90vh); max-height: min(860px, 92vh); min-height: min(680px, 85vh);` 적용하여 당구대 내부 세로 공간 극대화.
+   - Header, Controls, Footer 고정 + List Body(`flex: 1, minHeight: 0, overflowY: "auto"`) 독립 세로 스크롤.
+8. **Row 고밀도화 & 체크박스 Hit-Area 확대:**
+   - Row: 상하 패딩 `14px` → `7px`, 마진 `10px` → `6px` (Row 높이 ~44px로 한 화면 노출량 2배 증가).
+   - Checkbox: Visual `24px × 24px`, 전용 Hit-Area `36px × 36px` 래퍼 구성으로 클릭 편의성 극대화.
+
+## Files Modified (Minimal 4 files)
+
+1. `frontend/src/components/WorkspaceHistoryModal.jsx`: 상단 컨트롤, 체크박스, Shift 선택, Delete 파이프라인, 고밀도 행, Hit-Area 래퍼
+2. `frontend/src/index.css`: `.modal-panel--history` 세로 높이 확장 및 flex 레이아웃
+3. `frontend/src/domain/workspaceHistory.ts`: `deleteSnapshotsByIds(ids: string[])` 일괄 삭제 도메인 함수 추가
+4. `frontend/src/hooks/useSettings.js`: `handleDeleteWorkspaceSnapshot` 다중 ID 수용 처리
+
+## Preserved SSOT & Boundaries (Zero Regression)
+
+- USER Overlay Centering SSOT (`UserOverlayShell.jsx`, `overlayLayoutTokens.ts`) **일체 미변경**
+- SYS 계산 엔진, Trajectory 엔진, DisplayModel, Projection **일체 미변경**
+- Admin Workspace 복원(`handleLoadWorkspaceSnapshot`), Export 파일 생성(`saveDatasetExportToFile`) 로직 **일체 미변경**
+
+## Verification
+
+| Suite / Check | Result |
+|---|---|
+| 브라우저 실검증 (전체선택/로컬/Unexported/체크박스/Shift선택/Row복원/Delete/Export/스크롤) | **PASS** |
+| `npm run build` | **PASS** (`vite build` 6.87s) |
+| Vitest (Workspace History & Settings contract tests, 3 files) | **32 PASS** (3 files) |
+| ESLint (수정 4개 파일 대상) | **0 errors**, 2 warnings (기존 hook deps) |
+| Git 상태 | **Commit / Push 미실시 (대기)** |
 
 ---
 

@@ -1,16 +1,17 @@
 # Overlay Layout SSOT v1.2
 
 **Status:** Confirmed  
-**Scope:** USER Overlays only (AI · 타점/HPT · 계산/Calculation)  
-**Out of scope:** Admin Overlays, Runtime, Formula, Dataset, Calculator Engine  
-**Container SSOT:** `.table-area`  
-**Positioning SSOT:** `UserOverlayShell`  
-**Last Updated:** 2026-08-12  
+**Scope:** USER Overlays (AI · 타점/HPT · 계산/Calculation) & ADMIN Workspace History Overlay Layout Boundary (2026-08-28)  
+**Out of scope:** SYS Formula, Dataset Storage internals, Calculator Engine  
+**Container SSOT:** `.table-area` (USER) / Viewport & ModalShell (ADMIN)  
+**Positioning SSOT:** `UserOverlayShell` (USER) / `ModalShell` (ADMIN)  
+**Last Updated:** 2026-08-28  
 
-> 본 문서는 사용자 Overlay의 **공통 Shell 규약**이다.  
+> 본 문서는 사용자 Overlay의 **공통 Shell 규약** 및 관리자 모달과의 **레이어 경계 규약**이다.  
 > v1.2는 AI Overlay 실사용 검증 결과를 공통 USER Overlay SSOT로 승격한 버전이다.  
 > 2026-07-28: USER Overlay Standard · Close/Toolbar · AI/HPT/CALC mapping · Shell/Content 역할을 증분 반영한다.  
 > 2026-08-12: **Centering SSOT** — live panel dimensions · Panel/Table ResizeObserver · dragOffset 정책 · 브라우저 검증 완료.  
+> 2026-08-28: **ADMIN Workspace History Overlay UX SSOT** — ModalShell 프레임 · 대형 관리 공간 · 고밀도 행 · 확대 체크박스 & 전용 히트영역 · 단일 Delete 파이프라인.  
 > (과거 v1.2 Decision Summary는 유지한다.)
 
 ---
@@ -560,6 +561,80 @@ v1.2에서 공식 확정된 사항:
 20. Zoom In/Out = table-area center 재배치 (이전 시각 중심 유지 금지).
 21. Root Cause B+C (stale panel dimensions + content reflow) → Panel RO로 해결.
 22. widthRatio 정책(0.42 / 0.62) · DisplayModel / SYS **미변경**.
+
+### 2026-08-28 Incremental Decisions (ADMIN Workspace History Overlay UX)
+
+23. **계층 분리:** USER Overlay(`UserOverlayShell` centering SSOT)와 ADMIN History Overlay(`ModalShell` + `WorkspaceHistoryModal`)는 서로 다른 계층/책임이다.
+24. **목적:** History Overlay는 배경 공 위치 관찰용이 아니며, 대량 Workspace 스냅샷 조회·복원·선택·삭제·Export를 위한 전용 관리 패널이다.
+25. **크기 정책:**
+    - 가로 폭: `width: min(880px, 94vw)`, `max-width: 960px` (기존 안정 폭 유지).
+    - 세로 높이: `height: min(820px, 90vh)`, `max-height: min(860px, 92vh)`, `min-height: min(680px, 85vh)` (세로 공간 ~1.5배 확대하여 당구대 내부 높이 적극 활용).
+26. **고정/스크롤 구조:**
+    - Header (`flex-shrink: 0`), 상단 Controls (`flex-shrink: 0`), Footer (`flex-shrink: 0`) 고정.
+    - List Body (`flex: 1, min-height: 0, overflow-y: auto`) 독립 세로 스크롤.
+27. **상단 Controls UX:**
+    - `[전체선택 / 전체선택 해제]`: Action 토글 버튼 (현재 표시 목록 전체 선택/해제).
+    - `[로컬데이터]`: View/Filter 전환 버튼 (`tab === "all"`, 전체 로컬 히스토리 표시).
+    - `[Unexported]`: View/Filter 전환 버튼 (`exported !== true` 미Export 히스토리 표시).
+    - View 전환 시 `selectedIds` 및 Shift 선택 기준 자동 reset.
+28. **선택 & 인터랙션 완전 분리:**
+    - Checkbox 클릭: `e.stopPropagation()` 후 Selection 토글만 수행 (로컬데이터/Unexported 양쪽 동작).
+    - Row 본문 클릭: 기존 `onLoad(snap.id)` 실행 (Admin Workspace Load/Restore 100% 보존).
+    - Shift + Checkbox: 직전 선택 항목과 현재 항목 사이의 범위 선택 지원 (Row click과 분리).
+29. **고밀도 행 & 체크박스 조작성:**
+    - Row: `padding: 7px 14px`, `marginBottom: 6`, 높이 ~44px (기존 ~58px 대비 세로 여백 축소로 한 화면 노출량 2배 증가).
+    - Checkbox: Visual `24px × 24px`, 전용 Hit-Area `36px × 36px` 래퍼로 오조작 방지.
+30. **단일 Delete 파이프라인:**
+    - 개별 행 삭제 버튼 및 임의 Bulk 삭제(Delete 30개 등) 제거.
+    - 하단 단일 `Delete (n)` 버튼 통합 (0개 시 disabled, 1개 이상 시 enabled).
+    - `window.confirm` 삭제 확인 후 `deleteSnapshotsByIds` 일괄 삭제 → 목록 즉시 리프레시.
+31. **Export 파이프라인 보존:**
+    - `WorkspaceSnapshot.exported`, `updateSnapshotsExported`, `saveDatasetExportToFile` 파이프라인 유지.
+
+---
+
+## 14. ADMIN Workspace History Overlay Layout & UX (2026-08-28)
+
+### 14.1 책임 및 계층 경계
+
+```text
+ADMIN Workspace History
+  App.jsx (setShowHistoryModal)
+    ↓
+  WorkspaceHistoryModal.jsx (History-specific Controls, Selection, Density, Delete)
+    ↓
+  ModalShell.jsx (Draggable, Modal Backdrop, Fixed, Header Drag Handle)
+```
+
+- **USER Overlay와의 분리:** USER Overlay(`UserOverlayShell`)의 centering SSOT, Ratio Token, glassDark 규약과 혼합하지 않는다.
+- **ADMIN Modal 프레임:** `ModalShell`의 `panelClassName="modal-panel--history"`를 통해 크기 및 flex 레이아웃을 통제한다.
+
+### 14.2 크기 및 고밀도 레이아웃 규약
+
+| 요소 | CSS / Style 규약 | 목적 |
+|------|-----------------|------|
+| **패널 가로 폭** | `width: min(880px, 94vw); max-width: 960px;` | 데스크톱/태블릿 안정적 폭 유지 |
+| **패널 세로 높이** | `height: min(820px, 90vh); max-height: min(860px, 92vh); min-height: min(680px, 85vh);` | 당구대 내부 세로 공간 활용 극대화 |
+| **Header** | `flex-shrink: 0; padding: 16px 24px; font-size: 20px; font-weight: 700;` | 타이틀 및 닫기 고정 |
+| **Top Controls** | `flex-shrink: 0; padding: 12px 24px; gap: 10px; background: #f8fafc;` | 전체선택 / 로컬데이터 / Unexported 고정 |
+| **List Body** | `flex: 1; min-height: 0; overflow-y: auto; padding: 12px 20px;` | 스냅샷 목록 독립 세로 스크롤 |
+| **Footer Actions** | `flex-shrink: 0; padding: 14px 24px; gap: 10px; background: #f8fafc;` | Delete (n) / Export / 닫기 고정 |
+| **History Row** | `padding: 7px 14px; margin-bottom: 6px; font-size: 15px;` (높이 ~44px) | 고밀도 데이터 표시 (화면당 13~15개 노출) |
+| **Checkbox** | Visual `24px × 24px`, Hit-Area `36px × 36px` | 오조작 방지 및 편안한 터치/클릭 영역 |
+
+### 14.3 기능 동작 및 상태 규약
+
+1. **상단 컨트롤:**
+   - `[전체선택]` / `[전체선택 해제]`: 현재 `currentList` 전체 선택/해제.
+   - `[로컬데이터]`: 전체 스냅샷 표시.
+   - `[Unexported]`: `exported !== true` 스냅샷 표시.
+   - 탭 전환 시 `selectedIds = []` 및 Shift 범위 인덱스 자동 초기화.
+2. **이벤트 분리 (Regression Guard):**
+   - Row 본문 클릭: `onLoad(snap.id)` → Admin Workspace 복원.
+   - Checkbox / Hit-Area 클릭: `e.stopPropagation()` → Selection 토글만 수행.
+   - Shift + Checkbox: `lastCheckedIndexRef` 기반 현재 목록 범위 선택.
+3. **삭제 파이프라인:**
+   - `Delete (n)` 버튼 클릭 → `window.confirm` 확인 → `deleteSnapshotsByIds(ids)` 실행 → 목록 갱신.
 
 ---
 

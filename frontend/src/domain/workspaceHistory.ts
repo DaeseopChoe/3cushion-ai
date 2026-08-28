@@ -143,6 +143,16 @@ export function deleteSnapshotById(id: string): WorkspaceSnapshot[] {
   return next;
 }
 
+/** 여러 ID로 스냅샷 일괄 삭제 */
+export function deleteSnapshotsByIds(ids: string[]): WorkspaceSnapshot[] {
+  if (!ids || ids.length === 0) return loadWorkspaceHistory();
+  const idSet = new Set(ids);
+  const history = loadWorkspaceHistory();
+  const next = history.filter((s) => !idSet.has(s.id));
+  saveWorkspaceHistory(next);
+  return next;
+}
+
 /** 최신순 정렬 기준, 가장 오래된 30개 삭제 */
 export function deleteOldest30(): WorkspaceSnapshot[] {
   const history = loadWorkspaceHistory();
