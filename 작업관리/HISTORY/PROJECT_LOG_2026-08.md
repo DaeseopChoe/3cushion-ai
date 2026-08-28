@@ -75,6 +75,18 @@ const displayCoord =
 | `npm run build` | **PASS** (`vite build` production bundle 정상 생성) |
 | `git diff --check` | **PASS** (formatting / whitespace 이상 없음) |
 
+## Release checkpoint
+
+| Item | Result |
+|------|--------|
+| Commit | `0105e472bd55697c6b188cd34c12c997952ee984` · `feat(precision): show live coordinates during guide drag` |
+| Push | **PASS** · `origin/main` matches local `HEAD` |
+| Vercel | **PASS** · existing GitHub → Vercel Git integration · Production deployment `6139357202` |
+| Deployed SHA | `0105e472bd55697c6b188cd34c12c997952ee984` |
+| Deployment URL | `https://3cushion-hifcbhjzd-3cushionai.vercel.app` |
+| Production URL | `https://3cushion-ai.vercel.app` |
+| HTTP / visual smoke test | **PASS** · Guide live coordinate display, Ball immutability, Snap, Joystick, table frame/scales/geometry visible and responsive |
+
 ---
 
 # 2026-08-28 (ADMIN Workspace History Overlay UX — Selection, Range, Sizing, Density & Unified Delete)

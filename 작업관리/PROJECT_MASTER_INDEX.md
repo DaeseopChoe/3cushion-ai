@@ -87,6 +87,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Explicit exclusion** | CO/C1 Alt+drag는 구현하지 않음 · Guide Alt+drag는 유지 |
 | **Verification** | 사용자 앱 실검증 완료(Visual Review PASS) · targeted tests PASS (22/22) · production build PASS |
 | **Architecture** | SYS formula · Fg/Rg contract · trajectory/Impact physics · dataset/History/WRITE SSOT 불변 |
+| **Release state** | Visual review approved · `0105e47` pushed · Vercel Production verified (`6139357202`) |
 
 ### Table Redesign / Label Clarity (2026-08-27)
 
