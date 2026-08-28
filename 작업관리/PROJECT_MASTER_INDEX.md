@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 1.97
-Last Updated: 2026-08-27  
+Version: 1.99
+Last Updated: 2026-08-28  
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
@@ -1570,17 +1570,16 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 ### OPEN-02 신규 Export 데이터 Search 실패
 
-**상태:** 조사 중
+**상태:** **해결** (2026-08-28) — ADMIN/USER Published Search canonical shotType leaf resolving 연결 + USER candidate published leaf multi-resolution + History Export 성공 후 published cache invalidation
 
-**증상:**
+**원인 및 해결 (2026-08-28):**
+1. **ADMIN Published Search leaf resolution:** `adminSearchFlow.ts`가 `adminState.sys`의 canonical `shotType`/`systemId`를 읽지 않고 `userPublishedSearchContext`만 읽어 `"뒤돌리기"`로 기본 fallback하던 결함 수정 (`resolvePublishedLeafHints` 연동).
+2. **USER Published Search runtime leaf resolution:** USER 초기 진입 시 `shotType` context가 `null`일 때 임의의 단일 fallback(`"뒤돌리기"`)으로 404가 발생하던 결함 수정 (`resolveCandidatePublishedLeaves`로 `shot_types.json` canonical active shot types 대상 candidate leaf multi-resolution 수행, 매칭 시 context 확정).
+3. **Export Cache Invalidation:** `useSettings.js` `handleExportSnapshots` 성공 후 `refreshPublishedDataset(shotType, systemId)` 호출로 in-memory leafCache 갱신 보장.
+4. **운영 분리 명문화:** History Export는 클라이언트 로컬 디스크 기록이며, Production Search(`www.3cushionai.com`) 반영을 위해서는 Git Commit/Push 및 Vercel 배포 파이프라인 수행 필수.
+5. **보존:** Search matcher, 2Rg threshold, Ball3 Role SSOT, dataset records 일체 변경 없음.
 
-- 신규 export 후 ADMIN Search (published) 및 USER Search에서 조회되지 않는 사례 존재
-
-**현재 가설:**
-
-- Published Dataset Loader · profile (`userStrict` / `adminStrict`) · exact match 조건 · cache stale 중 하나
-
-**우선순위:** P0
+**우선순위:** ~~P0~~ CLOSED
 
 ### OPEN-03 USER HP/T 버튼 소실
 

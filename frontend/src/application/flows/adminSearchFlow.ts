@@ -16,6 +16,7 @@ import { getOrLoadPublishedLeaf } from "../../domain/publishedDatasetStore";
 import { resolvePublishedLeafKey } from "../../domain/publishedLeafResolve";
 import {
   normalizePublishedShotTypeHint,
+  resolvePublishedLeafHints,
   adminSysFromRecallEntry,
 } from "./recallHydrateFlow";
 
@@ -91,12 +92,24 @@ export async function runAdminSearch(
     (ctx.adminState as Record<string, unknown> | undefined)?.sys,
   );
 
+  const runtimeHints = resolvePublishedLeafHints(
+    (ctx.adminState as Record<string, unknown> | undefined)?.sys as
+      | Record<string, unknown>
+      | null
+      | undefined,
+    ctx.slots,
+    ctx.activeSlot
+  );
+
   const { shotType, systemId } = resolvePublishedLeafKey({
     mode: "ADMIN",
-    shotType: normalizePublishedShotTypeHint(
-      ctx.userPublishedSearchContext?.shotType
-    ),
-    systemId: ctx.userPublishedSearchContext?.systemId,
+    shotType:
+      runtimeHints.shotType ??
+      normalizePublishedShotTypeHint(
+        ctx.userPublishedSearchContext?.shotType
+      ),
+    systemId:
+      runtimeHints.systemId ?? ctx.userPublishedSearchContext?.systemId,
   });
 
   const loadResult = await getOrLoadPublishedLeaf(shotType, systemId);
@@ -122,7 +135,7 @@ export async function runAdminSearch(
     url: loadResult.url,
     fromCache: loadResult.fromCache,
     recordCount: publishedRecords.length,
-    leafSource: "userPublishedSearchContext_or_default",
+    leafHints: runtimeHints,
     persistedContext: ctx.userPublishedSearchContext,
   });
 

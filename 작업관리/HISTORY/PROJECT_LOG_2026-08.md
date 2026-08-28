@@ -1,8 +1,71 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.64
+Version : v1.66
 Period : 2026-08  
 Status : Active Project Log
+
+---
+
+# 2026-08-28 (OPEN-02 — Published Search Leaf Resolution, USER Candidate Multi-Resolution & Export Cache Invalidation)
+
+## Mode
+
+**Agent** · OPEN-02 Root Cause Fix · ADMIN + USER runtime leaf resolution · minimal code + test + docs
+
+## Background & Root Cause
+
+History Export로 저장된 데이터(`dataset/옆돌리기/파이브앤하프/positions.json`)가 ADMIN Published Search / USER Search에서 NO MATCH 되는 원인 조사(Audit) 결과 확정:
+1. **ADMIN Published Search leaf resolution divergence:** `adminSearchFlow.ts`에서 `resolvePublishedLeafHints`를 호출하지 않고 `userPublishedSearchContext?.shotType`만 참조하여, `null`일 때 `resolvePublishedLeafKey`가 무조건 `"뒤돌리기"`로 fallback → `dataset/뒤돌리기/...` 404/empty corpus fetch → NO MATCH.
+2. **USER Published Search runtime initial context wiring:** USER UI 초기 진입 시 `shotType` context가 `null`(선택 UI 없음)일 때, 기존 `resolvePublishedLeafKey`가 임의의 단일 fallback(`"뒤돌리기"`)을 적용하여 `dataset/뒤돌리기/...` 404/empty corpus fetch → NO MATCH.
+3. **Export Cache Invalidation omission:** `useSettings.js` `handleExportSnapshots` 성공 후 `publishedDatasetStore`의 in-memory `leafCache`(`shotType::systemId`)를 무효화하지 않아, export 이전의 404/empty 캐시가 지속 유지됨.
+4. **Local vs Production separation:** History Export는 브라우저의 로컬 파일 시스템 쓰기이며, Production Published Search(`www.3cushionai.com`) 반영에는 Git commit/push/Vercel 배포 파이프라인이 필수.
+
+## Fix Applied (Minimal)
+
+1. `frontend/src/domain/publishedLeafResolve.ts`:
+   - `listCanonicalShotTypes()`: `frontend/src/data/meta/admin/shot_types.json` SSOT로부터 활성 공략 라벨 목록 추출.
+   - `resolveCandidatePublishedLeaves()`: `shotType`이 명시된 경우 단일 leaf 반환; USER 모드에서 `shotType`이 `null`인 경우 canonical active shot types 기반 candidate leaves (`SYSTEMID_TO_SHOTTYPE_CARDINALITY: 1:N`) 생성.
+2. `frontend/src/application/flows/userSearchFlow.ts`:
+   - `resolveCandidatePublishedLeaves` 연동하여 candidate leaves 순차 조회 및 Euclidean spatial recall 수행.
+   - 매칭 성공 시 실제 매칭된 leaf(`shotType`, `systemId`)를 `userPublishedSearchContext`로 확정 저장.
+   - 단일 leaf/다중 leaf 오류 처리 및 distance 기반 최적 candidate 선택.
+3. `frontend/src/application/flows/adminSearchFlow.ts`:
+   - `resolvePublishedLeafHints` 연동: `adminState.sys`, `slots`, `activeSlot`에서 canonical `shotType`/`systemId` 추출.
+   - `resolvePublishedLeafKey`에 canonical `runtimeHints` 우선 전달.
+4. `frontend/src/hooks/useSettings.js`:
+   - `handleExportSnapshots` 내 export 성공 snapshot 루프에서 `refreshPublishedDataset(shotType, systemId)` 호출 추가. Export 실패 시에는 refresh 미실행.
+5. `frontend/src/domain/publishedLeafResolve.test.ts`:
+   - `listCanonicalShotTypes`, `resolveCandidatePublishedLeaves`, `resolvePublishedLeafKey` 단위 테스트 추가.
+6. `frontend/src/application/flows/publishedSearchLeafResolution.contract.test.ts` (신규 10 tests):
+   - CASE A: ADMIN Published Search canonical shotType/systemId leaf resolution.
+   - CASE B: Non-default shotType(빗겨치기 등) 보존.
+   - CASE C: History Export 성공 후 published cache invalidation.
+   - CASE D: Export 실패 시 cache 유지.
+   - CASE E: Representative exact Ball3 match (d=0).
+   - CASE F: Role SSOT protection (target/second swap no-match).
+   - USER Search canonical leaf match regression.
+   - USER Search 초기 상태 (`shotType: null`, `adminState.sys.shotType: ""`)에서 candidate resolution → `옆돌리기` MATCH.
+   - USER Search 비기본 shotType (`비켜치기`) 동적 candidate resolution MATCH (하드코딩 부재 검증).
+   - Cache regression: fallback empty cache 존재 시에도 canonical resolution 및 ready cache 갱신.
+
+## Preserved SSOT & Boundaries (Zero Regression)
+
+- Search matcher / Euclidean distance / 2Rg threshold 변경 **없음**
+- Ball3 Role SSOT (`cue ↔ cue`, `target ↔ target`, `second ↔ second`) 변경 **없음**
+- target/second permutation 금지 원칙 유지
+- Trajectory / Coverage candidate 정책 유지
+- POLICY A (Recall view-only, Reset canonical edit 전환) 유지
+- Dataset records / Migration / Schema 변경 **없음**
+
+## Verification
+
+| Suite | Result |
+|-------|--------|
+| `publishedSearchLeafResolution.contract.test.ts` | **10 PASS** |
+| `publishedLeafResolve.test.ts` | **10 PASS** |
+| Targeted Core / Role / Search / Parity suite (10 files) | **88 PASS** |
+| Family / Extension / Derived Review suite (11 files) | **183 PASS** |
+| `npm run build` | **PASS** (`vite build` 6.51s) |
 
 ---
 

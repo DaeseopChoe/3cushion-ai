@@ -16,7 +16,10 @@ import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
 import { runSpatialRecall } from "../../domain/recall/recallEngine";
 import { type PositionRecord } from "../../domain/positionSearchEngine";
 import { getOrLoadPublishedLeaf } from "../../domain/publishedDatasetStore";
-import { resolvePublishedLeafKey } from "../../domain/publishedLeafResolve";
+import {
+  resolveCandidatePublishedLeaves,
+  resolvePublishedLeafKey,
+} from "../../domain/publishedLeafResolve";
 import {
   normalizePublishedShotTypeHint,
   resolvePublishedLeafHints,
@@ -81,75 +84,76 @@ export async function runUserSearch(
     ctx.activeSlot
   );
 
-  const { shotType, systemId } = resolvePublishedLeafKey({
+  const rawShotType =
+    runtimeHints.shotType ??
+    normalizePublishedShotTypeHint(ctx.userPublishedSearchContext?.shotType);
+  const rawSystemId =
+    runtimeHints.systemId ?? ctx.userPublishedSearchContext?.systemId;
+
+  const candidateLeaves = resolveCandidatePublishedLeaves({
     mode: "USER",
-    shotType:
-      runtimeHints.shotType ??
-      normalizePublishedShotTypeHint(ctx.userPublishedSearchContext?.shotType),
-    systemId:
-      runtimeHints.systemId ?? ctx.userPublishedSearchContext?.systemId,
+    shotType: rawShotType,
+    systemId: rawSystemId,
   });
 
   ctx.clearUserSearchDisplayRuntime();
   ctx.clearSearchSlotDrafts();
   ctx.resetUserSearchTargetSelection();
 
-  const loadResult = await getOrLoadPublishedLeaf(shotType, systemId);
-
-  if (loadResult.kind === "error") {
-    alert(`Search 데이터 로드 오류: ${loadResult.message}`);
-    return null;
-  }
-
-  const publishedRecords = loadResult.kind === "ok" ? loadResult.records : [];
   const rawBalls = ctx.ballsState ?? {};
   const currentBalls = normalizeBallsToBall3(rawBalls as Record<string, unknown>);
-
-  console.log("[USER_PUBLISHED_SEARCH]", {
-    shotType,
-    systemId,
-    url: loadResult.url,
-    fromCache: loadResult.fromCache,
-    recordCount: publishedRecords.length,
-    leafHints: runtimeHints,
-    persistedContext: ctx.userPublishedSearchContext,
-  });
-
   const recallProfile = "userStrict";
 
-  const spatialResult = runSpatialRecall({
-    dataset: publishedRecords,
-    query: { balls: currentBalls, targetBall: null },
-    profile: recallProfile,
-  });
+  let bestMatchRecord: PositionRecord | null = null;
+  let bestMatchDistance = Infinity;
+  let bestMatchLeaf: { shotType: string; systemId: string } | null = null;
+  let hasLoadedRecords = false;
 
-  const result =
-    spatialResult.kind === "match"
-      ? {
-          kind: "match" as const,
-          record: spatialResult.record,
-          distance: spatialResult.distance,
+  for (const leaf of candidateLeaves) {
+    const loadResult = await getOrLoadPublishedLeaf(leaf.shotType, leaf.systemId);
+    if (loadResult.kind === "error") {
+      if (candidateLeaves.length === 1) {
+        alert(`Search 데이터 로드 오류: ${loadResult.message}`);
+        return null;
+      }
+      continue;
+    }
+
+    const publishedRecords = loadResult.kind === "ok" ? loadResult.records : [];
+    if (publishedRecords.length > 0) {
+      hasLoadedRecords = true;
+    }
+
+    console.log("[USER_PUBLISHED_SEARCH]", {
+      shotType: leaf.shotType,
+      systemId: leaf.systemId,
+      url: loadResult.url,
+      fromCache: loadResult.fromCache,
+      recordCount: publishedRecords.length,
+      leafHints: runtimeHints,
+      persistedContext: ctx.userPublishedSearchContext,
+    });
+
+    const spatialResult = runSpatialRecall({
+      dataset: publishedRecords,
+      query: { balls: currentBalls, targetBall: null },
+      profile: recallProfile,
+    });
+
+    if (spatialResult.kind === "match") {
+      if (spatialResult.distance < bestMatchDistance) {
+        bestMatchDistance = spatialResult.distance;
+        bestMatchRecord = spatialResult.record;
+        bestMatchLeaf = leaf;
+        if (spatialResult.distance === 0) {
+          break;
         }
-      : {
-          kind: "no-match" as const,
-          reason:
-            (spatialResult as { reason?: string }).reason === "empty-dataset"
-              ? "empty-dataset"
-              : (spatialResult as { reason?: string }).reason ===
-                  "over-max-distance"
-                ? "over-max-distance"
-                : "coarse-empty",
-        };
+      }
+    }
+  }
 
-  console.log("[USER_SEARCH_RECALL]", {
-    profile: recallProfile,
-    spatialResult,
-    result,
-  });
-
-  if (!result || result.kind === "no-match") {
-    const reason =
-      result?.kind === "no-match" ? result.reason : "unknown";
+  if (!bestMatchRecord || !bestMatchLeaf) {
+    const reason = hasLoadedRecords ? "over-max-distance" : "empty-dataset";
     console.log("[USER_SEARCH_RECALL] no-match", reason);
     ctx.showToast("일치하는 포지션이 없습니다.", { variant: "center" });
     return null;
@@ -157,12 +161,13 @@ export async function runUserSearch(
 
   console.log("[USER_SEARCH_RECALL] applyUserSearchRecall", {
     profile: recallProfile,
-    positionId: result.record?.positionId,
-    distance: result.distance,
+    positionId: bestMatchRecord.positionId,
+    distance: bestMatchDistance,
+    leaf: bestMatchLeaf,
   });
 
-  ctx.applyUserSearchRecall(result.record);
-  ctx.setUserLastSearchRecord(result.record);
-  ctx.setUserPublishedSearchContext({ shotType, systemId });
-  return result.record;
+  ctx.applyUserSearchRecall(bestMatchRecord);
+  ctx.setUserLastSearchRecord(bestMatchRecord);
+  ctx.setUserPublishedSearchContext(bestMatchLeaf);
+  return bestMatchRecord;
 }

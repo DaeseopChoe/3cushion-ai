@@ -37,6 +37,7 @@ import {
 import { canonicalDebugLog } from "../domain/canonicalPersistAudit";
 import { persistPositionsDatasetWithGeneration } from "../domain/dataset/infra/persistPositionsDatasetWithGeneration";
 import { POSITIONS_DATASET_META_KEY } from "../domain/dataset/infra/positionsDatasetMeta";
+import { refreshPublishedDataset } from "../domain/publishedDatasetStore";
 
 async function getOrCreateDir(parent, name) {
   return parent.getDirectoryHandle(name, { create: true });
@@ -411,6 +412,9 @@ export function useSettings({
       for (const snap of toExport) {
         const ok = await saveDatasetExportToFile(snap, rootDir);
         if (!ok) return;
+        const shotType = snap.pattern ?? "뒤돌리기";
+        const systemId = snap.systemId ?? "5_half_system";
+        refreshPublishedDataset(shotType, systemId);
       }
       // Product Export Pipeline: write Authoring Adapter input for Product Host → Generator.
       await saveProductExportRequestToFile(toExport, rootDir);
