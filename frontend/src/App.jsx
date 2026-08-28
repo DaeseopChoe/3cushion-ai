@@ -5632,6 +5632,18 @@ function handlePointerCancel(e) {
         dragState.ballId &&
         balls[dragState.ballId] && (() => {
   const bp = balls[dragState.ballId];
+  const isGuideActiveForBall =
+    guideState.active &&
+    guideState.ballId === dragState.ballId &&
+    Number.isFinite(guideState.verticalX) &&
+    Number.isFinite(guideState.horizontalY);
+  const displayCoord =
+    guideDragState.active && isGuideActiveForBall
+      ? {
+          x: guideState.verticalX,
+          y: guideState.horizontalY,
+        }
+      : bp;
 
   // Joystick geometry: Interaction SSOT와 동일 식 (joystickInteractionPolicy)
   const BASE_R = JOYSTICK_BASE_R_PX;
@@ -5668,7 +5680,7 @@ function handlePointerCancel(e) {
         fontWeight="400"
         pointerEvents="none"
       >
-        ({bp.x.toFixed(1)}, {bp.y.toFixed(1)})
+        ({displayCoord.x.toFixed(1)}, {displayCoord.y.toFixed(1)})
       </text>
     </g>
   );

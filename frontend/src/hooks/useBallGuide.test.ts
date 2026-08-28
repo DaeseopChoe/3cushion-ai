@@ -360,4 +360,50 @@ describe("Ball Guide runtime state", () => {
       resolveBallGuideSnapActionHit({ x: 74, y: 34 }, guide, 80, 40)
     ).toBeNull();
   });
+
+  it("updates x and preserves y during vertical guide drag while ball position remains separate", () => {
+    const ballPos = { x: 20, y: 15 };
+    const guide = createBallGuideState("cue", ballPos);
+    const vDrag = {
+      active: true,
+      axis: "vertical" as const,
+      pointerId: 1,
+      startRg: { x: 20, y: 15 },
+      startValue: 20,
+      precisionFactor: 1,
+    };
+
+    const updatedGuide = updateBallGuideFromPointer(guide, vDrag, {
+      x: 35.4,
+      y: 99,
+    });
+
+    expect(updatedGuide.verticalX).toBe(35.4);
+    expect(updatedGuide.horizontalY).toBe(15);
+    // Ball committed position is separate and remains unchanged
+    expect(ballPos).toEqual({ x: 20, y: 15 });
+  });
+
+  it("updates y and preserves x during horizontal guide drag while ball position remains separate", () => {
+    const ballPos = { x: 20, y: 15 };
+    const guide = createBallGuideState("cue", ballPos);
+    const hDrag = {
+      active: true,
+      axis: "horizontal" as const,
+      pointerId: 1,
+      startRg: { x: 20, y: 15 },
+      startValue: 15,
+      precisionFactor: 1,
+    };
+
+    const updatedGuide = updateBallGuideFromPointer(guide, hDrag, {
+      x: 99,
+      y: 28.7,
+    });
+
+    expect(updatedGuide.verticalX).toBe(20);
+    expect(updatedGuide.horizontalY).toBe(28.7);
+    // Ball committed position is separate and remains unchanged
+    expect(ballPos).toEqual({ x: 20, y: 15 });
+  });
 });

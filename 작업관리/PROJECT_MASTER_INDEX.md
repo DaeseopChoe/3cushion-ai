@@ -1,12 +1,12 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.00
-Last Updated: 2026-08-28  
+Version: 2.01
+Last Updated: 2026-08-28
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
-> 기능이 완료·변경될 때마다 이 문서만 갱신한다.  
-> 상세 이력은 `HISTORY/PROJECT_LOG_YYYY-MM.md`에 둔다.  
-> **폴더·파이프라인 구조 변경** 시 `5_PROJECT_MASTER_STATE_CURRENT.md` 전면 재작성.  
+> 기능이 완료·변경될 때마다 이 문서만 갱신한다.
+> 상세 이력은 `HISTORY/PROJECT_LOG_YYYY-MM.md`에 둔다.
+> **폴더·파이프라인 구조 변경** 시 `5_PROJECT_MASTER_STATE_CURRENT.md` 전면 재작성.
 > 공식 용어·Official Pipeline: `작업관리/GLOSSARY_SSOT.md` (Terminology Authority).
 
 ---
@@ -35,8 +35,8 @@ Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project En
 
 ### Foundation Summary
 
-Phase 4 Foundation established the Project Governance required before Product Pipeline implementation.  
-All Constitution-level documents are now aligned (MASTER · Architecture Freeze · GLOSSARY · HANDOFF · LOG · Product Phase Handoff).  
+Phase 4 Foundation established the Project Governance required before Product Pipeline implementation.
+All Constitution-level documents are now aligned (MASTER · Architecture Freeze · GLOSSARY · HANDOFF · LOG · Product Phase Handoff).
 **Mission 01 · Mission 02 · Mission 03 COMPLETED. Mission 04 ABSORBED. Phase 4 Product Pipeline COMPLETE.**
 
 ### Project Status (Current)
@@ -71,20 +71,21 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
 | **Mission 04 Authoring Integration** | ✅ **ABSORBED** (ADR · Missions 01–03 + `product pipeline`) |
 
-### Precision Editing (B1~B5 · 2026-08-27)
+### Precision Editing (B1~B5 + Guide Live Preview · 2026-08-28)
 
-> **Pointer only** — 상세 완료 기록: `HISTORY/PROJECT_LOG_2026-08.md` 최신 **Precision Editing B1~B5** 항목.  
+> **Pointer only** — 상세 완료 기록: `HISTORY/PROJECT_LOG_2026-08.md` 최신 **Precision Editing Guide Live Coordinate Preview** 항목.
 > Feature SSOT를 별도 중복 문서로 만들지 않으며, 기존 Ball / Baseline / Apply 계약을 소비한다.
 
 | Item | Status |
 |------|--------|
 | **Ball Guide** | ✅ **COMPLETE** — 선택 Ball 기준 H/V Guide · handle/arrow/Alt+drag · dedicated intersection Snap |
+| **Guide Live Coordinate** | ✅ **COMPLETE** — Guide drag 중 live coordinate preview (Vertical drag: X live / Y fixed, Horizontal drag: Y live / X fixed) · Preview ≠ Commit invariant 유지 |
 | **Ball editing presentation** | ✅ **COMPLETE** — Fine directional arrows 제거 · movement handle + live coordinate 유지 |
 | **CO/C1 Fine Adjustment** | ✅ **COMPLETE** — canonical Mark axis 기반 0.1 Rg arrows · 기존 Draft → Apply → SYS commit |
 | **CO/C1 Impact Snap** | ✅ **COMPLETE** — native double-click · visible Impact authoritative · existing Apply/SYS path |
 | **Runtime / persistence** | Ball Guide는 runtime-only · Guide state는 SAVE/History/dataset/schema에 저장하지 않음 |
 | **Explicit exclusion** | CO/C1 Alt+drag는 구현하지 않음 · Guide Alt+drag는 유지 |
-| **Verification** | 사용자 앱 검증 완료 보고 · targeted tests PASS · production build PASS · Full Vitest 신규 B5 failure 0 |
+| **Verification** | 사용자 앱 실검증 완료(Visual Review PASS) · targeted tests PASS (22/22) · production build PASS |
 | **Architecture** | SYS formula · Fg/Rg contract · trajectory/Impact physics · dataset/History/WRITE SSOT 불변 |
 
 ### Table Redesign / Label Clarity (2026-08-27)
@@ -126,8 +127,8 @@ Derived Data
 
 ### LocalDB ADMIN Spatial Search (adminSearch)
 
-> Path: `handleAdminSearch` → `runAdminLocalDbRecall` → `runSpatialRecall(adminSearch)`.  
-> **Corpus** = persisted `PositionRecord` Ball3 samples (React `dataset` after History load / working corpus).  
+> Path: `handleAdminSearch` → `runAdminLocalDbRecall` → `runSpatialRecall(adminSearch)`.
+> **Corpus** = persisted `PositionRecord` Ball3 samples (React `dataset` after History load / working corpus).
 > **Not** trajectory geometry · **Not** Coverage markers as candidate expansion.
 
 | Field | Value |
@@ -163,8 +164,8 @@ Derived Data
 
 ### Phase 5 Search Quality Follow-on — Task #5 (Production Integration)
 
-> Mission 01 = Real Interpolation **core engine**.  
-> Task #5 = Production frontend **integration** (loader · DI · slot · Calculator/Builder · UI).  
+> Mission 01 = Real Interpolation **core engine**.
+> Task #5 = Production frontend **integration** (loader · DI · slot · Calculator/Builder · UI).
 > Task #5 did **not** re-implement Mission 01 interpolation algorithms.
 
 | Step | Item | Status |
@@ -259,8 +260,8 @@ This project is governed by the following Constitution-level documents.
 | 4 | **`CURSOR_SESSION_HANDOFF.md`** | **Operations** | Session Operations · Startup Rules · Current / Next / Carry |
 | 5 | **`HISTORY/PROJECT_LOG_YYYY-MM.md`** | **History** | Mission Completion · 검증 사실 · 월별 이력 |
 
-Envelope 의미·Sampling Policy·Dataset Must/Must-Not은 **Architecture Freeze**가 Parent이다.  
-Official Name·Pipeline Label은 **GLOSSARY_SSOT**가 우선한다.  
+Envelope 의미·Sampling Policy·Dataset Must/Must-Not은 **Architecture Freeze**가 Parent이다.
+Official Name·Pipeline Label은 **GLOSSARY_SSOT**가 우선한다.
 본 문서는 Status Entry이며 Architecture를 개정하는 상위 헌법이 **아니다**.
 
 ### Core Document Roles
@@ -340,7 +341,7 @@ Authority는 중복되지 않는다. Terminology 전용 추가 SSOT(`SEARCH_TERM
 | ⑤ | Mission | `SESSION_TRANSFER/` |
 | ⑥ | Reference | `docs/` |
 
-기존 Authority와 중복되는 별도 SSOT를 만들지 않는다.  
+기존 Authority와 중복되는 별도 SSOT를 만들지 않는다.
 용어·Pipeline 표현은 GLOSSARY에만 등록한다.
 
 ---
@@ -353,7 +354,7 @@ Envelope / Product / Search 세션은 **Official Session Read Order**를 따른�
 
 ### Development Workflow — Architecture 구현 전 Consume (공식 · AAS/Fleet 트랙)
 
-Application Runtime / Fleet Contract 관련 구현(Runtime / Presentation / Validation 등) **전에** 반드시 다음 순서로 Consume한다.  
+Application Runtime / Fleet Contract 관련 구현(Runtime / Presentation / Validation 등) **전에** 반드시 다음 순서로 Consume한다.
 (**기본 Official Read Order와 병행** — AAS 트랙 전용 First Consume.)
 
 ```text
@@ -377,55 +378,55 @@ Architecture Review
 
 ### 신규 세션 온보딩 (STEP7 Agent Implementation)
 
-1. **`DEVELOPMENT_WORKFLOW.md`** — **Operational Workflow SSOT v1.0** (General + Fleet Apply Workflow)  
-2. **`OPS_AI_MODEL_GUIDE.md`** — Ops AI Model Recommendation **v0.1** (Recommendation only)  
-3. **`docs/APPLICATION_FLOW.md`** — **Runtime Orchestration Architecture Guide** (Architecture 구현 시 **최우선**)  
-4. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-5. **`CURSOR_SESSION_HANDOFF.md`** — **Search Engine Foundation Phase 완료** · Next **Dataset Generator Phase**  
-6. **`STEP7_IMPLEMENTATION_DECOMPOSITION.md`** — Session Execution SSOT **v1.0 Approved**  
-7. **`System Platform Standard (SPS) v1.0/STEP7_P4_IU-4-0*.md`** — **P4 Plan suite** (Complete · Official · Consume)  
-8. **`System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md`** — **P2 Catalog Design v0.15** (Consume)  
-9. **`HISTORY/PROJECT_LOG_2026-07.md`** — P4 Complete · VG-P4 PASS · STEP7 Decisions  
-10. **`System Platform Standard (SPS) v1.0/STEP6_FINAL_FREEZE.md`** — **STEP6 Final Freeze v1.0** (Consume)  
+1. **`DEVELOPMENT_WORKFLOW.md`** — **Operational Workflow SSOT v1.0** (General + Fleet Apply Workflow)
+2. **`OPS_AI_MODEL_GUIDE.md`** — Ops AI Model Recommendation **v0.1** (Recommendation only)
+3. **`docs/APPLICATION_FLOW.md`** — **Runtime Orchestration Architecture Guide** (Architecture 구현 시 **최우선**)
+4. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT
+5. **`CURSOR_SESSION_HANDOFF.md`** — **Search Engine Foundation Phase 완료** · Next **Dataset Generator Phase**
+6. **`STEP7_IMPLEMENTATION_DECOMPOSITION.md`** — Session Execution SSOT **v1.0 Approved**
+7. **`System Platform Standard (SPS) v1.0/STEP7_P4_IU-4-0*.md`** — **P4 Plan suite** (Complete · Official · Consume)
+8. **`System Platform Standard (SPS) v1.0/STEP7_Catalog_Freeze_Design.md`** — **P2 Catalog Design v0.15** (Consume)
+9. **`HISTORY/PROJECT_LOG_2026-07.md`** — P4 Complete · VG-P4 PASS · STEP7 Decisions
+10. **`System Platform Standard (SPS) v1.0/STEP6_FINAL_FREEZE.md`** — **STEP6 Final Freeze v1.0** (Consume)
 11. Framework · Pipeline Freeze Candidate (Locked · Consume)
 
 ### 신규 세션 온보딩 (STEP6-6 Validation Engine Design) — 이력 참조
 
-1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`CURSOR_SESSION_HANDOFF.md`** — (현행은 STEP7 Entry; 이력은 LOG 참고)  
-3. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP6-5…STEP6-11  
-4. **`System Platform Standard (SPS) v1.0/STEP6-5_Validation_Register_Suite.md`** — Register Suite v0.2  
-5. **`System Platform Standard (SPS) v1.0/STEP6-4_Rule_Catalog_Design.md`** — Catalog Design v0.2  
-6. **`System Platform Standard (SPS) v1.0/STEP6-3_Schema_Rule_Analysis.md`** — Analysis v1.1  
+1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT
+2. **`CURSOR_SESSION_HANDOFF.md`** — (현행은 STEP7 Entry; 이력은 LOG 참고)
+3. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP6-5…STEP6-11
+4. **`System Platform Standard (SPS) v1.0/STEP6-5_Validation_Register_Suite.md`** — Register Suite v0.2
+5. **`System Platform Standard (SPS) v1.0/STEP6-4_Rule_Catalog_Design.md`** — Catalog Design v0.2
+6. **`System Platform Standard (SPS) v1.0/STEP6-3_Schema_Rule_Analysis.md`** — Analysis v1.1
 7. Framework · Pipeline Freeze Candidate (Locked · Consume)
 
 ### 신규 세션 온보딩 (STEP6-4 / STEP6-5) — 이력 참조
 
-1. **`PROJECT_MASTER_INDEX.md`** (본 문서)  
-2. **`CURSOR_SESSION_HANDOFF.md`** — (현행은 STEP7 Entry; 이력은 LOG 참고)  
-3. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP6-4 Catalog · STEP6-5 Register  
-4. Catalog Design v0.2 · Register Suite v0.2 · Analysis v1.1  
+1. **`PROJECT_MASTER_INDEX.md`** (본 문서)
+2. **`CURSOR_SESSION_HANDOFF.md`** — (현행은 STEP7 Entry; 이력은 LOG 참고)
+3. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP6-4 Catalog · STEP6-5 Register
+4. Catalog Design v0.2 · Register Suite v0.2 · Analysis v1.1
 5. Framework · Pipeline Freeze Candidate (Locked · Consume)
 
 ### 신규 세션 온보딩 (STEP5 Final → STEP6 Schema Validation) — 이력 참조
 
-1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`System Platform Standard (SPS) v1.0/STEP5_FINAL_FREEZE.md`** — **STEP5 Final Freeze v1.0**  
-3. **`System Platform Standard (SPS) v1.0/STEP5_STEP6_Handoff.md`** — STEP6 Entry · Manifest · Owner  
-4. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP5 Completed · STEP6-1/2 Freeze Candidate  
+1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT
+2. **`System Platform Standard (SPS) v1.0/STEP5_FINAL_FREEZE.md`** — **STEP5 Final Freeze v1.0**
+3. **`System Platform Standard (SPS) v1.0/STEP5_STEP6_Handoff.md`** — STEP6 Entry · Manifest · Owner
+4. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP5 Completed · STEP6-1/2 Freeze Candidate
 
 ### 신규 세션 온보딩 (STEP4 / Inventory 참조)
 
-1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`System Platform Standard (SPS) v1.0/System_Inventory.md`** — **STEP4 Final v1.0** · Frozen Assets · §19 Entry Point  
-3. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP4 Final 로그 (2026-07-14) · Batch 6 Final Freeze (2026-07-13)  
+1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT
+2. **`System Platform Standard (SPS) v1.0/System_Inventory.md`** — **STEP4 Final v1.0** · Frozen Assets · §19 Entry Point
+3. **`HISTORY/PROJECT_LOG_2026-07.md`** — STEP4 Final 로그 (2026-07-14) · Batch 6 Final Freeze (2026-07-13)
 4. **`작업관리/Runtime Refactoring/Batch06/Batch6_Final_Freeze.md`** — Batch 6 Final Freeze SSOT (Runtime baseline)
 
 ### 신규 세션 온보딩 (Dataset Architecture 포함 시)
 
-1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT  
-2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Phase 1 · §15 Phase 2~3-1 · §16 운영 검증 조사 · §17 OPEN-05 조사 · §18 OPEN-04 Caption Engine · §19 USER Overlay · §20 Trajectory Display Cap)  
-3. **`SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`** — Dataset Architecture 전용 이관 문서  
+1. **`PROJECT_MASTER_INDEX.md`** (본 문서) — 현재 기능·UI·완료/예정 SSOT
+2. **`HISTORY/PROJECT_LOG_2026-06.md`** — 2026-06 월별 이력 (§14 Phase 1 · §15 Phase 2~3-1 · §16 운영 검증 조사 · §17 OPEN-05 조사 · §18 OPEN-04 Caption Engine · §19 USER Overlay · §20 Trajectory Display Cap)
+3. **`SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`** — Dataset Architecture 전용 이관 문서
 
 ### 전체 문서 계층
 
@@ -508,7 +509,7 @@ Architecture Review
 | **2** | Dataset Generator | ✅ Complete |
 | **3** | Search Engine Enhancement | ✅ Complete |
 
-**Search Engine Architecture Complete (2026-08-06).**  
+**Search Engine Architecture Complete (2026-08-06).**
 상세: `HISTORY/PROJECT_LOG_2026-08.md` · `search/quality/SEARCH_QUALITY_REPORT.md` · `CURSOR_SESSION_HANDOFF.md`
 
 ### Phase 4 Product Pipeline Map
@@ -521,7 +522,7 @@ Architecture Review
 | **03** | Deployment Workflow | ✅ **COMPLETED** |
 | **04** | Authoring Integration | ✅ **ABSORBED** (see ADR) |
 
-Official Product Pipeline: `GLOSSARY_SSOT` §5.2 · `SESSION_TRANSFER/Product Phase Handoff.md`  
+Official Product Pipeline: `GLOSSARY_SSOT` §5.2 · `SESSION_TRANSFER/Product Phase Handoff.md`
 Mission 04 ADR: `SESSION_TRANSFER/ADR_MISSION_04_AUTHORING_INTEGRATION_ABSORBED.md`
 
 
@@ -529,7 +530,7 @@ Mission 04 ADR: `SESSION_TRANSFER/ADR_MISSION_04_AUTHORING_INTEGRATION_ABSORBED.
 
 **상태:** **Complete (2026-08-06)** · Architecture Freeze Compatible · 구현 코드 Commit 없음 (문서 반영 세션)
 
-Envelope Architecture SSOT 계약을 따라 Search Representation Consumer / Host 계층을 구현하였다.  
+Envelope Architecture SSOT 계약을 따라 Search Representation Consumer / Host 계층을 구현하였다.
 Generator·Ranking·KDTree·실제 Geometry 계산·Search Algorithm은 **본 Phase 범위 밖**이다.
 
 | Layer | 상태 | 경로 |
@@ -547,15 +548,15 @@ Generator·Ranking·KDTree·실제 Geometry 계산·Search Algorithm은 **본 Ph
 | ✓ Modal Engine | 완료 | `modal/` |
 | ✓ Geometry Engine | 완료 | `geometry/` (Context only · 계산 미구현) |
 
-**Architecture SSOT (Consume · Freeze 유지 · 본 문서에서 내용 수정 금지):** `Architecture/`  
-**상세 로그:** `HISTORY/PROJECT_LOG_2026-08.md` — Search Engine Foundation Phase 완료  
+**Architecture SSOT (Consume · Freeze 유지 · 본 문서에서 내용 수정 금지):** `Architecture/`
+**상세 로그:** `HISTORY/PROJECT_LOG_2026-08.md` — Search Engine Foundation Phase 완료
 **세션 이관:** `CURSOR_SESSION_HANDOFF.md`
 
 ### Dataset Generator Phase (완료)
 
 **상태:** **Complete (2026-08-06)** · Architecture Freeze Compatible · Foundation Consumer 수정 없음 · Commit 없음
 
-Generator Producer 계층을 구현하여 Strategy Authoring 입력으로부터 PublishedDataset까지 생성하고, Validation → Loader → Membership E2E 검증을 완료하였다.  
+Generator Producer 계층을 구현하여 Strategy Authoring 입력으로부터 PublishedDataset까지 생성하고, Validation → Loader → Membership E2E 검증을 완료하였다.
 Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Published Dataset Builder · Generator Pipeline E2E가 모두 완료되었다.
 
 | Layer | 상태 | 경로 |
@@ -567,8 +568,8 @@ Trajectory Generator · Cue Sampler · Second Sampler · Envelope Builder · Pub
 | ✓ Published Dataset Builder | 완료 | `generator/published_dataset_builder/` |
 | ✓ Generator Pipeline E2E | 완료 | `tests/test_generator_pipeline_e2e.py` |
 
-**Architecture SSOT (Consume · Freeze 유지 · 본 문서에서 내용 수정 금지):** `Architecture/`  
-**상세 로그:** `HISTORY/PROJECT_LOG_2026-08.md` — Dataset Generator Phase Complete  
+**Architecture SSOT (Consume · Freeze 유지 · 본 문서에서 내용 수정 금지):** `Architecture/`
+**상세 로그:** `HISTORY/PROJECT_LOG_2026-08.md` — Dataset Generator Phase Complete
 **세션 이관:** `CURSOR_SESSION_HANDOFF.md`
 
 ### Search Engine Enhancement Phase (완료)
@@ -588,9 +589,9 @@ Phase 3에서 Search 품질·성능 Enhancement Engine을 구현하고 Runtime�
 | ✓ Runtime Wiring | 완료 | `search/runtime/` · `runtime/` |
 | ✓ Quality Validation | 완료 | `search/quality/` · E2E/Regression/Benchmark |
 
-**Architecture SSOT (Consume · Freeze 유지 · 본 문서에서 내용 수정 금지):** `Architecture/`  
-**상세 로그:** `HISTORY/PROJECT_LOG_2026-08.md` — Phase 3 Complete  
-**품질 보고서:** `search/quality/SEARCH_QUALITY_REPORT.md`  
+**Architecture SSOT (Consume · Freeze 유지 · 본 문서에서 내용 수정 금지):** `Architecture/`
+**상세 로그:** `HISTORY/PROJECT_LOG_2026-08.md` — Phase 3 Complete
+**품질 보고서:** `search/quality/SEARCH_QUALITY_REPORT.md`
 **세션 이관:** `CURSOR_SESSION_HANDOFF.md`
 
 **Next Track:** **Family Data Architecture Phase 1 (Ask)** · 설계: `FAMILY_DATA_ARCHITECTURE_DRAFT.md`
@@ -659,8 +660,8 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ## Dataset Architecture
 
-**상태:** Phase 1~3-1 완료 · **UI 용어 (OPEN-02C~E, 2026-06):** ADMIN **로컬DB** = Local Dataset Search (`positions_dataset`); ADMIN **Search** = USER **Search** = Published Search (`dataset/{공략}/{시스템}/positions.json`). UI에서 Recall 라벨 제거 · published Search active state `isAdminPublishedSearchMatched` · CSS `.published-search-btn`. 내부 handler명(`handlePositionRecall` 등)·profile ID·trace는 2차 정리 예정.  
-**이관 문서:** `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`  
+**상태:** Phase 1~3-1 완료 · **UI 용어 (OPEN-02C~E, 2026-06):** ADMIN **로컬DB** = Local Dataset Search (`positions_dataset`); ADMIN **Search** = USER **Search** = Published Search (`dataset/{공략}/{시스템}/positions.json`). UI에서 Recall 라벨 제거 · published Search active state `isAdminPublishedSearchMatched` · CSS `.published-search-btn`. 내부 handler명(`handlePositionRecall` 등)·profile ID·trace는 2차 정리 예정.
+**이관 문서:** `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`
 **월별 로그:** `HISTORY/PROJECT_LOG_2026-06.md` §14 (Phase 1) · §15 (Phase 2~3-1)
 
 **Export ≠ History (2026-08-17 · refreshed 2026-08-20):** History UI snapshot 개수와 `dataset/{공략}/{시스템}/positions.json` record 수는 동일 개념이 아니다. Family 설계는 이 3계층 위에 올라간다 (`FAMILY_DATA_ARCHITECTURE_DRAFT.md` · shadow dual-write **IMPLEMENTED** · production SSOT still `positions_dataset`).
@@ -680,7 +681,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 - USER Search / ADMIN Search는 Production에서 `dataset/{공략}/{시스템}/positions.json`을 fetch한다.
 - `dataset/`이 Git에 포함되지 않으면 Production Search는 동작하지 않는다.
 
-> **`dataset/`은 작업용 데이터가 아니라 Production Search가 사용하는 Published Corpus SSOT이다.**  
+> **`dataset/`은 작업용 데이터가 아니라 Production Search가 사용하는 Published Corpus SSOT이다.**
 > 절대 `.gitignore` 대상이 되어서는 안 된다.
 
 ### Dataset Export (Phase 1 — 완료)
@@ -766,9 +767,9 @@ Production Search 장애 발생 시 점검 순서:
 | **Phase 4 Product Pipeline** | ✅ **COMPLETED** |
 | **Next** | **Family Data Architecture Phase 1 (Ask)** |
 
-> Phase 3 Enhancement 로드맵(Spatial Index → … → Quality Validation)은 **전부 완료**되었다.  
-> Phase 4 Foundation · Mission 01–03 COMPLETED · Mission 04 ABSORBED · **Phase 4 Product Pipeline COMPLETE**.  
-> Phase 4 Product Pipeline Official Name: `GLOSSARY_SSOT` §5.2.  
+> Phase 3 Enhancement 로드맵(Spatial Index → … → Quality Validation)은 **전부 완료**되었다.
+> Phase 4 Foundation · Mission 01–03 COMPLETED · Mission 04 ABSORBED · **Phase 4 Product Pipeline COMPLETE**.
+> Phase 4 Product Pipeline Official Name: `GLOSSARY_SSOT` §5.2.
 > Phase 5 Mission 02 Dead Code Cleanup ✅ COMPLETE (EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS).
 
 ---
@@ -903,7 +904,7 @@ App.jsx를 Application Runtime Orchestrator로 전환하기 위한 Architecture 
 
 **OPEN-04 Caption Placement Engine 전면 재설계 완료.**
 
-기존 value 기반 탐색·mark별 예외 처리·track별 하드코딩 배치를 제거하였다.  
+기존 value 기반 탐색·mark별 예외 처리·track별 하드코딩 배치를 제거하였다.
 캡션 배치는 숫자 배열 자체를 기준으로 계산하는 **순수 Geometry 기반 엔진**으로 통합하였다.
 
 **배치 우선순위:**
@@ -916,7 +917,7 @@ App.jsx를 Application Runtime Orchestrator로 전환하기 위한 Architecture 
 
 **배치 원칙:**
 
-캡션은 항상 `숫자 + 2grid + 캡션` 또는 `캡션 + 2grid + 숫자` 형태를 유지한다.  
+캡션은 항상 `숫자 + 2grid + 캡션` 또는 `캡션 + 2grid + 숫자` 형태를 유지한다.
 캡션 자체를 공간 중앙에 두는 것이 아니라 **숫자와의 관계를 기준**으로 배치한다.
 
 **최종 결과:**
@@ -1552,7 +1553,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 ## Known Issues / Investigation (2026-06)
 
-**기록일:** 2026-06-13 (OPEN-05 갱신: 2026-06-18 · OPEN-04 종료: 2026-06-20 · OPEN-03 종료: 2026-06-22)  
+**기록일:** 2026-06-13 (OPEN-05 갱신: 2026-06-18 · OPEN-04 종료: 2026-06-20 · OPEN-03 종료: 2026-06-22)
 **상세 조사:** `HISTORY/PROJECT_LOG_2026-06.md` §16 · §17 (OPEN-05) · §18 (OPEN-04) · §19 (USER Overlay)
 
 ### OPEN-01 USER Search 임팩트 방향 불일치
@@ -2029,11 +2030,11 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 ## USER Overlay (요약)
 
-> **Layout SSOT:** `OVERLAY_LAYOUT_SSOT_v1.2.md` (Confirmed · Centering SSOT 2026-08-12).  
-> **기준 UX:** AI Overlay — Glass Dark · table-area Ratio · Typography · Padding · Full Surface Drag · **table-area 기하 중심**/Clamp · Close(X) 없음 · 외부 터치 닫기 · 위치 저장 없음.  
-> **Centering:** `UserOverlayShell` SSOT · live panel dimensions · Panel + Table ResizeObserver · Drag = temporary dragOffset · Open/Switch/Zoom → `dragOffset=0` · 브라우저 검증 완료 · **Commit/Push 대기**.  
-> **Projection Rule:** USER = ADMIN DisplayModel 투영 Viewer.  
-> Progress = AI 완료 · HPT Shell 완료(Polish 보류) · Calculation Shell+Viewer 완료 · **Centering 검증 완료** · 기타 통합(HPT Polish 등) 예정.  
+> **Layout SSOT:** `OVERLAY_LAYOUT_SSOT_v1.2.md` (Confirmed · Centering SSOT 2026-08-12).
+> **기준 UX:** AI Overlay — Glass Dark · table-area Ratio · Typography · Padding · Full Surface Drag · **table-area 기하 중심**/Clamp · Close(X) 없음 · 외부 터치 닫기 · 위치 저장 없음.
+> **Centering:** `UserOverlayShell` SSOT · live panel dimensions · Panel + Table ResizeObserver · Drag = temporary dragOffset · Open/Switch/Zoom → `dragOffset=0` · 브라우저 검증 완료 · **Commit/Push 대기**.
+> **Projection Rule:** USER = ADMIN DisplayModel 투영 Viewer.
+> Progress = AI 완료 · HPT Shell 완료(Polish 보류) · Calculation Shell+Viewer 완료 · **Centering 검증 완료** · 기타 통합(HPT Polish 등) 예정.
 > `--overlay-scale` / `--ai-scale` / `--overlay-svg-scale`는 bridge token이며, 장기 SSOT는 Ratio/Surface/Typography token이다.
 
 ```

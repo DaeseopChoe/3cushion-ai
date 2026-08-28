@@ -1,8 +1,79 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.67
-Period : 2026-08  
+Version : v1.68
+Period : 2026-08
 Status : Active Project Log
+
+---
+
+# 2026-08-28 (Precision Editing — Guide Live Coordinate Preview & Real-Time Coordinate Display Finalization)
+
+## Mode
+
+**Agent** · Precision Editing Guide Live Coordinate Preview · App.jsx Coordinate Renderer Wiring · Regression Testing · Visual Verification Approved · Release Finalization
+
+## Background & Problem
+
+Precision Editing의 Ball Guide 사용 중 다음과 같은 UX 불편이 존재했음:
+1. **Guide Drag 중 좌표 텍스트 미갱신:** Joystick이나 Ball 직접 드래그 시에는 `ballsState`가 실시간 갱신되어 좌표 텍스트가 즉시 변하지만, Vertical/Horizontal Guide 드래그 중에는 Guide 선만 이동하고 좌표 텍스트는 공의 기존 위치(`ballsState[ballId]`)를 계속 표시함.
+2. **반복 수정 발생:** 사용자가 원하는 Guide 교차점에 맞추기 위해 실시간 좌표를 확인하지 못하고, 일단 Snap 버튼을 눌러 공을 이동시킨 뒤에야 좌표를 확인할 수 있었음.
+
+## Root Cause Analysis
+
+- `useBallGuide.ts` 및 pointerMove 핸들러는 드래그 중 `guideState.verticalX` / `guideState.horizontalY`를 이미 실시간으로 정상 갱신하고 있었음.
+- 그러나 `App.jsx`의 Joystick 좌표 텍스트 렌더러(`<text data-ball-coordinate="1">`)가 `bp = balls[dragState.ballId]`만 단일 소스로 읽도록 하드코딩되어 있었음.
+- 이로 인해 Guide 드래그 중 갱신되는 `guideState`가 좌표 텍스트 렌더링에 연결되지 않았음.
+
+## Implementation (Presentation-Only Source Extension)
+
+`frontend/src/App.jsx`의 좌표 renderer에 presentation-only derived value `displayCoord`를 추가:
+
+```jsx
+const bp = balls[dragState.ballId];
+const isGuideActiveForBall =
+  guideState.active &&
+  guideState.ballId === dragState.ballId &&
+  Number.isFinite(guideState.verticalX) &&
+  Number.isFinite(guideState.horizontalY);
+const displayCoord =
+  guideDragState.active && isGuideActiveForBall
+    ? {
+        x: guideState.verticalX,
+        y: guideState.horizontalY,
+      }
+    : bp;
+```
+
+렌더링 문자열 소스를 `bp.x / bp.y`에서 `displayCoord.x / displayCoord.y`로 전환:
+- 포맷: 기존 `toFixed(1)` 그대로 유지 `({displayCoord.x.toFixed(1)}, {displayCoord.y.toFixed(1)})`
+- 위치(`cx`, `cy`), 폰트, 오프셋, data-attribute(`data-ball-coordinate="1"`), visibility 조건 일체 불변.
+
+## Preserved Invariants & Safety
+
+1. **Vertical Guide Drag:**
+   - X 좌표 실시간 변경, Y 좌표는 현재 Horizontal Guide 위치 고정 유지.
+   - Ball 실제 위치(`ballsState`)는 이동하지 않음.
+2. **Horizontal Guide Drag:**
+   - Y 좌표 실시간 변경, X 좌표는 현재 Vertical Guide 위치 고정 유지.
+   - Ball 실제 위치(`ballsState`)는 이동하지 않음.
+3. **Preview vs Committed State Invariant:**
+   - Guide Drag = Coordinate Preview (`guideState` → `displayCoord` → `<text>`)
+   - Snap = Ball Position Commit (`snapBallToGuideIntersection` 실행 시에만 `ballsState` 변경)
+4. **Joystick / Ball Drag Regression Guard:**
+   - `guideDragState.active`가 `false`일 때 `displayCoord = bp`로 즉시 fallback되어 기존 실시간 좌표 표시 100% 보존.
+5. **Geometry & Coordinate SSOT Protection:**
+   - Fg/Rg 변환, `toPx`, `toRg`, `pointerToRg`, `clampBallGuideAxis`, 당구대 치수(80×40), SCALE, PADDING 일체 불변.
+6. **Snap Pipeline Protection:**
+   - `getBallGuideSnapAction`, `resolveBallGuideSnapActionHit`, `snapBallToGuideIntersection` 일체 불변.
+
+## Verification
+
+| Suite / Check | Result |
+|---|---|
+| 사용자 실검증 (Guide Drag 실시간 좌표 확인) | **PASS** (Visual review approved) |
+| `src/hooks/useBallGuide.test.ts` | **22 PASS** (Vertical/Horizontal Guide 분리 갱신 및 공 불변성 회귀 테스트 포함) |
+| `npm run build` | **PASS** (`vite build` production bundle 정상 생성) |
+| `git diff --check` | **PASS** (formatting / whitespace 이상 없음) |
 
 ---
 
@@ -475,7 +546,7 @@ Early audit hypothesized **“v001/v002 sparse authored-only vs v003/v004 dense 
 | v003 | 256 | 1 | 3 | 252 |
 | v004 | 256 | 1 | 3 | 252 |
 
-→ **v002 is not sparse**; density-only explanation of v002 vs v003/v004 **discarded**.  
+→ **v002 is not sparse**; density-only explanation of v002 vs v003/v004 **discarded**.
 Exact `balls.second` / `positionId` content identity across v002–v004 remains **unverified** (no byte-level snapshot file in repo at close).
 
 ### Investigation (code)
@@ -1216,7 +1287,7 @@ Manual Admin UI verification · optional scoring-line overlay polish
 
 ## Tests
 
-`c3PlusDerivedReview.test.ts` — **14 PASS** (A–M coverage)  
+`c3PlusDerivedReview.test.ts` — **14 PASS** (A–M coverage)
 Regression suite (family + Cue review + derived approval + 359C/F): **178 PASS**
 
 ## Files (new/updated)
@@ -1258,7 +1329,7 @@ Optional scoring-line highlight in Inspect · product UX polish
 
 ## Tests
 
-`generateC3PlusScoringDerivedMembers.test.ts` — **17 PASS**  
+`generateC3PlusScoringDerivedMembers.test.ts` — **17 PASS**
 Regressions: Cue→Impact 31 · familyIdentity 31 · familyAwareWriter 16 · 359C cushions 13 — **all green** (108 total in suite run)
 
 ## Files (new/updated)
@@ -1305,7 +1376,7 @@ C3+ review/approval UI wiring (optional) · App pathNodes DI into generator · s
 
 ## Tests
 
-`frontend/src/domain/trajectoryExtension/deriveManualExtensionCushions.test.ts` — **13 PASS**  
+`frontend/src/domain/trajectoryExtension/deriveManualExtensionCushions.test.ts` — **13 PASS**
 Regression smoke: `trajectoryPathDisplayPolicy.test.ts` — **22 PASS**
 
 ## Files
@@ -1926,9 +1997,9 @@ Keep `family_masters` / `family_members` in sync after production mutations, wit
 
 ## Shared pipeline
 
-`syncPositionDatasetToNormalizedFamilyStore(dataset)`  
-→ `migratePositionRecordsToFamilyParts`  
-→ `persistMigratedFamilyParts`  
+`syncPositionDatasetToNormalizedFamilyStore(dataset)`
+→ `migratePositionRecordsToFamilyParts`
+→ `persistMigratedFamilyParts`
 → `validateFamilyStore`
 
 ## Call graphs
@@ -1971,11 +2042,11 @@ Keep `family_masters` / `family_members` in sync after production mutations, wit
 
 ## Remaining blockers (before normalized READ)
 
-1. generation / freshness marker  
-2. History restore **H3**  
-3. cleanup / `preserve_dataset` `family_*` preservation  
-4. SearchIndex  
-5. gated normalized READ  
+1. generation / freshness marker
+2. History restore **H3**
+3. cleanup / `preserve_dataset` `family_*` preservation
+4. SearchIndex
+5. gated normalized READ
 
 Approval History **+1** removal still **BLOCKED**.
 
@@ -2007,10 +2078,10 @@ Ask-only: generation marker + History H3 + cleanup `family_*` prerequisite audit
 
 At audit time, `family_*` stores were **not** updated by production mutation paths:
 
-- SAVE  
-- Derived Approval  
-- Import  
-- History restore  
+- SAVE
+- Derived Approval
+- Import
+- History restore
 
 Enabling flag / reading normalized first would risk **stale** `family_*` and lose latest `positions_dataset` changes.
 
@@ -2031,21 +2102,21 @@ SearchIndex is **not** a dual-write prerequisite (Members hold 3-ball; Index reb
 
 ## Discoveries
 
-- **Generation / freshness marker** required before trusting schema-valid normalized store as current.  
-- **History H3**: restore workspace without rolling back persistent Members.  
+- **Generation / freshness marker** required before trusting schema-valid normalized store as current.
+- **History H3**: restore workspace without rolling back persistent Members.
 - **Cleanup**: `preserve_dataset` may delete `family_*` keys outside preserve list — policy needed before READ.
 
 ## Recommended sequence
 
-1. migration infra — DONE (323)  
-2. compatibility read adapter — DONE (324)  
-3. dual-write SAVE + Approval + Import — NEXT at audit → DONE (326)  
-4. generation / freshness marker  
-5. cleanup / reset policy for `family_*`  
-6. History restore contract (H3)  
-7. SearchIndex + rebuild  
-8. gated normalized read  
-9. legacy retirement  
+1. migration infra — DONE (323)
+2. compatibility read adapter — DONE (324)
+3. dual-write SAVE + Approval + Import — NEXT at audit → DONE (326)
+4. generation / freshness marker
+5. cleanup / reset policy for `family_*`
+6. History restore contract (H3)
+7. SearchIndex + rebuild
+8. gated normalized read
+9. legacy retirement
 
 ## Next
 
@@ -2080,8 +2151,8 @@ Load validated normalized store → hydrate → `PositionRecord[]` compatible da
 
 ## API
 
-- `loadFamilyCompatibleDataset()` — from localStorage envelopes  
-- `hydrateFamilyPartsToCompatibleDataset(...)` — in-memory helper  
+- `loadFamilyCompatibleDataset()` — from localStorage envelopes
+- `hydrateFamilyPartsToCompatibleDataset(...)` — in-memory helper
 
 ## Pipeline
 
@@ -2095,9 +2166,9 @@ orphan · schema mismatch · FK mismatch · forbidden Member common payload · c
 
 ## Contracts
 
-- 3-ball exact numeric preservation  
-- AUTHORED / SYMMETRY / DERIVED_CUE_IMPACT provenance preserved  
-- Fixture: 1 Master + 16 Members → 16 hydrated records  
+- 3-ball exact numeric preservation
+- AUTHORED / SYMMETRY / DERIVED_CUE_IMPACT provenance preserved
+- Fixture: 1 Master + 16 Members → 16 hydrated records
 
 ## Production impact
 
@@ -2139,8 +2210,8 @@ loadFamilyCompatibleDataset **16/16** · migration **16/16** · storage **12/12*
 
 `migratePositionRecordsToFamilyParts(dataset)` returns either:
 
-- `ok:true` · masters · members · familyCount · memberCount · skippedLegacySlots  
-- `ok:false` · issues  
+- `ok:true` · masters · members · familyCount · memberCount · skippedLegacySlots
+- `ok:false` · issues
 
 ## Master seed
 
@@ -2156,10 +2227,10 @@ No invented Master. No silent merge.
 
 ## Member
 
-- Physical PK: `memberId`  
-- Logical dedup: `genericFamilyMemberIdentityKey`  
-- same logical key + different memberId → reject  
-- same memberId + incompatible payload → reject  
+- Physical PK: `memberId`
+- Logical dedup: `genericFamilyMemberIdentityKey`
+- same logical key + different memberId → reject
+- same memberId + incompatible payload → reject
 
 ## Derived lineage preserved
 
@@ -2211,8 +2282,8 @@ AUTHORED preferred/required. No AUTHORED → fail/quarantine. Conflicting common
 
 ## Member identity
 
-- PK: `memberId`  
-- Logical: `genericFamilyMemberIdentityKey`  
+- PK: `memberId`
+- Logical: `genericFamilyMemberIdentityKey`
 
 ## 3-ball
 
@@ -2320,23 +2391,23 @@ Therefore: v007/v008 are **not** metadata-only duplicates. S1 is currently a **p
 
 ## Writer / History counts
 
-- normal SAVE → WorkspaceSnapshot **+1**  
-- Derived Approval → separate WorkspaceSnapshot **+1**  
-- same History writer  
+- normal SAVE → WorkspaceSnapshot **+1**
+- Derived Approval → separate WorkspaceSnapshot **+1**
+- same History writer
 
 ## Decision
 
-**TEMPORARILY KEEP** Approval History **+1**.  
+**TEMPORARILY KEEP** Approval History **+1**.
 **REMOVE only AFTER** normalized migration + Members + SearchIndex + restore contract + product agreement that Approval ≠ workspace save-event.
 
 ## History +0 transition prerequisites (recorded)
 
-1. physical FamilyMaster / FamilyMember persistence  
-2. SearchIndex or equivalent  
-3. working/search read from Members  
-4. History restore does not delete Members (H3 direction)  
-5. regression suite  
-6. explicit product contract: Approval ≠ workspace save-event  
+1. physical FamilyMaster / FamilyMember persistence
+2. SearchIndex or equivalent
+3. working/search read from Members
+4. History restore does not delete Members (H3 direction)
+5. regression suite
+6. explicit product contract: Approval ≠ workspace save-event
 
 ## Architecture principle
 
@@ -2344,9 +2415,9 @@ Therefore: v007/v008 are **not** metadata-only duplicates. S1 is currently a **p
 
 ## Export note (session)
 
-Do **not** treat History v007+v008 as two persistent “original” corpora for Export merge/dedup.  
+Do **not** treat History v007+v008 as two persistent “original” corpora for Export merge/dedup.
 
-**TARGET:** Export corpus = FamilyMaster + FamilyMembers; History = workspace snapshot only.  
+**TARGET:** Export corpus = FamilyMaster + FamilyMembers; History = workspace snapshot only.
 
 **CURRENT through 3A-326:** Export format/behavior **unchanged** — normalized Export **NOT IMPLEMENTED**.
 
@@ -2364,7 +2435,7 @@ Do **not** treat History v007+v008 as two persistent “original” corpora for 
 
 ## Status
 
-**IMPLEMENTED (uncommitted)** · Commit/Push 없음  
+**IMPLEMENTED (uncommitted)** · Commit/Push 없음
 SAVE 자동 Derived persistence **없음** · AUTO_APPROVE **없음** · C3_PLUS **없음**
 
 ## Contract
@@ -2397,7 +2468,7 @@ Derived candidates are generated automatically for review, but are not persisted
 
 ## Status
 
-**IMPLEMENTED (uncommitted)** · Commit/Push 없음  
+**IMPLEMENTED (uncommitted)** · Commit/Push 없음
 SAVE 자동 Derived 연결 **없음** · C3_PLUS **없음**
 
 ## Contract
@@ -2415,7 +2486,7 @@ SAVE 자동 Derived 연결 **없음** · C3_PLUS **없음**
 
 ## Withdrawn
 
-`CO_C1_2RG` / `DERIVED_CO_C1` / `sourceDomainLengthRg` / `evaluateCoC1RgSteps` / `co_c1:rg:`  
+`CO_C1_2RG` / `DERIVED_CO_C1` / `sourceDomainLengthRg` / `evaluateCoC1RgSteps` / `co_c1:rg:`
 production persistence에 없었으므로 migration alias 없음.
 
 ## Files
@@ -2439,7 +2510,7 @@ production persistence에 없었으므로 migration alias 없음.
 
 ## Status
 
-**DOCS SYNC** · 코드는 **working tree uncommitted** (Commit/Push 없음)  
+**DOCS SYNC** · 코드는 **working tree uncommitted** (Commit/Push 없음)
 Family 구조는 **CONFIRMED DESIGN / NEXT** (미구현)
 
 ## Working tree (preserve)
@@ -2566,7 +2637,7 @@ C1_f=10: C2.y≈3.808 → detectRail RIGHT → PASS.
 
 금지한 것: EPS 축소 · detectRail 순서 변경 · same_rail 제거 · skipSameRail 강제 · C1≥7.5 하드코딩 · shotType/track/tip 예외 · SYS/HPT/slide 수식 변경.
 
-성공 기준: **c2ReflectionOverride / skipSameRail 없이** F1 C1=5가 same_rail로 C1에서 잘리지 않음.  
+성공 기준: **c2ReflectionOverride / skipSameRail 없이** F1 C1=5가 same_rail로 C1에서 잘리지 않음.
 C2 점 조작으로 살아나는 현상은 cap 우회일 뿐 근본 수정이 아님.
 
 ### 검증
@@ -2679,7 +2750,7 @@ Carry: BUG-B UNCONFIRMED (reproduction required) · uncommitted 코드 보존 ·
 
 ## Purpose
 
-Ball Fine Position Controller UI 작업의 스마트폰 Production 실기기 최종 검증이 사용자에 의해 완료되었다.  
+Ball Fine Position Controller UI 작업의 스마트폰 Production 실기기 최종 검증이 사용자에 의해 완료되었다.
 본 항목은 코드 변경이 아니라 **최종 PASS 기록**이다.
 
 ## Final contract (verified)
@@ -2957,7 +3028,7 @@ Dismissal 구현:
 
 ## Purpose
 
-USER AI / HPT / CALC Overlay가 진입 경로에 따라 **table-area 기하 중심**에서 위/아래로 어긋나던 문제를 해결한다.  
+USER AI / HPT / CALC Overlay가 진입 경로에 따라 **table-area 기하 중심**에서 위/아래로 어긋나던 문제를 해결한다.
 UX 불변조건: Drag 중이 아니면 `overlayCenter === tableAreaCenter`.
 
 ## Timeline (사실 순서)
@@ -2970,7 +3041,7 @@ UX 불변조건: Drag 중이 아니면 `overlayCenter === tableAreaCenter`.
 6. Ask 재분석
 7. **Root Cause 확정: B + C**
    - **B** stale panel dimensions
-   - **C** content reflow timing  
+   - **C** content reflow timing
    - ※ **dragOffset 자체는 최종 주원인이 아님** (부차·기존 보완)
 8. Panel ResizeObserver + live `offsetWidth`/`offsetHeight` 기반 placement 수정
 9. `npm run build` PASS · repo lint는 기존 unused 등 (Shell 신규 이슈 없음)
@@ -2978,7 +3049,7 @@ UX 불변조건: Drag 중이 아니면 `overlayCenter === tableAreaCenter`.
 
 ## Root Cause (최종)
 
-Placement가 panel 최종 height 확정 전에 한 번 계산된 뒤, width/font/max-height/text wrapping/reflow로 실제 height가 변해도 재계산되지 않음.  
+Placement가 panel 최종 height 확정 전에 한 번 계산된 뒤, width/font/max-height/text wrapping/reflow로 실제 height가 변해도 재계산되지 않음.
 기존 ResizeObserver는 **table-area만** 관찰.
 
 ```text
@@ -3046,10 +3117,10 @@ dCy ≈ (h_actual − h_assumed) / 2
 
 ## Purpose
 
-Search Quality Follow-on Task #5 이후, Sample System Validation 전에  
+Search Quality Follow-on Task #5 이후, Sample System Validation 전에
 temporary agent-log / no-op trace scaffolding을 제거하여 **clean Git baseline**을 확보한다.
 
-Mission 02 목적 = “모든 unused code 제거”가 아니라  
+Mission 02 목적 = “모든 unused code 제거”가 아니라
 **새 검증 단계 전 clean baseline**.
 
 ## Cleanup Scope (Completed)
@@ -3101,8 +3172,8 @@ Do **not** record Full Vitest as “all PASS”.
 
 ## Deferred Items (summary)
 
-No Mission 02 blocker. Remaining candidates are optional hygiene, defer-until-validation, design-decision, or KEEP.  
-Detail register: Final Closure Verification report (N3–N15).  
+No Mission 02 blocker. Remaining candidates are optional hygiene, defer-until-validation, design-decision, or KEEP.
+Detail register: Final Closure Verification report (N3–N15).
 Do **not** automatically resume Dead Code Cleanup after this closure.
 
 ## Next Track
@@ -3137,7 +3208,7 @@ Task #5 did **not** re-implement Mission 01 interpolation algorithms.
 
 ## Purpose
 
-Product-published Envelope corpus를 Frontend read-only loader로 소비하고,  
+Product-published Envelope corpus를 Frontend read-only loader로 소비하고,
 Mission 01 Real Interpolation을 existing Strategy Slot · Calculator · `buildTrajectory` · UI surface에 연결한다.
 
 ## E2E Flow (Implemented)
@@ -3227,7 +3298,7 @@ Product Envelope publish
 
 ## Purpose
 
-Published Package `dataset.json` → frontend static tree  
+Published Package `dataset.json` → frontend static tree
 `dataset/_published/envelope/dataset.json` (full replace · atomic).
 
 Runtime URL: `/dataset/_published/envelope/dataset.json`
@@ -3264,7 +3335,7 @@ Product owns publish · Frontend is read-only consumer (Task #5).
 
 ## Purpose
 
-Query Balls에 대해 same-`authoringStrategyId` family 안에서 Exact / Interpolated / Nearest + confidence top-3를 산출하고,  
+Query Balls에 대해 same-`authoringStrategyId` family 안에서 Exact / Interpolated / Nearest + confidence top-3를 산출하고,
 interpolated `sysInputs` + Query balls로 existing Calculator / Trajectory Builder를 consume한다.
 
 Phase 3 `search/interpolation/` `rank_continuity_v1`는 유지한다 (D3-A). Architecture Freeze / PublishedDataset는 변경하지 않는다.
@@ -3331,7 +3402,7 @@ Phase 3 `search/interpolation/` `rank_continuity_v1`는 유지한다 (D3-A). Arc
 
 ## Purpose
 
-Phase 5 · Mission 01 Real Interpolation 전에, Authoring SAVE의 전역 근접 병합(`MERGE_EPSILON`)을 제거하고  
+Phase 5 · Mission 01 Real Interpolation 전에, Authoring SAVE의 전역 근접 병합(`MERGE_EPSILON`)을 제거하고
 History Load → Cue-only edit → Exact Position Replacement 정책을 고정한다.
 
 Search / Real Interpolation / Architecture Freeze / Generator / Schema는 변경하지 않는다.
@@ -3405,13 +3476,13 @@ Search / Real Interpolation / Architecture Freeze / Generator / Schema는 변경
 
 ## Purpose
 
-Mission 02 **Published Package**를 유일한 입력으로 소비하여  
-Deployment Workflow(Load · Validation · Target · Metadata · Status · Report)를 구축한다.  
+Mission 02 **Published Package**를 유일한 입력으로 소비하여
+Deployment Workflow(Load · Validation · Target · Metadata · Status · Report)를 구축한다.
 Package / Dataset은 수정하지 않는다. Git Push / Vercel Publish는 수행하지 않는다 (prepare/report only).
 
 ## Summary
 
-`product/deployment*`가 Package directory를 load·validate하고 Deployment Report를 `deployment/reports/`에 기록한다.  
+`product/deployment*`가 Package directory를 load·validate하고 Deployment Report를 `deployment/reports/`에 기록한다.
 `local_staging` 타겟은 source package를 변경하지 않고 staging mirror만 생성한다.
 
 ## Pipeline
@@ -3448,7 +3519,7 @@ ADR: `SESSION_TRANSFER/ADR_MISSION_04_AUTHORING_INTEGRATION_ABSORBED.md`
 
 ## Phase 4 Completion
 
-**Phase 4 Product Pipeline = COMPLETE**  
+**Phase 4 Product Pipeline = COMPLETE**
 (Foundation · Mission 01 · 02 · 03 · Mission 04 Absorbed)
 
 ## Explicit Non-Claims / Not Changed
@@ -3487,12 +3558,12 @@ ADR: `SESSION_TRANSFER/ADR_MISSION_04_AUTHORING_INTEGRATION_ABSORBED.md`
 
 ## Purpose
 
-Mission 01 **Export Handoff Artifact**를 유일한 입력으로 받아  
+Mission 01 **Export Handoff Artifact**를 유일한 입력으로 받아
 배포 가능한 **Published Package** (`package/` folder)를 Product Layer에서 생성한다.
 
 ## Summary
 
-Package Builder는 dataset wrap · identity mint · manifest / version / package.json 생성 · schema validation · Export Folder write만 수행한다.  
+Package Builder는 dataset wrap · identity mint · manifest / version / package.json 생성 · schema validation · Export Folder write만 수행한다.
 Generator / Search / Runtime / Architecture / Schema는 수정하지 않았다.
 
 ## Pipeline
@@ -3554,13 +3625,13 @@ Export Handoff Artifact
 
 ## Purpose
 
-Phase 4 구현(Export Pipeline 등)에 앞서 **Project Governance**를 정비하여,  
-프로젝트 운영 규칙을 Constitution 수준으로 확립하였다.  
+Phase 4 구현(Export Pipeline 등)에 앞서 **Project Governance**를 정비하여,
+프로젝트 운영 규칙을 Constitution 수준으로 확립하였다.
 본 항목은 **문서 Governance만** 기록한다 (코드·Architecture Freeze 본문 변경 없음).
 
 ## Summary
 
-Terminology SSOT(`GLOSSARY_SSOT`) · Session Handoff Modernization · MASTER Constitution을 도입하여  
+Terminology SSOT(`GLOSSARY_SSOT`) · Session Handoff Modernization · MASTER Constitution을 도입하여
 Official Read Order · Authority Hierarchy · Documentation Governance · Glossary Consume Policy를 고정하였다.
 
 ## Completed
@@ -3582,15 +3653,15 @@ Official Read Order · Authority Hierarchy · Documentation Governance · Glossa
 
 1. **GLOSSARY_SSOT**는 공식 Terminology 및 Official Pipeline 표현의 SSOT이다 (Authority: Terminology).
 2. **Architecture Freeze**는 Structure와 Constraint의 Parent Authority이다. Glossary는 이를 **cite**하며 의미를 **재정의하지 않는다**.
-3. 새 Session은 다음 순서로 시작한다:  
+3. 새 Session은 다음 순서로 시작한다:
    `MASTER → LOG → GLOSSARY → Architecture → HANDOFF → Mission`
 4. 새로운 문서는 **Documentation Governance**를 따른다 (Status → Architecture → Terminology → Session → Mission → Reference).
 5. 새로운 공식 용어는 **Glossary 등록 후** 사용한다.
 
 ## Impact
 
-앞으로 작성되는 Product · Search · Validation · Session · Mission 문서는  
-Glossary의 Official Terminology를 사용한다.  
+앞으로 작성되는 Product · Search · Validation · Session · Mission 문서는
+Glossary의 Official Terminology를 사용한다.
 동일 용어를 문서마다 다시 정의하지 않는다.
 
 ## Explicit Non-Claims / Not Changed
@@ -3634,8 +3705,8 @@ Roadmap: `SESSION_TRANSFER/Product Phase Handoff.md` · Official Pipeline: `GLOS
 
 ## Summary
 
-프로젝트 전체 관점에서 **Search Engine Architecture Complete**를 문서에 확정한다.  
-Phase 1 Foundation · Phase 2 Dataset Generator · Phase 3 Search Engine Enhancement가 모두 Complete이며, Next Track은 Product / Platform Carry 및 System Authoring / Dataset Expansion 준비이다.  
+프로젝트 전체 관점에서 **Search Engine Architecture Complete**를 문서에 확정한다.
+Phase 1 Foundation · Phase 2 Dataset Generator · Phase 3 Search Engine Enhancement가 모두 Complete이며, Next Track은 Product / Platform Carry 및 System Authoring / Dataset Expansion 준비이다.
 본 항목은 **문서 업데이트만** 수행한다 (코드·테스트·Commit·Push 없음).
 
 ## Phase Map
