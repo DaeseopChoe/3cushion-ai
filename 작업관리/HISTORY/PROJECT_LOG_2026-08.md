@@ -101,17 +101,52 @@ Authored Save $\to$ `positions_dataset` $\to$ Derived Approval $\to$ Cartesian P
 
 ---
 
+### Milestone 6: ADMIN Recall → Reset Edit Activation & Physical Color Preservation Regression Fix
+
+#### Background & Root Cause
+1. **문제 현상:**
+   - ADMIN에서 Local DB Search 후 PositionRecord가 정상 Recall(View-Only)된 상태에서 Reset을 누르면, Edit Controls(SYS/HP/T/STR/AI/SAVE)가 계속 비활성화되어 있고 화면 상의 Red/Yellow 공이 시각적으로 뒤바뀌어 렌더링됨.
+2. **근본 원인 (Root Cause):**
+   - `handleAdminWorkReset`에서 `setTargetColor(null)` 및 `setIsTargetSelected(false)`를 무조건 실행하여 Recall된 Target physical identity 메타데이터를 유실시킴.
+   - 이로 인해 `isAdminTargetReady()`가 `false`가 되어 `canUseSystemControls = false`(컨트롤 비활성화)가 발생함.
+   - 동시에 `targetColor === null` 상태에서 `paintHexForTargetRole(null)` fallback(`PROVISIONAL_TARGET_COLOR`="yellow")이 작동하여 실제 좌표(`balls.target`/`balls.second`)는 불변임에도 화면에 렌더링되는 색상만 반전(Render-only Swap)됨.
+
+#### Core Invariants & State Contracts
+- **Search Preparation:** Target=NONE 허용 (검색 전 자유 상태).
+- **Recall:** View-Only (기존 레이어 표시, 세션 비활성).
+- **Reset:** Recall $\to$ Edit 전환 (Recall된 검색 결과의 Target physical identity를 보존/복원하여 즉시 편집 세션 개방).
+- **Ball Role SSOT:** `Cue = Cue Role`, `Target / Second = Logical Role`, `Red / Yellow = Physical Color` ($Logical\ Role \neq Physical\ Color$).
+
+#### Implementation
+- `frontend/src/domain/system/adminEditSessionContract.ts`:
+  - `resolveAdminResetTargetMeta`: slotTargetBall 또는 targetColor로부터 Target 메타데이터를 보존/복원 (Target=NONE일 때만 null 반환).
+  - `applyAdminWorkResetSession`: 보존된 Target 메타데이터를 기반으로 `isTargetSelected: true`, `targetColor`, `canUseSystemControls: true` 반환.
+- `frontend/src/App.jsx`:
+  - `handleAdminWorkReset`: active slot 및 targetColor로부터 `resolveAdminResetTargetMeta`를 호출하여 유효한 Target 메타데이터가 존재하면 `setIsTargetSelected(true)`, `setTargetColor(readyTarget)`, `patchSlotRuntimeMeta`로 보존 및 복원.
+- `frontend/src/domain/system/adminEditSessionContract.test.ts` & `adminTargetBallRules.contract.test.ts`:
+  - Reset 후 controls 비활성화를 기대하던 잘못된 테스트 assertion을 정상 수명주기 계약으로 수정.
+  - TEST A(Red Target), TEST B(Yellow Target), TEST C(Target NONE Search), TEST D(Coordinate Invariant), TEST E(View-Only Invariant) 수명주기 회귀 테스트 추가.
+
+#### Verification & Protection
+- `npm run test:fast`: PASS
+- `npm run test:contract`: PASS
+- `npm test`: 98 test files / 968 tests PASS
+- `npm run build`: PASS
+- `npm run test:regression`: PASS
+
+---
+
 ## Final Status & Verification Summary
 
 | Suite / Check | Result |
 |---|---|
 | `npm run test:fast` | **16 files / 156 tests PASS** (~1.5s) |
 | `npm run test:contract` | **17 files / 182 tests PASS** (~1.3s) |
-| `npm test` (Full Vitest) | **98 files / 964 tests PASS** (~35s) |
+| `npm test` (Full Vitest) | **98 files / 968 tests PASS** (~25s) |
 | `npm run build` | **PASS** (Vite 번들링 + `dist/dataset` 패키징 성공) |
 | `npm run test:regression` | **PASS** (4단계 파이프라인 단일 명령 완주) |
 | R01 ~ R24 Regression Matrix | **100% GREEN** |
-| Production Business Logic 변경 | **0건 (불변식 완벽 보존)** |
+| Production Business Logic | **불변식 완벽 보존 (최소 회귀 수정만 적용)** |
 
 ---
 

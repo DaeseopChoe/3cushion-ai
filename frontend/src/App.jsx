@@ -2181,17 +2181,27 @@ export default function App({
     hideBallPositionController();
     closeOverlay();
 
-    // Reset: Target Lock unlock → Target = NONE (no automatic target inference)
+    // Reset: Recall → Edit transition. Preserve recalled target identity if present.
+    const slot = shotEditor.slots[shotEditor.activeSlot];
+    const slotTarget = extractSlotTargetBall(slot);
     const readyTarget = resolveAdminResetTargetMeta({
-      targetColor: null,
-      slotTargetBall: null,
+      targetColor,
+      slotTargetBall: slotTarget,
     });
-    void readyTarget;
-    setIsTargetSelected(false);
-    setTargetColor(null);
-    actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
-      targetBall: null,
-    });
+
+    if (readyTarget) {
+      setIsTargetSelected(true);
+      setTargetColor(readyTarget);
+      actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
+        targetBall: readyTarget,
+      });
+    } else {
+      setIsTargetSelected(false);
+      setTargetColor(null);
+      actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
+        targetBall: null,
+      });
+    }
 
     setIsAdminInputSessionActive(true);
     if (ballsState?.cue) {
@@ -2204,7 +2214,9 @@ export default function App({
   }, [
     appMode,
     actions,
+    shotEditor.slots,
     shotEditor.activeSlot,
+    targetColor,
     ballsState,
     derivedReviewUi,
   ]);

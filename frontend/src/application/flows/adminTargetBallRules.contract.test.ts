@@ -229,18 +229,28 @@ describe("ADMIN Target Ball UI & Search Rules (T1 - T9)", () => {
     expect(step3.balls.second).toEqual({ x: 15, y: 30 }); // Red becomes Second
   });
 
-  it("T8 — Reset Clears Target to NONE", () => {
-    const reset = applyAdminWorkResetSession({
+  it("T8 — Reset Preserves Recalled Target Metadata & Opens Edit Session (Target=NONE when unselected)", () => {
+    // 1. Recalled target is preserved and edit controls are enabled
+    const resetRecalled = applyAdminWorkResetSession({
       appMode: "ADMIN",
       targetColor: "yellow",
       slotTargetBall: "yellow",
     });
+    expect(resetRecalled.isTargetSelected).toBe(true);
+    expect(resetRecalled.targetColor).toBe("yellow");
+    expect(resetRecalled.slotTargetBall).toBe("yellow");
+    expect(resetRecalled.isAdminInputSessionActive).toBe(true);
+    expect(resetRecalled.canUseSystemControls).toBe(true);
 
-    expect(reset.isTargetSelected).toBe(false);
-    expect(reset.targetColor).toBeNull();
-    expect(reset.slotTargetBall).toBeNull();
-    expect(reset.isAdminInputSessionActive).toBe(true);
-    expect(reset.canUseSystemControls).toBe(false);
+    // 2. Unselected state returns null / NONE
+    const resetUnselected = applyAdminWorkResetSession({
+      appMode: "ADMIN",
+      targetColor: null,
+      slotTargetBall: null,
+    });
+    expect(resetUnselected.isTargetSelected).toBe(false);
+    expect(resetUnselected.targetColor).toBeNull();
+    expect(resetUnselected.canUseSystemControls).toBe(false);
     expect(resolveAdminResetTargetMeta()).toBeNull();
   });
 

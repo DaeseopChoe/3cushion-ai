@@ -48,13 +48,18 @@ export function canUseAdminSystemControls(args: {
 }
 
 /**
- * Reset returns Target to NONE (unselected).
- * No automatic target inference from previous colors or slots.
+ * Reset resolves Target metadata from active slot or current targetColor.
+ * Preserves recalled physical target identity across Recall → Edit transition.
+ * When target was unselected (Target=NONE), returns null.
  */
-export function resolveAdminResetTargetMeta(_args?: {
+export function resolveAdminResetTargetMeta(args?: {
   targetColor?: unknown;
   slotTargetBall?: unknown;
 }): AdminTargetBall | null {
+  const slot = normalizeAdminTargetBall(args?.slotTargetBall);
+  if (slot) return slot;
+  const tc = normalizeAdminTargetBall(args?.targetColor);
+  if (tc) return tc;
   return null;
 }
 
@@ -101,34 +106,40 @@ export function shouldBlockTargetDblclickEditSession(args: {
 
 /**
  * Pure transition: post-recall view-only → Reset → editable.
- * Does not mutate React state; used by tests + documents the contract.
+ * Preserves recalled Target physical identity if present, or stays NONE if unselected.
  */
 export function applyAdminWorkResetSession(args: {
   appMode: string;
   targetColor?: unknown;
   slotTargetBall?: unknown;
 }): {
-  isTargetSelected: false;
-  targetColor: null;
-  slotTargetBall: null;
+  isTargetSelected: boolean;
+  targetColor: AdminTargetBall | null;
+  slotTargetBall: AdminTargetBall | null;
   isAdminInputSessionActive: true;
   canUseSystemControls: boolean;
 } {
-  const next = {
-    isTargetSelected: false as const,
-    targetColor: null,
-    slotTargetBall: null,
-    isAdminInputSessionActive: true as const,
-  };
+  const readyTarget = resolveAdminResetTargetMeta({
+    targetColor: args.targetColor,
+    slotTargetBall: args.slotTargetBall,
+  });
+  const isTargetSelected = readyTarget != null;
+  const targetColor = readyTarget;
+  const slotTargetBall = readyTarget;
+  const isAdminInputSessionActive = true as const;
+
   return {
-    ...next,
+    isTargetSelected,
+    targetColor,
+    slotTargetBall,
+    isAdminInputSessionActive,
     canUseSystemControls: canUseAdminSystemControls({
       appMode: args.appMode,
-      isAdminInputSessionActive: next.isAdminInputSessionActive,
+      isAdminInputSessionActive,
       targetReadyBall: resolveAdminTargetReadyBall({
-        isTargetSelected: next.isTargetSelected,
-        targetColor: next.targetColor,
-        slotTargetBall: next.slotTargetBall,
+        isTargetSelected,
+        targetColor,
+        slotTargetBall,
       }),
     }),
   };

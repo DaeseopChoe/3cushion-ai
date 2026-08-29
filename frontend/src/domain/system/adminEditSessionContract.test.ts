@@ -48,7 +48,7 @@ describe("adminEditSessionContract — POLICY A", () => {
     ).toBe(true);
   });
 
-  it("C: Recall → Reset → unlock + Target=NONE + session true", () => {
+  it("C: Recall → Reset → preserves Target identity + session true + controls enabled", () => {
     const recalled = simulateAdminRecallViewOnlyState({
       recordTargetBall: "red",
     });
@@ -57,25 +57,14 @@ describe("adminEditSessionContract — POLICY A", () => {
       targetColor: recalled.targetColor,
       slotTargetBall: recalled.targetColor,
     });
-    expect(after.isTargetSelected).toBe(false);
-    expect(after.targetColor).toBeNull();
+    expect(after.isTargetSelected).toBe(true);
+    expect(after.targetColor).toBe("red");
+    expect(after.slotTargetBall).toBe("red");
     expect(after.isAdminInputSessionActive).toBe(true);
-    // Target is UNSELECTED until user explicitly double-clicks a target ball
-    expect(after.canUseSystemControls).toBe(false);
-
-    // Explicit double-click target selection enables system controls
-    const withExplicitTarget = canUseAdminSystemControls({
-      appMode: "ADMIN",
-      isAdminInputSessionActive: after.isAdminInputSessionActive,
-      targetReadyBall: resolveAdminTargetReadyBall({
-        isTargetSelected: true,
-        targetColor: "red",
-      }),
-    });
-    expect(withExplicitTarget).toBe(true);
+    expect(after.canUseSystemControls).toBe(true);
   });
 
-  it("D: Recall → Target dblclick (blocked) → Reset still deterministic", () => {
+  it("D: Recall → Target dblclick (blocked) → Reset preserves Target identity & enables controls", () => {
     const recalled = simulateAdminRecallViewOnlyState({
       recordTargetBall: "yellow",
     });
@@ -87,8 +76,9 @@ describe("adminEditSessionContract — POLICY A", () => {
       slotTargetBall: "yellow",
     });
     expect(after.isAdminInputSessionActive).toBe(true);
-    expect(after.isTargetSelected).toBe(false);
-    expect(after.targetColor).toBeNull();
+    expect(after.isTargetSelected).toBe(true);
+    expect(after.targetColor).toBe("yellow");
+    expect(after.canUseSystemControls).toBe(true);
   });
 
   it("E/F: Recall → Reset → Search/Recall cycle ×3 — identical", () => {
@@ -109,8 +99,9 @@ describe("adminEditSessionContract — POLICY A", () => {
         slotTargetBall: "red",
       });
       expect(after.isAdminInputSessionActive).toBe(true);
-      expect(after.isTargetSelected).toBe(false);
-      expect(after.targetColor).toBeNull();
+      expect(after.isTargetSelected).toBe(true);
+      expect(after.targetColor).toBe("red");
+      expect(after.canUseSystemControls).toBe(true);
     }
   });
 
@@ -153,8 +144,9 @@ describe("adminEditSessionContract — POLICY A", () => {
       targetColor: "red",
       slotTargetBall: "red",
     });
-    expect(after.isTargetSelected).toBe(false);
-    expect(after.targetColor).toBeNull();
+    expect(after.isTargetSelected).toBe(true);
+    expect(after.targetColor).toBe("red");
+    expect(after.canUseSystemControls).toBe(true);
   });
 
   it("fresh ADMIN (layers off) does not block Target dblclick edit start", () => {
@@ -175,19 +167,137 @@ describe("adminEditSessionContract — POLICY A", () => {
     ).toBe(false);
   });
 
-  it("resolveAdminResetTargetMeta returns null (Target NONE)", () => {
+  it("resolveAdminResetTargetMeta preserves active slot or targetColor metadata", () => {
     expect(
       resolveAdminResetTargetMeta({
         targetColor: "yellow",
         slotTargetBall: "red",
       })
-    ).toBeNull();
+    ).toBe("red");
+    expect(
+      resolveAdminResetTargetMeta({
+        targetColor: "yellow",
+        slotTargetBall: null,
+      })
+    ).toBe("yellow");
     expect(
       resolveAdminResetTargetMeta({
         targetColor: null,
-        slotTargetBall: "red",
+        slotTargetBall: null,
       })
     ).toBeNull();
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // Lifecycle Regression Tests (TEST A ~ TEST E)
+  // ────────────────────────────────────────────────────────────
+  it("TEST A — Red Target Lifecycle: Red Target → Recall (view-only) → Reset (Red preserved, controls enabled)", () => {
+    const balls = {
+      cue: { x: 30, y: 70 },
+      target: { x: 20, y: 50 }, // Physical Red
+      second: { x: 15, y: 30 }, // Physical Yellow
+    };
+    // 1. Recall with Red target
+    const recallState = simulateAdminRecallViewOnlyState({
+      recordTargetBall: "red",
+      searchQueryTargetBall: "red",
+    });
+    expect(recallState.isAdminInputSessionActive).toBe(false);
+    expect(recallState.canUseSystemControls).toBe(false);
+    expect(recallState.targetColor).toBe("red");
+
+    // 2. Reset to Edit
+    const editState = applyAdminWorkResetSession({
+      appMode: "ADMIN",
+      targetColor: recallState.targetColor,
+      slotTargetBall: "red",
+    });
+    expect(editState.isAdminInputSessionActive).toBe(true);
+    expect(editState.targetColor).toBe("red");
+    expect(editState.isTargetSelected).toBe(true);
+    expect(editState.canUseSystemControls).toBe(true);
+
+    // 3. Coordinate invariance check
+    expect(balls.target).toEqual({ x: 20, y: 50 });
+    expect(balls.second).toEqual({ x: 15, y: 30 });
+  });
+
+  it("TEST B — Yellow Target Lifecycle: Yellow Target → Recall (view-only) → Reset (Yellow preserved, controls enabled)", () => {
+    const balls = {
+      cue: { x: 30, y: 70 },
+      target: { x: 15, y: 30 }, // Physical Yellow
+      second: { x: 20, y: 50 }, // Physical Red
+    };
+    // 1. Recall with Yellow target
+    const recallState = simulateAdminRecallViewOnlyState({
+      recordTargetBall: "yellow",
+      searchQueryTargetBall: "yellow",
+    });
+    expect(recallState.isAdminInputSessionActive).toBe(false);
+    expect(recallState.canUseSystemControls).toBe(false);
+    expect(recallState.targetColor).toBe("yellow");
+
+    // 2. Reset to Edit
+    const editState = applyAdminWorkResetSession({
+      appMode: "ADMIN",
+      targetColor: recallState.targetColor,
+      slotTargetBall: "yellow",
+    });
+    expect(editState.isAdminInputSessionActive).toBe(true);
+    expect(editState.targetColor).toBe("yellow");
+    expect(editState.isTargetSelected).toBe(true);
+    expect(editState.canUseSystemControls).toBe(true);
+
+    // 3. Coordinate invariance check
+    expect(balls.target).toEqual({ x: 15, y: 30 });
+    expect(balls.second).toEqual({ x: 20, y: 50 });
+  });
+
+  it("TEST C — Target NONE Search Lifecycle: NONE query → Recalled Red match → Reset preserves matched Red", () => {
+    // 1. Search in Target=NONE mode, matches a record with targetBall="red"
+    const recallState = simulateAdminRecallViewOnlyState({
+      recordTargetBall: "red",
+      searchQueryTargetBall: null, // query was Target=NONE
+    });
+    expect(recallState.targetColor).toBe("red");
+    expect(recallState.isAdminInputSessionActive).toBe(false);
+    expect(recallState.canUseSystemControls).toBe(false);
+
+    // 2. Reset to Edit
+    const editState = applyAdminWorkResetSession({
+      appMode: "ADMIN",
+      targetColor: recallState.targetColor,
+      slotTargetBall: "red",
+    });
+    expect(editState.isAdminInputSessionActive).toBe(true);
+    expect(editState.targetColor).toBe("red");
+    expect(editState.canUseSystemControls).toBe(true);
+  });
+
+  it("TEST D & E — Coordinate Invariance and View-Only Invariant across transitions", () => {
+    const initialBalls = {
+      cue: { x: 10, y: 20 },
+      target: { x: 40, y: 50 },
+      second: { x: 60, y: 70 },
+    };
+    const ballsSnapshot = JSON.parse(JSON.stringify(initialBalls));
+
+    // Recall view-only
+    const recalled = simulateAdminRecallViewOnlyState({ recordTargetBall: "yellow" });
+    expect(recalled.isAdminInputSessionActive).toBe(false);
+    expect(recalled.canUseSystemControls).toBe(false);
+
+    // Reset
+    const after = applyAdminWorkResetSession({
+      appMode: "ADMIN",
+      targetColor: recalled.targetColor,
+      slotTargetBall: "yellow",
+    });
+    expect(after.isAdminInputSessionActive).toBe(true);
+    expect(after.canUseSystemControls).toBe(true);
+
+    // Coordinates untouched
+    expect(initialBalls).toEqual(ballsSnapshot);
   });
 
   it("resolveAdminRecallTargetMeta prefers query lock then record", () => {
