@@ -10,7 +10,8 @@ export const WORKSPACE_HISTORY_KEY = "workspace_history";
 export interface AppState {
   adminState: any;
   ballsState: any;
-  dataset: any[];
+  /** Legacy snapshots may contain embedded dataset. New snapshots omit this to keep history lightweight. */
+  dataset?: any[];
   shotEditor: {
     activeSlot: "S1" | "S2" | "S3";
     slots: Record<string, { draft: any; applied: any }>;

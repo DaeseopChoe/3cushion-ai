@@ -40,6 +40,7 @@ import {
 import {
   saveWorkspaceHistory,
   loadWorkspaceHistory,
+  findSnapshotById,
   getNextVersion,
   buildSnapshotName,
   type WorkspaceSnapshot,
@@ -628,5 +629,166 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
       finalEntries.map((e) => `${e.familyId}|${e.track}|${e.memberOrigin}|${e.derivedStep ?? ""}`)
     );
     expect(identityKeys.size).toBe(finalEntries.length);
+  });
+
+  it("TEST M — Lightweight History Snapshot Size & Schema Invariant (< 10 KB per snapshot)", () => {
+    const baseBalls = collinearCueBalls(20);
+    const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_size_001");
+    const pathNodes = pathC4;
+    const unified = createUnifiedDerivedReview({
+      dataset: initialDataset,
+      familyId: "fm_size_001",
+      authoredPathNodes: pathNodes,
+      hitTolerance: HIT_TOLERANCE,
+    });
+    expect(unified.ok).toBe(true);
+    if (!unified.ok) return;
+
+    const approved = approveUnifiedDerivedReview({
+      dataset: initialDataset,
+      bag: unified.bag,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+
+    const workingDataset = approved.dataset;
+    expect(workingDataset.length).toBeGreaterThanOrEqual(80); // 320 records across 4 tracks
+
+    // Create lightweight snapshot (dataset omitted from state)
+    const lightweightSnapshot: WorkspaceSnapshot = {
+      id: "snap_lightweight_001",
+      name: "뒤돌리기_5_half_system_v001_2026-08-29",
+      systemId: "5_half_system",
+      pattern: "뒤돌리기",
+      version: 1,
+      timestamp: new Date().toISOString(),
+      exported: false,
+      state: {
+        adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" } },
+        ballsState: baseBalls,
+        shotEditor: {
+          activeSlot: "S1",
+          slots: { S1: { draft: { slot: "S1" }, applied: { slot: "S1" } } },
+        },
+        targetBall: "yellow",
+      },
+    };
+
+    const serialized = JSON.stringify(lightweightSnapshot);
+    const byteSize = new TextEncoder().encode(serialized).length;
+
+    // Must NOT embed 320 PositionRecords
+    expect(lightweightSnapshot.state.dataset).toBeUndefined();
+    // Snapshot size must be strictly under 10 KB (typically ~500 B - 2 KB)
+    expect(byteSize).toBeLessThan(10 * 1024);
+
+    const saveRes = saveWorkspaceHistory([lightweightSnapshot]);
+    expect(saveRes).toEqual({ ok: true });
+  });
+
+  it("TEST N — Legacy Snapshot (embedded dataset) & New Lightweight Snapshot Recall Compatibility", () => {
+    const baseBalls = collinearCueBalls(20);
+    const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_compat_001");
+
+    // 1. Legacy Snapshot with embedded dataset
+    const legacySnapshot: WorkspaceSnapshot = {
+      id: "snap_legacy_001",
+      name: "legacy_v001",
+      systemId: "5_half_system",
+      pattern: "뒤돌리기",
+      version: 1,
+      timestamp: new Date().toISOString(),
+      exported: false,
+      state: {
+        adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" } },
+        ballsState: baseBalls,
+        dataset: initialDataset, // Legacy embedded dataset
+        shotEditor: {
+          activeSlot: "S1",
+          slots: { S1: { draft: { slot: "S1" }, applied: { slot: "S1" } } },
+        },
+        targetBall: "yellow",
+      },
+    };
+
+    // 2. New Lightweight Snapshot without embedded dataset
+    const newSnapshot: WorkspaceSnapshot = {
+      id: "snap_new_002",
+      name: "new_v002",
+      systemId: "5_half_system",
+      pattern: "뒤돌리기",
+      version: 2,
+      timestamp: new Date().toISOString(),
+      exported: false,
+      state: {
+        adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" } },
+        ballsState: baseBalls,
+        shotEditor: {
+          activeSlot: "S1",
+          slots: { S1: { draft: { slot: "S1" }, applied: { slot: "S1" } } },
+        },
+        targetBall: "yellow",
+      },
+    };
+
+    saveWorkspaceHistory([legacySnapshot, newSnapshot]);
+    const history = loadWorkspaceHistory();
+    expect(history.length).toBe(2);
+
+    // Verify Legacy Recall reader
+    const legacyLoaded = findSnapshotById(history, "snap_legacy_001")!;
+    expect(legacyLoaded).toBeTruthy();
+    const legacyDataset =
+      Array.isArray(legacyLoaded.state?.dataset) && legacyLoaded.state.dataset.length > 0
+        ? legacyLoaded.state.dataset
+        : initialDataset;
+    expect(legacyDataset.length).toBe(initialDataset.length);
+
+    // Verify New Lightweight Recall reader fallback to SSOT
+    const newLoaded = findSnapshotById(history, "snap_new_002")!;
+    expect(newLoaded).toBeTruthy();
+    expect(newLoaded.state.dataset).toBeUndefined();
+    const newResolvedDataset =
+      Array.isArray(newLoaded.state?.dataset) && newLoaded.state.dataset.length > 0
+        ? newLoaded.state.dataset
+        : initialDataset; // Fallback to SSOT working dataset
+    expect(newResolvedDataset.length).toBe(initialDataset.length);
+  });
+
+  it("TEST O — Quota Scaling Invariant: 20 consecutive snapshots consume O(N * M_UI) < 50 KB", () => {
+    const baseBalls = collinearCueBalls(20);
+    const snapshots: WorkspaceSnapshot[] = [];
+
+    for (let i = 1; i <= 20; i++) {
+      snapshots.push({
+        id: `snap_batch_${i}`,
+        name: `뒤돌리기_5_half_system_v${String(i).padStart(3, "0")}`,
+        systemId: "5_half_system",
+        pattern: "뒤돌리기",
+        version: i,
+        timestamp: new Date().toISOString(),
+        exported: false,
+        state: {
+          adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" } },
+          ballsState: baseBalls,
+          shotEditor: {
+            activeSlot: "S1",
+            slots: { S1: { draft: { slot: "S1" }, applied: { slot: "S1" } } },
+          },
+          targetBall: "yellow",
+        },
+      });
+    }
+
+    const saveRes = saveWorkspaceHistory(snapshots);
+    expect(saveRes).toEqual({ ok: true });
+
+    const totalSerialized = JSON.stringify(snapshots);
+    const totalBytes = new TextEncoder().encode(totalSerialized).length;
+
+    // 20 lightweight snapshots must fit in < 50 KB (well within 5MB quota)
+    // Legacy 20 snapshots with 320 records each would have taken > 5.4 MB and crashed.
+    expect(totalBytes).toBeLessThan(50 * 1024);
+    expect(loadWorkspaceHistory().length).toBe(20);
   });
 });

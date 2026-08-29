@@ -4,6 +4,7 @@
 
 import type { WorkspaceSnapshot } from "./workspaceHistory";
 import { normalizeDatasetFromStorage } from "./positionMergeEngine";
+import { loadWorkingDataset } from "./dataset/infra/datasetStorage";
 import type {
   PositionRecord,
   SlotStrategiesMap,
@@ -88,7 +89,10 @@ export function buildDatasetExport(
   const shotType = snapshot.pattern ?? "뒤돌리기";
   const systemId = canonicalSystemId(snapshot.systemId);
   const systemLabel = systemIdToFolderLabel(systemId);
-  const rawRows = snapshot.state?.dataset ?? [];
+  const rawRows =
+    Array.isArray(snapshot.state?.dataset) && snapshot.state.dataset.length > 0
+      ? snapshot.state.dataset
+      : loadWorkingDataset();
   const normalized = normalizeDatasetFromStorage(rawRows);
   const records = filterRecordsForDatasetExport(
     normalized,

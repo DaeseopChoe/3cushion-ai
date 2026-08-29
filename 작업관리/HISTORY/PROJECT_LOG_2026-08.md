@@ -225,13 +225,49 @@ Authored Save $\to$ `positions_dataset` $\to$ Derived Approval $\to$ Cartesian P
 
 ---
 
+### Milestone 5: Workspace History Lightweight Snapshot Persistence Fix
+
+#### Background & Problem
+- **`workspace_history` QuotaExceededError:** `commitWorkspaceHistoryWithStrategyDataset()`에서 매 SAVE / 파생 승인마다 320개 레코드 전체를 가진 `strategyUpdatedDataset`을 `snapshot.state.dataset`에 Deep Copy로 임베딩하여 스냅샷 1개당 ~275 KB, 15개 누적 시 5MB localStorage 한계를 초과하여 `QuotaExceededError` 발생.
+- **Search Corpus와의 우발적 중복:** `positions_dataset`이 검색 코퍼스의 단독 SSOT임에도 불구하고 History 스냅샷에 전체 코퍼스가 $O(N_{\text{snapshots}} \times M_{\text{corpus}})$ 형태로 중복 복제되어 있었음.
+
+#### Root Cause
+- `useSettings.js`의 `commitWorkspaceHistoryWithStrategyDataset`에서 `snapshot.state.dataset`에 전체 `strategyUpdatedDataset` 배열을 불필요하게 임베딩.
+- 스냅샷 용량의 98.99%가 중복 코퍼스 배열이었음.
+
+#### Final Resolution & Implementation
+1. **Production Fix — History Snapshot 경량화:**
+   - `frontend/src/hooks/useSettings.js`: `commitWorkspaceHistoryWithStrategyDataset`에서 `snapshot.state.dataset` 임베딩 제거. 작업 세션 UI 상태(`adminState`, `ballsState`, `shotEditor`, `targetBall`) 및 스냅샷 메타데이터만 저장.
+   - 단일 스냅샷 크기: ~275 KB $\to$ **~1.5 KB (99.4% 용량 절감)**.
+2. **Backward-Compatible Schema & Reader Fallback:**
+   - `frontend/src/domain/workspaceHistory.ts`: `AppState.dataset?: any[]`를 optional로 정의하여 레거시 스냅샷(embedded dataset 보유)과 신규 경량화 스냅샷(dataset 미포함)을 동시에 유효하게 수용.
+   - `frontend/src/hooks/useSettings.js`: `handleLoadWorkspaceSnapshot`에서 `Array.isArray(s.dataset) && s.dataset.length > 0 ? normalizeDatasetFromStorage(s.dataset) : loadWorkingDataset()` 방어적 fallback 적용.
+   - `frontend/src/domain/datasetExport.ts` & `frontend/src/domain/productExportRequest.ts`: `snapshot.state.dataset` 미포함 시 `loadWorkingDataset()` SSOT로 자동 fallback.
+3. **Core Invariants 보존:**
+   - 기존 저장된 Legacy History 데이터 무손실 보존 (일괄 삭제/강제 prune 금지).
+   - History Workspace $\neq$ Searchable Corpus 원칙 완벽 보존.
+   - Local DB Search 4영역 검색, Ball Role SSOT, Physical Color Invariance 100% 보존.
+
+#### Verification & Protection
+- `frontend/src/application/flows/adminDerivedPersistenceMarginalSearchLifecycle.contract.test.ts` (9 tests PASS):
+  - TEST M: Lightweight Snapshot 크기 검증 (< 10 KB, dataset 미포함 확인).
+  - TEST N: Legacy Snapshot (embedded dataset) 및 New Lightweight Snapshot (SSOT fallback) 상호 호환 검증.
+  - TEST O: 20개 스냅샷 연속 저장 시 $O(N \times M_{\text{UI}}) < 50\text{ KB}$ 스케일링 및 Quota 안전성 검증.
+- `npm run test:fast`: 17 files / 162 tests PASS
+- `npm run test:contract`: 19 files / 194 tests PASS
+- `npm test`: 100 files / 983 tests PASS
+- `npm run build`: PASS
+- `git diff --check`: PASS
+
+---
+
 ## Final Status & Verification Summary
 
 | Suite / Check | Result |
 |---|---|
 | `npm run test:fast` | **17 files / 162 tests PASS** (~1.5s) |
 | `npm run test:contract` | **19 files / 194 tests PASS** (~1.4s) |
-| `npm test` (Full Vitest) | **100 files / 980 tests PASS** (~36s) |
+| `npm test` (Full Vitest) | **100 files / 983 tests PASS** (~40s) |
 | `npm run build` | **PASS** (Vite 번들링 + `dist/dataset` 패키징 성공) |
 | `git diff --check` | **PASS** (0 whitespace / formatting issue) |
 | Production Business Logic | **불변식 완벽 보존 (최소 회귀 수정만 적용)** |

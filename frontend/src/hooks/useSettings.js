@@ -11,6 +11,7 @@ import {
   deleteOldest30,
   updateSnapshotsExported,
 } from "../domain/workspaceHistory";
+import { loadWorkingDataset } from "../domain/dataset/infra/datasetStorage";
 import { normalizeDatasetFromStorage } from "../domain/positionMergeEngine";
 import { buildEditSourceContext } from "../domain/cueEditSnap";
 import {
@@ -290,9 +291,6 @@ export function useSettings({
         state: {
           adminState: JSON.parse(JSON.stringify(snapshotAdminState)),
           ballsState: JSON.parse(JSON.stringify(snapshotBallsState)),
-          dataset: JSON.parse(
-            JSON.stringify(Array.isArray(strategyUpdatedDataset) ? strategyUpdatedDataset : [])
-          ),
           shotEditor: JSON.parse(JSON.stringify(snapshotShotEditor)),
           targetBall: snapshotTargetBall,
         },
@@ -323,7 +321,10 @@ export function useSettings({
         return false;
       }
       const s = snapshot.state;
-      const snapshotDataset = normalizeDatasetFromStorage(s.dataset ?? []);
+      const snapshotDataset =
+        Array.isArray(s.dataset) && s.dataset.length > 0
+          ? normalizeDatasetFromStorage(s.dataset)
+          : loadWorkingDataset();
 
       // Phase 1: History Load restores Workspace editing state only (UI/balls/shotEditor/target).
       // Search Corpus (positions_dataset) remains independent and is NOT replaced by history snapshot.

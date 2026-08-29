@@ -8,6 +8,7 @@
 
 import type { WorkspaceSnapshot } from "./workspaceHistory";
 import { normalizeDatasetFromStorage } from "./positionMergeEngine";
+import { loadWorkingDataset } from "./dataset/infra/datasetStorage";
 import type { PositionRecord } from "./positionSearchEngine";
 import { listStrategiesInRecord } from "./positionSearchEngine";
 
@@ -43,7 +44,10 @@ export function buildProductExportRequestFromSnapshot(
   snapshot: WorkspaceSnapshot,
   exportedAt: string = new Date().toISOString()
 ): ProductExportRequestPayload {
-  const rawRows = snapshot.state?.dataset ?? [];
+  const rawRows =
+    Array.isArray(snapshot.state?.dataset) && snapshot.state.dataset.length > 0
+      ? snapshot.state.dataset
+      : loadWorkingDataset();
   const records = normalizeDatasetFromStorage(rawRows) as PositionRecord[];
   const strategies: ProductExportStrategyRow[] = [];
 
