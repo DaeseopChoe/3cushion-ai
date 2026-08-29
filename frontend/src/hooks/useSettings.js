@@ -298,11 +298,17 @@ export function useSettings({
         },
       };
       const nextHistory = [...history, snapshot];
-      saveWorkspaceHistory(nextHistory);
+      const saveRes = saveWorkspaceHistory(nextHistory);
+      if (!saveRes?.ok) {
+        console.warn("❌ Failed to persist workspace snapshot:", saveRes?.reason);
+        alert(`스냅샷 저장 실패: ${saveRes?.reason ?? "알 수 없는 오류"}`);
+        return { ok: false, reason: saveRes?.reason ?? "history-save-failed" };
+      }
       setWorkspaceHistoryVersion((v) => v + 1);
       setIsSaved(true);
       console.log("💾 Workspace snapshot saved:", name);
       alert(`스냅샷 저장: ${name}`);
+      return { ok: true, name };
     },
     [adminState, ballsState, shotEditor, targetColor, setIsSaved]
   );

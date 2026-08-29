@@ -190,7 +190,7 @@ describe("encodeCueC3ProductDerivedStep", () => {
 });
 
 describe("buildCueC3ProductMembers", () => {
-  it("1: 4 × 3 × 21 = 252 Product", () => {
+  it("1: 4 × (3 + 21 + 3 × 21) = 348 Product (12 cue marginal, 84 c3 marginal, 252 cross-product)", () => {
     const { cueMembers, c3Members } = synthSamples(3, 21);
     const built = buildCueC3ProductMembers({
       familyId: "fm_prod",
@@ -200,13 +200,13 @@ describe("buildCueC3ProductMembers", () => {
     });
     expect(built.ok).toBe(true);
     if (!built.ok) return;
-    expect(built.cardinality.expected).toBe(252);
-    expect(built.members.length).toBe(252);
+    expect(built.cardinality.expected).toBe(348);
+    expect(built.members.length).toBe(348);
     expect(built.cardinality.cueSamplesPerTrack).toBe(3);
     expect(built.cardinality.c3SamplesPerTrack).toBe(21);
   });
 
-  it("2: per track Product = 63", () => {
+  it("2: per track Product = 87 (3 cue + 21 c3 + 63 cross)", () => {
     const { cueMembers, c3Members } = synthSamples(3, 21);
     const built = buildCueC3ProductMembers({
       familyId: "fm_prod",
@@ -217,12 +217,15 @@ describe("buildCueC3ProductMembers", () => {
     if (!built.ok) throw new Error(built.reason);
     for (const track of FAMILY_TRACKS) {
       const n = built.members.filter((m) => m.track === track).length;
-      expect(n).toBe(63);
-      expect(built.cardinality.perTrack[track].product).toBe(63);
+      expect(n).toBe(87);
+      expect(built.cardinality.perTrack[track].product).toBe(87);
+      expect(built.cardinality.perTrack[track].crossProduct).toBe(63);
+      expect(built.cardinality.perTrack[track].cueMarginal).toBe(3);
+      expect(built.cardinality.perTrack[track].c3Marginal).toBe(21);
     }
   });
 
-  it("3: 252 identity unique", () => {
+  it("3: 348 identity unique", () => {
     const { cueMembers, c3Members } = synthSamples(3, 21);
     const built = buildCueC3ProductMembers({
       familyId: "fm_prod",
@@ -234,7 +237,7 @@ describe("buildCueC3ProductMembers", () => {
     const keys = new Set(
       built.members.map((m) => `${m.generatedFromMemberId}|${m.derivedStep}`)
     );
-    expect(keys.size).toBe(252);
+    expect(keys.size).toBe(348);
   });
 
   it("4: deterministic regeneration (same fingerprint + memberIds)", () => {
@@ -340,7 +343,11 @@ describe("buildCueC3ProductMembers", () => {
       const c3 = c3Members.find((m) => m.track === track)!;
       const base = sources[track]!;
       expect(product.targetBall).toBe("red");
-      expect(product.balls.second).toEqual(c3.balls.cue);
+      if (product.memberOrigin === CUE_IMPACT_MEMBER_ORIGIN) {
+        expect(product.balls.second).toEqual(base.balls.second);
+      } else {
+        expect(product.balls.second).toEqual(c3.balls.cue);
+      }
       expect(product.balls.target).toEqual(base.balls.target);
       expect(product.balls.target).not.toEqual(c3.balls.cue);
       expect(product.balls.second).not.toEqual(base.balls.target);
@@ -368,7 +375,11 @@ describe("buildCueC3ProductMembers", () => {
       const c3 = c3Members.find((m) => m.track === track)!;
       const base = sources[track]!;
       expect(product.targetBall).toBe("yellow");
-      expect(product.balls.second).toEqual(c3.balls.cue);
+      if (product.memberOrigin === CUE_IMPACT_MEMBER_ORIGIN) {
+        expect(product.balls.second).toEqual(base.balls.second);
+      } else {
+        expect(product.balls.second).toEqual(c3.balls.cue);
+      }
       expect(product.balls.target).toEqual(base.balls.target);
       expect(product.balls.target).not.toEqual(c3.balls.cue);
     }
@@ -404,7 +415,9 @@ describe("buildCueC3ProductMembers", () => {
         frozenSourcesByTrack: sources,
       });
       if (!built.ok) throw new Error(built.reason);
-      const product = built.members.find((m) => m.track === "B2T_L")!;
+      const product = built.members.find(
+        (m) => m.track === "B2T_L" && m.memberOrigin === CUE_C3_PRODUCT_MEMBER_ORIGIN
+      )!;
       const c3 = c3Members.find((m) => m.track === "B2T_L")!;
       expect(product.balls.second).toEqual(c3.balls.cue);
       expect(product.balls.target).toEqual(roleBase.target);
@@ -649,7 +662,7 @@ describe("buildCueC3ProductMembers", () => {
       frozenSourcesByTrack: frozen,
     });
     if (!built.ok) throw new Error(built.reason);
-    expect(built.members.length).toBe(252);
+    expect(built.members.length).toBe(348);
 
     const written = writeFamilyMembers(bases.dataset, {
       familyId: bases.set.familyId,
@@ -665,5 +678,17 @@ describe("buildCueC3ProductMembers", () => {
       )
     );
     expect(productEntries.length).toBe(252);
+    const cueMarginalEntries = written.dataset.flatMap((r) =>
+      Object.values(r.strategies ?? {}).filter(
+        (e) => e?.memberOrigin === CUE_IMPACT_MEMBER_ORIGIN
+      )
+    );
+    expect(cueMarginalEntries.length).toBe(12);
+    const c3MarginalEntries = written.dataset.flatMap((r) =>
+      Object.values(r.strategies ?? {}).filter(
+        (e) => e?.memberOrigin === C3_PLUS_MEMBER_ORIGIN
+      )
+    );
+    expect(c3MarginalEntries.length).toBe(84);
   });
 });

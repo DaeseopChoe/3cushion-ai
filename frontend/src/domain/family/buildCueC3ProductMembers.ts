@@ -21,8 +21,14 @@ import {
   mintMemberId,
   validateFamilyProvenance,
 } from "./familyIdentity";
-import { CUE_IMPACT_MEMBER_ORIGIN } from "./generateCueImpactDerivedMembers";
-import { C3_PLUS_MEMBER_ORIGIN } from "./generateC3PlusScoringDerivedMembers";
+import {
+  CUE_IMPACT_DERIVED_RULE,
+  CUE_IMPACT_MEMBER_ORIGIN,
+} from "./generateCueImpactDerivedMembers";
+import {
+  C3_PLUS_DERIVED_RULE,
+  C3_PLUS_MEMBER_ORIGIN,
+} from "./generateC3PlusScoringDerivedMembers";
 import {
   FAMILY_TRACKS,
   cloneBall3,
@@ -42,7 +48,17 @@ export type CueC3ProductCardinality = {
   c3SamplesPerTrack: number;
   expected: number;
   actual: number;
-  perTrack: Record<FamilyTrack, { cue: number; c3: number; product: number }>;
+  perTrack: Record<
+    FamilyTrack,
+    {
+      cue: number;
+      c3: number;
+      cueMarginal?: number;
+      c3Marginal?: number;
+      crossProduct?: number;
+      product: number;
+    }
+  >;
 };
 
 export type CueC3ProductExistingLineage = {
@@ -164,10 +180,17 @@ export function buildCueC3ProductMembers(args: {
     };
   }
 
-  const expected = FAMILY_TRACKS.length * nc * n3;
+  const expected = FAMILY_TRACKS.length * (nc + n3 + nc * n3);
   const perTrack = {} as CueC3ProductCardinality["perTrack"];
   for (const t of FAMILY_TRACKS) {
-    perTrack[t] = { cue: nc, c3: n3, product: nc * n3 };
+    perTrack[t] = {
+      cue: nc,
+      c3: n3,
+      cueMarginal: nc,
+      c3Marginal: n3,
+      crossProduct: nc * n3,
+      product: nc + n3 + nc * n3,
+    };
   }
   const cardinalityBase: CueC3ProductCardinality = {
     trackCount: FAMILY_TRACKS.length,
@@ -215,6 +238,20 @@ export function buildCueC3ProductMembers(args: {
         cardinality: cardinalityBase,
       };
     }
+    const baseCuePoint = isFinitePoint(base.balls.cue)
+      ? { x: base.balls.cue.x, y: base.balls.cue.y }
+      : null;
+    const baseSecondPoint = isFinitePoint(base.balls.second)
+      ? { x: base.balls.second.x, y: base.balls.second.y }
+      : null;
+    if (!baseCuePoint || !baseSecondPoint) {
+      return {
+        ok: false,
+        code: "INVALID_BALLS",
+        reason: `missing base physical balls (cue or second) on ${track}`,
+        cardinality: cardinalityBase,
+      };
+    }
     const compatibility = extractTemporaryCompatibilityPayload(base.entry);
     const trajectoryExtensions = cloneExtensions(base.entry.trajectoryExtensions);
     const reflectionOverride = base.entry.reflectionOverride
@@ -224,6 +261,261 @@ export function buildCueC3ProductMembers(args: {
     const cues = cueByTrack.get(track)!;
     const c3s = c3ByTrack.get(track)!;
 
+    // 1. Cue Marginal (Ci × S0): Cue Derived × Base Second
+    for (const cueSample of cues) {
+      const cueStep = (cueSample.derivedStep ?? "").trim();
+      const cuePoint = cueSample.balls.cue;
+      if (!cueStep || !isFinitePoint(cuePoint)) {
+        return {
+          ok: false,
+          code: "INVALID_BALLS",
+          reason: `invalid Cue sample on ${track}`,
+          cardinality: cardinalityBase,
+        };
+      }
+      if (cueSample.generatedFromMemberId !== baseMemberId) {
+        return {
+          ok: false,
+          code: "INVALID_PROVENANCE",
+          reason: `Cue sample ${cueSample.memberId} generatedFrom must be base ${baseMemberId}`,
+          cardinality: cardinalityBase,
+        };
+      }
+
+      const sampleTargetBall =
+        resolvedTargetBall ??
+        (cueSample.targetBall === "yellow" || cueSample.targetBall === "red"
+          ? cueSample.targetBall
+          : undefined);
+
+      if (
+        pointsEqual(cuePoint, baseSecondPoint) ||
+        pointsEqual(cuePoint, physicalTargetPoint) ||
+        pointsEqual(baseSecondPoint, physicalTargetPoint)
+      ) {
+        return {
+          ok: false,
+          code: "INVALID_BALLS",
+          reason: `Cue marginal balls collide on ${track} cue=${cueStep}`,
+          cardinality: cardinalityBase,
+        };
+      }
+
+      const balls: Ball3 = {
+        cue: { x: cuePoint.x, y: cuePoint.y },
+        target: { x: physicalTargetPoint.x, y: physicalTargetPoint.y },
+        second: { x: baseSecondPoint.x, y: baseSecondPoint.y },
+      };
+
+      if (
+        !isValidBallCenter(balls.cue) ||
+        !isValidBallCenter(balls.target) ||
+        !isValidBallCenter(balls.second)
+      ) {
+        return {
+          ok: false,
+          code: "OUT_OF_BOUNDS",
+          reason: `Cue marginal ball center out of range on ${track}`,
+          cardinality: cardinalityBase,
+        };
+      }
+      const bounds = validateBall3Centers(balls);
+      if (bounds) {
+        return {
+          ok: false,
+          code: "OUT_OF_BOUNDS",
+          reason: bounds,
+          cardinality: cardinalityBase,
+        };
+      }
+
+      const exactKey = `${balls.cue.x},${balls.cue.y}|${balls.target.x},${balls.target.y}|${balls.second.x},${balls.second.y}`;
+      if (seenExact.has(exactKey)) {
+        return {
+          ok: false,
+          code: "DUPLICATE_IDENTITY",
+          reason: `duplicate Exact Cue marginal balls on ${track}`,
+          cardinality: cardinalityBase,
+        };
+      }
+      seenExact.add(exactKey);
+
+      const identityKey = `${baseMemberId}|${cueStep}`;
+      if (seenIdentity.has(identityKey)) {
+        return {
+          ok: false,
+          code: "DUPLICATE_IDENTITY",
+          reason: `duplicate Cue marginal derivedStep ${cueStep}`,
+          cardinality: cardinalityBase,
+        };
+      }
+      seenIdentity.add(identityKey);
+
+      const found = existing.get(`${baseMemberId}|${cueStep}`);
+      const memberId = found?.memberId ?? mintMemberId();
+      const authoringStrategyId =
+        found?.authoringStrategyId?.trim() || mintAuthoringStrategyId();
+
+      const candidate: LogicalFamilyMemberCandidate = {
+        familyId,
+        memberId,
+        memberOrigin: CUE_IMPACT_MEMBER_ORIGIN,
+        generatedFromMemberId: baseMemberId,
+        derivedRule: CUE_IMPACT_DERIVED_RULE,
+        derivedStep: cueStep,
+        authoringStrategyId,
+        track,
+        balls: cloneBall3(balls),
+        ...(sampleTargetBall === "yellow" || sampleTargetBall === "red"
+          ? { targetBall: sampleTargetBall }
+          : {}),
+        compatibility,
+        ...(trajectoryExtensions ? { trajectoryExtensions } : {}),
+        ...(reflectionOverride ? { reflectionOverride } : {}),
+      };
+
+      const provenance = validateFamilyProvenance(candidate);
+      if (!provenance.ok) {
+        return {
+          ok: false,
+          code: "INVALID_PROVENANCE",
+          reason: provenance.reason,
+          cardinality: cardinalityBase,
+        };
+      }
+      members.push(candidate);
+    }
+
+    // 2. C3+ Marginal (C0 × Sj): Base Cue × C3+ Scoring
+    for (const c3Sample of c3s) {
+      const c3Step = (c3Sample.derivedStep ?? "").trim();
+      const scoringPointP = c3Sample.balls.cue;
+      if (!c3Step || !isFinitePoint(scoringPointP)) {
+        return {
+          ok: false,
+          code: "INVALID_BALLS",
+          reason: `invalid C3+ sample on ${track}`,
+          cardinality: cardinalityBase,
+        };
+      }
+      if (c3Sample.generatedFromMemberId !== baseMemberId) {
+        return {
+          ok: false,
+          code: "INVALID_PROVENANCE",
+          reason: `C3+ sample ${c3Sample.memberId} generatedFrom must be base ${baseMemberId}`,
+          cardinality: cardinalityBase,
+        };
+      }
+
+      const c3TargetBall =
+        resolvedTargetBall ??
+        (c3Sample.targetBall === "yellow" || c3Sample.targetBall === "red"
+          ? c3Sample.targetBall
+          : undefined);
+
+      if (
+        pointsEqual(baseCuePoint, scoringPointP) ||
+        pointsEqual(baseCuePoint, physicalTargetPoint) ||
+        pointsEqual(scoringPointP, physicalTargetPoint)
+      ) {
+        return {
+          ok: false,
+          code: "INVALID_BALLS",
+          reason: `C3+ marginal balls collide on ${track} c3=${c3Step}`,
+          cardinality: cardinalityBase,
+        };
+      }
+
+      const objectSlots = placePhysicalSecondSampleOnRoleBall3(
+        base.balls,
+        scoringPointP
+      );
+      const balls: Ball3 = {
+        cue: { x: baseCuePoint.x, y: baseCuePoint.y },
+        target: objectSlots.target,
+        second: objectSlots.second,
+      };
+
+      if (
+        !isValidBallCenter(balls.cue) ||
+        !isValidBallCenter(balls.target) ||
+        !isValidBallCenter(balls.second)
+      ) {
+        return {
+          ok: false,
+          code: "OUT_OF_BOUNDS",
+          reason: `C3+ marginal ball center out of range on ${track}`,
+          cardinality: cardinalityBase,
+        };
+      }
+      const bounds = validateBall3Centers(balls);
+      if (bounds) {
+        return {
+          ok: false,
+          code: "OUT_OF_BOUNDS",
+          reason: bounds,
+          cardinality: cardinalityBase,
+        };
+      }
+
+      const exactKey = `${balls.cue.x},${balls.cue.y}|${balls.target.x},${balls.target.y}|${balls.second.x},${balls.second.y}`;
+      if (seenExact.has(exactKey)) {
+        return {
+          ok: false,
+          code: "DUPLICATE_IDENTITY",
+          reason: `duplicate Exact C3+ marginal balls on ${track}`,
+          cardinality: cardinalityBase,
+        };
+      }
+      seenExact.add(exactKey);
+
+      const identityKey = `${baseMemberId}|${c3Step}`;
+      if (seenIdentity.has(identityKey)) {
+        return {
+          ok: false,
+          code: "DUPLICATE_IDENTITY",
+          reason: `duplicate C3+ marginal derivedStep ${c3Step}`,
+          cardinality: cardinalityBase,
+        };
+      }
+      seenIdentity.add(identityKey);
+
+      const found = existing.get(`${baseMemberId}|${c3Step}`);
+      const memberId = found?.memberId ?? mintMemberId();
+      const authoringStrategyId =
+        found?.authoringStrategyId?.trim() || mintAuthoringStrategyId();
+
+      const candidate: LogicalFamilyMemberCandidate = {
+        familyId,
+        memberId,
+        memberOrigin: C3_PLUS_MEMBER_ORIGIN,
+        generatedFromMemberId: baseMemberId,
+        derivedRule: C3_PLUS_DERIVED_RULE,
+        derivedStep: c3Step,
+        authoringStrategyId,
+        track,
+        balls: cloneBall3(balls),
+        ...(c3TargetBall === "yellow" || c3TargetBall === "red"
+          ? { targetBall: c3TargetBall }
+          : {}),
+        compatibility,
+        ...(trajectoryExtensions ? { trajectoryExtensions } : {}),
+        ...(reflectionOverride ? { reflectionOverride } : {}),
+      };
+
+      const provenance = validateFamilyProvenance(candidate);
+      if (!provenance.ok) {
+        return {
+          ok: false,
+          code: "INVALID_PROVENANCE",
+          reason: provenance.reason,
+          cardinality: cardinalityBase,
+        };
+      }
+      members.push(candidate);
+    }
+
+    // 3. Cross Product (Ci × Sj): Cue Derived × C3+ Scoring
     for (const cueSample of cues) {
       const cueStep = (cueSample.derivedStep ?? "").trim();
       const cuePoint = cueSample.balls.cue;

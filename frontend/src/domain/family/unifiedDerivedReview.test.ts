@@ -290,11 +290,14 @@ describe("createUnifiedDerivedReview", () => {
     const c3Durable = entries.filter(
       (e) => e.memberOrigin === C3_PLUS_MEMBER_ORIGIN
     ).length;
-    expect(productN).toBe(unified.bag.productMembers.length);
-    expect(cueDurable).toBe(0);
-    expect(c3Durable).toBe(0);
+    expect(productN + cueDurable + c3Durable).toBe(unified.bag.productMembers.length);
+    expect(cueDurable).toBeGreaterThan(0);
+    expect(c3Durable).toBeGreaterThan(0);
+    expect(productN).toBeGreaterThan(0);
 
-    const sample = unified.bag.productMembers[0]!;
+    const sample = unified.bag.productMembers.find(
+      (m) => m.memberOrigin === CUE_C3_PRODUCT_MEMBER_ORIGIN
+    )!;
     const persisted = entries.find((e) => e.memberId === sample.memberId)!;
     const rec = approved.dataset.find((r) =>
       Object.values(r.strategies ?? {}).some((e) => e?.memberId === sample.memberId)
@@ -304,6 +307,20 @@ describe("createUnifiedDerivedReview", () => {
     expect(rec.balls.target).toEqual(sample.balls.target);
     expect(persisted.memberOrigin).toBe(CUE_C3_PRODUCT_MEMBER_ORIGIN);
     expect(persisted.derivedRule).toBe("CUE_C3_CARTESIAN_PRODUCT_V1");
+
+    const cueSample = unified.bag.productMembers.find(
+      (m) => m.memberOrigin === CUE_IMPACT_MEMBER_ORIGIN
+    )!;
+    const cuePersisted = entries.find((e) => e.memberId === cueSample.memberId)!;
+    expect(cuePersisted.memberOrigin).toBe(CUE_IMPACT_MEMBER_ORIGIN);
+    expect(cuePersisted.derivedRule).toBe("CUE_IMPACT_FIRST_30PCT");
+
+    const c3Sample = unified.bag.productMembers.find(
+      (m) => m.memberOrigin === C3_PLUS_MEMBER_ORIGIN
+    )!;
+    const c3Persisted = entries.find((e) => e.memberId === c3Sample.memberId)!;
+    expect(c3Persisted.memberOrigin).toBe(C3_PLUS_MEMBER_ORIGIN);
+    expect(c3Persisted.derivedRule).toBe("C3_PLUS_SCORING_LINE_v1");
   });
 
   it("ALL NO_SB Approve: Product write 0; dataset unchanged", () => {
@@ -351,11 +368,15 @@ describe("createUnifiedDerivedReview", () => {
         unified.bag.cueSession.members.map((c) => c.memberId)
       );
       expect(cueDerivedIds.has(m.generatedFromMemberId!)).toBe(false);
-      expect(m.memberOrigin).toBe(CUE_C3_PRODUCT_MEMBER_ORIGIN);
+      expect([
+        CUE_C3_PRODUCT_MEMBER_ORIGIN,
+        CUE_IMPACT_MEMBER_ORIGIN,
+        C3_PLUS_MEMBER_ORIGIN,
+      ]).toContain(m.memberOrigin);
     }
   });
 
-  it("Product cardinality = cuePerTrack × c3PerTrack × 4", () => {
+  it("Product cardinality = 4 × (cuePerTrack + c3PerTrack + cuePerTrack × c3PerTrack)", () => {
     const written = persistFour(collinearCueBalls(20));
     const unified = createUnifiedDerivedReview({
       dataset: written.dataset,
@@ -370,8 +391,9 @@ describe("createUnifiedDerivedReview", () => {
     const c3N = unified.bag.c3PlusSession.members.filter(
       (m) => m.track === "B2T_L"
     ).length;
-    expect(unified.bag.productMembers.length).toBe(4 * cueN * c3N);
-    expect(unified.bag.productCardinality?.expected).toBe(4 * cueN * c3N);
+    const expectedPerTrack = cueN + c3N + cueN * c3N;
+    expect(unified.bag.productMembers.length).toBe(4 * expectedPerTrack);
+    expect(unified.bag.productCardinality?.expected).toBe(4 * expectedPerTrack);
   });
 });
 

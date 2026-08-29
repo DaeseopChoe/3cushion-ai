@@ -179,16 +179,61 @@ Authored Save $\to$ `positions_dataset` $\to$ Derived Approval $\to$ Cartesian P
 
 ---
 
+### Milestone 4: ADMIN Derived SAVE Persistence & Marginal Search Coverage
+
+#### Background & Problem
+1. **`workspace_history` Silent Persistence Failure / False Success:**
+   - `saveWorkspaceHistory()` 내부에서 `localStorage.setItem` 실패 시 `console.warn`만 발생시키고 `void`를 반환하여 호출부(`commitWorkspaceHistoryWithStrategyDataset`)가 성공으로 오인.
+   - 용량 초과(`QuotaExceededError`) 등 저장 실패 시에도 `workspaceHistoryVersion`이 증가하고 "스냅샷 저장: ..." alert가 표시되나 실제로는 History에 스냅샷이 누락됨.
+2. **Derived Family 1D Marginal Search Records 누락:**
+   - Unified Derived Approval 시 `Base Cue × Base Second`(4개)와 `Cue Derived × C3+`(252개)만 생성되어, `Cue Derived × Base Second`와 `Base Cue × C3+`의 1D 한계(Marginal) 검색 레코드가 누락되어 Local DB Search에서 매칭 실패.
+
+#### Root Cause
+- `workspaceHistory.ts`의 `saveWorkspaceHistory`가 반환값 없이 에러를 삼키고 호출부에 실패 상태를 전달하지 않는 불완전한 함수 시그니처.
+- `buildCueC3ProductMembers.ts`가 Cue 축 파생점($C_i$)과 C3+ 파생점($S_j$)의 곱집합($C_i \times S_j$)만 생성하고, 각 축의 Base($C_0$, $S_0$)와 결합된 한계 레코드($C_i \times S_0$, $C_0 \times S_j$)를 생성하지 않음.
+
+#### Final Resolution & Implementation
+1. **`workspace_history` 저장 성공/실패 계약 명시화 (Fix A):**
+   - `frontend/src/domain/workspaceHistory.ts`: `saveWorkspaceHistory`의 반환 타입을 `SaveWorkspaceHistoryResult` (`{ ok: true } | { ok: false, reason: string }`)로 전환하고 에러를 명시적으로 반환.
+   - `frontend/src/hooks/useSettings.js`: `commitWorkspaceHistoryWithStrategyDataset`에서 `saveWorkspaceHistory` 결과를 검사하여 실패 시 버전 증가 차단, 실패 alert 표시(`스냅샷 저장 실패: ...`), 실패 결과 반환.
+2. **Derived Marginal Coverage 생성 및 검증 (Fix C):**
+   - `frontend/src/domain/family/buildCueC3ProductMembers.ts`:
+     - $C_i \times S_0$ (Cue Marginal, `DERIVED_CUE_IMPACT`, `CUE_IMPACT_DERIVED_RULE`): Cue Derived $\times$ Base Second 생성.
+     - $C_0 \times S_j$ (C3+ Marginal, `DERIVED_C3_PLUS`, `C3_PLUS_DERIVED_RULE`): Base Cue $\times$ C3+ Scoring 생성.
+     - $C_i \times S_j$ (Cross Product, `DERIVED_CUE_C3_PRODUCT`): Cue Derived $\times$ C3+ Scoring 생성.
+     - Track당 레코드 수: $N_c + N_3 + N_c \times N_3$ (4개 트랙 총 $4 \times (N_c + N_3 + N_c \times N_3)$).
+   - `frontend/src/domain/family/unifiedDerivedReview.ts`:
+     - `existingProductLineage` 필터에 `CUE_IMPACT_MEMBER_ORIGIN`과 `C3_PLUS_MEMBER_ORIGIN`을 포함하여 한계 레코드 계통 보존.
+3. **Core Invariants 보존:**
+   - 4-Track Invariant (`B2T_L`, `B2T_R`, `T2B_L`, `T2B_R`) 유지.
+   - Ball Role SSOT (`Cue / Target / Second`) 및 물리 색상(`Red / Yellow`) 불변 유지.
+   - Search 엔진 알고리즘/임계값 일체 불변.
+
+#### Verification & Protection
+- `frontend/src/application/flows/adminDerivedPersistenceMarginalSearchLifecycle.contract.test.ts` (6 tests PASS):
+  - TEST A~E: Base, Cue Marginal, C3+ Marginal, Cross Product, Outside Corpus 검색 검증.
+  - TEST F & G: Red Target / Yellow Target 물리 색상 반전 패리티 검증.
+  - TEST H: History 저장 성공 및 내구성 로드 검증.
+  - TEST I: `QuotaExceededError` 시 버전 미증가 및 실패 alert 검증.
+  - TEST J: Full User Lifecycle (Recall $\to$ Reset $\to$ Edit Cue $\to$ SAVE $\to$ Derived Review $\to$ Approve $\to$ History Check $\to$ Marginal Search) E2E 검증.
+  - TEST K & L: Family Record Count ($4 \times (N_c + N_3 + N_c \times N_3)$) 및 Corpus 유일성 검증.
+- `npm run test:fast`: 17 files / 162 tests PASS
+- `npm run test:contract`: 19 files / 194 tests PASS
+- `npm test`: 100 files / 980 tests PASS
+- `npm run build`: PASS
+- `git diff --check`: PASS
+
+---
+
 ## Final Status & Verification Summary
 
 | Suite / Check | Result |
 |---|---|
-| `npm run test:fast` | **16 files / 156 tests PASS** (~1.5s) |
-| `npm run test:contract` | **17 files / 182 tests PASS** (~1.3s) |
-| `npm test` (Full Vitest) | **98 files / 968 tests PASS** (~25s) |
+| `npm run test:fast` | **17 files / 162 tests PASS** (~1.5s) |
+| `npm run test:contract` | **19 files / 194 tests PASS** (~1.4s) |
+| `npm test` (Full Vitest) | **100 files / 980 tests PASS** (~36s) |
 | `npm run build` | **PASS** (Vite 번들링 + `dist/dataset` 패키징 성공) |
-| `npm run test:regression` | **PASS** (4단계 파이프라인 단일 명령 완주) |
-| R01 ~ R24 Regression Matrix | **100% GREEN** |
+| `git diff --check` | **PASS** (0 whitespace / formatting issue) |
 | Production Business Logic | **불변식 완벽 보존 (최소 회귀 수정만 적용)** |
 
 ---

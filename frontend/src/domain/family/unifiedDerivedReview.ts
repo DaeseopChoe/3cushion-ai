@@ -38,6 +38,7 @@ import {
   type CreateC3PlusDerivedReviewResult,
 } from "./c3PlusDerivedReview";
 import { CUE_IMPACT_MEMBER_ORIGIN } from "./generateCueImpactDerivedMembers";
+import { C3_PLUS_MEMBER_ORIGIN } from "./generateC3PlusScoringDerivedMembers";
 import { C3_PLUS_FOUR_TRACK_INCONSISTENT } from "./c3PlusFourTrackConsistency";
 import type { FamilyTrack } from "./trackSymmetry";
 
@@ -120,7 +121,11 @@ function existingProductLineage(
     generatedFromMemberId?: string;
   }> = [];
   for (const loc of reconstructFamilyMembers(dataset, familyId)) {
-    if (loc.entry.memberOrigin !== CUE_C3_PRODUCT_MEMBER_ORIGIN) continue;
+    if (
+      loc.entry.memberOrigin !== CUE_C3_PRODUCT_MEMBER_ORIGIN &&
+      loc.entry.memberOrigin !== CUE_IMPACT_MEMBER_ORIGIN &&
+      loc.entry.memberOrigin !== C3_PLUS_MEMBER_ORIGIN
+    ) continue;
     if (!loc.entry.derivedStep || !loc.entry.memberId) continue;
     out.push({
       derivedStep: loc.entry.derivedStep,
