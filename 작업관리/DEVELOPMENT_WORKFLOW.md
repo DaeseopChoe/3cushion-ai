@@ -274,12 +274,49 @@ Contract 의미·Migration Rule은 **Fleet Contract Book**이 우선한다.
 
 ---
 
-## 6. Git Workflow
+## 6. Git & Regression Workflow
 
-### 6.1 Default sequence
+### 6.1 Standard Regression Gates & Test Commands
+
+프로젝트의 안정성을 보장하기 위해 표준화된 4계층 회귀 검증 명령을 사용한다 (`frontend/package.json` 기준).
+
+```text
+[1. FAST]     npm run test:fast       ← 핵심 SSOT / Search / Role / Admin Flow 초고속 검증 (~1.5s)
+     ↓
+[2. CONTRACT] npm run test:contract   ← End-to-End 수명주기 및 레이어 간 계약 검증 (~1.3s)
+     ↓
+[3. FULL]     npm test                ← 전체 98개 파일 964개 테스트 전수 검증 (~35s)
+     ↓
+[4. BUILD]    npm run build           ← Vite 번들링 및 dataset → dist/dataset 패키징 검증 (~9s)
+     ↓
+[통합 Gate]   npm run test:regression ← FAST → CONTRACT → FULL → BUILD 4단계 전체 검증
+```
+
+#### R01 ~ R24 Regression Matrix
+회귀 테스트 스위트는 다음 8대 핵심 영역 24개 규칙을 100% GREEN으로 보호한다:
+- **Ball Role SSOT:** Cue Role 불변, Target/Second ≠ Physical Color, Color/Role 독립
+- **Search Engine:** Red/Yellow Target 2-way Permutation, Winning Mapping 보존, Recall Profiles
+- **History / Corpus:** History Workspace와 Searchable Corpus 완전 분리, 최신 코퍼스 검색
+- **Derived Data:** Cue-derived, C3+-derived, Cartesian Product (`Track × Cue × C3+`)
+- **Published Dataset:** Leaf 전체 탐색, Cache Invalidation, 배포 패키징
+- **Trajectory:** Trajectory 1적구 = 실제 Target 물리 좌표 라우팅
+- **UI State:** No-match 시 UI Ball State 불변, Target NONE 및 Explicit Reassign
+- **Schema Guard:** `PositionRecord` 및 Published Dataset Payload fail-closed 방어
+
+### 6.2 GitHub Actions CI Automation
+
+- **Workflow SSOT:** `.github/workflows/regression.yml`
+- **Triggers:** `push: [main]`, `pull_request: [main]`, `workflow_dispatch`
+- **Runner Environment:** `ubuntu-latest`, `Node.js 20` (LTS), `npm ci`, `contents: read` 최소 권한
+- **Pipeline:** FAST $\to$ CONTRACT $\to$ FULL $\to$ BUILD 4단계 Fail-Fast 구조 자동화
+- **원칙:** PR 머지 및 main 푸시 전 Regression Gate 통과 필수 (실패 시 배포 차단).
+
+### 6.3 Default sequence
 
 ```text
 Work (scoped)
+  ↓
+Regression Gate (npm run test:regression)
   ↓
 Commit          ← 논리 단위 · 목적 외 파일 제외
   ↓
@@ -295,17 +332,18 @@ CURSOR_SESSION_HANDOFF ← 다음 Entry 갱신 (단계 전환 시)
 Fleet Batch 완료 시 SSOT sync 상세는 **§11**을 따른다.  
 세션이 Commit/Push를 **명시적으로 금지**하면, 문서 SSOT만 갱신하고 Git은 후속 세션으로 미룬다.
 
-### 6.2 Commit rules (operational)
+### 6.4 Commit rules (operational)
 
 | Rule | Statement |
 |------|-----------|
 | **Scope** | 한 Commit = 한 논리 목적 (예: STEP6 Freeze docs only · B7 Validation Ops SSOT). |
+| **Gate** | 중요 로직/검증 작업 후 Commit 전 `npm run test:regression` 통과 필수. |
 | **No dump** | 임시 `_update_*` · 무관 handoff · 미검증 실험을 마일스톤에 섞지 않는다. |
 | **No force** | `main` force push 금지 (명시 요청 없는 한). |
 | **No amend** | 실패·거절 후 amend로 덮지 않는다. 새 Commit. |
 | **Hooks** | `--no-verify` 기본 금지. |
 
-### 6.3 Push rules
+### 6.5 Push rules
 
 - 마일스톤·SSOT 반영 후 **Push까지** 완료해야 다음 세션 Entry가 유효하다.  
 - Local only Commit은 Handoff에 “미Push”를 명시하지 않는 한 **공식 상태로 취급하지 않는다**.  

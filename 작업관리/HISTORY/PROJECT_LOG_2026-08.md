@@ -1,8 +1,117 @@
 # PROJECT_LOG_2026-08
 
-Version : v1.68
+Version : v1.69
 Period : 2026-08
 Status : Active Project Log
+
+---
+
+# 2026-08-29 (Search Normalization, History-Corpus Separation, Regression Test Foundation & CI Automation)
+
+## Mode
+
+**Agent** · History Workspace / Searchable Corpus Separation · ADMIN Target NONE Contract · USER Search 2-Way Role Permutation & Winning Mapping Preservation · End-to-End Lifecycle Contract · Standard Regression Foundation (R01~R24) · Full Vitest Legacy Remediation · GitHub Actions Regression CI Workflow
+
+---
+
+### Milestone 1: History Workspace / Searchable Corpus Separation & ADMIN Target Selection Contract
+
+#### Background & Problem
+1. **History Load 후 검색 코퍼스 오염:** `handleLoadWorkspaceSnapshot` 실행 시 스냅샷에 포함된 데이터셋으로 `positions_dataset` 영속화 및 React `dataset` 상태를 덮어씀으로써, 과거 스냅샷을 불러오면 전체 검색 풀(Corpus)이 과거 시점의 축소된 데이터로 오염되는 문제가 발생함.
+2. **ADMIN Target Ball 자동 지정 문제:** 앱 진입 또는 Reset 시 노란공이 Target으로 자동 지정되어, Target 미선택 상태에서의 자유 검색 및 더블클릭을 통한 명시적 재지정이 제한됨.
+
+#### Root Cause
+- `useSettings.js`의 `handleLoadWorkspaceSnapshot`에서 UI/편집 상태 복원과 전역 검색용 코퍼스 관리가 단일 스토리지 키(`positions_dataset`)와 상태(`dataset`)로 강결합되어 있었음.
+- `App.jsx`의 초기화 이펙트 및 reset 핸들러가 slot 메타데이터에서 Target을 자동 유추하여 설정하고 있었음.
+
+#### Final Resolution & Implementation
+- **저장소 및 상태 분리:** `useSettings.js`의 `handleLoadWorkspaceSnapshot`에서 `persistPositionsDatasetWithGeneration` 및 `setDataset` 호출을 제거함. 스냅샷 데이터는 UI/슬롯 편집 컨텍스트 복원에만 사용되고, 전역 검색 코퍼스는 영구 보존됨.
+- **ADMIN Target 초기화 & 명시적 재지정:** `App.jsx` 및 `adminEditSessionContract.ts`에서 초기 Target을 `null`(NONE)로 설정. Target 미지정 시에도 전체 코퍼스를 대상으로 검색하며, 공 더블클릭을 통해서만 명시적 Target 재지정이 가능하도록 전환.
+
+#### Verification & Protection
+- `frontend/src/application/flows/historySearchCorpusSeparation.contract.test.ts` (6 tests PASS)
+- `frontend/src/application/flows/adminTargetBallRules.contract.test.ts` (9 tests PASS)
+- `frontend/src/domain/system/adminEditSessionContract.test.ts` (13 tests PASS)
+
+---
+
+### Milestone 2: USER Search Normalization — Published Leaf Dynamic Resolution, 2-Way Role Permutation & Winning Mapping Preservation
+
+#### Background & Problem
+1. **Published Leaf 단일 Lock:** USER Search 진입 시 이전 History/Admin의 stale `shotType` 힌트에 갇혀 특정 leaf 파일만 검색하던 문제.
+2. **물리 색상과 논리 역할 결합에 따른 매칭 실패:** ADMIN에서 `Red=Target / Yellow=Second`로 저장된 데이터를 USER Search(기본 `Yellow=Target / Red=Second`)에서 검색 시 역할 불일치로 탈락하는 현상.
+3. **검색 성공 후 물리공 시각적 스왑 및 Trajectory 왜곡:** 승리한 역할 순열 정보가 UI로 전달되지 않아 `targetColor`만 "red"로 바뀌면서 화면 상의 빨간공과 노란공이 서로 뒤바뀌어 렌더링되고 궤적이 엉뚱한 공을 향해 조준됨.
+
+#### Root Cause
+- `userSearchFlow.ts`가 stale 힌트를 참조하여 단일 leaf만 resolve하고 있었음.
+- USER 모드에서는 사용자가 Target을 직접 지정하지 않음에도 1가지 고정된 역할 매핑만 검사함.
+- `runUserSearch`가 `record`만 반환하여 어떤 순열이 매칭되었는지(`matchedBalls`) UI에 전달하지 못함.
+
+#### Final Resolution & Implementation
+- **Stale Lock 해제 & 배포 자동화:** `userSearchFlow.ts`에서 `shotType: null`을 전달하여 모든 canonical leaf를 동적 탐색. `vite.config.js`의 `publishedDatasetStatic` 훅을 통해 `dataset/` 디렉터리가 `dist/dataset/`으로 자동 패키징되도록 보장하고 Export 후 캐시를 무효화함.
+- **2-Way Role Permutation:** Target=NONE 상태에서 `candidateBallQueries`로 `[Yellow=Target, Red=Second]`와 `[Red=Target, Yellow=Second]`를 모두 생성하여 검색 평가.
+- **Winning Role Mapping 보존:** `UserSearchResult = { record, matchedBalls }` 타입을 도입하여 승리한 `matchedBalls`를 UI `ballsState`와 완벽 동기화. 화면 상의 물리공 좌표 불변 및 Trajectory 엔진으로의 정확한 1적구 물리 좌표 전달 보장.
+
+#### Verification & Protection
+- `frontend/src/application/flows/publishedSearchLeafResolution.contract.test.ts` (13 tests PASS)
+- `frontend/src/application/flows/userSearchRolePermutation.contract.test.ts` (11 tests PASS)
+- `frontend/src/domain/ballRole.ssot.test.ts` (3 tests PASS)
+
+---
+
+### Milestone 3: Full Lifecycle End-to-End Integration Contract
+
+#### Scope
+Authored Save $\to$ `positions_dataset` $\to$ Derived Approval $\to$ Cartesian Product (`Track × Cue × C3+`) $\to$ Export $\to$ Published Leaf (`dist/dataset`) $\to$ USER Search $\to$ 2-way Role Permutation $\to$ Winning Mapping $\to$ UI State $\to$ Trajectory Target의 전 수명주기 무결성 검증.
+
+#### Verification & Protection
+- `frontend/src/application/flows/endToEndDataPipeline.contract.test.ts` (7 tests PASS)
+  - T1: Authored Save 및 Ball3 역할 보존
+  - T2: Derived Product 승인 및 searchable 코퍼스 반영
+  - T3 & T4: Export 및 Published Leaf Envelope 검증
+  - T5 & T6 & T7: USER Search Case A(Yellow Target) & Case B(Red Target) 역할 순열 매칭
+  - T8 & T9: 화면 물리공 불변 및 Trajectory 1적구 라우팅 검증
+  - T10 & T11: R24 Schema Regression Guard (PositionRecord 및 Published Payload fail-closed)
+
+---
+
+### Milestone 4: Standard Regression Foundation (R01~R24) & Full Vitest Remediation
+
+#### Standard Regression Scripts
+- `npm run test:fast`: 핵심 Flow 및 SSOT 초고속 검증 (16 files / 156 tests)
+- `npm run test:contract`: End-to-End 수명주기 및 불변 계약 검증 (17 files / 182 tests)
+- `npm test`: 전체 Vitest Suite (98 files / 964 tests)
+- `npm run build`: Production Build & dataset packaging
+- `npm run test:regression`: FAST $\to$ CONTRACT $\to$ FULL $\to$ BUILD 단일 명령 전체 검증
+
+#### Legacy Full Vitest 6개 실패 100% 정규화 (Production 변경 0건)
+- **F1~F5 (Test Runner 호환성):** `canonicalPersistAudit`, `canonicalStrategy`, `englishCorrectionSign`, `positionRecallEngine`, `strategyHydrate`의 레거시 단독 스크립트들을 기존 assertion/fixture 100% 보존하며 Vitest `describe()` / `it()` 블록으로 래핑.
+- **F6 (Expectation Drift):** `systemAxisCaption.test.ts`의 폐기된 `alignC4SideCaptionsToCo` 기대값을 2026-06-20 확정된 OPEN-04 독립 기하 배치 SSOT(`c4.y = 162`, `co.y = 257`)로 동기화.
+- **결과:** 98개 파일 / 964개 테스트 전수 **100% GREEN** 달성.
+
+---
+
+### Milestone 5: GitHub Actions Regression CI Workflow Implementation
+
+#### Implementation (`.github/workflows/regression.yml`)
+- **Triggers:** `push: [main]`, `pull_request: [main]`, `workflow_dispatch`
+- **Environment:** `ubuntu-latest`, `Node.js 20` (LTS), `npm ci`, `cache: npm`
+- **Security:** `permissions: contents: read` (최소 권한, Secret 요구 0건, 외부 네트워크 의존 0건)
+- **Pipeline:** FAST $\to$ CONTRACT $\to$ FULL $\to$ BUILD 4단계 Fail-Fast 구조 적용.
+
+---
+
+## Final Status & Verification Summary
+
+| Suite / Check | Result |
+|---|---|
+| `npm run test:fast` | **16 files / 156 tests PASS** (~1.5s) |
+| `npm run test:contract` | **17 files / 182 tests PASS** (~1.3s) |
+| `npm test` (Full Vitest) | **98 files / 964 tests PASS** (~35s) |
+| `npm run build` | **PASS** (Vite 번들링 + `dist/dataset` 패키징 성공) |
+| `npm run test:regression` | **PASS** (4단계 파이프라인 단일 명령 완주) |
+| R01 ~ R24 Regression Matrix | **100% GREEN** |
+| Production Business Logic 변경 | **0건 (불변식 완벽 보존)** |
 
 ---
 

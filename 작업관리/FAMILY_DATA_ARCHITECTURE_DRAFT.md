@@ -83,7 +83,7 @@ Sections below (§1–…) describe this **TARGET** design and earlier phase con
 | Cue→Impact Derived Members | **COMPLETE** (3A-359) — Review samples; not final durable alone |
 | SAVE auto-connect Derived (no review) | **NOT IMPLEMENTED** — REVIEW_REQUIRED remains |
 | C3+ Scoring Line Derived Members | **COMPLETE** (3A-359) — Review samples (transient balls.cue parks sample point) |
-| Cue×C3+ Cartesian Product | **COMPLETE** (3A-360) — durable `T×Nc×N3` · balls.cue←Cue · balls.second←C3+ · target←base |
+| Cue×C3+ Cartesian Product | **COMPLETE** (3A-360) — durable `T×Nc×N3` · balls.cue←Cue · **physical-second color-slot**←C3+ P · physical-target←base (3A-360C) |
 | C3_PLUS Search Index | **NOT IMPLEMENTED** |
 | Unified Derived Review (Cue ∪ C3+) | **COMPLETE** (3A-359L) — markers; Approve writes **Product-only** (3A-360) |
 | Atomic 4-track Derived consistency | **COMPLETE** — `FOUR_TRACK_INCONSISTENT` · ALL NO_SB = normal C3+/Product skip |

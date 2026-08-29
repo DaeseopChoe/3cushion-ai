@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.01
-Last Updated: 2026-08-28
+Version: 2.02
+Last Updated: 2026-08-29
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -55,8 +55,12 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **POLICY A (canonical):** view-only Recall · **Reset only** → edit · Target dblclick ≠ session API · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
-| **Issue B (History Local Search variance)** | **CLOSED — NO ADDITIONAL SEARCH/DATASET CHANGE** · detail → `HISTORY/PROJECT_LOG_2026-08.md` |
-| **Ball3 Role SSOT** | **UNCHANGED** · field name == physical role · Search Role-direct |
+| **History / Search Corpus Separation** | ✅ **COMPLETE** — History snapshot load no longer overwrites searchable corpus · independent search pool preserved |
+| **USER Search Normalization & Role Permutation** | ✅ **COMPLETE** — 2-way Target/Second permutation · winning matchedBalls preserved · Trajectory Target alignment |
+| **ADMIN Target Selection Contract** | ✅ **COMPLETE** — Target defaults to NONE · explicit double-click reassign · non-target search supported |
+| **Regression Test Foundation (R01~R24)** | ✅ **COMPLETE** — FAST/CONTRACT/FULL/BUILD 4-tier standardized regression · Full Lifecycle Contract · 98 files/964 tests GREEN |
+| **GitHub Actions Regression CI** | ✅ **COMPLETE** — `.github/workflows/regression.yml` · Node 20 LTS · npm ci · contents:read · 4-step fail-fast gate |
+| **Ball3 Role SSOT** | **UNCHANGED** — field name == physical role · Physical Color (Red/Yellow) ≠ Logical Role |
 | **Product Coverage Display** | APPROVED/History: **persisted Product balls** (not live `buildTrajectory`) |
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
@@ -70,6 +74,30 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
 | **Mission 04 Authoring Integration** | ✅ **ABSORBED** (ADR · Missions 01–03 + `product pipeline`) |
+
+### Search & Ball Role Normalization (2026-08-29)
+
+> **Pointer only** — 상세 완료 기록: `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-29 마일스톤.
+
+| Item | Status |
+|------|--------|
+| **History / Search Corpus Separation** | ✅ **COMPLETE** — `handleLoadWorkspaceSnapshot`의 `positions_dataset` 영속화 및 `dataset` 덮어쓰기 호출 분리. History 스냅샷 복원은 UI 편집 상태만 복원하며 전체 검색 코퍼스 독립성 보장. (`historySearchCorpusSeparation.contract.test.ts` 6 PASS) |
+| **ADMIN Target Selection Contract** | ✅ **COMPLETE** — ADMIN 진입 및 Reset 시 Target Ball 기본값을 NONE(`null`)으로 초기화. 더블클릭을 통한 명시적 재지정 지원 및 Target 미지정 상태에서도 전체 코퍼스 검색 보장. (`adminTargetBallRules.contract.test.ts` 9 PASS) |
+| **Published Leaf Resolution** | ✅ **COMPLETE** — USER Search에서 stale `shotType` 단일 leaf 잠금 제거, 모든 활성 canonical leaf 동적 탐색 및 Export 후 published cache 전체 무효화. (`publishedSearchLeafResolution.contract.test.ts` 13 PASS) |
+| **USER Search 2-way Role Permutation** | ✅ **COMPLETE** — Target=NONE 상태에서 Yellow=Target/Red=Second 및 Red=Target/Yellow=Second 2가지 역할 순열을 모두 평가하여 물리 색상과 무관하게 정확한 레코드 매칭. (`userSearchRolePermutation.contract.test.ts` 11 PASS) |
+| **Winning Role Mapping & Trajectory Target** | ✅ **COMPLETE** — `runUserSearch`가 승리한 `matchedBalls`를 반환하고 UI `ballsState`를 동기화하여 화면 상 물리공 위치 불변 및 Trajectory 엔진으로의 정확한 1적구 물리 좌표 전달 보장. |
+| **Full Lifecycle Pipeline Contract** | ✅ **COMPLETE** — Save → `positions_dataset` → Derived Approval → Cartesian Product → Export → Published Leaf → USER Search → Trajectory Target 전 수명주기 무결성 보장. (`endToEndDataPipeline.contract.test.ts` 7 PASS) |
+
+### Regression Test Foundation & CI Automation (2026-08-29)
+
+> **Pointer only** — 상세 완료 기록: `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-29 마일스톤 및 `DEVELOPMENT_WORKFLOW.md`.
+
+| Item | Status |
+|------|--------|
+| **Standard Regression Scripts** | ✅ **COMPLETE** — `npm run test:fast`, `npm run test:contract`, `npm test`, `npm run test:regression`, `npm run build` 표준 명령 체계 확립. |
+| **R01 ~ R24 Regression Matrix** | ✅ **COMPLETE** — Ball Role, Search, History/Corpus, Derived, Published, Trajectory, UI State, Schema 8대 영역 24개 핵심 회귀 규칙 100% GREEN 보호. |
+| **Full Vitest Legacy Remediation** | ✅ **COMPLETE** — 5개 레거시 단독 스크립트의 정식 Vitest describe/it 등록 및 `systemAxisCaption.test.ts`의 OPEN-04 기하 expectation 동기화 완료 (98 files / 964 tests PASS). |
+| **GitHub Actions Regression CI** | ✅ **COMPLETE** — `.github/workflows/regression.yml` 구축 (Ubuntu runner, Node.js 20 LTS, `npm ci`, 4-step fail-fast, `contents: read` 최소 권한). |
 
 ### Precision Editing (B1~B5 + Guide Live Preview · 2026-08-28)
 
