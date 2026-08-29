@@ -2,7 +2,7 @@
  * PHASE 1 — StrategyEntry → slot draft.sys SSOT (full hydrate incl. outputs.result).
  */
 
-import type { StrategyEntry, StrategySysCorrections } from "./positionSearchEngine";
+import type { PositionRecord, StrategyEntry, StrategySysCorrections } from "./positionSearchEngine";
 import { mergeCorrections } from "./canonicalStrategy";
 import { familyIdentityPersistPatch } from "./family/familyIdentity";
 import { hydrateFamilyMemberRuntimeHpt } from "./family/familyRuntimeProjection";
@@ -29,11 +29,14 @@ export function strategyEntryToSlotDraftSys(entry: StrategyEntry): SlotDraftSys 
 }
 
 /**
- * Family-native hydrate: AUTHORED/legacy hpT unchanged; SYMMETRY gets
- * handedness-resolved runtime HPT. Does not persist the resolved value.
+ * Family-native hydrate: AUTHORED/legacy hpT unchanged; opposite-handedness (SYMMETRY or DERIVED_*)
+ * gets handedness-resolved runtime HPT. Does not persist the resolved value.
  */
-export function runtimeHptFromStrategyEntry(entry: StrategyEntry): unknown {
-  return hydrateFamilyMemberRuntimeHpt(entry);
+export function runtimeHptFromStrategyEntry(
+  entry: StrategyEntry,
+  dataset?: PositionRecord[]
+): unknown {
+  return hydrateFamilyMemberRuntimeHpt(entry, dataset);
 }
 
 export function draftFamilyIdentityFromStrategyEntry(entry: StrategyEntry): {

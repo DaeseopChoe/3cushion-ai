@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.02
+Version: 2.03
 Last Updated: 2026-08-29
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -82,6 +82,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | Item | Status |
 |------|--------|
 | **History / Search Corpus Separation** | ✅ **COMPLETE** — `handleLoadWorkspaceSnapshot`의 `positions_dataset` 영속화 및 `dataset` 덮어쓰기 호출 분리. History 스냅샷 복원은 UI 편집 상태만 복원하며 전체 검색 코퍼스 독립성 보장. (`historySearchCorpusSeparation.contract.test.ts` 6 PASS) |
+| **Track Symmetry Runtime Hydrate** | ✅ **COMPLETE** — `hydrateFamilyMemberRuntimeHpt` / `hydrateFamilyMemberRuntimeThickness`가 `memberOrigin` 대신 `authoredTrack` vs `requestedTrack`의 handedness 관계(`isOppositeHandedness`)를 기준으로 판정. `AUTHORED`, `SYMMETRY`, `DERIVED_*` 전 영역에서 canonical 유지 및 Thickness sign mirror / hit_point.x mirror 일관 적용. (`adminDerivedPersistenceMarginalSearchLifecycle.contract.test.ts` TEST 1~5 PASS) |
+| **History Single Successor SSOT** | ✅ **COMPLETE** — SAVE 시 `runCanonicalSave`에서 단일 후속자 스냅샷(v005)만 기록하고, `commitDerivedApprovalDataset`의 중복 히스토리 커밋 제거. 한 번의 논리적 작업(Recall v004 → Edit → SAVE → Derived Approval) 후 정확히 단일 후속자(`[v004, v005]`)만 생성. (`adminDerivedPersistenceMarginalSearchLifecycle.contract.test.ts` TEST 6 PASS) |
 | **ADMIN Target Selection Contract** | ✅ **COMPLETE** — ADMIN 진입 및 Reset 시 Target Ball 기본값을 NONE(`null`)으로 초기화. 더블클릭을 통한 명시적 재지정 지원 및 Target 미지정 상태에서도 전체 코퍼스 검색 보장. (`adminTargetBallRules.contract.test.ts` 9 PASS) |
 | **Published Leaf Resolution** | ✅ **COMPLETE** — USER Search에서 stale `shotType` 단일 leaf 잠금 제거, 모든 활성 canonical leaf 동적 탐색 및 Export 후 published cache 전체 무효화. (`publishedSearchLeafResolution.contract.test.ts` 13 PASS) |
 | **USER Search 2-way Role Permutation** | ✅ **COMPLETE** — Target=NONE 상태에서 Yellow=Target/Red=Second 및 Red=Target/Yellow=Second 2가지 역할 순열을 모두 평가하여 물리 색상과 무관하게 정확한 레코드 매칭. (`userSearchRolePermutation.contract.test.ts` 11 PASS) |

@@ -237,53 +237,11 @@ describe("commitDerivedApprovalDataset", () => {
         .draft.track
     ).toBe("B2T_L");
     expect(currentRuntime).not.toEqual(projectionB);
-    expect(commitHistory).toHaveBeenCalledTimes(1);
+    expect(commitHistory).not.toHaveBeenCalled();
     expect(persistedCueImpactDerivedCount(approved.dataset, "fm_family1")).toBeGreaterThan(0);
   });
 
-  it("Case B/C: history uses AFTER dataset and baseline runtime (not projection B)", () => {
-    const written = persistFourTrack();
-    const review = createCueImpactDerivedReview({
-      dataset: written.dataset,
-      familyId: "fm_family1",
-    });
-    if (!review.ok) throw new Error(review.reason);
-    const approved = approveCueImpactDerivedReview({
-      dataset: written.dataset,
-      session: review.session,
-    });
-    if (!approved.ok) throw new Error(approved.reason);
-
-    const baselineA = makeBaselineA();
-    const projectionB = makeProjectionB();
-    const expectedHistoryRuntime = baselineSnapshotToHistoryRuntime(baselineA);
-    let historyDataset: PositionRecord[] | null = null;
-    let historyRuntime: ReturnType<typeof baselineSnapshotToHistoryRuntime> | undefined;
-
-    commitDerivedApprovalDataset({
-      resultDataset: approved.dataset,
-      baselineSnapshot: baselineA,
-      saveWorkingDataset: vi.fn(),
-      setDataset: vi.fn(),
-      restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: (dataset, runtimeOverride) => {
-        historyDataset = dataset;
-        historyRuntime = runtimeOverride;
-      },
-    });
-
-    expect(historyDataset).toEqual(approved.dataset);
-    expect(persistedCueImpactDerivedCount(historyDataset!, "fm_family1")).toBeGreaterThan(0);
-    expect(historyRuntime).toEqual(expectedHistoryRuntime);
-    expect(historyRuntime!.ballsState).toEqual(baselineA.ballsState);
-    expect(historyRuntime!.ballsState).not.toEqual(projectionB.ballsState);
-    expect(
-      (historyRuntime!.shotEditor as { slots: { S1: { draft: { track: string } } } }).slots.S1
-        .draft.track
-    ).toBe("B2T_L");
-  });
-
-  it("Case E: calls commitWorkspaceHistoryWithStrategyDataset exactly once", () => {
+  it("Case E: does not double-append workspace_history on Approval (single successor committed at SAVE)", () => {
     const written = persistFourTrack();
     const review = createCueImpactDerivedReview({
       dataset: written.dataset,
@@ -305,7 +263,7 @@ describe("commitDerivedApprovalDataset", () => {
       restoreDerivedReviewSnapshot: vi.fn(),
       commitWorkspaceHistoryWithStrategyDataset: commitHistory,
     });
-    expect(commitHistory).toHaveBeenCalledTimes(1);
+    expect(commitHistory).not.toHaveBeenCalled();
   });
 
   it("Case F: Derived members survive baseline restore path", () => {
@@ -355,12 +313,11 @@ describe("commitDerivedApprovalDataset", () => {
     commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaselineA(),
-      saveWorkingDataset: vi.fn(),
-      setDataset: vi.fn(),
-      restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: (dataset) => {
+      saveWorkingDataset: (dataset) => {
         snapDataset = dataset;
       },
+      setDataset: vi.fn(),
+      restoreDerivedReviewSnapshot: vi.fn(),
     });
 
     const after = derivedLineageFromDataset(snapDataset, "fm_family1");

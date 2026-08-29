@@ -468,7 +468,7 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     expect(loadWorkspaceHistory()).toHaveLength(1);
   });
 
-  it("restore → Approval resyncs shadow and keeps Approval History +1", () => {
+  it("restore → Approval resyncs shadow and maintains single history successor SSOT", () => {
     const c10 = [record("pos_c10", ballsC10, authoredEntry())];
     seedCorpus(c10);
 
@@ -519,8 +519,8 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     expect(out.corpusPersist.ok).toBe(true);
     expect(out.normalizedDualWrite.ok).toBe(true);
     expect(isNormalizedCorpusFresh()).toBe(true);
-    expect(commitHistory).toHaveBeenCalledTimes(1);
-    expect(loadWorkspaceHistory()).toHaveLength(1);
+    expect(commitHistory).not.toHaveBeenCalled();
+    expect(loadWorkspaceHistory()).toHaveLength(0);
   });
 
   it("History delete / deleteOldest leave positions + family_* untouched", () => {

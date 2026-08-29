@@ -37,7 +37,8 @@ export type DerivedApprovalCommitContext = {
   saveWorkingDataset?: (updated: PositionRecord[]) => void;
   setDataset: (updated: PositionRecord[]) => void;
   restoreDerivedReviewSnapshot: (snapshot: DerivedReviewBaselineSnapshot | null) => void;
-  commitWorkspaceHistoryWithStrategyDataset: (
+  /** @deprecated Approval no longer double-appends history; kept optional for backwards compatibility. */
+  commitWorkspaceHistoryWithStrategyDataset?: (
     updated: PositionRecord[],
     runtimeOverride?: DerivedApprovalHistoryRuntimeOverride
   ) => void;
@@ -64,9 +65,9 @@ export type DerivedApprovalCommitResult = {
 };
 
 /**
- * Persist approved Derived members, restore pre-review authoring runtime,
- * append one workspace_history snapshot (AFTER durable corpus + baseline runtime).
- * Must not call runSaveStrategy / runCanonicalSave.
+ * Persist approved Derived members, restore pre-review authoring runtime.
+ * Single successor workspace_history snapshot is committed by runCanonicalSave.
+ * Must not call runSaveStrategy / runCanonicalSave or double-append history.
  */
 export function commitDerivedApprovalDataset(
   ctx: DerivedApprovalCommitContext
@@ -97,14 +98,9 @@ export function commitDerivedApprovalDataset(
     { corpusGeneration: corpusPersist.corpusGeneration }
   );
 
-  const historyRuntime = ctx.baselineSnapshot
-    ? baselineSnapshotToHistoryRuntime(ctx.baselineSnapshot)
-    : undefined;
-
   if (ctx.baselineSnapshot) {
     ctx.restoreDerivedReviewSnapshot(ctx.baselineSnapshot);
   }
 
-  ctx.commitWorkspaceHistoryWithStrategyDataset(ctx.resultDataset, historyRuntime);
   return { normalizedDualWrite, corpusPersist };
 }

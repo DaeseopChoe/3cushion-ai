@@ -50,6 +50,15 @@ import {
   type LogicalFamilyMemberCandidate,
 } from "../../domain/family/familyAwareWriter";
 import { FAMILY_TRACKS, type FamilyTrack } from "../../domain/family/trackSymmetry";
+import {
+  hydrateFamilyMemberRuntimeHpt,
+  hydrateFamilyMemberRuntimeThickness,
+} from "../../domain/family/familyRuntimeProjection";
+import {
+  saveWorkingDataset,
+  loadWorkingDataset,
+} from "../../domain/dataset/infra/datasetStorage";
+import { runCanonicalSave } from "./historyFlow";
 function pathNodesThrough(
   marks: Array<{ id: string; p: Point }>
 ): Array<Point | null> {
@@ -141,7 +150,7 @@ function setupBaseFourTrackFamily(
         shotType: "뒤돌리기",
       },
       sysInputs: { CO_f: 30, C3_r: 20 },
-      hpT: { T: "3/8", hit_point: { x: 2, y: 1.5 }, mode: "TIP", tipCount: 2 },
+      hpT: { T: "+4/8", hit_point: { x: 2, y: 1.5 }, mode: "TIP", tipCount: 2 },
       str: { speed: 2 },
       ai: { text: "marginal test lesson" },
       track: "B2T_L",
@@ -790,5 +799,447 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
     // Legacy 20 snapshots with 320 records each would have taken > 5.4 MB and crashed.
     expect(totalBytes).toBeLessThan(50 * 1024);
     expect(loadWorkspaceHistory().length).toBe(20);
+  });
+
+  it("TEST 1 — Same Handedness: AUTHORED & DERIVED_* on same-handed track hydrate canonical HPT/Thickness", () => {
+    const baseBalls = collinearCueBalls(20);
+    const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_sym_test_001");
+
+    const unified = createUnifiedDerivedReview({
+      dataset: initialDataset,
+      familyId: "fm_sym_test_001",
+      authoredPathNodes: pathC4,
+      hitTolerance: HIT_TOLERANCE,
+    });
+    expect(unified.ok).toBe(true);
+    if (!unified.ok) return;
+
+    const approved = approveUnifiedDerivedReview({
+      dataset: initialDataset,
+      bag: unified.bag,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+
+    const fullDataset = approved.dataset;
+    saveWorkingDataset(fullDataset);
+
+    // Authored track is B2T_L (Handedness L)
+    // Same handedness tracks: B2T_L, T2B_L (RPI)
+    const b2tlMembers = fullDataset.filter((r) => r.strategies.S1?.track === "B2T_L");
+    expect(b2tlMembers.length).toBeGreaterThan(0);
+
+    for (const r of b2tlMembers) {
+      const entry = r.strategies.S1!;
+      const runtimeHpt = hydrateFamilyMemberRuntimeHpt(entry, fullDataset) as any;
+      const runtimeT = hydrateFamilyMemberRuntimeThickness(entry, fullDataset);
+
+      // Canonical T = "+4/8", hit_point.x = 2 (positive)
+      expect(runtimeT).toBe("+4/8");
+      expect(runtimeHpt?.T).toBe("+4/8");
+      expect(runtimeHpt?.hit_point?.x).toBe(2);
+    }
+  });
+
+  it("TEST 2 — Opposite Track / DERIVED_CUE_IMPACT: mirrors Thickness sign and hit_point.x on opposite handedness", () => {
+    const baseBalls = collinearCueBalls(20);
+    const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_sym_test_002");
+
+    const unified = createUnifiedDerivedReview({
+      dataset: initialDataset,
+      familyId: "fm_sym_test_002",
+      authoredPathNodes: pathC4,
+      hitTolerance: HIT_TOLERANCE,
+    });
+    expect(unified.ok).toBe(true);
+    if (!unified.ok) return;
+
+    const approved = approveUnifiedDerivedReview({
+      dataset: initialDataset,
+      bag: unified.bag,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+
+    const fullDataset = approved.dataset;
+    saveWorkingDataset(fullDataset);
+
+    // B2T_R is opposite handedness (R) to authored B2T_L (L)
+    const cueImpactOpposite = fullDataset.filter(
+      (r) =>
+        r.strategies.S1?.track === "B2T_R" &&
+        r.strategies.S1?.memberOrigin === CUE_IMPACT_MEMBER_ORIGIN
+    );
+    expect(cueImpactOpposite.length).toBeGreaterThan(0);
+
+    for (const r of cueImpactOpposite) {
+      const entry = r.strategies.S1!;
+      const runtimeHpt = hydrateFamilyMemberRuntimeHpt(entry, fullDataset) as any;
+      const runtimeT = hydrateFamilyMemberRuntimeThickness(entry, fullDataset);
+
+      // Canonical T was "+4/8" -> Mirrored T is "-4/8"
+      expect(runtimeT).toBe("-4/8");
+      expect(runtimeHpt?.T).toBe("-4/8");
+      // Canonical hit_point.x was 2 -> Mirrored hit_point.x is -2
+      expect(runtimeHpt?.hit_point?.x).toBe(-2);
+      // y is unmirrored
+      expect(runtimeHpt?.hit_point?.y).toBe(1.5);
+    }
+  });
+
+  it("TEST 3 — Opposite Track / DERIVED_C3_PLUS: mirrors Thickness sign and hit_point.x on opposite handedness", () => {
+    const baseBalls = collinearCueBalls(20);
+    const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_sym_test_003");
+
+    const unified = createUnifiedDerivedReview({
+      dataset: initialDataset,
+      familyId: "fm_sym_test_003",
+      authoredPathNodes: pathC4,
+      hitTolerance: HIT_TOLERANCE,
+    });
+    expect(unified.ok).toBe(true);
+    if (!unified.ok) return;
+
+    const approved = approveUnifiedDerivedReview({
+      dataset: initialDataset,
+      bag: unified.bag,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+
+    const fullDataset = approved.dataset;
+    saveWorkingDataset(fullDataset);
+
+    const c3PlusOpposite = fullDataset.filter(
+      (r) =>
+        r.strategies.S1?.track === "B2T_R" &&
+        r.strategies.S1?.memberOrigin === C3_PLUS_MEMBER_ORIGIN
+    );
+    expect(c3PlusOpposite.length).toBeGreaterThan(0);
+
+    for (const r of c3PlusOpposite) {
+      const entry = r.strategies.S1!;
+      const runtimeHpt = hydrateFamilyMemberRuntimeHpt(entry, fullDataset) as any;
+      const runtimeT = hydrateFamilyMemberRuntimeThickness(entry, fullDataset);
+
+      expect(runtimeT).toBe("-4/8");
+      expect(runtimeHpt?.T).toBe("-4/8");
+      expect(runtimeHpt?.hit_point?.x).toBe(-2);
+    }
+  });
+
+  it("TEST 4 — Opposite Track / DERIVED_CUE_C3_PRODUCT: mirrors Thickness sign and hit_point.x on opposite handedness", () => {
+    const baseBalls = collinearCueBalls(20);
+    const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_sym_test_004");
+
+    const unified = createUnifiedDerivedReview({
+      dataset: initialDataset,
+      familyId: "fm_sym_test_004",
+      authoredPathNodes: pathC4,
+      hitTolerance: HIT_TOLERANCE,
+    });
+    expect(unified.ok).toBe(true);
+    if (!unified.ok) return;
+
+    const approved = approveUnifiedDerivedReview({
+      dataset: initialDataset,
+      bag: unified.bag,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+
+    const fullDataset = approved.dataset;
+    saveWorkingDataset(fullDataset);
+
+    const productOpposite = fullDataset.filter(
+      (r) =>
+        r.strategies.S1?.track === "B2T_R" &&
+        r.strategies.S1?.memberOrigin === CUE_C3_PRODUCT_MEMBER_ORIGIN
+    );
+    expect(productOpposite.length).toBeGreaterThan(0);
+
+    for (const r of productOpposite) {
+      const entry = r.strategies.S1!;
+      const runtimeHpt = hydrateFamilyMemberRuntimeHpt(entry, fullDataset) as any;
+      const runtimeT = hydrateFamilyMemberRuntimeThickness(entry, fullDataset);
+
+      expect(runtimeT).toBe("-4/8");
+      expect(runtimeHpt?.T).toBe("-4/8");
+      expect(runtimeHpt?.hit_point?.x).toBe(-2);
+    }
+  });
+
+  it("TEST 5 — Track Boundary: Spatial Recall switches between B2T_L and B2T_R and updates runtime symmetry accordingly", async () => {
+    const baseBalls = collinearCueBalls(20);
+    const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_sym_test_005");
+
+    const unified = createUnifiedDerivedReview({
+      dataset: initialDataset,
+      familyId: "fm_sym_test_005",
+      authoredPathNodes: pathC4,
+      hitTolerance: HIT_TOLERANCE,
+    });
+    expect(unified.ok).toBe(true);
+    if (!unified.ok) return;
+
+    const approved = approveUnifiedDerivedReview({
+      dataset: initialDataset,
+      bag: unified.bag,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+
+    const fullDataset = approved.dataset;
+    saveWorkingDataset(fullDataset);
+
+    // 1. Query near B2T_L (Authored track, left-side of table)
+    const leftBalls = {
+      cue: pt(baseBalls.cue.x + 0.5, baseBalls.cue.y),
+      target: { ...baseBalls.target },
+      second: { ...baseBalls.second },
+    };
+    const resLeft = await executeAdminRecall(fullDataset, leftBalls, "yellow");
+    expect(resLeft.ok).toBe(true);
+    expect(resLeft.record?.strategies.S1?.track).toBe("B2T_L");
+    const leftHpt = hydrateFamilyMemberRuntimeHpt(resLeft.record?.strategies.S1, fullDataset) as any;
+    expect(leftHpt?.T).toBe("+4/8");
+    expect(leftHpt?.hit_point?.x).toBe(2);
+
+    // 2. Query near B2T_R (Symmetric track, right-side of table x -> 80 - x)
+    const rightBalls = {
+      cue: pt(80 - (baseBalls.cue.x + 0.5), baseBalls.cue.y),
+      target: pt(80 - baseBalls.target.x, baseBalls.target.y),
+      second: pt(80 - baseBalls.second.x, baseBalls.second.y),
+    };
+    const resRight = await executeAdminRecall(fullDataset, rightBalls, "yellow");
+    expect(resRight.ok).toBe(true);
+    expect(resRight.record?.strategies.S1?.track).toBe("B2T_R");
+    const rightHpt = hydrateFamilyMemberRuntimeHpt(resRight.record?.strategies.S1, fullDataset) as any;
+    expect(rightHpt?.T).toBe("-4/8");
+    expect(rightHpt?.hit_point?.x).toBe(-2);
+
+    // 3. Move back to left -> returns to original canonical
+    const resLeftAgain = await executeAdminRecall(fullDataset, leftBalls, "yellow");
+    expect(resLeftAgain.ok).toBe(true);
+    expect(resLeftAgain.record?.strategies.S1?.track).toBe("B2T_L");
+    const leftAgainHpt = hydrateFamilyMemberRuntimeHpt(resLeftAgain.record?.strategies.S1, fullDataset) as any;
+    expect(leftAgainHpt?.T).toBe("+4/8");
+    expect(leftAgainHpt?.hit_point?.x).toBe(2);
+  });
+
+  it("TEST 6 — History Single Successor: [v004] -> Recall -> Edit -> SAVE -> Derived Approval results in exactly [v004, v005]", () => {
+    // Initial History with v004
+    const v004Snapshot: WorkspaceSnapshot = {
+      id: "snap_v004",
+      name: "뒤돌리기_5_half_system_v004_2026-08-29",
+      systemId: "5_half_system",
+      pattern: "뒤돌리기",
+      version: 4,
+      timestamp: new Date().toISOString(),
+      exported: false,
+      state: {
+        adminState: { sys: { systemId: "5_half_system", system_id: "5_half_system", shotType: "뒤돌리기" } },
+        ballsState: collinearCueBalls(20),
+        shotEditor: {
+          activeSlot: "S1",
+          slots: { S1: { draft: { slot: "S1" }, applied: { slot: "S1" } } },
+        },
+        targetBall: "yellow",
+      },
+    };
+    saveWorkspaceHistory([v004Snapshot]);
+    expect(loadWorkspaceHistory().length).toBe(1);
+
+    const baseBalls = collinearCueBalls(20);
+    const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_succ_001");
+
+    let historyCommitCalls = 0;
+    const commitHistoryMock = (_ds: any, _override?: any) => {
+      historyCommitCalls += 1;
+      const history = loadWorkspaceHistory();
+      const version = getNextVersion(history, "5_half_system", "뒤돌리기");
+      const name = buildSnapshotName("뒤돌리기", "5_half_system", version);
+      const nextSnapshot: WorkspaceSnapshot = {
+        id: `snap_v00${version}`,
+        name,
+        systemId: "5_half_system",
+        pattern: "뒤돌리기",
+        version,
+        timestamp: new Date().toISOString(),
+        exported: false,
+        state: {
+          adminState: { sys: { systemId: "5_half_system", system_id: "5_half_system", shotType: "뒤돌리기" } },
+          ballsState: baseBalls,
+          shotEditor: {
+            activeSlot: "S1",
+            slots: { S1: { draft: { slot: "S1" }, applied: { slot: "S1" } } },
+          },
+          targetBall: "yellow",
+        },
+      };
+      saveWorkspaceHistory([...history, nextSnapshot]);
+    };
+
+    const sampleHpt = {
+      T: "+4/8",
+      hit_point: { x: 2, y: 1.5 },
+      hp: { x: 2, y: 1.5 },
+      mode: "TIP",
+      tipCount: 2,
+    };
+
+    const authoredRecord = initialDataset.find((r) => r.strategies.S1?.memberOrigin === "AUTHORED")!;
+    const authoredEntry = authoredRecord.strategies.S1!;
+
+    // 1. Execute runCanonicalSave for Four-track Family
+    const saveCtx = {
+      dataset: initialDataset,
+      ballsState: authoredRecord.balls,
+      adminState: {
+        sys: {
+          systemId: "5_half_system",
+          system_id: "5_half_system",
+          system: "5_half_system",
+          shotType: "뒤돌리기",
+          inputs: { CO_f: 30, C3_r: 20 },
+          system_values: { CO_f: 30, C3_r: 20 },
+        },
+      },
+      activeSlot: "S1" as const,
+      slots: {
+        S1: {
+          draft: {
+            slot: "S1",
+            track: authoredEntry.track,
+            familyId: authoredEntry.familyId,
+            memberId: authoredEntry.memberId,
+            memberOrigin: authoredEntry.memberOrigin,
+            sys: {
+              systemId: "5_half_system",
+              system_id: "5_half_system",
+              system: "5_half_system",
+              shotType: "뒤돌리기",
+              inputs: { CO_f: 30, C3_r: 20 },
+            },
+            hpt: sampleHpt,
+            str: authoredEntry.str,
+            ai: authoredEntry.ai,
+            targetBall: "yellow",
+          },
+          applied: null,
+        },
+      },
+      targetColor: "yellow" as const,
+      aiOverride: null,
+      system: null,
+      resolvedSlotSysValues: { CO_f: 30, C3_r: 20 },
+      autoSave: false,
+      trajectoryExtensionPayload: null,
+      reflectionOverridePayload: null,
+      editSource: null,
+      saveWorkingDataset: vi.fn(),
+      setDataset: vi.fn(),
+      setUserPublishedSearchContext: vi.fn(),
+      setAdminState: vi.fn(),
+      patchSlotRuntimeMeta: vi.fn(),
+      patchSlotFamilyIdentity: vi.fn(),
+      saveToFile: vi.fn(),
+      canUseSystemControls: true,
+      commitWorkspaceHistoryWithStrategyDataset: commitHistoryMock,
+      resolveFormulaHash: () => "hash_001",
+      resolveEvalProfile: () => ({ formula: { expr: "CO_f - C3_r" } }),
+      resolveAnchorsData: () => undefined,
+    };
+
+    const saveResult = runCanonicalSave(saveCtx as any);
+    expect(saveResult.ok).toBe(true);
+    expect(saveResult.fourTrackWritten).toBe(true);
+
+    // Four-track Family SAVE commits History snapshot (single successor v005)
+    expect(historyCommitCalls).toBe(1);
+    expect(loadWorkspaceHistory().length).toBe(2);
+
+    // 2. Generate and Approve Derived Review
+    const unified = createUnifiedDerivedReview({
+      dataset: saveResult.updated!,
+      familyId: saveResult.familyId!,
+      authoredPathNodes: pathC4,
+      hitTolerance: HIT_TOLERANCE,
+    });
+    expect(unified.ok).toBe(true);
+    if (!unified.ok) return;
+
+    const approved = approveUnifiedDerivedReview({
+      dataset: saveResult.updated!,
+      bag: unified.bag,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+
+    // 3. Commit Derived Approval (must NOT double-append history)
+    commitDerivedApprovalDataset({
+      resultDataset: approved.dataset,
+      baselineSnapshot: null,
+      saveWorkingDataset: vi.fn(),
+      setDataset: vi.fn(),
+      restoreDerivedReviewSnapshot: vi.fn(),
+      commitWorkspaceHistoryWithStrategyDataset: commitHistoryMock,
+    });
+
+    // Exactly ONE History commit executed during the entire workflow
+    expect(historyCommitCalls).toBe(1);
+    const finalHistory = loadWorkspaceHistory();
+    expect(finalHistory.length).toBe(2);
+    expect(finalHistory[0]!.version).toBe(4);
+    expect(finalHistory[1]!.version).toBe(5);
+    // No v006 generated
+    expect(finalHistory.some((s) => s.version === 6)).toBe(false);
+  });
+
+  it("TEST 7 — positions_dataset Independence: searchable corpus is persisted into positions_dataset", () => {
+    const baseBalls = collinearCueBalls(20);
+    const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_corpus_indep_001");
+
+    const unified = createUnifiedDerivedReview({
+      dataset: initialDataset,
+      familyId: "fm_corpus_indep_001",
+      authoredPathNodes: pathC4,
+      hitTolerance: HIT_TOLERANCE,
+    });
+    expect(unified.ok).toBe(true);
+    if (!unified.ok) return;
+
+    const approved = approveUnifiedDerivedReview({
+      dataset: initialDataset,
+      bag: unified.bag,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+
+    let persistedDataset: PositionRecord[] | null = null;
+    commitDerivedApprovalDataset({
+      resultDataset: approved.dataset,
+      baselineSnapshot: null,
+      saveWorkingDataset: (ds) => {
+        persistedDataset = ds;
+        saveWorkingDataset(ds);
+      },
+      setDataset: vi.fn(),
+      restoreDerivedReviewSnapshot: vi.fn(),
+      commitWorkspaceHistoryWithStrategyDataset: vi.fn(),
+    });
+
+    expect(persistedDataset).not.toBeNull();
+    expect(persistedDataset!.length).toBeGreaterThanOrEqual(80);
+    expect(loadWorkingDataset().length).toBeGreaterThanOrEqual(80);
+  });
+
+  it("TEST 8 — Lightweight Snapshot: workspace history snapshot does NOT embed dataset and maintains < 10 KB size", () => {
+    const history = loadWorkspaceHistory();
+    for (const snap of history) {
+      expect(snap.state.dataset).toBeUndefined();
+      const bytes = new TextEncoder().encode(JSON.stringify(snap)).length;
+      expect(bytes).toBeLessThan(10 * 1024);
+    }
   });
 });

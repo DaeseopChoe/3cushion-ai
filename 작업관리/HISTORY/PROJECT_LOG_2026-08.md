@@ -261,13 +261,57 @@ Authored Save $\to$ `positions_dataset` $\to$ Derived Approval $\to$ Cartesian P
 
 ---
 
+### Milestone 8: Track Symmetry Runtime Hydrate & History Single-Successor SSOT Fix
+
+#### Background & Problem
+1. **Track Symmetry Runtime Hydrate 결함:** `familyRuntimeProjection.ts`의 `hydrateFamilyMemberRuntimeHpt()`와 `hydrateFamilyMemberRuntimeThickness()`가 `origin === "SYMMETRY"`에만 한정되어 있어, `DERIVED_*` 레코드가 반대 손잡이 Track(예: B2T_R, T2B_R)에서 Recall될 때 Thickness sign mirror 및 hit_point.x mirror가 적용되지 않고 원본 canonical 값이 그대로 hydrate되던 문제.
+2. **History Double-Append 결함:** 한 번의 논리적 작업(Recall v004 $\to$ Edit $\to$ SAVE $\to$ Derived Approval) 완료 후 `workspace_history`에 v005(SAVE 시점)와 v006(파생 승인 시점) 2개의 스냅샷이 연속 생성되어 단일 후속자(Single Successor) SSOT를 위반하던 문제.
+
+#### Root Cause
+1. **Track Symmetry:** `familyRuntimeProjection.ts`에서 `origin !== "SYMMETRY"` 시 early return하여 `DERIVED_CUE_IMPACT`, `DERIVED_C3_PLUS`, `DERIVED_CUE_C3_PRODUCT`가 handedness 기반 대칭 변환 파이프라인을 통과하지 못함.
+2. **History Double-Append:** `historyFlow.ts`의 `runCanonicalSave`와 `derivedApprovalFlow.ts`의 `commitDerivedApprovalDataset` 양쪽에서 각각 `commitWorkspaceHistoryWithStrategyDataset()`을 호출하여 동일 작업 세션에 대해 2개의 스냅샷이 기록됨.
+
+#### Final Resolution & Implementation
+1. **Track Symmetry Runtime Hydrate SSOT 복원 (`frontend/src/domain/family/familyRuntimeProjection.ts`):**
+   - 대칭 여부 판정 기준을 `memberOrigin`에서 `authoredTrack` vs `requestedTrack`의 handedness 관계(`isOppositeHandedness`)로 전면 전환.
+   - `AUTHORED`, `SYMMETRY`, `DERIVED_CUE_IMPACT`, `DERIVED_C3_PLUS`, `DERIVED_CUE_C3_PRODUCT` 전 memberOrigin에 걸쳐 동일한 대칭 변환 계약(`resolveFamilyHpt` / `resolveFamilyThickness`) 적용.
+   - 신규 mirror 공식 생성 없이 기존 SSOT(`hptResolver.ts`, `handedness.ts`) 100% 재사용.
+   - Same Handedness $\to$ canonical 유지 / Opposite Handedness $\to$ Thickness sign mirror, hit_point.x mirror 자동 적용.
+2. **History Single-Successor SSOT 복원 (`frontend/src/application/flows/derivedApprovalFlow.ts`):**
+   - `commitDerivedApprovalDataset`에서 불필요한 `commitWorkspaceHistoryWithStrategyDataset()` 호출을 제거.
+   - SAVE 시 `runCanonicalSave`에서 단일 후속자 스냅샷(v005)만 기록하고, Derived Approval은 320 레코드의 `positions_dataset` 영속화 및 normalized dual-write 동기화만 전담하도록 역할 분리.
+   - 결과적으로 `[v004] → Recall → Edit → SAVE → Derived Approval` 후 히스토리는 정확히 `[v004, v005]` (+1) 단일 후속자 유지.
+3. **Core Invariants 완벽 보존:**
+   - `positions_dataset` = Authoritative Searchable Corpus (320 레코드 보존).
+   - `workspace_history` = Immutable UI/Edit Session History (경량 스냅샷 유지, dataset 재임베딩 금지).
+   - Ball Role SSOT (`balls.cue`, `balls.target`, `balls.second`) 및 Physical Color Invariance 변경 0건.
+   - Search Engine / Formula / Recall threshold 변경 0건.
+
+#### Verification & Protection
+- `frontend/src/application/flows/adminDerivedPersistenceMarginalSearchLifecycle.contract.test.ts`:
+  - TEST 1 (Same Handedness): B2T_L (Authored) 및 T2B_L 상의 모든 멤버 canonical HPT/Thickness 유지 검증.
+  - TEST 2 (Opposite Track / DERIVED_CUE_IMPACT): B2T_R 상의 Cue Impact 파생 멤버 Thickness sign 및 hit_point.x mirror 검증.
+  - TEST 3 (Opposite Track / DERIVED_C3_PLUS): B2T_R 상의 C3+ 파생 멤버 Thickness sign 및 hit_point.x mirror 검증.
+  - TEST 4 (Opposite Track / DERIVED_CUE_C3_PRODUCT): B2T_R 상의 Cue×C3+ 곱 파생 멤버 Thickness sign 및 hit_point.x mirror 검증.
+  - TEST 5 (Track Boundary): 중앙 경계 이동 시 B2T_L $\leftrightarrow$ B2T_R 간 공간 Recall 및 대칭 HPT 자동 전환/복귀 검증.
+  - TEST 6 (History Single Successor): `[v004] → Recall → Edit → SAVE → Approval` 완료 후 정확히 `[v004, v005]` 생성 및 v006 미생성 검증.
+  - TEST 7 (positions_dataset Independence): Approval 완료 후 320개 레코드가 `positions_dataset`에 온전히 영속화됨을 검증.
+  - TEST 8 (Lightweight Snapshot): 신규 History snapshot에 dataset 미포함 및 < 10 KB 유지 검증.
+- `npm run test:fast`: 18 files / 182 tests PASS
+- `npm run test:contract`: 13 files / 99 tests PASS
+- `npm test`: 100 files / 990 tests PASS
+- `npm run build`: PASS
+- `git diff --check`: PASS
+
+---
+
 ## Final Status & Verification Summary
 
 | Suite / Check | Result |
 |---|---|
-| `npm run test:fast` | **17 files / 162 tests PASS** (~1.5s) |
-| `npm run test:contract` | **19 files / 194 tests PASS** (~1.4s) |
-| `npm test` (Full Vitest) | **100 files / 983 tests PASS** (~40s) |
+| `npm run test:fast` | **18 files / 182 tests PASS** (~1.5s) |
+| `npm run test:contract` | **13 files / 99 tests PASS** (~1.5s) |
+| `npm test` (Full Vitest) | **100 files / 990 tests PASS** (~40s) |
 | `npm run build` | **PASS** (Vite 번들링 + `dist/dataset` 패키징 성공) |
 | `git diff --check` | **PASS** (0 whitespace / formatting issue) |
 | Production Business Logic | **불변식 완벽 보존 (최소 회귀 수정만 적용)** |

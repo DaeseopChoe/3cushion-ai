@@ -10,6 +10,7 @@
  */
 
 import type { PositionRecord, StrategyEntry } from "../positionSearchEngine";
+import { loadWorkingDataset } from "../dataset/infra/datasetStorage";
 import { listFamilyMemberLocations } from "./familyAwareWriter";
 import {
   familySymmetryIdentity,
@@ -45,18 +46,47 @@ function canonicalHptFromEntry(entry: StrategyEntry | undefined): unknown {
 }
 
 /**
- * Resolve runtime HPT for a recalled Family Member from the Entry alone.
- * Legacy / AUTHORED / incomplete identity → persisted hpT unchanged.
+ * Resolve runtime HPT for a recalled Family Member.
+ * Canonical HPT is mirrored when requestedTrack is opposite handedness to authoredTrack,
+ * regardless of memberOrigin (AUTHORED, SYMMETRY, DERIVED_*).
+ * Fallback to persisted hpT if authoredTrack cannot be determined.
  */
-export function hydrateFamilyMemberRuntimeHpt(entry: StrategyEntry | null | undefined): unknown {
+export function hydrateFamilyMemberRuntimeHpt(
+  entry: StrategyEntry | null | undefined,
+  dataset?: PositionRecord[]
+): unknown {
   if (!entry) return undefined;
-  const origin = parseMemberOrigin(entry.memberOrigin);
-  const op = parseSymmetryOp(entry.symmetryOp);
   const requestedTrack = parseFamilyTrack(entry.track);
-  if (origin !== "SYMMETRY" || !op || !requestedTrack) {
+  if (!requestedTrack) {
     return entry.hpT;
   }
-  const authoredTrack = authoredTrackFromSymmetryMember(requestedTrack, op);
+  const origin = parseMemberOrigin(entry.memberOrigin);
+  const op = parseSymmetryOp(entry.symmetryOp);
+
+  let authoredTrack: FamilyTrack | null = null;
+  if (origin === "AUTHORED") {
+    authoredTrack = requestedTrack;
+  } else if (op) {
+    authoredTrack = authoredTrackFromSymmetryMember(requestedTrack, op);
+  } else if (entry.familyId) {
+    try {
+      const ds =
+        Array.isArray(dataset) && dataset.length > 0
+          ? dataset
+          : loadWorkingDataset();
+      const authored = findAuthoredFamilyEntry(ds, entry.familyId);
+      if (authored?.entry.track) {
+        authoredTrack = parseFamilyTrack(authored.entry.track);
+      }
+    } catch {
+      authoredTrack = null;
+    }
+  }
+
+  if (!authoredTrack) {
+    return entry.hpT;
+  }
+
   return resolveFamilyHpt({
     authoredTrack,
     requestedTrack,
@@ -65,7 +95,8 @@ export function hydrateFamilyMemberRuntimeHpt(entry: StrategyEntry | null | unde
 }
 
 export function hydrateFamilyMemberRuntimeThickness(
-  entry: StrategyEntry | null | undefined
+  entry: StrategyEntry | null | undefined,
+  dataset?: PositionRecord[]
 ): string | undefined {
   if (!entry) return undefined;
   const canonicalT =
@@ -75,13 +106,38 @@ export function hydrateFamilyMemberRuntimeThickness(
       ? (entry.hpT as { T: string }).T
       : undefined;
   if (canonicalT == null) return undefined;
-  const origin = parseMemberOrigin(entry.memberOrigin);
-  const op = parseSymmetryOp(entry.symmetryOp);
+
   const requestedTrack = parseFamilyTrack(entry.track);
-  if (origin !== "SYMMETRY" || !op || !requestedTrack) {
+  if (!requestedTrack) {
     return canonicalT;
   }
-  const authoredTrack = authoredTrackFromSymmetryMember(requestedTrack, op);
+  const origin = parseMemberOrigin(entry.memberOrigin);
+  const op = parseSymmetryOp(entry.symmetryOp);
+
+  let authoredTrack: FamilyTrack | null = null;
+  if (origin === "AUTHORED") {
+    authoredTrack = requestedTrack;
+  } else if (op) {
+    authoredTrack = authoredTrackFromSymmetryMember(requestedTrack, op);
+  } else if (entry.familyId) {
+    try {
+      const ds =
+        Array.isArray(dataset) && dataset.length > 0
+          ? dataset
+          : loadWorkingDataset();
+      const authored = findAuthoredFamilyEntry(ds, entry.familyId);
+      if (authored?.entry.track) {
+        authoredTrack = parseFamilyTrack(authored.entry.track);
+      }
+    } catch {
+      authoredTrack = null;
+    }
+  }
+
+  if (!authoredTrack) {
+    return canonicalT;
+  }
+
   return resolveFamilyThickness({
     authoredTrack,
     requestedTrack,

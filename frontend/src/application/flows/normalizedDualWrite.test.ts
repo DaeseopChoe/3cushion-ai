@@ -372,7 +372,7 @@ describe("Derived Approval dual-write", () => {
       commitWorkspaceHistoryWithStrategyDataset: commitHistory,
     });
 
-    expect(commitHistory).toHaveBeenCalledTimes(1);
+    expect(commitHistory).not.toHaveBeenCalled();
     expect(commit.normalizedDualWrite.ok).toBe(true);
     expect(loadPositionsDatasetCorpusGeneration()).toBe(1);
     expect(isNormalizedCorpusFresh()).toBe(true);
