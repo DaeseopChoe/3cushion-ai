@@ -1,7 +1,4 @@
-/**
- * npx tsx src/domain/strategyHydrate.test.ts
- */
-
+import { describe, it, expect } from "vitest";
 import { getPersistableBaseSysInputs } from "./canonicalStrategy";
 import type { StrategyEntry } from "./positionSearchEngine";
 import {
@@ -62,82 +59,77 @@ function assertNoEffectiveKeys(obj: Record<string, number>, label: string) {
   }
 }
 
-// effective keys stripped from hydrate inputs
-{
-  const mixed: Record<string, number> = {
-    CO_f: 30,
-    C3_r: 15,
-    baseOneC: 30,
-    baseThreeC: 15,
-  };
-  for (const k of EFFECTIVE_KEYS) {
-    mixed[k] = 99;
-  }
-  const hydrated = hydrate(makeEntry(mixed));
-  assertNoEffectiveKeys(hydrated.inputs, "hydrate.inputs");
-  assertNoEffectiveKeys(hydrated.system_values, "hydrate.system_values");
-  assert(hydrated.inputs.CO_f === 30, "base CO_f kept");
-  assert(hydrated.system_values.CO_f === 30, "system_values matches base");
-}
-
-// system_values equals stripped base inputs
-{
-  const entry = makeEntry({ CO_f: 12, C3_r: 8, baseOneC: 12, baseThreeC: 8, Sn: 5 });
-  const hydrated = hydrate(entry);
-  assert(
-    JSON.stringify(hydrated.system_values) === JSON.stringify(hydrated.inputs),
-    "system_values must equal stripped inputs"
-  );
-}
-
-// outputs.result exists; effective keys not merged into inputs/system_values
-{
-  const entry = makeEntry({
-    CO_f: 30,
-    C3_r: 15,
-    baseOneC: 30,
-    baseThreeC: 15,
-    C4_f: 999,
-    Sn: 3,
+describe("strategyHydrate", () => {
+  it("effective keys stripped from hydrate inputs", () => {
+    const mixed: Record<string, number> = {
+      CO_f: 30,
+      C3_r: 15,
+      baseOneC: 30,
+      baseThreeC: 15,
+    };
+    for (const k of EFFECTIVE_KEYS) {
+      mixed[k] = 99;
+    }
+    const hydrated = hydrate(makeEntry(mixed));
+    assertNoEffectiveKeys(hydrated.inputs, "hydrate.inputs");
+    assertNoEffectiveKeys(hydrated.system_values, "hydrate.system_values");
+    assert(hydrated.inputs.CO_f === 30, "base CO_f kept");
+    assert(hydrated.system_values.CO_f === 30, "system_values matches base");
   });
-  const hydrated = hydrate(entry);
-  assert(
-    typeof hydrated.outputs?.result === "object" && hydrated.outputs.result !== null,
-    "outputs.result must exist"
-  );
-  assertNoEffectiveKeys(hydrated.inputs, "outputs must not pollute inputs");
-  assert(
-    !("result" in hydrated.inputs) && !("result" in hydrated.system_values),
-    "outputs.result must not appear on inputs/system_values"
-  );
-}
 
-// corrections preserved
-{
-  const corr = { slide: 1, curve_ratio: 2, draw: 3, departure: 4, spin: 5 };
-  const hydrated = hydrate(makeEntry({ CO_f: 1, C3_r: 2 }, corr));
-  assert(hydrated.corrections.slide === 1, "corrections.slide");
-  assert(hydrated.corrections.curve_ratio === 2, "corrections.curve_ratio");
-  assert(hydrated.corrections.draw === 3, "corrections.draw");
-}
-
-// hydrate inputs usable as SAVE persist source (no effective keys)
-{
-  const entry = makeEntry({
-    CO_f: 20,
-    C3_r: 10,
-    baseOneC: 20,
-    baseThreeC: 10,
-    Sn: 7,
-    C4_f: 88,
+  it("system_values equals stripped base inputs", () => {
+    const entry = makeEntry({ CO_f: 12, C3_r: 8, baseOneC: 12, baseThreeC: 8, Sn: 5 });
+    const hydrated = hydrate(entry);
+    assert(
+      JSON.stringify(hydrated.system_values) === JSON.stringify(hydrated.inputs),
+      "system_values must equal stripped inputs"
+    );
   });
-  const hydrated = hydrate(entry);
-  const persistBase = getPersistableBaseSysInputs(
-    { system_values: hydrated.system_values },
-    null
-  );
-  assertNoEffectiveKeys(persistBase, "getPersistableBaseSysInputs from hydrate system_values");
-  assert(persistBase.CO_f === 20, "persist base CO_f");
-}
 
-console.log("strategyHydrate.test.ts: all passed");
+  it("outputs.result exists; effective keys not merged into inputs/system_values", () => {
+    const entry = makeEntry({
+      CO_f: 30,
+      C3_r: 15,
+      baseOneC: 30,
+      baseThreeC: 15,
+      C4_f: 999,
+      Sn: 3,
+    });
+    const hydrated = hydrate(entry);
+    assert(
+      typeof hydrated.outputs?.result === "object" && hydrated.outputs.result !== null,
+      "outputs.result must exist"
+    );
+    assertNoEffectiveKeys(hydrated.inputs, "outputs must not pollute inputs");
+    assert(
+      !("result" in hydrated.inputs) && !("result" in hydrated.system_values),
+      "outputs.result must not appear on inputs/system_values"
+    );
+  });
+
+  it("corrections preserved", () => {
+    const corr = { slide: 1, curve_ratio: 2, draw: 3, departure: 4, spin: 5 };
+    const hydrated = hydrate(makeEntry({ CO_f: 1, C3_r: 2 }, corr));
+    assert(hydrated.corrections.slide === 1, "corrections.slide");
+    assert(hydrated.corrections.curve_ratio === 2, "corrections.curve_ratio");
+    assert(hydrated.corrections.draw === 3, "corrections.draw");
+  });
+
+  it("hydrate inputs usable as SAVE persist source (no effective keys)", () => {
+    const entry = makeEntry({
+      CO_f: 20,
+      C3_r: 10,
+      baseOneC: 20,
+      baseThreeC: 10,
+      Sn: 7,
+      C4_f: 88,
+    });
+    const hydrated = hydrate(entry);
+    const persistBase = getPersistableBaseSysInputs(
+      { system_values: hydrated.system_values },
+      null
+    );
+    assertNoEffectiveKeys(persistBase, "getPersistableBaseSysInputs from hydrate system_values");
+    assert(persistBase.CO_f === 20, "persist base CO_f");
+  });
+});

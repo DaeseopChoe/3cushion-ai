@@ -1,7 +1,4 @@
-/**
- * npx tsx src/domain/canonicalPersistAudit.test.ts
- */
-
+import { describe, it, expect } from "vitest";
 import {
   auditSysInputsBoundary,
   findForbiddenKeyPaths,
@@ -41,54 +38,48 @@ const validDataset = [
   },
 ];
 
-// forbidden outputs on strategy
-{
-  const bad = { ...validEntry, outputs: { result: { oneC: 1 } } };
-  const r = validateCanonicalStrategyEntry(bad);
-  assert(!r.ok, "outputs should fail validation");
-  assert(r.forbidden.length > 0, "forbidden paths expected");
-}
-
-// valid strategy
-{
-  const r = validateCanonicalStrategyEntry(validEntry);
-  assert(r.ok, `valid entry: missing=${r.missing.join()} forbidden=${r.forbidden.join()}`);
-}
-
-// valid dataset
-{
-  const r = validateCanonicalDataset(validDataset);
-  assert(r.ok, `valid dataset: ${JSON.stringify(r.issues)}`);
-}
-
-// forbidden in dataset walk
-{
-  const bad = [
-    {
-      ...validDataset[0],
-      strategies: {
-        S1: { ...validEntry, debug: { x: 1 } },
-      },
-    },
-  ];
-  const r = validateCanonicalDataset(bad);
-  assert(!r.ok, "debug in strategy should fail dataset validate");
-}
-
-// boundary audit
-{
-  const a = auditSysInputsBoundary({
-    adminInputs: { CO_f: 30, Sn: 1 },
-    appliedInputs: { CO_f: 30, C3_r: 26 },
-    canonicalSysInputs: { CO_f: 30, C3_r: 26 },
+describe("canonicalPersistAudit", () => {
+  it("forbidden outputs on strategy should fail validation", () => {
+    const bad = { ...validEntry, outputs: { result: { oneC: 1 } } };
+    const r = validateCanonicalStrategyEntry(bad);
+    assert(!r.ok, "outputs should fail validation");
+    assert(r.forbidden.length > 0, "forbidden paths expected");
   });
-  assert(a.suspectedEffectiveKeys.includes("Sn") || a.onlyInAdmin.includes("Sn"), "Sn suspicion");
-}
 
-// findForbiddenKeyPaths
-{
-  const paths = findForbiddenKeyPaths({ outputs: { result: { a: 1 } } });
-  assert(paths.some((p) => p.includes("outputs")), "outputs path");
-}
+  it("valid strategy passes validation", () => {
+    const r = validateCanonicalStrategyEntry(validEntry);
+    assert(r.ok, `valid entry: missing=${r.missing.join()} forbidden=${r.forbidden.join()}`);
+  });
 
-console.log("canonicalPersistAudit.test.ts: all passed");
+  it("valid dataset passes validation", () => {
+    const r = validateCanonicalDataset(validDataset);
+    assert(r.ok, `valid dataset: ${JSON.stringify(r.issues)}`);
+  });
+
+  it("forbidden in dataset walk fails validation", () => {
+    const bad = [
+      {
+        ...validDataset[0],
+        strategies: {
+          S1: { ...validEntry, debug: { x: 1 } },
+        },
+      },
+    ];
+    const r = validateCanonicalDataset(bad);
+    assert(!r.ok, "debug in strategy should fail dataset validate");
+  });
+
+  it("boundary audit suspects effective keys", () => {
+    const a = auditSysInputsBoundary({
+      adminInputs: { CO_f: 30, Sn: 1 },
+      appliedInputs: { CO_f: 30, C3_r: 26 },
+      canonicalSysInputs: { CO_f: 30, C3_r: 26 },
+    });
+    assert(a.suspectedEffectiveKeys.includes("Sn") || a.onlyInAdmin.includes("Sn"), "Sn suspicion");
+  });
+
+  it("findForbiddenKeyPaths detects outputs", () => {
+    const paths = findForbiddenKeyPaths({ outputs: { result: { a: 1 } } });
+    assert(paths.some((p) => p.includes("outputs")), "outputs path");
+  });
+});

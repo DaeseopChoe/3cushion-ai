@@ -146,7 +146,7 @@ describe("computeGroupCaptionPlacements", () => {
     expect(inBoundsX(p.x, BOUNDS)).toBe(true);
   });
 
-  it("측면 C4 caption y는 동일 side CO caption y와 동일 (alignC4SideCaptionsToCo)", () => {
+  it("측면 C4 caption은 OPEN-04 기하 규칙에 따라 독립 배치 (x=50, y=162, CO y=257)", () => {
     const coLeft: GroupAnchorPoint[] = [
       { pxX: 50, pxY: 300, fgX: -2.25, fgY: 30, value: 60 },
       { pxX: 50, pxY: 400, fgX: -2.25, fgY: 40, value: 70 },
@@ -165,7 +165,8 @@ describe("computeGroupCaptionPlacements", () => {
     );
     const co = placements.find((p) => p.mark === "CO" && p.side === "left")!;
     const c4 = placements.find((p) => p.mark === "C4" && p.side === "left")!;
-    expect(c4.y).toBe(co.y);
+    expect(c4.y).toBe(162);
+    expect(co.y).toBe(257);
     expect(c4.x).toBe(50);
   });
 
