@@ -136,6 +136,49 @@ Authored Save $\to$ `positions_dataset` $\to$ Derived Approval $\to$ Cartesian P
 
 ---
 
+### Milestone 7: ADMIN Recall → Reset → Edit → SAVE Lifecycle & Family Identity Preservation Regression Fix
+
+#### Background & Root Cause
+1. **문제 현상:**
+   - ADMIN에서 Local DB Recall 후 Reset을 눌러 편집 모드로 진입하고 데이터를 수정한 뒤 SAVE 버튼을 클릭하면, 아무런 피드백이나 에러 없이 저장이 수행되지 않는 Silent No-Op 현상 발생.
+2. **근본 원인 (Root Cause):**
+   - **Slot runtime patch의 applied stub 오염:** Recall 직후 `slot.applied === null` 상태에서, Reset 핸들러의 `patchSlotRuntimeMeta`가 `targetBall` 메타데이터만 포함된 불완전한 `targetOnlyStub`(`{ targetBall: "red" | "yellow" }`)을 `slot.applied`에 생성함.
+   - **Family Identity 소실:** `saveFlow.ts`의 `explicitFamilyIdentityFromSlot`이 단순 `applied ?? draft`를 사용하여, 완전한 Family Identity(`familyId`, `memberId`, `memberOrigin`)를 보유한 `draft`를 무시하고 불완전한 `applied` stub을 선택함.
+   - **Save Intent 오판 및 4-Track 충돌:** `familyId`와 `memberId`가 누락되면서 `resolveFamilySaveIntent`가 기존 레코드 업데이트(`UPDATE`)가 아닌 신규 생성(`CREATE`)으로 오판하여, 이미 점유된 슬롯에 대해 `writeFourTrackFamilyMembers`가 `SLOT_CAPACITY` 또는 `CROSS_FAMILY_COLLISION` 에러를 반환함.
+   - **Silent No-Op:** `historyFlow.ts`의 `runCanonicalSave`가 `!r?.ok` 실패에 대해 사용자 피드백을 제공하지 않고 조용히 리턴함.
+
+#### Core Invariants & State Contracts
+- **Slot Runtime Patch Invariant:** `slot.applied`가 null인 상태에서 runtime metadata patch는 결코 `applied`에 불완전한 stub(`targetOnlyStub`)을 생성하지 않는다 (`slot.applied === null` 유지).
+- **Defensive Identity Resolution Invariant:** `explicitFamilyIdentityFromSlot`은 불완전한 `applied` 객체 하나 때문에 완전한 `draft` Family Identity를 버리지 않고 field-level fallback(`applied?.familyId ?? draft?.familyId`)을 수행한다.
+- **SAVE User Feedback Invariant:** SAVE 실패 시 결코 Silent No-Op으로 종료되지 않으며, 사용자에게 명시적인 피드백(`alert`)을 제공한다.
+- **SSOT Preservation:** Ball Role SSOT (`Cue / Target / Second`), Physical Color Invariance (`Red / Yellow`), History Workspace $\neq$ Searchable Corpus 원칙을 완벽히 유지한다.
+
+#### Implementation
+- `frontend/src/hooks/useShotSlots.ts`:
+  - `patchSlotRuntimeMeta`: `slot.applied`가 null일 때 `applied`를 null로 유지하여 불완전한 `targetOnlyStub` 생성을 원천 차단.
+- `frontend/src/application/flows/saveFlow.ts`:
+  - `explicitFamilyIdentityFromSlot`: `familyId`, `memberId`, `memberOrigin`, `generatedFromMemberId`, `symmetryOp`에 대해 `applied?.field ?? draft?.field` field-level fallback을 적용하여 방어적 복원 보장.
+  - `appliedForSave`: `draft`와 `applied`의 스프레드 병합으로 슬롯 메타데이터 보존.
+- `frontend/src/application/flows/historyFlow.ts`:
+  - `runCanonicalSave`: `!r?.ok` 실패 시 실패 사유를 포함한 명시적 `alert` 피드백 추가.
+- `frontend/src/application/flows/adminRecallResetSaveLifecycle.contract.test.ts`:
+  - 신규 End-to-End 수명주기 계약 테스트 추가:
+    - TEST A: Red Target Recall $\to$ Reset $\to$ Edit $\to$ SAVE 성공
+    - TEST B: Yellow Target Recall $\to$ Reset $\to$ Edit $\to$ SAVE 성공
+    - TEST C: Target=NONE 검색 준비 $\to$ 매칭 레코드 Recall $\to$ Reset $\to$ SAVE 성공
+    - TEST D: `patchSlotRuntimeMeta`의 `applied=null` 보존 및 stub 생성 차단 검증
+    - TEST E: 방어적 Family Identity Resolver fallback 검증
+    - TEST F: SAVE failure feedback 명시적 제공 검증
+
+#### Verification & Protection
+- `frontend/src/application/flows/adminRecallResetSaveLifecycle.contract.test.ts` (6 tests PASS)
+- `npm run test:fast`: 16 files / 156 tests PASS
+- `npm run test:contract`: 18 files / 188 tests PASS
+- `npm test`: 99 files / 974 tests PASS
+- `npm run build`: PASS
+
+---
+
 ## Final Status & Verification Summary
 
 | Suite / Check | Result |

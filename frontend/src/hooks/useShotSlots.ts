@@ -822,7 +822,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
               : targetOnlyStub,
             applied: slot.applied
               ? { ...slot.applied, ...patch }
-              : targetOnlyStub,
+              : null,
           },
         },
       };

@@ -72,14 +72,34 @@ function explicitFamilyIdentityFromSlot(
 } | null {
   const applied = slot?.applied as Record<string, unknown> | null | undefined;
   const draft = slot?.draft as Record<string, unknown> | null | undefined;
-  const src = applied ?? draft;
-  if (!src) return null;
+  if (!applied && !draft) return null;
+
+  const familyId =
+    (applied?.familyId as string | undefined) ??
+    (draft?.familyId as string | undefined);
+  const memberId =
+    (applied?.memberId as string | undefined) ??
+    (draft?.memberId as string | undefined);
+  const memberOrigin =
+    (applied?.memberOrigin as StrategyEntry["memberOrigin"] | undefined) ??
+    (draft?.memberOrigin as StrategyEntry["memberOrigin"] | undefined);
+  const generatedFromMemberId =
+    (applied?.generatedFromMemberId as string | undefined) ??
+    (draft?.generatedFromMemberId as string | undefined);
+  const symmetryOp =
+    (applied?.symmetryOp as StrategyEntry["symmetryOp"] | undefined) ??
+    (draft?.symmetryOp as StrategyEntry["symmetryOp"] | undefined);
+
+  if (!familyId && !memberId && !memberOrigin && !generatedFromMemberId && !symmetryOp) {
+    return null;
+  }
+
   return {
-    familyId: src.familyId as string | undefined,
-    memberId: src.memberId as string | undefined,
-    memberOrigin: src.memberOrigin as StrategyEntry["memberOrigin"] | undefined,
-    generatedFromMemberId: src.generatedFromMemberId as string | undefined,
-    symmetryOp: src.symmetryOp as StrategyEntry["symmetryOp"] | undefined,
+    familyId,
+    memberId,
+    memberOrigin,
+    generatedFromMemberId,
+    symmetryOp,
   };
 }
 
@@ -194,6 +214,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     | null;
 
   const appliedForSave: Record<string, unknown> = {
+    ...(draft ?? {}),
     ...(applied ?? {}),
     sys: (applied as Record<string, unknown> | null)?.sys ??
       (draft as Record<string, unknown> | null)?.sys,

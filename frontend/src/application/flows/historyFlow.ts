@@ -71,6 +71,8 @@ export function runCanonicalSave(ctx: HistoryFlowContext): SaveFlowResult {
       alert(
         "공 배치(ballsState)를 확인할 수 없습니다. 테이블 공 위치를 확인 후 다시 저장하세요."
       );
+    } else {
+      alert(`저장 실패: ${r?.reason ?? "알 수 없는 오류"}`);
     }
     return r ?? { ok: false, reason: "save-failed" };
   }
