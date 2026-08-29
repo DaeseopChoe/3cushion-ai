@@ -3458,6 +3458,7 @@ function handleJoyPadPointerCancel(e) {
       setIsAdminInputSessionActive(false);
       setIsTargetSelected(false);
       setTargetColor(null);
+      actions.clearAdminWorkSlots?.();
     }
   }, [clearGuide, view]);
 
@@ -3551,6 +3552,7 @@ function handleJoyPadPointerCancel(e) {
 
   const coaching = useCoachingController({
     appMode,
+    isTargetSelected,
     showCoaching: effectiveShowCoaching,
     canEdit,
     T: systemCtrl.T,

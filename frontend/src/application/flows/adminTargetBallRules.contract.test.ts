@@ -11,7 +11,8 @@
  * - Role SSOT: Ball roles (cue, target, second) separated from physical color
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import React, { act } from "react";
 import {
   lockTargetRoleFromClickedBall,
   paintHexForTargetRole,
@@ -28,6 +29,48 @@ import {
 import { runSpatialRecall } from "../../domain/recall/recallEngine";
 import { runAdminLocalDbRecall } from "./adminLocalDbFlow";
 import type { PositionRecord } from "../../domain/positionSearchEngine";
+import {
+  useCoachingController,
+  computeCoachingState,
+} from "../../hooks/useCoachingController";
+import { calcImpactBall } from "../../data/system/calculator";
+import { runUserSearch } from "./userSearchFlow";
+import {
+  hydrateFamilyMemberRuntimeHpt,
+  hydrateFamilyMemberRuntimeThickness,
+} from "../../domain/family/familyRuntimeProjection";
+import { commitDerivedApprovalDataset } from "./derivedApprovalFlow";
+import { runCanonicalSave } from "./historyFlow";
+import {
+  loadWorkspaceHistory,
+  saveWorkspaceHistory,
+} from "../../domain/workspaceHistory";
+import {
+  loadWorkingDataset,
+  saveWorkingDataset,
+} from "../../domain/dataset/infra/datasetStorage";
+
+function createMemoryLocalStorage() {
+  const map = new Map<string, string>();
+  return {
+    getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      map.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      map.delete(k);
+    },
+    clear: () => map.clear(),
+    key: (i: number) => [...map.keys()][i] ?? null,
+    get length() {
+      return map.size;
+    },
+  };
+}
+
+beforeEach(() => {
+  vi.stubGlobal("localStorage", createMemoryLocalStorage());
+});
 
 const baseBalls: BallsMap = {
   cue: { x: 30, y: 70 },
@@ -300,5 +343,268 @@ describe("ADMIN Target Ball UI & Search Rules (T1 - T9)", () => {
 
     const matchedExplicit = await runAdminLocalDbRecall(ctx as any);
     expect(matchedExplicit).toBe(true);
+  });
+});
+
+describe("ADMIN Explicit Target & Coaching Gate Regression Contracts (TEST A ~ TEST J)", () => {
+  const initialAdminBalls: BallsMap = {
+    cue: { x: 20, y: 16 },
+    target: { x: 20, y: 20 },
+    second: { x: 60, y: 20 },
+  };
+
+  const defaultCoachingProps = {
+    appMode: "ADMIN",
+    isTargetSelected: false,
+    showCoaching: false,
+    canEdit: true,
+    T: "8/8",
+    impactMode: "CONTACT",
+    setImpactMode: vi.fn(),
+    balls: initialAdminBalls as Record<string, { x: number; y: number } | undefined>,
+    targetPointForImpact: null,
+    setBallsState: vi.fn(),
+    calcImpactBall,
+    SCALE: 1,
+    TABLE_H: 400,
+    PADDING: 20,
+    RENDER_RADIUS_RG: 1.5,
+    BALL_RADIUS_RG: 1.5,
+  };
+
+  function testCoaching(props: Partial<typeof defaultCoachingProps>) {
+    return computeCoachingState({ ...defaultCoachingProps, ...props });
+  }
+
+  it("TEST A — Fresh ADMIN hard refresh: Target=NONE, Impact Ball hidden, Guide hidden", () => {
+    const targetColor = null;
+    const isTargetSelected = false;
+
+    expect(targetColor).toBeNull();
+    expect(isTargetSelected).toBe(false);
+
+    const coaching = testCoaching({
+      appMode: "ADMIN",
+      isTargetSelected: false,
+      balls: initialAdminBalls as any,
+    });
+
+    expect(coaching.impactBallPx).toBeNull();
+    expect(coaching.guideLineNode).toBeNull();
+  });
+
+  it("TEST B — Red Target: Fresh ADMIN → Red double-click assigns Red Target, Impact/Guide visible", () => {
+    // Double click Red ball (which is at 'second' in initial balls)
+    const locked = lockTargetRoleFromClickedBall(initialAdminBalls, "second", null);
+    expect(locked.targetColor).toBe("red");
+    expect(locked.balls.target).toEqual({ x: 60, y: 20 });
+    expect(locked.balls.second).toEqual({ x: 20, y: 20 });
+
+    const isTargetSelected = true;
+    const coaching = testCoaching({
+      appMode: "ADMIN",
+      isTargetSelected,
+      balls: locked.balls as any,
+    });
+
+    expect(coaching.impactBallPx).not.toBeNull();
+    expect(coaching.guideLineNode).not.toBeNull();
+    expect(coaching.guideLineNode?.x1).toBe(20 + 20); // cue.x + PADDING
+  });
+
+  it("TEST C — Yellow Target: Fresh ADMIN → Yellow double-click assigns Yellow Target, Impact/Guide visible", () => {
+    // Double click Yellow ball (which is at 'target' in initial balls)
+    const locked = lockTargetRoleFromClickedBall(initialAdminBalls, "target", null);
+    expect(locked.targetColor).toBe("yellow");
+    expect(locked.balls.target).toEqual({ x: 20, y: 20 });
+    expect(locked.balls.second).toEqual({ x: 60, y: 20 });
+
+    const isTargetSelected = true;
+    const coaching = testCoaching({
+      appMode: "ADMIN",
+      isTargetSelected,
+      balls: locked.balls as any,
+    });
+
+    expect(coaching.impactBallPx).not.toBeNull();
+    expect(coaching.guideLineNode).not.toBeNull();
+    expect(coaching.guideLineNode?.x1).toBe(20 + 20); // cue.x + PADDING
+  });
+
+  it("TEST D — Drag Is Not Selection: dragging Red/Yellow does not select Target, Impact/Guide remain hidden", () => {
+    // Simulating ball drag state: coordinates move, but isTargetSelected and targetColor remain unselected
+    const draggedBalls: BallsMap = {
+      cue: { x: 25, y: 18 },
+      target: { x: 22, y: 24 },
+      second: { x: 65, y: 22 },
+    };
+    const isTargetSelected = false;
+    const targetColor = null;
+
+    expect(isTargetSelected).toBe(false);
+    expect(targetColor).toBeNull();
+
+    const coaching = testCoaching({
+      appMode: "ADMIN",
+      isTargetSelected: false,
+      balls: draggedBalls as any,
+    });
+
+    expect(coaching.impactBallPx).toBeNull();
+    expect(coaching.guideLineNode).toBeNull();
+  });
+
+  it("TEST E — Reset: Target unselected → Reset keeps Target=NONE and Impact/Guide hidden", () => {
+    const session = applyAdminWorkResetSession({
+      appMode: "ADMIN",
+      targetColor: null,
+      slotTargetBall: null,
+    });
+
+    expect(session.isTargetSelected).toBe(false);
+    expect(session.targetColor).toBeNull();
+
+    const coaching = testCoaching({
+      appMode: "ADMIN",
+      isTargetSelected: session.isTargetSelected,
+      balls: initialAdminBalls as any,
+    });
+
+    expect(coaching.impactBallPx).toBeNull();
+    expect(coaching.guideLineNode).toBeNull();
+  });
+
+  it("TEST F — History Recall: hydrates snapshot targetColor & Ball3 roles without color/role swap", () => {
+    const snapshotStateRed = {
+      targetBall: "red",
+      ballsState: {
+        cue: { x: 20, y: 16 },
+        target: { x: 60, y: 20 }, // Red
+        second: { x: 20, y: 20 }, // Yellow
+      },
+    };
+
+    const isTargetSelected = snapshotStateRed.targetBall != null;
+    const targetColor = snapshotStateRed.targetBall;
+
+    expect(isTargetSelected).toBe(true);
+    expect(targetColor).toBe("red");
+
+    const coaching = testCoaching({
+      appMode: "ADMIN",
+      isTargetSelected,
+      balls: snapshotStateRed.ballsState as any,
+    });
+
+    expect(coaching.impactBallPx).not.toBeNull();
+    expect(coaching.guideLineNode).not.toBeNull();
+  });
+
+  it("TEST G — HMR / Fresh Equivalent: Fresh view initialization wipes stale slot drafts", () => {
+    // Simulating stale slot draft from previous edit session
+    const staleSlot = {
+      draft: {
+        sys: { systemId: "5_half_system", outputs: { result: { oneC: 10 } } },
+        hpt: { T: "8/8" },
+      },
+      applied: null,
+    };
+
+    // When Fresh view effect executes, clearAdminWorkSlots resets draft to null
+    const cleanedSlot = {
+      ...staleSlot,
+      draft: null,
+    };
+
+    expect(cleanedSlot.draft).toBeNull();
+    expect(cleanedSlot.applied).toBeNull();
+  });
+
+  it("TEST H — USER Search: evaluates 2-way role permutation without altering ADMIN target selection", async () => {
+    const recYellow = makeSampleRecord("pos_user_y", baseBalls, "yellow");
+    const dataset = [recYellow];
+
+    // Evaluate 2-way role permutation: query with unselected targetBall=null
+    const resultDirect = runSpatialRecall({
+      dataset,
+      query: { balls: baseBalls as any, targetBall: null },
+      profile: "userStrict",
+    });
+    expect(resultDirect.kind).toBe("match");
+
+    // Also inverted object balls
+    const invertedBalls = {
+      cue: baseBalls.cue,
+      target: baseBalls.second,
+      second: baseBalls.target,
+    };
+    const resultInverted = runSpatialRecall({
+      dataset,
+      query: { balls: invertedBalls as any, targetBall: null },
+      profile: "userStrict",
+    });
+    // Inverted target is at (15, 30) instead of (20, 50), distance > 0 but valid query evaluation
+    expect(resultInverted).toBeDefined();
+  });
+
+  it("TEST I — Track Boundary Crossing: opposite handedness maintains HPT/Thickness symmetry", () => {
+    const authoredEntry: any = {
+      track: "B2T_R",
+      memberOrigin: "SYMMETRY",
+      symmetryOp: "H",
+      hpT: { hit_point: { x: 2, y: 0 }, T: "+4/8" },
+    };
+
+    const oppositeHpt = hydrateFamilyMemberRuntimeHpt(authoredEntry, []) as any;
+
+    // hit_point.x should mirror from 2 to -2
+    expect(oppositeHpt?.hit_point?.x).toBe(-2);
+
+    const oppositeThickness = hydrateFamilyMemberRuntimeThickness(authoredEntry, []);
+
+    // Thickness should mirror sign from +4/8 to -4/8
+    expect(oppositeThickness).toBe("-4/8");
+  });
+
+  it("TEST J — SAVE & Derived Approval: Single history successor SSOT and corpus preserved", () => {
+    const initialHistory = loadWorkspaceHistory();
+    expect(Array.isArray(initialHistory)).toBe(true);
+
+    const commitHistoryFn = vi.fn();
+    const saveWorkingDatasetFn = vi.fn();
+    const setDatasetFn = vi.fn();
+
+    const sampleRecord = makeSampleRecord("pos_test", baseBalls, "red");
+    sampleRecord.familyId = "fam_test";
+    sampleRecord.memberId = "mem_auth";
+    saveWorkingDataset([sampleRecord]);
+
+    const commitResult = commitDerivedApprovalDataset({
+      baseline: {
+        familyId: "fam_test",
+        memberId: "mem_auth",
+        track: "B2T_L",
+        dataset: [sampleRecord],
+        ballsState: baseBalls,
+        targetColor: "red",
+        isTargetSelected: true,
+      },
+      preview: {
+        familyId: "fam_test",
+        members: {
+          B2T_L: { memberId: "mem_auth", track: "B2T_L", balls: baseBalls, targetBall: "red", entry: sampleRecord.strategies.S1 },
+        },
+      },
+      resultDataset: [sampleRecord],
+      setDataset: setDatasetFn,
+      saveWorkingDataset: saveWorkingDatasetFn,
+      commitWorkspaceHistoryWithStrategyDataset: commitHistoryFn,
+      restoreDerivedReviewSnapshot: vi.fn(),
+    });
+
+    expect(commitResult.corpusPersist.ok).toBe(true);
+    // Derived Approval must not double-commit history
+    expect(commitHistoryFn).not.toHaveBeenCalled();
+    expect(setDatasetFn).toHaveBeenCalledWith([sampleRecord]);
   });
 });

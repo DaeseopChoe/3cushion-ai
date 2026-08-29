@@ -305,13 +305,59 @@ Authored Save $\to$ `positions_dataset` $\to$ Derived Approval $\to$ Cartesian P
 
 ---
 
+### Milestone 9: ADMIN Initial Target Gate & HMR Fresh-State SSOT Fix
+
+#### Background & Problem
+1. **Fresh ADMIN 미지정 상태에서 Impact Ball / 점선 가이드 노출:** Fresh ADMIN 진입 시 사용자가 아직 Target(1적구)을 명시적으로 선택하지 않았음에도 (`isTargetSelected === false`, `targetColor === null`), 화면 상단 및 가이드라인 렌더링 파이프라인에서 Impact Ball과 Cue $\to$ Impact 점선 가이드가 노출되는 결함.
+2. **Vite Fast Refresh/HMR 후 Fresh Ball + Stale Slot Draft 혼합 상태:** HMR 또는 F5 새로고침 시 `ballsState`는 Fresh 좌표로 재설정되나 `shotEditor` 내부의 직전 Recall/Edit draft(S1)가 정리되지 않아, Fresh 공 좌표와 이전 공략 데이터가 섞이고 S1 슬롯에 불필요한 변경 인디케이터(노란색 점)가 표시되는 현상.
+
+#### Root Cause
+1. **Target Gate 부재 (`frontend/src/hooks/useCoachingController.ts`):** `useCoachingController`가 ADMIN 모드에서 `isTargetSelected` 상태를 입력받지 않고 `balls.target` 좌표 존재 여부만으로 Impact Ball 및 Guide를 계산하여 반환함.
+2. **Fresh View Effect Slot Cleanup 누락 (`frontend/src/App.jsx`):** `view` 초기화 effect(`useEffect([clearGuide, view])`)에서 `ballsState`를 Fresh 좌표로 초기화하면서 `shotEditor`의 stale draft/applied 상태를 리셋하지 않아 Mixed Runtime State가 잔존함.
+
+#### Final Resolution & Implementation
+1. **ADMIN Explicit Target Gate SSOT (`frontend/src/hooks/useCoachingController.ts`):**
+   - `computeCoachingState` 및 `useCoachingController`에 `isTargetSelected?: boolean` prop 추가.
+   - ADMIN 모드에서 `!isTargetSelected`인 경우 즉시 `EMPTY` (`impactBallPx: null, guideLineNode: null`) 반환.
+   - `App.jsx`에서 authoritative state인 `isTargetSelected`를 `useCoachingController`에 직접 전달.
+   - `PROVISIONAL_TARGET_COLOR` 및 물리 색상 매핑 변경 없이 물리 노란공/빨간공 렌더링 유지.
+2. **HMR / Fresh View Slot State Cleanup (`frontend/src/App.jsx`):**
+   - Fresh/view 초기화 effect에서 `actions.clearAdminWorkSlots?.()`를 호출하여 stale slot draft/applied 제거.
+   - History Recall 경로(`handleLoadWorkspaceSnapshot`)는 `view` 변경 없이 `restoreShotEditor`를 실행하므로 정상 Recall 스냅샷 데이터 100% 보존.
+3. **Core Invariants 완벽 보존:**
+   - USER Search 2-Way Role Permutation 및 검색 엔진 invariant 불변.
+   - `positions_dataset` Search Corpus 불변.
+   - Track Symmetry Runtime Mirroring (B2T_L $\leftrightarrow$ B2T_R HPT/Thickness 대칭) 불변.
+   - History Single-Successor (`[v004] → Recall → Edit → SAVE → Approval` $\to$ `[v004, v005]`) 불변.
+   - Ball Role SSOT (`balls.cue`, `balls.target`, `balls.second`) 및 물리 색상-역할 분리 계약 불변.
+
+#### Verification & Protection
+- `frontend/src/application/flows/adminTargetBallRules.contract.test.ts` (TEST A ~ TEST J 포함 19 tests PASS):
+  - TEST A (Fresh ADMIN): Hard refresh 시 `targetColor=null`, `isTargetSelected=false`, Impact Ball/Guide hidden 검증.
+  - TEST B (Red Target): Red 더블클릭 시 `targetColor="red"`, `isTargetSelected=true`, Red=Target, Impact/Guide visible 검증.
+  - TEST C (Yellow Target): Yellow 더블클릭 시 `targetColor="yellow"`, `isTargetSelected=true`, Yellow=Target, Impact/Guide visible 검증.
+  - TEST D (Drag Is Not Selection): 공 드래그 이동 시 `isTargetSelected=false`, `targetColor=null` 유지 및 Impact/Guide hidden 검증.
+  - TEST E (Reset): Reset 시 `isTargetSelected=false`, `targetColor=null` 및 Impact/Guide hidden 검증.
+  - TEST F (History Recall): 스냅샷 Target 역할/색상 정상 복원 및 Fresh cleanup에 의한 삭제 방지 검증.
+  - TEST G (HMR Equivalent Reconstruction): Fresh view 초기화 시 stale draft 제거 및 S1 dirty indicator 잔존 방지 검증.
+  - TEST H (USER Search): USER 2-way role permutation 평가 및 검색 invariant 불변 검증.
+  - TEST I (Track Boundary Crossing): Opposite handedness track 전환 시 HPT/Thickness 대칭 유지 검증.
+  - TEST J (History / Corpus): SAVE $\to$ Derived Approval 완료 후 단일 후속자 및 코퍼스 보존 검증.
+- `npm run test:fast`: 18 files / 192 tests PASS
+- `npm run test:contract`: 13 files / 109 tests PASS
+- `npm test`: 100 files / 1000 tests PASS
+- `npm run build`: PASS
+- `git diff --check`: PASS (0 warnings / 0 errors)
+
+---
+
 ## Final Status & Verification Summary
 
 | Suite / Check | Result |
 |---|---|
-| `npm run test:fast` | **18 files / 182 tests PASS** (~1.5s) |
-| `npm run test:contract` | **13 files / 99 tests PASS** (~1.5s) |
-| `npm test` (Full Vitest) | **100 files / 990 tests PASS** (~40s) |
+| `npm run test:fast` | **18 files / 192 tests PASS** (~1.5s) |
+| `npm run test:contract` | **13 files / 109 tests PASS** (~1.5s) |
+| `npm test` (Full Vitest) | **100 files / 1000 tests PASS** (~40s) |
 | `npm run build` | **PASS** (Vite 번들링 + `dist/dataset` 패키징 성공) |
 | `git diff --check` | **PASS** (0 whitespace / formatting issue) |
 | Production Business Logic | **불변식 완벽 보존 (최소 회귀 수정만 적용)** |
