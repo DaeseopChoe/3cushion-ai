@@ -332,22 +332,43 @@ Authored Save $\to$ `positions_dataset` $\to$ Derived Approval $\to$ Cartesian P
    - Ball Role SSOT (`balls.cue`, `balls.target`, `balls.second`) 및 물리 색상-역할 분리 계약 불변.
 
 #### Verification & Protection
-- `frontend/src/application/flows/adminTargetBallRules.contract.test.ts` (TEST A ~ TEST J 포함 19 tests PASS):
-  - TEST A (Fresh ADMIN): Hard refresh 시 `targetColor=null`, `isTargetSelected=false`, Impact Ball/Guide hidden 검증.
-  - TEST B (Red Target): Red 더블클릭 시 `targetColor="red"`, `isTargetSelected=true`, Red=Target, Impact/Guide visible 검증.
-  - TEST C (Yellow Target): Yellow 더블클릭 시 `targetColor="yellow"`, `isTargetSelected=true`, Yellow=Target, Impact/Guide visible 검증.
-  - TEST D (Drag Is Not Selection): 공 드래그 이동 시 `isTargetSelected=false`, `targetColor=null` 유지 및 Impact/Guide hidden 검증.
-  - TEST E (Reset): Reset 시 `isTargetSelected=false`, `targetColor=null` 및 Impact/Guide hidden 검증.
-  - TEST F (History Recall): 스냅샷 Target 역할/색상 정상 복원 및 Fresh cleanup에 의한 삭제 방지 검증.
-  - TEST G (HMR Equivalent Reconstruction): Fresh view 초기화 시 stale draft 제거 및 S1 dirty indicator 잔존 방지 검증.
-  - TEST H (USER Search): USER 2-way role permutation 평가 및 검색 invariant 불변 검증.
-  - TEST I (Track Boundary Crossing): Opposite handedness track 전환 시 HPT/Thickness 대칭 유지 검증.
-  - TEST J (History / Corpus): SAVE $\to$ Derived Approval 완료 후 단일 후속자 및 코퍼스 보존 검증.
-- `npm run test:fast`: 18 files / 192 tests PASS
-- `npm run test:contract`: 13 files / 109 tests PASS
-- `npm test`: 100 files / 1000 tests PASS
-- `npm run build`: PASS
-- `git diff --check`: PASS (0 warnings / 0 errors)
+1. **Automated Regression Contracts (`frontend/src/application/flows/adminTargetBallRules.contract.test.ts` - 19 tests PASS):**
+   - TEST A (Fresh ADMIN): Hard refresh 시 `targetColor=null`, `isTargetSelected=false`, Impact Ball/Guide hidden 검증.
+   - TEST B (Red Target): Red 더블클릭 시 `targetColor="red"`, `isTargetSelected=true`, Red=Target, Impact/Guide visible 검증.
+   - TEST C (Yellow Target): Yellow 더블클릭 시 `targetColor="yellow"`, `isTargetSelected=true`, Yellow=Target, Impact/Guide visible 검증.
+   - TEST D (Drag Is Not Selection): 공 드래그 이동 시 `isTargetSelected=false`, `targetColor=null` 유지 및 Impact/Guide hidden 검증.
+   - TEST E (Reset): Reset 시 `isTargetSelected=false`, `targetColor=null` 및 Impact/Guide hidden 검증.
+   - TEST F (History Recall): 스냅샷 Target 역할/색상 정상 복원 및 Fresh cleanup에 의한 삭제 방지 검증.
+   - TEST G (HMR Equivalent Reconstruction): Fresh view 초기화 시 stale draft 제거 및 S1 dirty indicator 잔존 방지 검증.
+   - TEST H (USER Search): USER 2-way role permutation 평가 및 검색 invariant 불변 검증.
+   - TEST I (Track Boundary Crossing): Opposite handedness track 전환 시 HPT/Thickness 대칭 유지 검증.
+   - TEST J (History / Corpus): SAVE $\to$ Derived Approval 완료 후 단일 후속자 및 코퍼스 보존 검증.
+
+2. **Browser Manual Verification (100% PASS):**
+   - **[MANUAL TEST 1 — Fresh ADMIN Initial State]**
+     - 새로고침 후 ADMIN 초기 진입: White Cue Ball, Yellow physical ball, Red physical ball 정상 표시.
+     - logical Target = NONE, `targetColor = null`, `isTargetSelected = false`.
+     - Impact Ball 및 Cue $\to$ Impact 점선 Guide 완전 숨김(HIDDEN). Target-dependent editing 상태 임의 활성화 없음. $\to$ **PASS**
+   - **[MANUAL TEST 2 — Explicit Double-Click Target Selection]**
+     - Red 더블클릭 $\to$ Red = Target, Yellow = Second, `targetColor = "red"`, `isTargetSelected = true`, Impact Ball / Guide 정상 표시.
+     - Yellow 더블클릭 $\to$ Yellow = Target, Red = Second, `targetColor = "yellow"`, `isTargetSelected = true`, Impact Ball / Guide 정상 표시.
+     - physical color와 logical role의 정상 분리 확인. $\to$ **PASS**
+   - **[MANUAL TEST 3 — Drag Is NOT Target Selection]**
+     - Red/Yellow 공 단순 Drag 이동 시 좌표만 이동하고 `targetColor=null`, `isTargetSelected=false` 유지.
+     - Impact Ball 및 Guide 미노출 유지 (`Drag ≠ Target Selection`). $\to$ **PASS**
+   - **[MANUAL TEST 4 — History Recall → Ball Move → Local DB Search]**
+     - History에서 저장된 데이터 Recall $\to$ Target/Second role, 공 위치, Impact/Guide 정상 복원.
+     - Recall 이후 공 위치 이동 후 Local DB Search 실행 $\to$ 이동 좌표 기준 정상 검색 및 Recall, Red/Yellow color swap 없음. $\to$ **PASS**
+
+3. **Test Suite & Build Summary:**
+   - `npm run test:fast`: 18 files / 192 tests PASS
+   - `npm run test:contract`: 13 files / 109 tests PASS
+   - `npm test` (Full Vitest): 100 files / 1000 tests PASS
+   - `npm run build`: PASS
+   - `git diff --check`: PASS (0 warnings / 0 errors)
+   - Commit: `369d958` (`fix(admin): gate target coaching and clear stale fresh drafts`)
+
+**Status:** Milestone 9 implementation + automated testing + browser verification **COMPLETE**.
 
 ---
 

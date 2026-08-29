@@ -721,3 +721,63 @@ STEP7 Standardization
 - STEP5 Entry Point: 동 문서 §19 Downstream Checklist · §20 Frozen Assets
 - STEP4는 Fact/Observation Inventory만 담당한다. Audit / Finding / Violation은 STEP5부터 시작한다.
 - Runtime Contract / Registry / Loader 구조는 Batch6 Final Freeze 이후 본 문서 범위에서 변경하지 않는다.
+
+---
+
+## Ball Role & Session Target Lifecycle Architecture (2026-08-29 Milestone 9 SSOT)
+
+### 1. ADMIN Target Explicit Selection & Session Lifecycle
+
+Fresh ADMIN 진입 시에는 Target이 지정되지 않은 상태(Target = NONE)이며, 명시적 더블클릭에 의해서만 논리적 역할이 확정된다.
+
+`	ext
+Fresh ADMIN
+    ↓
+Target = NONE (isTargetSelected=false, targetColor=null)
+    ↓
+Red/Yellow physical balls only (Impact / Guide HIDDEN)
+    ↓
+Explicit Double Click (Red or Yellow)
+    ↓
+Target / Second logical role lock (targetColor assigned, isTargetSelected=true)
+    ↓
+Impact + Guide activation (calcImpactBall & guideLineNode)
+    ↓
+ADMIN Editing (SYS / HPT / STR / AI)
+    ↓
+SAVE / Derived Approval (Single History Successor + Corpus Persist)
+`
+
+- **Drag ≠ Target Selection:** 공 드래그 이동은 좌표만 변경하며 Target을 자동 선택하지 않는다.
+- **Physical Color ≠ Logical Role:** Red와 Yellow는 물리 색상일 뿐이며, 논리 역할(Target/Second)과 결합되지 않는다.
+- **HMR / Fresh-State SSOT:** Fresh 화면 초기화 시 이전 세션의 stale slot draft/applied 상태를 제거하여 Mixed Runtime State를 방지한다 (clearAdminWorkSlots).
+
+### 2. History Recall Hydration Lifecycle
+
+History Recall은 명시적인 스냅샷 복원 경로이며 Fresh/HMR cleanup에 의해 삭제되지 않는다.
+
+`	ext
+History Snapshot
+    ↓
+Explicit Hydration (handleLoadWorkspaceSnapshot)
+    ↓
+Stored Target/Second + Ball3 + Editor State Restore
+    ↓
+View / Search / Edit lifecycle
+`
+
+### 3. USER Search Target Dynamic Resolution Lifecycle
+
+USER 모드에서는 사용자가 사전에 Target을 지정할 필요가 없으며, 2-way 역할 순열 평가를 통해 최적 결과가 역할을 결정한다.
+
+`	ext
+USER Fresh / Query
+    ↓
+Target = UNKNOWN (Target unselected in UI)
+    ↓
+Red/Yellow 2-way role permutation evaluation
+    ↓
+Best matching PositionRecord (winning matchedBalls)
+    ↓
+Result role determined (Trajectory Target aligned)
+`
