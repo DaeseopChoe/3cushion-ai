@@ -48,7 +48,7 @@ describe("adminEditSessionContract — POLICY A", () => {
     ).toBe(true);
   });
 
-  it("C: Recall → Reset → unlock + session true + controls enabled", () => {
+  it("C: Recall → Reset → unlock + Target=NONE + session true", () => {
     const recalled = simulateAdminRecallViewOnlyState({
       recordTargetBall: "red",
     });
@@ -58,8 +58,21 @@ describe("adminEditSessionContract — POLICY A", () => {
       slotTargetBall: recalled.targetColor,
     });
     expect(after.isTargetSelected).toBe(false);
+    expect(after.targetColor).toBeNull();
     expect(after.isAdminInputSessionActive).toBe(true);
-    expect(after.canUseSystemControls).toBe(true);
+    // Target is UNSELECTED until user explicitly double-clicks a target ball
+    expect(after.canUseSystemControls).toBe(false);
+
+    // Explicit double-click target selection enables system controls
+    const withExplicitTarget = canUseAdminSystemControls({
+      appMode: "ADMIN",
+      isAdminInputSessionActive: after.isAdminInputSessionActive,
+      targetReadyBall: resolveAdminTargetReadyBall({
+        isTargetSelected: true,
+        targetColor: "red",
+      }),
+    });
+    expect(withExplicitTarget).toBe(true);
   });
 
   it("D: Recall → Target dblclick (blocked) → Reset still deterministic", () => {
@@ -73,13 +86,12 @@ describe("adminEditSessionContract — POLICY A", () => {
       targetColor: recalled.targetColor,
       slotTargetBall: "yellow",
     });
-    expect(after.canUseSystemControls).toBe(true);
     expect(after.isAdminInputSessionActive).toBe(true);
+    expect(after.isTargetSelected).toBe(false);
+    expect(after.targetColor).toBeNull();
   });
 
   it("E/F: Recall → Reset → Search/Recall cycle ×3 — identical", () => {
-    let targetColor: string | null = "red";
-    let slotTarget: string | null = "red";
     for (let i = 0; i < 3; i++) {
       const recalled = simulateAdminRecallViewOnlyState({
         recordTargetBall: "red",
@@ -94,15 +106,12 @@ describe("adminEditSessionContract — POLICY A", () => {
       const after = applyAdminWorkResetSession({
         appMode: "ADMIN",
         targetColor: recalled.targetColor,
-        slotTargetBall: slotTarget,
+        slotTargetBall: "red",
       });
       expect(after.isAdminInputSessionActive).toBe(true);
       expect(after.isTargetSelected).toBe(false);
-      expect(after.canUseSystemControls).toBe(true);
-      targetColor = after.targetColor;
-      slotTarget = after.slotTargetBall;
+      expect(after.targetColor).toBeNull();
     }
-    expect(targetColor).toBe("red");
   });
 
   it("G: metadata-absent Recall clears stale previous Target Lock", () => {
@@ -144,7 +153,8 @@ describe("adminEditSessionContract — POLICY A", () => {
       targetColor: "red",
       slotTargetBall: "red",
     });
-    expect(after.canUseSystemControls).toBe(true);
+    expect(after.isTargetSelected).toBe(false);
+    expect(after.targetColor).toBeNull();
   });
 
   it("fresh ADMIN (layers off) does not block Target dblclick edit start", () => {
@@ -165,19 +175,19 @@ describe("adminEditSessionContract — POLICY A", () => {
     ).toBe(false);
   });
 
-  it("resolveAdminResetTargetMeta prefers UI color then slot", () => {
+  it("resolveAdminResetTargetMeta returns null (Target NONE)", () => {
     expect(
       resolveAdminResetTargetMeta({
         targetColor: "yellow",
         slotTargetBall: "red",
       })
-    ).toBe("yellow");
+    ).toBeNull();
     expect(
       resolveAdminResetTargetMeta({
         targetColor: null,
         slotTargetBall: "red",
       })
-    ).toBe("red");
+    ).toBeNull();
   });
 
   it("resolveAdminRecallTargetMeta prefers query lock then record", () => {

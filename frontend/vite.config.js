@@ -42,7 +42,9 @@ function publishedDatasetStatic() {
     closeBundle() {
       if (!fs.existsSync(REPO_DATASET_DIR)) return;
       const outDir = path.resolve(__dirname, "dist/dataset");
+      fs.mkdirSync(outDir, { recursive: true });
       cpSync(REPO_DATASET_DIR, outDir, { recursive: true });
+      console.log(`[Vite] Copied dataset from ${REPO_DATASET_DIR} to ${outDir}`);
     },
   };
 }

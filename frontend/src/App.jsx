@@ -1159,7 +1159,7 @@ export default function App({
   const [isSaved, setIsSaved] = useState(false);
   const [targetColor, setTargetColor] = useState(null);
 
-  /** ADMIN Search/Recall 타겟 SSOT: UI state 우선, slot draft/applied fallback */
+  /** ADMIN Search/Recall 타겟 SSOT: UI state 우선 (명시적 선택 시만 반환) */
   function getAdminSearchTargetBall(slotId = shotEditor.activeSlot) {
     if (
       isTargetSelected &&
@@ -1167,7 +1167,7 @@ export default function App({
     ) {
       return targetColor;
     }
-    return extractSlotTargetBall(shotEditor.slots[slotId]);
+    return null;
   }
 
   /** ADMIN Search/로컬DB recall query — explicit UI target only (no slot fallback). */
@@ -1510,9 +1510,6 @@ export default function App({
 
   /** 볼 더블클릭 — Target Lock = physical Role 선정 (색상 슬롯 아님) */
   function applyTargetFromBallId(ballId) {
-    // Target Lock: once selected for this input session, never reassign via DoubleClick
-    if (isTargetSelected) return;
-
     const roleId =
       ballId === "target_center" || ballId === "target"
         ? "target"
@@ -1534,7 +1531,7 @@ export default function App({
     actions.patchSlotRuntimeMeta(slotId, { targetBall: locked.targetColor });
     setDragState((s) => ({
       ...s,
-      ballId: roleId,
+      ballId: "target",
       joystickVisible: false,
       dragging: false,
     }));
@@ -1725,42 +1722,6 @@ export default function App({
             : null;
     if (!roleId || roleId === "cue") return;
 
-    const lock = {
-      targetColor: targetColorRef.current,
-      isTargetSelected: isTargetSelectedRef.current,
-    };
-
-    // Target Lock: any further DoubleClick must not change Target Role
-    if (lock.isTargetSelected) {
-      // Only Second Role Ball (field balls.second) → 1× nearest display-segment Projection
-      if (roleId !== "second") return;
-
-      const secondPos = ballsStateRef.current?.second;
-      if (
-        !secondPos ||
-        !Number.isFinite(secondPos.x) ||
-        !Number.isFinite(secondPos.y)
-      ) {
-        return;
-      }
-
-      const proj = projectBallOntoNearestSegment({
-        ball: secondPos,
-        segments: projectionSegmentsRef.current,
-      });
-      if (!proj) return;
-
-      setBallsState((prev) => ({
-        ...prev,
-        second: prev.second
-          ? { ...prev.second, x: proj.point.x, y: proj.point.y }
-          : { x: proj.point.x, y: proj.point.y },
-      }));
-      setIsSaved(false);
-      setIsAdminPublishedSearchMatched(false);
-      return;
-    }
-
     // POLICY A: Recall/History view-only (layers on + session off) —
     // Target dblclick must not open edit session. Reset is canonical.
     if (
@@ -1772,7 +1733,7 @@ export default function App({
       return;
     }
 
-    // Target unlocked: first object-ball DoubleClick assigns Target Role
+    // Explicit Target Selection: double-click designates or switches Target Role
     applyTargetFromBallId(roleId);
   }
   function handleWorkspaceLocalStorageCleanup() {
@@ -2220,20 +2181,17 @@ export default function App({
     hideBallPositionController();
     closeOverlay();
 
-    // Unlock Target Lock; keep color metadata on UI + slot so Ready stays valid via slot fallback.
+    // Reset: Target Lock unlock → Target = NONE (no automatic target inference)
     const readyTarget = resolveAdminResetTargetMeta({
-      targetColor,
-      slotTargetBall: extractSlotTargetBall(
-        shotEditor.slots[shotEditor.activeSlot]
-      ),
+      targetColor: null,
+      slotTargetBall: null,
     });
+    void readyTarget;
     setIsTargetSelected(false);
-    if (readyTarget) {
-      setTargetColor(readyTarget);
-      actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
-        targetBall: readyTarget,
-      });
-    }
+    setTargetColor(null);
+    actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
+      targetBall: null,
+    });
 
     setIsAdminInputSessionActive(true);
     if (ballsState?.cue) {
@@ -2246,9 +2204,7 @@ export default function App({
   }, [
     appMode,
     actions,
-    targetColor,
     shotEditor.activeSlot,
-    shotEditor.slots,
     ballsState,
     derivedReviewUi,
   ]);
@@ -2425,7 +2381,7 @@ export default function App({
     userSearchInFlightRef.current = true;
     const activeSlotAtSearch = shotEditor.activeSlot;
     try {
-      const matchedRecord = await runUserSearch({
+      const searchResult = await runUserSearch({
         ballsState,
         adminState,
         activeSlot: activeSlotAtSearch,
@@ -2444,13 +2400,22 @@ export default function App({
         resetUserSearchTargetSelection,
         showToast: userToast.show,
       });
-      if (!matchedRecord) {
+      if (!searchResult) {
         if (REAL_INTERPOLATION_SEARCH_ENABLED) {
           setRealInterpolationResults([]);
           setRiUiSelectedIndex(null);
         }
         return;
       }
+      const { record: matchedRecord, matchedBalls } = searchResult;
+      setBallsState((prev) =>
+        hydrateBallsStateForUi({
+          ...prev,
+          cue: matchedBalls.cue,
+          target: matchedBalls.target,
+          second: matchedBalls.second,
+        })
+      );
       const slotId = resolveUserSearchDisplaySlotId(
         matchedRecord,
         activeSlotAtSearch
@@ -2463,7 +2428,7 @@ export default function App({
       // Envelope: Product-published static corpus via read-only loader (no window global).
       if (REAL_INTERPOLATION_SEARCH_ENABLED) {
         try {
-          const query = normalizeBallsToBall3(ballsState);
+          const query = normalizeBallsToBall3(matchedBalls ?? ballsState);
           const envelopeLoad = await getOrLoadPublishedEnvelopeDataset();
           const envelopeDataset =
             publishedEnvelopeDatasetForSearch(envelopeLoad);
@@ -3471,7 +3436,7 @@ function handleJoyPadPointerCancel(e) {
       });
   }, [currentId]);
 
-  // ballsState 초기화 — 타겟은 slot SSOT에서 복원 (view 도착이 더블클릭보다 늦어도 유지)
+  // ballsState 초기화 — 타겟은 초기 NONE (명시적 더블클릭 지정 전까지 미선택)
   useEffect(() => {
     if (view && view.ui && view.ui.balls) {
       clearBallPointerInteractionState();
@@ -3479,16 +3444,8 @@ function handleJoyPadPointerCancel(e) {
       setIsSaved(false);
       setIsAdminPublishedSearchMatched(false);
       setIsAdminInputSessionActive(false);
-      const slotTarget = extractSlotTargetBall(
-        shotEditor.slots[shotEditor.activeSlot]
-      );
-      if (slotTarget === "red" || slotTarget === "yellow") {
-        setTargetColor(slotTarget);
-        setIsTargetSelected(true);
-      } else {
-        setIsTargetSelected(false);
-        setTargetColor(null);
-      }
+      setIsTargetSelected(false);
+      setTargetColor(null);
     }
   }, [clearGuide, view]);
 

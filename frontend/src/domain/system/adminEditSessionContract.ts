@@ -26,13 +26,13 @@ export function normalizeAdminTargetBall(
 export function resolveAdminTargetReadyBall(args: {
   isTargetSelected: boolean;
   targetColor: unknown;
-  slotTargetBall: unknown;
+  slotTargetBall?: unknown;
 }): AdminTargetBall | null {
   if (args.isTargetSelected) {
     const ui = normalizeAdminTargetBall(args.targetColor);
     if (ui) return ui;
   }
-  return normalizeAdminTargetBall(args.slotTargetBall);
+  return null;
 }
 
 export function canUseAdminSystemControls(args: {
@@ -48,17 +48,14 @@ export function canUseAdminSystemControls(args: {
 }
 
 /**
- * After Reset unlocks Target Lock, Ready must still resolve via slot fallback.
- * Prefer UI color, then slot metadata (History / LocalDB hydrate).
+ * Reset returns Target to NONE (unselected).
+ * No automatic target inference from previous colors or slots.
  */
-export function resolveAdminResetTargetMeta(args: {
-  targetColor: unknown;
-  slotTargetBall: unknown;
+export function resolveAdminResetTargetMeta(_args?: {
+  targetColor?: unknown;
+  slotTargetBall?: unknown;
 }): AdminTargetBall | null {
-  return (
-    normalizeAdminTargetBall(args.targetColor) ??
-    normalizeAdminTargetBall(args.slotTargetBall)
-  );
+  return null;
 }
 
 /** LocalDB / Published match: prefer explicit query lock, else record metadata. */
@@ -108,23 +105,19 @@ export function shouldBlockTargetDblclickEditSession(args: {
  */
 export function applyAdminWorkResetSession(args: {
   appMode: string;
-  targetColor: unknown;
-  slotTargetBall: unknown;
+  targetColor?: unknown;
+  slotTargetBall?: unknown;
 }): {
   isTargetSelected: false;
-  targetColor: AdminTargetBall | null;
-  slotTargetBall: AdminTargetBall | null;
+  targetColor: null;
+  slotTargetBall: null;
   isAdminInputSessionActive: true;
   canUseSystemControls: boolean;
 } {
-  const ready = resolveAdminResetTargetMeta({
-    targetColor: args.targetColor,
-    slotTargetBall: args.slotTargetBall,
-  });
   const next = {
     isTargetSelected: false as const,
-    targetColor: ready,
-    slotTargetBall: ready,
+    targetColor: null,
+    slotTargetBall: null,
     isAdminInputSessionActive: true as const,
   };
   return {

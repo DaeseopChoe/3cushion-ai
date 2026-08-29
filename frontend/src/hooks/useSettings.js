@@ -36,7 +36,6 @@ import {
   mergeProductExportRequests,
 } from "../domain/productExportRequest";
 import { canonicalDebugLog } from "../domain/canonicalPersistAudit";
-import { persistPositionsDatasetWithGeneration } from "../domain/dataset/infra/persistPositionsDatasetWithGeneration";
 import { POSITIONS_DATASET_META_KEY } from "../domain/dataset/infra/positionsDatasetMeta";
 import { refreshPublishedDataset } from "../domain/publishedDatasetStore";
 
@@ -318,28 +317,14 @@ export function useSettings({
         return false;
       }
       const s = snapshot.state;
-      const nextDataset = normalizeDatasetFromStorage(s.dataset ?? []);
-      // Phase 3A-335/337: durable persist first (invalidate → positions → gen).
-      // Transitional H3: do NOT sync/rollback family_* (History ≠ Member DB).
-      // Restore advances corpusGeneration → generation mismatch → freshness false until SAVE/Approval.
-      // Full H3 workspace/corpus storage split remains DEFERRED.
-      const corpusPersist = persistPositionsDatasetWithGeneration(nextDataset);
-      if (!corpusPersist.ok) {
-        console.warn(
-          "Failed safe corpus persist on History restore",
-          corpusPersist.stage,
-          corpusPersist.reason
-        );
-        alert(
-          `히스토리 복원 저장 실패 (${corpusPersist.stage}): ${corpusPersist.reason}`
-        );
-        return false;
-      }
+      const snapshotDataset = normalizeDatasetFromStorage(s.dataset ?? []);
+
+      // Phase 1: History Load restores Workspace editing state only (UI/balls/shotEditor/target).
+      // Search Corpus (positions_dataset) remains independent and is NOT replaced by history snapshot.
       setAdminState(s.adminState);
       // Phase 3: Role Ball3 restore — snapshot.target → UI balls.target (no color→field).
       const hydratedBalls = hydrateBallsStateForUi(s.ballsState);
       setBallsState(hydratedBalls);
-      setDataset(nextDataset);
       actions.restoreShotEditor(s.shotEditor);
       setWorkspaceHistoryVersion((v) => v + 1);
       setIsSaved(false);
@@ -356,7 +341,7 @@ export function useSettings({
         if (hydratedBalls?.cue) {
           const ball3 = normalizeBallsToBall3(hydratedBalls);
           setEditSourceContext(
-            buildEditSourceContext(snapshot.id, ball3, nextDataset)
+            buildEditSourceContext(snapshot.id, ball3, snapshotDataset)
           );
         } else {
           setEditSourceContext(null);
@@ -374,7 +359,6 @@ export function useSettings({
       actions,
       setAdminState,
       setBallsState,
-      setDataset,
       setIsSaved,
       setIsAdminPublishedSearchMatched,
       setIsAdminInputSessionActive,
@@ -422,6 +406,7 @@ export function useSettings({
         const systemId = snap.systemId ?? "5_half_system";
         refreshPublishedDataset(shotType, systemId);
       }
+      refreshPublishedDataset();
       // Product Export Pipeline: write Authoring Adapter input for Product Host → Generator.
       await saveProductExportRequestToFile(toExport, rootDir);
       updateSnapshotsExported(ids);

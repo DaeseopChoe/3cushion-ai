@@ -14,20 +14,19 @@
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
 import { runSpatialRecall } from "../../domain/recall/recallEngine";
-import { type PositionRecord } from "../../domain/positionSearchEngine";
+import { type Ball3, type PositionRecord } from "../../domain/positionSearchEngine";
 import { getOrLoadPublishedLeaf } from "../../domain/publishedDatasetStore";
-import {
-  resolveCandidatePublishedLeaves,
-  resolvePublishedLeafKey,
-} from "../../domain/publishedLeafResolve";
-import {
-  normalizePublishedShotTypeHint,
-  resolvePublishedLeafHints,
-} from "./recallHydrateFlow";
+import { resolveCandidatePublishedLeaves } from "../../domain/publishedLeafResolve";
+import { resolvePublishedLeafHints } from "./recallHydrateFlow";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export type UserSearchResult = {
+  record: PositionRecord;
+  matchedBalls: Ball3;
+};
 
 type AdminState = Record<string, unknown>;
 
@@ -70,11 +69,11 @@ export type UserSearchFlowContext = {
  * USER Published Search Flow (SRCH-003).
  * Published corpus 검색 → Recall 적용 → userLastSearchRecord 저장.
  * appMode guard 및 in-flight guard는 App.jsx 호출 전에 수행.
- * @returns matched PositionRecord on success; null on no-match / load error
+ * @returns { record, matchedBalls } on success; null on no-match / load error
  */
 export async function runUserSearch(
   ctx: UserSearchFlowContext
-): Promise<PositionRecord | null> {
+): Promise<UserSearchResult | null> {
   const runtimeHints = resolvePublishedLeafHints(
     (ctx.adminState as Record<string, unknown> | undefined)?.sys as
       | Record<string, unknown>
@@ -84,15 +83,14 @@ export async function runUserSearch(
     ctx.activeSlot
   );
 
-  const rawShotType =
-    runtimeHints.shotType ??
-    normalizePublishedShotTypeHint(ctx.userPublishedSearchContext?.shotType);
+  // USER Search has no shotType selector UI: never lock to stale History/Admin/Slot shotType.
+  // Always explore all canonical active published leaves for the systemId.
   const rawSystemId =
     runtimeHints.systemId ?? ctx.userPublishedSearchContext?.systemId;
 
   const candidateLeaves = resolveCandidatePublishedLeaves({
     mode: "USER",
-    shotType: rawShotType,
+    shotType: null,
     systemId: rawSystemId,
   });
 
@@ -104,9 +102,23 @@ export async function runUserSearch(
   const currentBalls = normalizeBallsToBall3(rawBalls as Record<string, unknown>);
   const recallProfile = "userStrict";
 
+  // Target NONE: Physical colors are not logical roles (Yellow != Target, Red != Second).
+  // Evaluate both object-ball role permutations against canonical leaves:
+  // 1) Target = Object Ball A (Yellow), Second = Object Ball B (Red)
+  // 2) Target = Object Ball B (Red), Second = Object Ball A (Yellow)
+  const candidateBallQueries: Ball3[] = [
+    currentBalls,
+    {
+      cue: currentBalls.cue,
+      target: currentBalls.second,
+      second: currentBalls.target,
+    },
+  ];
+
   let bestMatchRecord: PositionRecord | null = null;
   let bestMatchDistance = Infinity;
   let bestMatchLeaf: { shotType: string; systemId: string } | null = null;
+  let bestMatchQueryBalls: Ball3 | null = null;
   let hasLoadedRecords = false;
 
   for (const leaf of candidateLeaves) {
@@ -134,25 +146,31 @@ export async function runUserSearch(
       persistedContext: ctx.userPublishedSearchContext,
     });
 
-    const spatialResult = runSpatialRecall({
-      dataset: publishedRecords,
-      query: { balls: currentBalls, targetBall: null },
-      profile: recallProfile,
-    });
+    for (const queryBalls of candidateBallQueries) {
+      const spatialResult = runSpatialRecall({
+        dataset: publishedRecords,
+        query: { balls: queryBalls, targetBall: null },
+        profile: recallProfile,
+      });
 
-    if (spatialResult.kind === "match") {
-      if (spatialResult.distance < bestMatchDistance) {
-        bestMatchDistance = spatialResult.distance;
-        bestMatchRecord = spatialResult.record;
-        bestMatchLeaf = leaf;
-        if (spatialResult.distance === 0) {
-          break;
+      if (spatialResult.kind === "match") {
+        if (spatialResult.distance < bestMatchDistance) {
+          bestMatchDistance = spatialResult.distance;
+          bestMatchRecord = spatialResult.record;
+          bestMatchLeaf = leaf;
+          bestMatchQueryBalls = queryBalls;
+          if (spatialResult.distance === 0) {
+            break;
+          }
         }
       }
     }
+    if (bestMatchDistance === 0) {
+      break;
+    }
   }
 
-  if (!bestMatchRecord || !bestMatchLeaf) {
+  if (!bestMatchRecord || !bestMatchLeaf || !bestMatchQueryBalls) {
     const reason = hasLoadedRecords ? "over-max-distance" : "empty-dataset";
     console.log("[USER_SEARCH_RECALL] no-match", reason);
     ctx.showToast("일치하는 포지션이 없습니다.", { variant: "center" });
@@ -169,5 +187,8 @@ export async function runUserSearch(
   ctx.applyUserSearchRecall(bestMatchRecord);
   ctx.setUserLastSearchRecord(bestMatchRecord);
   ctx.setUserPublishedSearchContext(bestMatchLeaf);
-  return bestMatchRecord;
+  return {
+    record: bestMatchRecord,
+    matchedBalls: bestMatchQueryBalls,
+  };
 }
