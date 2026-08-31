@@ -70,6 +70,7 @@ function createMemoryLocalStorage() {
 
 beforeEach(() => {
   vi.stubGlobal("localStorage", createMemoryLocalStorage());
+  vi.stubGlobal("alert", vi.fn());
 });
 
 const baseBalls: BallsMap = {
@@ -606,5 +607,333 @@ describe("ADMIN Explicit Target & Coaching Gate Regression Contracts (TEST A ~ T
     // Derived Approval must not double-commit history
     expect(commitHistoryFn).not.toHaveBeenCalled();
     expect(setDatasetFn).toHaveBeenCalledWith([sampleRecord]);
+  });
+});
+
+describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TEST A ~ TEST H)", () => {
+  const yellowAtPos1_redAtPos2: BallsMap = {
+    cue: { x: 30, y: 70 },
+    target: { x: 20, y: 50 }, // Yellow in UI slot
+    second: { x: 15, y: 30 }, // Red in UI slot
+  };
+
+  const storedYellowTargetRecord = makeSampleRecord("rec_yellow_target", {
+    cue: { x: 30, y: 70 },
+    target: { x: 20, y: 50 }, // Target is Yellow
+    second: { x: 15, y: 30 }, // Second is Red
+  }, "yellow");
+
+  const storedRedTargetRecord = makeSampleRecord("rec_red_target", {
+    cue: { x: 30, y: 70 },
+    target: { x: 15, y: 30 }, // Target is Red (at Pos 2)
+    second: { x: 20, y: 50 }, // Second is Yellow (at Pos 1)
+  }, "red");
+
+  it("TEST A — Target NONE / stored target Yellow: Search SUCCESS with P1", async () => {
+    let appliedRecord: PositionRecord | null = null;
+    let hydratedTarget: string | null = null;
+    let updatedBalls: any = null;
+
+    const ctx = {
+      dataset: [storedYellowTargetRecord],
+      ballsState: yellowAtPos1_redAtPos2,
+      adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" }, balls: yellowAtPos1_redAtPos2 },
+      activeSlot: "S1" as const,
+      slots: { S1: { draft: null, applied: null } },
+      isTargetSelected: false,
+      targetColor: null,
+      setBallsState: (b: any) => { updatedBalls = b; },
+      setAdminState: vi.fn(),
+      setIsAdminPublishedSearchMatched: vi.fn(),
+      setAdminTableLayersVisible: vi.fn(),
+      setShowCoaching: vi.fn(),
+      setIsAdminInputSessionActive: vi.fn(),
+      hydrateAdminRecallTarget: (t: any) => { hydratedTarget = t; },
+      applyPositionRecall: (rec: PositionRecord) => { appliedRecord = rec; },
+      patchSlotRuntimeMeta: vi.fn(),
+      clearAdminSearchDisplayRuntime: vi.fn(),
+      beginAdminInputSession: () => true,
+      getAdminRecallQueryTargetBall: () => null, // Target = NONE
+      resolveFormulaHash: () => "test_hash",
+    };
+
+    const matched = await runAdminLocalDbRecall(ctx as any);
+    expect(matched).toBe(true);
+    expect(appliedRecord?.positionId).toBe("rec_yellow_target");
+    expect(hydratedTarget).toBe("yellow");
+    expect(updatedBalls?.target).toEqual({ x: 20, y: 50 });
+    expect(updatedBalls?.second).toEqual({ x: 15, y: 30 });
+  });
+
+  it("TEST B — Target NONE / stored target Red: 2-way permutation Search SUCCESS with P2", async () => {
+    let appliedRecord: PositionRecord | null = null;
+    let hydratedTarget: string | null = null;
+    let updatedBalls: any = null;
+
+    // UI currently has Yellow at (20, 50) in target slot, Red at (15, 30) in second slot.
+    // Target is unselected (Target = NONE).
+    // Stored record has Target = (15, 30) [Red] and Second = (20, 50) [Yellow].
+    const ctx = {
+      dataset: [storedRedTargetRecord],
+      ballsState: yellowAtPos1_redAtPos2,
+      adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" }, balls: yellowAtPos1_redAtPos2 },
+      activeSlot: "S1" as const,
+      slots: { S1: { draft: null, applied: null } },
+      isTargetSelected: false,
+      targetColor: null,
+      setBallsState: (b: any) => { updatedBalls = b; },
+      setAdminState: vi.fn(),
+      setIsAdminPublishedSearchMatched: vi.fn(),
+      setAdminTableLayersVisible: vi.fn(),
+      setShowCoaching: vi.fn(),
+      setIsAdminInputSessionActive: vi.fn(),
+      hydrateAdminRecallTarget: (t: any) => { hydratedTarget = t; },
+      applyPositionRecall: (rec: PositionRecord) => { appliedRecord = rec; },
+      patchSlotRuntimeMeta: vi.fn(),
+      clearAdminSearchDisplayRuntime: vi.fn(),
+      beginAdminInputSession: () => true,
+      getAdminRecallQueryTargetBall: () => null, // Target = NONE
+      resolveFormulaHash: () => "test_hash",
+    };
+
+    const matched = await runAdminLocalDbRecall(ctx as any);
+    expect(matched).toBe(true);
+    expect(appliedRecord?.positionId).toBe("rec_red_target");
+    expect(hydratedTarget).toBe("red");
+    // Verified: ballsState was swapped to match the semantic target role of the record
+    expect(updatedBalls?.target).toEqual({ x: 15, y: 30 });
+    expect(updatedBalls?.second).toEqual({ x: 20, y: 50 });
+  });
+
+  it("TEST C — Explicit Yellow Target: Yellow permutation only evaluated (Red record not matched)", async () => {
+    let appliedRecord: PositionRecord | null = null;
+
+    const ctx = {
+      dataset: [storedRedTargetRecord],
+      ballsState: yellowAtPos1_redAtPos2,
+      adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" }, balls: yellowAtPos1_redAtPos2 },
+      activeSlot: "S1" as const,
+      slots: { S1: { draft: null, applied: null } },
+      isTargetSelected: true,
+      targetColor: "yellow",
+      setBallsState: vi.fn(),
+      setAdminState: vi.fn(),
+      setIsAdminPublishedSearchMatched: vi.fn(),
+      setAdminTableLayersVisible: vi.fn(),
+      setShowCoaching: vi.fn(),
+      setIsAdminInputSessionActive: vi.fn(),
+      hydrateAdminRecallTarget: vi.fn(),
+      applyPositionRecall: (rec: PositionRecord) => { appliedRecord = rec; },
+      patchSlotRuntimeMeta: vi.fn(),
+      clearAdminSearchDisplayRuntime: vi.fn(),
+      beginAdminInputSession: () => true,
+      getAdminRecallQueryTargetBall: () => "yellow", // Explicit Yellow Target Lock
+      resolveFormulaHash: () => "test_hash",
+    };
+
+    const matched = await runAdminLocalDbRecall(ctx as any);
+    expect(matched).toBe(false);
+    expect(appliedRecord).toBeNull();
+  });
+
+  it("TEST D — Explicit Red Target: Red-target permutation evaluated and succeeds", async () => {
+    let appliedRecord: PositionRecord | null = null;
+    let hydratedTarget: string | null = null;
+
+    // When Red is explicitly selected as Target, ballsState has target at (15, 30)
+    const redTargetBalls: BallsMap = {
+      cue: { x: 30, y: 70 },
+      target: { x: 15, y: 30 },
+      second: { x: 20, y: 50 },
+    };
+
+    const ctx = {
+      dataset: [storedRedTargetRecord],
+      ballsState: redTargetBalls,
+      adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" }, balls: redTargetBalls },
+      activeSlot: "S1" as const,
+      slots: { S1: { draft: null, applied: null } },
+      isTargetSelected: true,
+      targetColor: "red",
+      setBallsState: vi.fn(),
+      setAdminState: vi.fn(),
+      setIsAdminPublishedSearchMatched: vi.fn(),
+      setAdminTableLayersVisible: vi.fn(),
+      setShowCoaching: vi.fn(),
+      setIsAdminInputSessionActive: vi.fn(),
+      hydrateAdminRecallTarget: (t: any) => { hydratedTarget = t; },
+      applyPositionRecall: (rec: PositionRecord) => { appliedRecord = rec; },
+      patchSlotRuntimeMeta: vi.fn(),
+      clearAdminSearchDisplayRuntime: vi.fn(),
+      beginAdminInputSession: () => true,
+      getAdminRecallQueryTargetBall: () => "red", // Explicit Red Target Lock
+      resolveFormulaHash: () => "test_hash",
+    };
+
+    const matched = await runAdminLocalDbRecall(ctx as any);
+    expect(matched).toBe(true);
+    expect(appliedRecord?.positionId).toBe("rec_red_target");
+    expect(hydratedTarget).toBe("red");
+  });
+
+  it("TEST E — Both permutations no-match: returns false with '해당 데이터 없음'", async () => {
+    let appliedRecord: PositionRecord | null = null;
+
+    const farRecord = makeSampleRecord("rec_far", {
+      cue: { x: 10, y: 10 },
+      target: { x: 70, y: 30 },
+      second: { x: 65, y: 15 },
+    }, "yellow");
+
+    const ctx = {
+      dataset: [farRecord],
+      ballsState: yellowAtPos1_redAtPos2,
+      adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" }, balls: yellowAtPos1_redAtPos2 },
+      activeSlot: "S1" as const,
+      slots: { S1: { draft: null, applied: null } },
+      isTargetSelected: false,
+      targetColor: null,
+      setBallsState: vi.fn(),
+      setAdminState: vi.fn(),
+      setIsAdminPublishedSearchMatched: vi.fn(),
+      setAdminTableLayersVisible: vi.fn(),
+      setShowCoaching: vi.fn(),
+      setIsAdminInputSessionActive: vi.fn(),
+      hydrateAdminRecallTarget: vi.fn(),
+      applyPositionRecall: (rec: PositionRecord) => { appliedRecord = rec; },
+      patchSlotRuntimeMeta: vi.fn(),
+      clearAdminSearchDisplayRuntime: vi.fn(),
+      beginAdminInputSession: () => true,
+      getAdminRecallQueryTargetBall: () => null,
+      resolveFormulaHash: () => "test_hash",
+    };
+
+    const matched = await runAdminLocalDbRecall(ctx as any);
+    expect(matched).toBe(false);
+    expect(appliedRecord).toBeNull();
+  });
+
+  it("TEST F — Deterministic selection: chooses lower distance permutation deterministically", async () => {
+    // Record A is at exact distance 0.0 with P2 (Red target)
+    // Record B is at distance 0.5 with P1 (Yellow target)
+    const exactRedRecord = makeSampleRecord("rec_exact_red", {
+      cue: { x: 30, y: 70 },
+      target: { x: 15, y: 30 },
+      second: { x: 20, y: 50 },
+    }, "red");
+
+    const nearYellowRecord = makeSampleRecord("rec_near_yellow", {
+      cue: { x: 30, y: 70 },
+      target: { x: 20.3, y: 50.4 }, // slightly offset
+      second: { x: 15, y: 30 },
+    }, "yellow");
+
+    let appliedRecord: PositionRecord | null = null;
+
+    const ctx = {
+      dataset: [nearYellowRecord, exactRedRecord],
+      ballsState: yellowAtPos1_redAtPos2,
+      adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" }, balls: yellowAtPos1_redAtPos2 },
+      activeSlot: "S1" as const,
+      slots: { S1: { draft: null, applied: null } },
+      isTargetSelected: false,
+      targetColor: null,
+      setBallsState: vi.fn(),
+      setAdminState: vi.fn(),
+      setIsAdminPublishedSearchMatched: vi.fn(),
+      setAdminTableLayersVisible: vi.fn(),
+      setShowCoaching: vi.fn(),
+      setIsAdminInputSessionActive: vi.fn(),
+      hydrateAdminRecallTarget: vi.fn(),
+      applyPositionRecall: (rec: PositionRecord) => { appliedRecord = rec; },
+      patchSlotRuntimeMeta: vi.fn(),
+      clearAdminSearchDisplayRuntime: vi.fn(),
+      beginAdminInputSession: () => true,
+      getAdminRecallQueryTargetBall: () => null,
+      resolveFormulaHash: () => "test_hash",
+    };
+
+    const matched = await runAdminLocalDbRecall(ctx as any);
+    expect(matched).toBe(true);
+    expect(appliedRecord?.positionId).toBe("rec_exact_red"); // exact distance 0.0 wins
+  });
+
+  it("TEST G — Symmetry regression: 4-track family members with different target roles recall in Target=NONE", async () => {
+    const track1YellowTarget = makeSampleRecord("track_B2T_L", {
+      cue: { x: 20, y: 10 },
+      target: { x: 40, y: 30 },
+      second: { x: 60, y: 20 },
+    }, "yellow");
+
+    const track2RedTarget = makeSampleRecord("track_B2T_R", {
+      cue: { x: 60, y: 10 },
+      target: { x: 20, y: 20 }, // target is at opposite ball position
+      second: { x: 40, y: 30 },
+    }, "red");
+
+    const dataset = [track1YellowTarget, track2RedTarget];
+
+    // Search at Track 1 coords (Yellow target)
+    let applied1: PositionRecord | null = null;
+    await runAdminLocalDbRecall({
+      dataset,
+      ballsState: { cue: { x: 20, y: 10 }, target: { x: 40, y: 30 }, second: { x: 60, y: 20 } },
+      adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" } },
+      activeSlot: "S1",
+      slots: {},
+      isTargetSelected: false,
+      targetColor: null,
+      setAdminState: vi.fn(),
+      setIsAdminPublishedSearchMatched: vi.fn(),
+      setAdminTableLayersVisible: vi.fn(),
+      setShowCoaching: vi.fn(),
+      setIsAdminInputSessionActive: vi.fn(),
+      hydrateAdminRecallTarget: vi.fn(),
+      applyPositionRecall: (rec: PositionRecord) => { applied1 = rec; },
+      patchSlotRuntimeMeta: vi.fn(),
+      clearAdminSearchDisplayRuntime: vi.fn(),
+      beginAdminInputSession: () => true,
+      getAdminRecallQueryTargetBall: () => null,
+      resolveFormulaHash: () => "test_hash",
+    } as any);
+    expect(applied1?.positionId).toBe("track_B2T_L");
+
+    // Search at Track 2 coords (Red target, but UI initially has target in slot A, second in slot B)
+    let applied2: PositionRecord | null = null;
+    await runAdminLocalDbRecall({
+      dataset,
+      ballsState: { cue: { x: 60, y: 10 }, target: { x: 40, y: 30 }, second: { x: 20, y: 20 } },
+      adminState: { sys: { systemId: "5_half_system", shotType: "뒤돌리기" } },
+      activeSlot: "S1",
+      slots: {},
+      isTargetSelected: false,
+      targetColor: null,
+      setAdminState: vi.fn(),
+      setIsAdminPublishedSearchMatched: vi.fn(),
+      setAdminTableLayersVisible: vi.fn(),
+      setShowCoaching: vi.fn(),
+      setIsAdminInputSessionActive: vi.fn(),
+      hydrateAdminRecallTarget: vi.fn(),
+      applyPositionRecall: (rec: PositionRecord) => { applied2 = rec; },
+      patchSlotRuntimeMeta: vi.fn(),
+      clearAdminSearchDisplayRuntime: vi.fn(),
+      beginAdminInputSession: () => true,
+      getAdminRecallQueryTargetBall: () => null,
+      resolveFormulaHash: () => "test_hash",
+    } as any);
+    expect(applied2?.positionId).toBe("track_B2T_R");
+  });
+
+  it("TEST H — Role SSOT: red == second / yellow == target is never hardcoded in recall matching", () => {
+    // Record where target is explicitly 'red' and second is 'yellow'
+    const redTargetRec = makeSampleRecord("rec_ssot_red", {
+      cue: { x: 10, y: 10 },
+      target: { x: 50, y: 20 },
+      second: { x: 30, y: 15 },
+    }, "red");
+
+    expect(redTargetRec.targetBall).toBe("red");
+    expect(redTargetRec.balls.target).toEqual({ x: 50, y: 20 });
+    expect(redTargetRec.balls.second).toEqual({ x: 30, y: 15 });
   });
 });

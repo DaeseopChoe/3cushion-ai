@@ -2125,6 +2125,7 @@ export default function App({
       isTargetSelected,
       targetColor,
       userPublishedSearchContext,
+      setBallsState,
       setAdminState,
       setIsAdminPublishedSearchMatched,
       setAdminTableLayersVisible,
@@ -2232,6 +2233,7 @@ export default function App({
       slots: shotEditor.slots,
       isTargetSelected,
       targetColor,
+      setBallsState,
       setAdminState,
       setIsAdminPublishedSearchMatched,
       setAdminTableLayersVisible,
@@ -6050,7 +6052,6 @@ function handlePointerCancel(e) {
                   setIsSaved(false);
                   closeOverlay();
                 }}
-                onSaveStrategy={handleSaveStrategy}
                 onCancel={closeOverlay}
                 onePointLibrary={onePointLibrary}
                 sortedOnePointLibrary={filteredSortedOnePointLibrary}

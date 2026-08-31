@@ -47,6 +47,7 @@ export type AdminLocalDbFlowContext = {
   setIsAdminInputSessionActive: (value: boolean) => void;
   /** Hydrate Target color metadata for Ready after Reset unlock. */
   hydrateAdminRecallTarget: (targetBall: AdminTargetBall | null) => void;
+  setBallsState?: (balls: Record<string, { x: number; y: number } | undefined> | ((prev: any) => any)) => void;
 
   // ACTION
   applyPositionRecall: (record: PositionRecord) => void;
@@ -155,30 +156,72 @@ export async function runAdminLocalDbRecall(
 
   // Spatial recall — Role Ball3 query (Phase 4: target↔target, second↔second)
   const searchQueryTargetBall = ctx.getAdminRecallQueryTargetBall();
-  const spatialResult = runSpatialRecall({
-    dataset: ds,
-    query: { balls: currentBalls, targetBall: searchQueryTargetBall },
-    profile: recallProfile,
-  });
+
+  // Target NONE: Physical colors are not logical roles (Yellow != Target, Red != Second).
+  // When searchQueryTargetBall is null (Target=NONE), evaluate both candidate role permutations:
+  // 1) Target = Object Ball A (currentBalls.target), Second = Object Ball B (currentBalls.second)
+  // 2) Target = Object Ball B (currentBalls.second), Second = Object Ball A (currentBalls.target)
+  // When searchQueryTargetBall != null (explicit target chosen by user), evaluate only the single permutation.
+  const candidateBallQueries: Ball3[] =
+    searchQueryTargetBall != null
+      ? [currentBalls]
+      : [
+          currentBalls,
+          {
+            cue: currentBalls.cue,
+            target: currentBalls.second,
+            second: currentBalls.target,
+          },
+        ];
+
+  let bestMatchRecord: PositionRecord | null = null;
+  let bestMatchDistance = Infinity;
+  let bestSpatialResult: ReturnType<typeof runSpatialRecall> | null = null;
+  let bestMatchQueryBalls: Ball3 | null = null;
+
+  for (const queryBalls of candidateBallQueries) {
+    const spatialResult = runSpatialRecall({
+      dataset: ds,
+      query: { balls: queryBalls, targetBall: searchQueryTargetBall },
+      profile: recallProfile,
+    });
+
+    if (spatialResult.kind === "match") {
+      if (spatialResult.distance < bestMatchDistance) {
+        bestMatchDistance = spatialResult.distance;
+        bestMatchRecord = spatialResult.record;
+        bestSpatialResult = spatialResult;
+        bestMatchQueryBalls = queryBalls;
+        if (spatialResult.distance === 0) {
+          break;
+        }
+      }
+    } else if (!bestSpatialResult) {
+      bestSpatialResult = spatialResult;
+    }
+  }
 
   const result =
-    spatialResult.kind === "match"
+    bestMatchRecord && bestSpatialResult?.kind === "match"
       ? {
           kind: "match" as const,
-          record: spatialResult.record,
-          distance: spatialResult.distance,
+          record: bestMatchRecord,
+          distance: bestMatchDistance,
         }
       : {
           kind: "no-match" as const,
           reason:
-            spatialResult.reason === "empty-dataset"
-              ? "empty-dataset"
-              : spatialResult.reason === "over-max-distance"
-                ? "over-max-distance"
-                : "coarse-empty",
+            bestSpatialResult && bestSpatialResult.kind === "no-match"
+              ? bestSpatialResult.reason
+              : "coarse-empty",
         };
 
-  console.log("[RECALL_RESULT]", { profile: recallProfile, result, spatialResult });
+  console.log("[RECALL_RESULT]", {
+    profile: recallProfile,
+    result,
+    spatialResult: bestSpatialResult,
+    bestMatchQueryBalls,
+  });
 
   // No match
   if (!result || result.kind === "no-match") {
@@ -207,6 +250,14 @@ export async function runAdminLocalDbRecall(
     ctx.patchSlotRuntimeMeta(ctx.activeSlot, { targetBall: targetMeta });
   }
   ctx.hydrateAdminRecallTarget(targetMeta);
+
+  if (bestMatchQueryBalls) {
+    ctx.setBallsState?.(bestMatchQueryBalls);
+    ctx.setAdminState((prev) => ({
+      ...prev,
+      balls: JSON.parse(JSON.stringify(bestMatchQueryBalls)),
+    }));
+  }
 
   // Hydrate adminState.sys
   const recallEntry = (result.record?.strategies as Record<string, unknown> | undefined)?.[ctx.activeSlot];

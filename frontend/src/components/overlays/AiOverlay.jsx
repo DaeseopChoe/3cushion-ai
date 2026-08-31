@@ -83,7 +83,6 @@ export function AiOverlay({
   resolvedSlotSysValues,
   resolvedSlotBaseSysValues,
   onSave,
-  onSaveStrategy,
   onCancel,
   applyDisabled = false,
   onePointLibrary,
@@ -168,7 +167,6 @@ export function AiOverlay({
       onePointLessons: data?.onePointLessons ?? [],
     };
     onSave(newData);
-    onSaveStrategy?.(newData);
   };
 
   /** 적용/저장 버튼: Enter 시 클릭 대신 전체 적용(submit) */

@@ -46,6 +46,7 @@ export type AdminSearchFlowContext = {
   setIsAdminPublishedSearchMatched: (value: boolean) => void;
   setAdminTableLayersVisible: (value: boolean) => void;
   setShowCoaching: (value: boolean) => void;
+  setBallsState?: (balls: Record<string, { x: number; y: number } | undefined> | ((prev: any) => any)) => void;
 
   // ACTION
   applyPositionRecall: (record: PositionRecord) => void;
@@ -147,11 +148,58 @@ export async function runAdminSearch(
     activeSlot: ctx.activeSlot,
   });
 
-  const spatialResult = runSpatialRecall({
-    dataset: publishedRecords,
-    query: { balls: currentBalls, targetBall: searchQueryTargetBall },
-    profile: recallProfile,
-  });
+  // Target NONE: Physical colors are not logical roles (Yellow != Target, Red != Second).
+  // When searchQueryTargetBall is null (Target=NONE), evaluate both candidate role permutations:
+  // 1) Target = Object Ball A (currentBalls.target), Second = Object Ball B (currentBalls.second)
+  // 2) Target = Object Ball B (currentBalls.second), Second = Object Ball A (currentBalls.target)
+  // When searchQueryTargetBall != null (explicit target chosen by user), evaluate only the single permutation.
+  const candidateBallQueries: Ball3[] =
+    searchQueryTargetBall != null
+      ? [currentBalls]
+      : [
+          currentBalls,
+          {
+            cue: currentBalls.cue,
+            target: currentBalls.second,
+            second: currentBalls.target,
+          },
+        ];
+
+  let bestMatchRecord: PositionRecord | null = null;
+  let bestMatchDistance = Infinity;
+  let bestSpatialResult: ReturnType<typeof runSpatialRecall> | null = null;
+  let bestMatchQueryBalls: Ball3 | null = null;
+
+  for (const queryBalls of candidateBallQueries) {
+    const spatialResult = runSpatialRecall({
+      dataset: publishedRecords,
+      query: { balls: queryBalls, targetBall: searchQueryTargetBall },
+      profile: recallProfile,
+    });
+
+    if (spatialResult.kind === "match") {
+      if (spatialResult.distance < bestMatchDistance) {
+        bestMatchDistance = spatialResult.distance;
+        bestMatchRecord = spatialResult.record;
+        bestSpatialResult = spatialResult;
+        bestMatchQueryBalls = queryBalls;
+        if (spatialResult.distance === 0) {
+          break;
+        }
+      }
+    } else if (!bestSpatialResult) {
+      bestSpatialResult = spatialResult;
+    }
+  }
+
+  const spatialResult =
+    bestMatchRecord && bestSpatialResult?.kind === "match"
+      ? bestSpatialResult
+      : (bestSpatialResult ?? {
+          kind: "no-match" as const,
+          reason: "coarse-empty",
+          meta: { profile: recallProfile },
+        });
 
   console.log("[RECALL_SPATIAL_RESULT]", {
     kind: spatialResult.kind,
@@ -163,6 +211,7 @@ export async function runAdminSearch(
       spatialResult.kind === "match"
         ? spatialResult.record?.positionId ?? null
         : null,
+    bestMatchQueryBalls,
   });
 
   if (spatialResult.kind !== "match") {
@@ -228,6 +277,14 @@ export async function runAdminSearch(
       if (!nextSys) return prev;
       return { ...prev, sys: nextSys };
     });
+  }
+
+  if (bestMatchQueryBalls) {
+    ctx.setBallsState?.(bestMatchQueryBalls);
+    ctx.setAdminState((prev) => ({
+      ...prev,
+      balls: JSON.parse(JSON.stringify(bestMatchQueryBalls)),
+    }));
   }
 
   ctx.setIsAdminPublishedSearchMatched(true);
