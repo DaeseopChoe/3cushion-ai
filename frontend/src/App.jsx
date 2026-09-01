@@ -25,6 +25,19 @@ import {
 import { buildUserInfoPanel } from "./domain/userInfoPanelModel";
 import { buildUserHptViewModel } from "./domain/userHptViewModel";
 import {
+  buildUserDisplayHptTrace,
+  DISPLAY_HPT_DIAGNOSTIC_BUILD_ID,
+  DISPLAY_RUNTIME_HPT_SSOT_BUILD_MARKER,
+  resolveAdminThicknessForCalc,
+  resolveUserTableDisplayThicknessT,
+  USER_TABLE_DISPLAY_HPT_BUILD_MARKER,
+} from "./domain/displayHptCoaching";
+import {
+  resolveCanonicalUserSearchDisplaySlotId,
+  USER_SEARCH_DISPLAY_SLOT_BUILD_MARKER,
+} from "./domain/userSearchDisplaySlot";
+import { HPT_VIZ_GEOMETRY_BUILD_MARKER } from "./domain/hptVizGeometry";
+import {
   canonicalSystemIdForConfig,
   getSysUseSn,
   isFiveHalfSystemId,
@@ -410,22 +423,6 @@ const INITIAL_BALLS_RG = {
 };
 
 const USER_STRATEGY_SLOT_IDS = ["S1", "S2", "S3"];
-
-/** USER Search / pick: display slot from matched record (activeSlot, else S1→S2→S3). */
-function resolveUserSearchDisplaySlotId(record, activeSlot) {
-  const strategies = record?.strategies;
-  if (!strategies || typeof strategies !== "object") return null;
-  if (
-    USER_STRATEGY_SLOT_IDS.includes(activeSlot) &&
-    strategies[activeSlot]
-  ) {
-    return activeSlot;
-  }
-  for (const slotId of USER_STRATEGY_SLOT_IDS) {
-    if (strategies[slotId]) return slotId;
-  }
-  return null;
-}
 
 const SHOTS = [
   { id: "H001_05", label: "H001 – B2T_R / C4", file: "canonical.json" },
@@ -856,6 +853,21 @@ export default function App({
   const [userPublishedSearchContext, setUserPublishedSearchContext] = useState(
     () => ({ shotType: null, systemId: null })
   );
+
+  /** Working Tree build provenance — grep dist or read from browser console on Mobile. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.__3CUSHION_BUILD_MARKERS__ = {
+      DISPLAY_RUNTIME_HPT_SSOT: DISPLAY_RUNTIME_HPT_SSOT_BUILD_MARKER,
+      USER_TABLE_DISPLAY_HPT: USER_TABLE_DISPLAY_HPT_BUILD_MARKER,
+      displayHptDiagnosticBuildId: DISPLAY_HPT_DIAGNOSTIC_BUILD_ID,
+      userSearchDisplaySlot: USER_SEARCH_DISPLAY_SLOT_BUILD_MARKER,
+      hptVizGeometry: HPT_VIZ_GEOMETRY_BUILD_MARKER,
+      head: "1a6178a",
+      builtAt: new Date().toISOString(),
+    };
+  }, []);
+  const userDisplayHptTraceLoggedRef = useRef(null);
   const [adminTableLayersVisible, setAdminTableLayersVisible] = useState(false);
   const adminRecallTraceCtxRef = useRef(() => ({}));
   const lastHydrateTriggerRef = useRef("slot");
@@ -2132,6 +2144,15 @@ export default function App({
       setShowCoaching,
       applyPositionRecall: actions.applyPositionRecall,
       patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
+      hydrateAdminRecallTarget: (tb) => {
+        if (tb === "red" || tb === "yellow") {
+          setTargetColor(tb);
+          setIsTargetSelected(true);
+        } else {
+          setTargetColor(null);
+          setIsTargetSelected(false);
+        }
+      },
       clearAdminSearchDisplayRuntime,
       beginAdminInputSession,
       getAdminRecallQueryTargetBall,
@@ -2430,10 +2451,7 @@ export default function App({
           second: matchedBalls.second,
         })
       );
-      const slotId = resolveUserSearchDisplaySlotId(
-        matchedRecord,
-        activeSlotAtSearch
-      );
+      const slotId = resolveCanonicalUserSearchDisplaySlotId(matchedRecord);
       if (slotId) {
         activateStrategySlot(slotId);
       }
@@ -3317,6 +3335,20 @@ function handleJoyPadPointerCancel(e) {
     onStrategyButtonsChange?.(strategyButtons);
   }, [strategyButtons, onStrategyButtonsChange]);
 
+  /** USER Display Runtime HPT — shared by modal, AI panel, table coaching. */
+  const userSlotDisplayHpt = useMemo(() => {
+    if (appMode !== "USER" || !userTableDisplaySlotId) return null;
+    const slot = shotEditor.slots[userTableDisplaySlotId];
+    const runtimeHpt =
+      slot?.draft?.hpt ?? slot?.applied?.hpt ?? adminState?.hpt ?? null;
+    return slot?.draft?.displayHpt ?? slot?.applied?.displayHpt ?? runtimeHpt;
+  }, [appMode, userTableDisplaySlotId, shotEditor.slots, adminState?.hpt]);
+
+  const userDisplayHptT = useMemo(() => {
+    const t = userSlotDisplayHpt?.T;
+    return typeof t === "string" && t.trim() ? t : undefined;
+  }, [userSlotDisplayHpt]);
+
   const userInfoPanel = useMemo(() => {
     if (appMode !== "USER") return null;
     if (!userTableDisplaySlotId) return null;
@@ -3331,8 +3363,7 @@ function handleJoyPadPointerCancel(e) {
       "";
     const appliedSys =
       slot?.applied?.sys ?? slot?.draft?.sys ?? resolvedSlotSys ?? null;
-    const hpt =
-      slot?.draft?.hpt ?? slot?.applied?.hpt ?? adminState?.hpt ?? null;
+    const hpt = userSlotDisplayHpt;
     const str =
       slot?.draft?.str ?? slot?.applied?.str ?? adminState?.str ?? null;
     const draftAi = slot?.draft?.ai ?? null;
@@ -3362,7 +3393,7 @@ function handleJoyPadPointerCancel(e) {
     resolvedSlotSys,
     resolvedSlotSysValues,
     resolvedSlotBaseSysValues,
-    adminState?.hpt,
+    userSlotDisplayHpt,
     adminState?.str,
     adminState?.ai,
     sysHpNResult,
@@ -3376,11 +3407,13 @@ function handleJoyPadPointerCancel(e) {
     }
     const slot = shotEditor.slots[userTableDisplaySlotId];
     const hpt = slot?.draft?.hpt ?? slot?.applied?.hpt ?? adminState?.hpt ?? null;
-    return buildUserHptViewModel({ hpt, sysHpNResult });
+    const displayHpt = userSlotDisplayHpt ?? hpt;
+    return buildUserHptViewModel({ hpt, displayHpt, sysHpNResult });
   }, [
     appMode,
     userTableDisplaySlotId,
     shotEditor.slots,
+    userSlotDisplayHpt,
     adminState?.hpt,
     sysHpNResult,
   ]);
@@ -3507,6 +3540,7 @@ function handleJoyPadPointerCancel(e) {
     view: view ?? null,
     adminState,
     canEdit,
+    displayHptT: userDisplayHptT,
     setAdminState,
   });
   const display = useDisplayController({ ui: view?.ui });
@@ -3649,12 +3683,26 @@ function handleJoyPadPointerCancel(e) {
                   : undefined));
   const opts = display.displayOptions;
 
+  const userTableDisplayThicknessT =
+    appMode === "USER"
+      ? resolveUserTableDisplayThicknessT({
+          userDisplayHptT: userDisplayHptT,
+          userTableDisplaySlotId,
+          slots: shotEditor?.slots,
+          viewUiHptT: view?.ui?.hpt?.T,
+          viewDisplayThickness: view?.ui?.display_options?.thickness,
+        })
+      : undefined;
+
   const thicknessForCalc =
-    adminState?.hpt?.T ??
-    shotEditor?.slots?.[shotEditor?.activeSlot]?.draft?.hpt?.T ??
-    shotEditor?.slots?.[shotEditor?.activeSlot]?.applied?.hpt?.T ??
-    view?.ui?.display_options?.thickness ??
-    0;
+    appMode === "USER"
+      ? userTableDisplayThicknessT
+      : resolveAdminThicknessForCalc({
+          adminStateHptT: adminState?.hpt?.T,
+          activeSlot: shotEditor?.activeSlot,
+          slots: shotEditor?.slots,
+          viewDisplayThickness: view?.ui?.display_options?.thickness,
+        });
 
   /** 트랙은 슬롯 draft/applied SSOT 우선, 없으면 view JSON fallback. */
   const trackForAnchors =
@@ -4657,6 +4705,7 @@ function handlePointerCancel(e) {
     currentTip,
     c2ManualHint,
     thicknessForCalc,
+    displayImpactContactThicknessT: userTableDisplayThicknessT,
     shotPattern: view.pattern,
     hitTolerance: HIT_TOLERANCE,
     ballDiameterRg: BALL_DIAMETER_RG,
@@ -4679,6 +4728,7 @@ function handlePointerCancel(e) {
     currentTip,
     c2ManualHint,
     thicknessForCalc,
+    displayImpactContactThicknessT: userTableDisplayThicknessT,
     shotPattern: view.pattern,
     hitTolerance: HIT_TOLERANCE,
     ballDiameterRg: BALL_DIAMETER_RG,
@@ -4735,6 +4785,64 @@ function handlePointerCancel(e) {
   }
 
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
+
+  if (
+    appMode === "USER" &&
+    userLastSearchRecord?.positionId &&
+    userTableDisplaySlotId &&
+    !dragState.dragging
+  ) {
+    const traceKey = `${userLastSearchRecord.positionId}:${userTableDisplaySlotId}`;
+    if (userDisplayHptTraceLoggedRef.current !== traceKey) {
+      userDisplayHptTraceLoggedRef.current = traceKey;
+      const traceSlot = shotEditor.slots[userTableDisplaySlotId];
+      const traceEntry =
+        userLastSearchRecord.strategies?.[userTableDisplaySlotId] ?? null;
+      const traceAuthoredEntry = (() => {
+        const strategies = userLastSearchRecord.strategies ?? {};
+        for (const slotId of ["S1", "S2", "S3"]) {
+          const entry = strategies[slotId];
+          if (entry?.memberOrigin === "AUTHORED") return entry;
+        }
+        return traceEntry;
+      })();
+      const traceTarget =
+        coachingImpactTarget ??
+        uiTargetRoleCoords(ballsForCoaching) ??
+        balls.target ??
+        null;
+      console.log(
+        "[USER_DISPLAY_HPT_TRACE]",
+        buildUserDisplayHptTrace({
+          positionId: userLastSearchRecord.positionId,
+          track:
+            traceSlot?.draft?.sys?.track ??
+            traceEntry?.track ??
+            trackForAnchors,
+          authoredTrack: traceAuthoredEntry?.track ?? null,
+          persistedT:
+            typeof traceEntry?.hpT?.T === "string" ? traceEntry.hpT.T : null,
+          runtimeT:
+            typeof traceSlot?.draft?.hpt?.T === "string"
+              ? traceSlot.draft.hpt.T
+              : null,
+          displayT:
+            typeof traceSlot?.draft?.displayHpt?.T === "string"
+              ? traceSlot.draft.displayHpt.T
+              : null,
+          userDisplayT: userDisplayHptT ?? null,
+          thicknessForCalc: thicknessForCalc ?? null,
+          displayImpactContactThicknessT: userTableDisplayThicknessT ?? null,
+          impactRaw: impactRaw ?? null,
+          target: traceTarget,
+        })
+      );
+    }
+  }
+
+  if (!userTableDisplaySlotId) {
+    userDisplayHptTraceLoggedRef.current = null;
+  }
 
   console.log("🔷 레일 교점:", {
     "CO_prep (의미점)": CO_prep,
@@ -5901,6 +6009,11 @@ function handlePointerCancel(e) {
             {overlayState.type === 'HPT' && (
               <HptOverlay
                 data={adminState.hpt}
+                displayData={
+                  shotEditor.slots[shotEditor.activeSlot]?.draft?.displayHpt ??
+                  shotEditor.slots[shotEditor.activeSlot]?.applied?.displayHpt ??
+                  adminState.hpt
+                }
                 sysHpNResult={sysHpNResult}
                 applyDisabled={isDerivedReviewInspectLocked}
                 onSave={(newData) => {

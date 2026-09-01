@@ -1,7 +1,16 @@
 import { useState, useEffect } from "react";
 import { useHptController, clampHpToRadius } from "../../admin/hpt/useHptController";
+import {
+  BALL_RADIUS,
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  CENTER_Y,
+  CENTER_X,
+  MAX_VALUE,
+  computeHptVizGeometry,
+} from "../../domain/hptVizGeometry";
 
-export function HptOverlay({ data, sysHpNResult, onSave, onCancel, applyDisabled = false }) {
+export function HptOverlay({ data, displayData, sysHpNResult, onSave, onCancel, applyDisabled = false }) {
   const [tempData, setTempData] = useState(data);
   const [lastChanged, setLastChanged] = useState(null); // 'x' or 'y'
   const [isClamped, setIsClamped] = useState(false);
@@ -78,7 +87,6 @@ export function HptOverlay({ data, sysHpNResult, onSave, onCancel, applyDisabled
   // ==========================================
   // 타점 입력 핸들러 (클램프 포함)
   // ==========================================
-  const MAX_VALUE = 4.0;
   const CLAMP_RADIUS = 4.0; // 점선 원 = 입력값 4까지
 
   const safeNum = (v) => (typeof v === 'number' && !isNaN(v) ? v : 0);
@@ -134,54 +142,26 @@ export function HptOverlay({ data, sysHpNResult, onSave, onCancel, applyDisabled
   };
 
   // ==========================================
-  // 두께값 파싱 (숫자 변환)
+  // 볼 시각화 (domain SSOT — USER HptBallReadOnlyViz와 동일)
   // ==========================================
-  const parseThickness = (tValue) => {
-    if (!tValue) return 0;
-    
-    // "8/8" → 8 (완전 겹침)
-    if (tValue === "8/8") return 8;
-    
-    // "+7/8" → 7, "-3/8" → -3
-    const match = tValue.match(/^([+-]?)(\d+)\/8$/);
-    if (!match) return 0;
-    
-    const sign = match[1] === '-' ? -1 : 1;
-    const num = parseInt(match[2], 10);
-    return sign * num;
-  };
-
-  const thickness = parseThickness(tempData.T);
-  const isRightImpact = thickness >= 0;
-
-  // ==========================================
-  // 볼 시각화 설정
-  // ==========================================
-  const BALL_RADIUS = 120; // 40 → 120 (3배)
-  const CANVAS_WIDTH = 600; // 300 → 600 (2배)
-  const CANVAS_HEIGHT = 300; // 150 → 300 (2배)
-  const CENTER_Y = CANVAS_HEIGHT / 2;
-  const CENTER_X = CANVAS_WIDTH / 2;
-  
-  // 두께에 따른 X 위치 (지름 기준)
-  // 뱅크샷: 두께 불필요 → 정면(8/8)으로 시각화
-  const thicknessValue = tempData.T === "BANK" ? 8 : Math.abs(thickness); // 0~8 (표기의 n)
-  const thicknessFraction = thicknessValue / 8; // n/8 그대로 사용
-  const centerDistance = (1 - thicknessFraction) * (2 * BALL_RADIUS); // 지름 기준
-  
-  let impactX, targetX;
-  if (isRightImpact) {
-    // 우측이 임펙트볼 (앞)
-    impactX = CENTER_X + centerDistance / 2;
-    targetX = CENTER_X - centerDistance / 2;
-  } else {
-    // 좌측이 임펙트볼 (앞)
-    impactX = CENTER_X - centerDistance / 2;
-    targetX = CENTER_X + centerDistance / 2;
-  }
-  
-  // 60% 원의 반지름
-  const limit60Radius = BALL_RADIUS * 0.6;
+  const vizSource = displayData ?? data;
+  const vizHitX = Number.isFinite(vizSource.hit_point?.x) ? vizSource.hit_point.x : 0;
+  const vizHitY = Number.isFinite(vizSource.hit_point?.y) ? vizSource.hit_point.y : 0;
+  const { impactX, targetX, limit60Radius } = computeHptVizGeometry(
+    vizSource.T ?? "8/8",
+    vizHitX,
+    vizHitY
+  );
+  const markerHitX = isDragging
+    ? Number.isFinite(tempData.hit_point?.x)
+      ? tempData.hit_point.x
+      : hpt.hp.x
+    : vizHitX;
+  const markerHitY = isDragging
+    ? Number.isFinite(tempData.hit_point?.y)
+      ? tempData.hit_point.y
+      : hpt.hp.y
+    : vizHitY;
 
   // ==========================================
   // 드래그 핸들러
@@ -347,10 +327,10 @@ export function HptOverlay({ data, sysHpNResult, onSave, onCancel, applyDisabled
             />
           )}
           
-          {/* 타점 마커 (STEP B: hpt.hp) */}
+          {/* 타점 마커 — Display Runtime HPT (drag 시 physics runtime) */}
           {(() => {
-            const hitX = hpt.hp.x;
-            const hitY = hpt.hp.y;
+            const hitX = markerHitX;
+            const hitY = markerHitY;
             
             // 타점 좌표를 픽셀로 변환 (±4 → 볼 반지름 60%)
             const scale = limit60Radius / MAX_VALUE;

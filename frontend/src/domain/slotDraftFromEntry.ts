@@ -5,7 +5,7 @@
 import type { PositionRecord, StrategyEntry, StrategySysCorrections } from "./positionSearchEngine";
 import { mergeCorrections } from "./canonicalStrategy";
 import { familyIdentityPersistPatch } from "./family/familyIdentity";
-import { hydrateFamilyMemberRuntimeHpt } from "./family/familyRuntimeProjection";
+import { hydrateFamilyMemberDisplayHpt, hydrateFamilyMemberRuntimeHpt } from "./family/familyRuntimeProjection";
 import { hydrateSysFromStrategyEntry } from "./strategyHydrate";
 import type { SlotDraftSys } from "./slotSysResolve";
 
@@ -37,6 +37,17 @@ export function runtimeHptFromStrategyEntry(
   dataset?: PositionRecord[]
 ): unknown {
   return hydrateFamilyMemberRuntimeHpt(entry, dataset);
+}
+
+/**
+ * Display Runtime HPT for visual consumers (modal, table impact, ADMIN overlay viz).
+ * Track-aware coupled T + hit_point.x — separate from physics runtime storage.
+ */
+export function displayHptFromStrategyEntry(
+  entry: StrategyEntry | null | undefined,
+  dataset?: PositionRecord[]
+): unknown {
+  return hydrateFamilyMemberDisplayHpt(entry, dataset);
 }
 
 export function draftFamilyIdentityFromStrategyEntry(entry: StrategyEntry): {

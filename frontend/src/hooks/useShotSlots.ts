@@ -9,6 +9,7 @@ import {
   draftFamilyIdentityFromStrategyEntry,
   draftRuntimeFieldsFromStrategyEntry,
   runtimeHptFromStrategyEntry,
+  displayHptFromStrategyEntry,
   strategyEntryToSlotDraftSys,
 } from '../domain/slotDraftFromEntry';
 import type { StrategySysCorrections, TargetBall } from '../domain/positionSearchEngine';
@@ -34,6 +35,8 @@ export type SlotId = 'S1' | 'S2' | 'S3';
 export interface DraftState {
   sys?: any;
   hpt?: any;
+  /** Display Runtime HPT — visual SSOT (modal, table impact, ADMIN overlay viz). */
+  displayHpt?: any;
   str?: any;
   ai?: any;
   familyId?: string;
@@ -106,6 +109,7 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
     map[slotId] = {
       sys: strategyEntryToSlotDraftSys(entry),
       hpt: runtimeHptFromStrategyEntry(entry),
+      displayHpt: displayHptFromStrategyEntry(entry),
       str: entry.str,
       ai: entry.ai,
       ...draftFamilyIdentityFromStrategyEntry(entry),
@@ -740,6 +744,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
           draft: {
             sys: strategyEntryToSlotDraftSys(entry),
             hpt: runtimeHptFromStrategyEntry(entry),
+            displayHpt: displayHptFromStrategyEntry(entry),
             str: entry.str,
             ai: entry.ai,
             ...draftFamilyIdentityFromStrategyEntry(entry),
@@ -773,6 +778,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
             draft: {
               sys: strategyEntryToSlotDraftSys(entry),
               hpt: runtimeHptFromStrategyEntry(entry),
+              displayHpt: displayHptFromStrategyEntry(entry),
               str: entry.str,
               ai: entry.ai,
               ...draftFamilyIdentityFromStrategyEntry(entry),

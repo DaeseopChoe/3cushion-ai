@@ -18,12 +18,14 @@ import {
   parseSymmetryOp,
 } from "./familyIdentity";
 import {
+  resolveDisplayFamilyHpt,
   resolveFamilyHpt,
   resolveFamilyThickness,
 } from "./hptResolver";
 import {
   authoredTrackFromSymmetryMember,
   parseFamilyTrack,
+  type FamilyTrack,
 } from "./trackSymmetry";
 
 export function findAuthoredFamilyEntry(
@@ -45,21 +47,13 @@ function canonicalHptFromEntry(entry: StrategyEntry | undefined): unknown {
   return entry?.hpT;
 }
 
-/**
- * Resolve runtime HPT for a recalled Family Member.
- * Canonical HPT is mirrored when requestedTrack is opposite handedness to authoredTrack,
- * regardless of memberOrigin (AUTHORED, SYMMETRY, DERIVED_*).
- * Fallback to persisted hpT if authoredTrack cannot be determined.
- */
-export function hydrateFamilyMemberRuntimeHpt(
-  entry: StrategyEntry | null | undefined,
+function resolveAuthoredTrackForFamilyMember(
+  entry: StrategyEntry,
   dataset?: PositionRecord[]
-): unknown {
-  if (!entry) return undefined;
+): { authoredTrack: FamilyTrack; requestedTrack: FamilyTrack } | null {
   const requestedTrack = parseFamilyTrack(entry.track);
-  if (!requestedTrack) {
-    return entry.hpT;
-  }
+  if (!requestedTrack) return null;
+
   const origin = parseMemberOrigin(entry.memberOrigin);
   const op = parseSymmetryOp(entry.symmetryOp);
 
@@ -83,13 +77,50 @@ export function hydrateFamilyMemberRuntimeHpt(
     }
   }
 
-  if (!authoredTrack) {
+  if (!authoredTrack) return null;
+  return { authoredTrack, requestedTrack };
+}
+
+/**
+ * Resolve runtime HPT for a recalled Family Member.
+ * Canonical HPT is mirrored when requestedTrack is opposite handedness to authoredTrack,
+ * regardless of memberOrigin (AUTHORED, SYMMETRY, DERIVED_*).
+ * Fallback to persisted hpT if authoredTrack cannot be determined.
+ */
+export function hydrateFamilyMemberRuntimeHpt(
+  entry: StrategyEntry | null | undefined,
+  dataset?: PositionRecord[]
+): unknown {
+  if (!entry) return undefined;
+  const tracks = resolveAuthoredTrackForFamilyMember(entry, dataset);
+  if (!tracks) {
     return entry.hpT;
   }
 
   return resolveFamilyHpt({
-    authoredTrack,
-    requestedTrack,
+    authoredTrack: tracks.authoredTrack,
+    requestedTrack: tracks.requestedTrack,
+    canonicalHpt: canonicalHptFromEntry(entry),
+  }).hpt;
+}
+
+/**
+ * Display Runtime HPT for visual consumers (modal, table impact, ADMIN overlay viz).
+ * Separate hydrate entry point from physics runtime — same mirror primitive today.
+ */
+export function hydrateFamilyMemberDisplayHpt(
+  entry: StrategyEntry | null | undefined,
+  dataset?: PositionRecord[]
+): unknown {
+  if (!entry) return undefined;
+  const tracks = resolveAuthoredTrackForFamilyMember(entry, dataset);
+  if (!tracks) {
+    return entry.hpT;
+  }
+
+  return resolveDisplayFamilyHpt({
+    authoredTrack: tracks.authoredTrack,
+    requestedTrack: tracks.requestedTrack,
     canonicalHpt: canonicalHptFromEntry(entry),
   }).hpt;
 }

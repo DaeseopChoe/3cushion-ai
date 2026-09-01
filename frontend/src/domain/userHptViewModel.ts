@@ -32,7 +32,13 @@ export type UserHptViewModel = {
 };
 
 export type BuildUserHptViewModelArgs = {
+  /** Physics/runtime hpT (calculator, trajectory). */
   hpt?: UserInfoHptSlice | null;
+  /**
+   * Display Runtime HPT — track-aware visual SSOT (modal label, SVG, table impact).
+   * When set, thickness label and ball viz use this instead of physics runtime hpt.
+   */
+  displayHpt?: UserInfoHptSlice | null;
   /** ADMIN SYS bridge; USER modal typically null */
   sysHpNResult?: number | null;
   /** No strategy picked yet */
@@ -95,7 +101,8 @@ function buildTipClockLabels(
 }
 
 export function buildUserHptViewModel(args: BuildUserHptViewModelArgs): UserHptViewModel {
-  const { hpt, sysHpNResult, noStrategySelected } = args;
+  const { hpt, displayHpt, sysHpNResult, noStrategySelected } = args;
+  const visualHpt = displayHpt ?? hpt;
 
   if (noStrategySelected) {
     return {
@@ -107,7 +114,7 @@ export function buildUserHptViewModel(args: BuildUserHptViewModelArgs): UserHptV
     };
   }
 
-  if (!hpt || !hasHptDisplayData(hpt)) {
+  if (!visualHpt || !hasHptDisplayData(visualHpt)) {
     return {
       displayMode: "tip_clock",
       isEmpty: true,
@@ -117,14 +124,14 @@ export function buildUserHptViewModel(args: BuildUserHptViewModelArgs): UserHptV
     };
   }
 
-  const hitPoint = resolveHitPoint(hpt) ?? { x: 0, y: 0 };
-  const mode = hpt.mode === "SPIN" ? "SPIN" : "TIP";
+  const hitPoint = resolveHitPoint(visualHpt) ?? { x: 0, y: 0 };
+  const mode = visualHpt.mode === "SPIN" ? "SPIN" : "TIP";
   const displayMode: UserHptDisplayMode = mode === "SPIN" ? "spin_follow" : "tip_clock";
-  const thicknessLabel = formatThicknessUserLabel(hpt.T ?? "8/8");
-  const T = hpt.T ?? "8/8";
+  const thicknessLabel = formatThicknessUserLabel(visualHpt.T ?? "8/8");
+  const T = visualHpt.T ?? "8/8";
 
   if (displayMode === "tip_clock") {
-    const { tipLabel, clockLabel } = buildTipClockLabels(hpt, hitPoint, sysHpNResult);
+    const { tipLabel, clockLabel } = buildTipClockLabels(visualHpt, hitPoint, sysHpNResult);
     return {
       displayMode,
       isEmpty: false,

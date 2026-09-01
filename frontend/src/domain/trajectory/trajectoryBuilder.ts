@@ -75,6 +75,11 @@ export type TrajectoryBuildInput = {
     deltaAngleDeg?: number;
   } | null;
   thicknessForCalc?: string;
+  /**
+   * USER display impact contact thickness — separate from physics adminState.hpt.T.
+   * When set, used for impactContactRg / curve-deform anchor only.
+   */
+  displayImpactContactThicknessT?: string;
   shotPattern?: string;
   hitTolerance: number;
   ballDiameterRg: number;
@@ -429,6 +434,7 @@ export function buildTrajectory(
     adminState,
     c2ManualHint,
     thicknessForCalc,
+    displayImpactContactThicknessT,
     shotPattern,
     hitTolerance,
     ballDiameterRg,
@@ -601,10 +607,19 @@ export function buildTrajectory(
   );
   const cushionPath = slicePathNodesToCap(pathNodes, capCorrected);
 
+  const impactContactThicknessT =
+    (displayImpactContactThicknessT?.trim()
+      ? displayImpactContactThicknessT
+      : undefined) ??
+    adminState?.hpt?.T ??
+    (thicknessForCalc && String(thicknessForCalc).trim()
+      ? String(thicknessForCalc)
+      : undefined) ??
+    "8/8";
   const calcImpactForContact = calcImpactBall(
     cueBall ?? balls.cue,
     impactTargetBall,
-    adminState?.hpt?.T ?? "8/8"
+    impactContactThicknessT
   );
   const impactContactRg = balls.impact ?? calcImpactForContact;
 

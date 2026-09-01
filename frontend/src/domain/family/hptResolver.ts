@@ -77,12 +77,12 @@ export type ResolveFamilyHptResult = {
 };
 
 /**
- * Runtime HPT for a requested Family track.
- * Same handedness → canonical unchanged.
- * Opposite handedness → T sign reverse, hit_point.x / hp.x sign reverse;
- * hit_point.y, tipCount, mode unchanged.
+ * Handedness projection primitive — coupled T + hit_point.x / hp.x mirror.
+ * Shared by physics runtime and display runtime resolvers (separate public contracts).
  */
-export function resolveFamilyHpt(args: ResolveFamilyHptArgs): ResolveFamilyHptResult {
+function resolveHandednessProjectedHpt(
+  args: ResolveFamilyHptArgs
+): ResolveFamilyHptResult {
   const canonical = cloneUnknown(args.canonicalHpt);
   if (!isOppositeHandedness(args.authoredTrack, args.requestedTrack)) {
     return { hpt: canonical, mirrored: false };
@@ -94,6 +94,16 @@ export function resolveFamilyHpt(args: ResolveFamilyHptArgs): ResolveFamilyHptRe
     hpt: mirrorHptPayload(canonical as FamilyHptPayload),
     mirrored: true,
   };
+}
+
+/**
+ * Physics runtime HPT for a requested Family track.
+ * Same handedness → canonical unchanged.
+ * Opposite handedness → T sign reverse, hit_point.x / hp.x sign reverse;
+ * hit_point.y, tipCount, mode unchanged.
+ */
+export function resolveFamilyHpt(args: ResolveFamilyHptArgs): ResolveFamilyHptResult {
+  return resolveHandednessProjectedHpt(args);
 }
 
 export type ResolveFamilyThicknessArgs = {
@@ -129,4 +139,24 @@ export function projectFamilyRuntimeThickness(
   args: ResolveFamilyThicknessArgs
 ): string {
   return resolveFamilyThickness(args).T;
+}
+
+/**
+ * Display Runtime HPT — track-aware visual SSOT (USER/ADMIN modal, table impact).
+ *
+ * Separate contract from physics runtime (`resolveFamilyHpt`).
+ * Today both use the same handedness mirror primitive; consumers must not
+ * read physics runtime objects directly for display.
+ */
+export function resolveDisplayFamilyHpt(
+  args: ResolveFamilyHptArgs
+): ResolveFamilyHptResult {
+  return resolveHandednessProjectedHpt(args);
+}
+
+/** Display thickness string — track-aware, coupled with display hit_point.x. */
+export function resolveDisplayFamilyThickness(
+  args: ResolveFamilyThicknessArgs
+): ResolveFamilyThicknessResult {
+  return resolveFamilyThickness(args);
 }

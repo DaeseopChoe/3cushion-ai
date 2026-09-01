@@ -3,44 +3,34 @@
  * No drag, inputs, or Admin overlay coupling.
  */
 
-function parseThickness(tValue) {
-  if (!tValue) return 0;
-  if (tValue === "8/8") return 8;
-  const match = String(tValue).match(/^([+-]?)(\d+)\/8$/);
-  if (!match) return 0;
-  const sign = match[1] === "-" ? -1 : 1;
-  return sign * parseInt(match[2], 10);
-}
+import {
+  BALL_RADIUS,
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  CENTER_Y,
+  computeHptVizGeometry,
+} from "../../domain/hptVizGeometry";
 
-const BALL_RADIUS = 120;
-const CANVAS_WIDTH = 600;
-const CANVAS_HEIGHT = 300;
-const CENTER_Y = CANVAS_HEIGHT / 2;
-const CENTER_X = CANVAS_WIDTH / 2;
-const MAX_VALUE = 4;
+export {
+  parseThickness,
+  BALL_RADIUS,
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  CENTER_Y,
+  CENTER_X,
+  MAX_VALUE,
+  computeHptVizGeometry,
+} from "../../domain/hptVizGeometry";
 
 export default function HptBallReadOnlyViz({ T = "8/8", hitX = 0, hitY = 0 }) {
-  const thickness = parseThickness(T);
-  const isRightImpact = thickness >= 0;
-  const thicknessValue = T === "BANK" ? 8 : Math.abs(thickness);
-  const thicknessFraction = thicknessValue / 8;
-  const centerDistance = (1 - thicknessFraction) * (2 * BALL_RADIUS);
-
-  let impactX;
-  let targetX;
-  if (isRightImpact) {
-    impactX = CENTER_X + centerDistance / 2;
-    targetX = CENTER_X - centerDistance / 2;
-  } else {
-    impactX = CENTER_X - centerDistance / 2;
-    targetX = CENTER_X + centerDistance / 2;
-  }
-
-  const limit60Radius = BALL_RADIUS * 0.6;
-  const scale = limit60Radius / MAX_VALUE;
-  const markerX = impactX + hitX * scale;
-  const markerY = CENTER_Y - hitY * scale;
-  const markerRadius = BALL_RADIUS / 12;
+  const {
+    targetX,
+    impactX,
+    limit60Radius,
+    markerX,
+    markerY,
+    markerRadius,
+  } = computeHptVizGeometry(T, hitX, hitY);
 
   return (
     <div className="user-hpt-viz-wrap">
@@ -52,6 +42,7 @@ export default function HptBallReadOnlyViz({ T = "8/8", hitX = 0, hitY = 0 }) {
         preserveAspectRatio="xMidYMid meet"
       >
         <circle
+          data-testid="hpt-target-ball"
           cx={targetX}
           cy={CENTER_Y}
           r={BALL_RADIUS}
@@ -60,6 +51,7 @@ export default function HptBallReadOnlyViz({ T = "8/8", hitX = 0, hitY = 0 }) {
           strokeWidth="3"
         />
         <circle
+          data-testid="hpt-impact-ball"
           cx={impactX}
           cy={CENTER_Y}
           r={BALL_RADIUS}

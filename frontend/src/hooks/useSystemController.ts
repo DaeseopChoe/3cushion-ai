@@ -1,33 +1,25 @@
 import { useMemo } from "react";
-import {
-  displayThicknessToLegacyT,
-} from "../utils/physics/ImpactEngine";
-
-function resolveT(
-  currentT: string | undefined,
-  displayThickness: string | undefined,
-  sideHint: 1 | -1 = 1
-): string {
-  if (currentT && currentT.trim()) return currentT;
-  if (displayThickness && displayThickness.trim()) {
-    return displayThicknessToLegacyT(displayThickness, sideHint);
-  }
-  return "8/8";
-}
+import { resolveCoachingThicknessT } from "../domain/displayHptCoaching";
 
 type Params = {
   view: { ui?: { hpt?: { T?: string }; display_options?: { thickness?: string }; system?: { values?: Record<string, unknown>; human_readable?: Record<string, unknown> } } } | null;
   adminState: { hpt?: { T?: string } };
   canEdit: boolean;
+  /** USER recalled slot Display Runtime HPT — takes priority over static view.ui. */
+  displayHptT?: string;
   setAdminState: React.Dispatch<React.SetStateAction<unknown>>;
 };
 
-export function useSystemController({ view, adminState, canEdit, setAdminState }: Params) {
+export function useSystemController({ view, adminState, canEdit, displayHptT, setAdminState }: Params) {
   const T = useMemo(() => {
-    const hptT = canEdit ? adminState?.hpt?.T : view?.ui?.hpt?.T;
-    const thicknessFromDisplay = view?.ui?.display_options?.thickness;
-    return resolveT(hptT, thicknessFromDisplay, 1);
-  }, [canEdit, adminState?.hpt?.T, view?.ui?.hpt?.T, view?.ui?.display_options?.thickness]);
+    return resolveCoachingThicknessT({
+      canEdit,
+      adminStateHptT: adminState?.hpt?.T,
+      displayHptT,
+      viewUiHptT: view?.ui?.hpt?.T,
+      viewDisplayThickness: view?.ui?.display_options?.thickness,
+    });
+  }, [canEdit, adminState?.hpt?.T, displayHptT, view?.ui?.hpt?.T, view?.ui?.display_options?.thickness]);
 
   const system = useMemo(() => {
     return view?.ui?.system ?? { values: {}, human_readable: {} };

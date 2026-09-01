@@ -231,7 +231,7 @@ describe("App RI → activateStrategySlot wiring audit", () => {
     // USER Search activation path preserved
     expect(text).toMatch(/applyUserSearchRecall/);
     expect(text).toMatch(
-      /const slotId = resolveUserSearchDisplaySlotId\(\s*matchedRecord/
+      /const slotId = resolveCanonicalUserSearchDisplaySlotId\(\s*matchedRecord/
     );
 
     // Step 4: App injects existing buildTrajectory DI into RI search flow
