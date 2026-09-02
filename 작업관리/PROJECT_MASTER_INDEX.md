@@ -75,6 +75,17 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
 | **Mission 04 Authoring Integration** | ✅ **ABSORBED** (ADR · Missions 01–03 + `product pipeline`) |
 
+### USER Display Runtime HPT (2026-09-02)
+
+> **Pointer only** — 상세 완료 기록: `HISTORY/PROJECT_LOG_2026-09.md` 2026-09-02 항목.
+
+| Item | Status |
+|------|--------|
+| **USER Display Runtime HPT — modal / coaching / table parity** | ✅ **RESOLVED** · Production `73c7ac0` · bundle `index-DBuPhVvp.js` · Android SM-A516N Remote DevTools **VERIFIED** |
+| **4-track USER Search (Five-and-Half)** | ✅ **PASS** — B2T_L · B2T_R · T2B_L · T2B_R (Android Production 실기) |
+| **Regression baseline** | **FIXED** — `73c7ac0` · 근거 없이 HPT/trajectory 재수정 금지 |
+| **Next manual QA** | 옆돌리기 · 뒤돌리기 대회전 · 옆돌리기 대회전 (5&1/2 전체 검증 **미완**) |
+
 ### Search & Ball Role Normalization (2026-08-29)
 
 > **Pointer only** — 상세 완료 기록: `HISTORY/PROJECT_LOG_2026-08.md` 2026-08-29 마일스톤.
@@ -2044,6 +2055,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `System Platform Standard (SPS) v1.0/System_Inventory.md` | **STEP4 Inventory SSOT (v1.0 Final)** — Frozen Assets · Observation SSOT · Metadata/Registration Inventory |
 | `Application Architecture Standard (AAS) v2.0/App_Migration_Map.md` | **Application Runtime Constitution (Permanent SSOT)** — Migration Blueprint · Architecture Meta · ADR · Review Checklist |
 | `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md` | **Dataset Architecture** — 3계층·Export·Phase 계획·이관 SSOT |
+| `HISTORY/PROJECT_LOG_2026-09.md` | **2026-09 월별 이력 (current)** · USER Display Runtime HPT Production deploy · Android 4-track 실기 검증 PASS |
 | `HISTORY/PROJECT_LOG_2026-08.md` | 2026-08 월별 이력 · Search Engine Architecture Complete · Phase 4 Foundation · Display Boundary · Trajectory Extension |
 | `HISTORY/PROJECT_LOG_2026-07.md` | 2026-07 AAS Batch · STEP4/5 Final · STEP6 Framework+Pipeline · STEP6-3/4/5 Complete · **2026-07-30 ADMIN Pointer Capture Timing / Target Ball dblclick Regression** |
 | `HISTORY/PROJECT_LOG_2026-06.md` | 2026-06 AI · USER AI · 시스템 레슨 · Dataset Phase 1~3-1 (§14·§15) · **운영 검증 조사** (§16) · **OPEN-05 조사** (§17) · **USER Overlay** (§19) |
