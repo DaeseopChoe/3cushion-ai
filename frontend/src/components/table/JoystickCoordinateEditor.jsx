@@ -27,10 +27,13 @@ function parseFieldValue(raw) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function touchButtonStyle(layout) {
+function keypadButtonStyle(layout) {
   return {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     padding: layout.keypadButtonPadding,
-    borderRadius: 6,
+    borderRadius: 4,
     border: "1px solid #475569",
     background: "#1e293b",
     color: "#f8fafc",
@@ -38,9 +41,49 @@ function touchButtonStyle(layout) {
     fontWeight: 600,
     cursor: "pointer",
     touchAction: "manipulation",
-    minHeight: layout.touchTargetMinHeight,
-    lineHeight: 1.1,
+    minHeight: layout.keypadTouchTargetMinHeight,
+    lineHeight: 1,
+    boxSizing: "border-box",
   };
+}
+
+function actionButtonStyle(layout, overrides = {}) {
+  return {
+    ...keypadButtonStyle(layout),
+    minHeight: layout.actionTouchTargetMinHeight,
+    padding: layout.actionButtonPadding,
+    ...overrides,
+  };
+}
+
+function KeypadButton({ layout, onClick, children, className }) {
+  const isCompactVisual =
+    layout.keypadButtonMinHeight < layout.keypadTouchTargetMinHeight;
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={onClick}
+      style={keypadButtonStyle(layout)}
+    >
+      {isCompactVisual ? (
+        <span
+          className="joystick-coordinate-editor__keypad-visual"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: layout.keypadButtonMinHeight,
+            lineHeight: 1,
+          }}
+        >
+          {children}
+        </span>
+      ) : (
+        children
+      )}
+    </button>
+  );
 }
 
 export default function JoystickCoordinateEditor({
@@ -155,8 +198,6 @@ export default function JoystickCoordinateEditor({
     minHeight: layout.fieldMinHeight,
   };
 
-  const keypadBtnStyle = touchButtonStyle(layout);
-
   return (
     <div
       ref={rootRef}
@@ -258,21 +299,29 @@ export default function JoystickCoordinateEditor({
           }}
         >
           {KEYPAD_KEYS.map((key) => (
-            <button
+            <KeypadButton
               key={key}
-              type="button"
+              layout={layout}
+              className="joystick-coordinate-editor__keypad-btn"
               onClick={() => appendToActive(key)}
-              style={keypadBtnStyle}
             >
               {key}
-            </button>
+            </KeypadButton>
           ))}
-          <button type="button" onClick={backspaceActive} style={keypadBtnStyle}>
+          <KeypadButton
+            layout={layout}
+            className="joystick-coordinate-editor__keypad-btn"
+            onClick={backspaceActive}
+          >
             ⌫
-          </button>
-          <button type="button" onClick={clearActive} style={keypadBtnStyle}>
+          </KeypadButton>
+          <KeypadButton
+            layout={layout}
+            className="joystick-coordinate-editor__keypad-btn"
+            onClick={clearActive}
+          >
             Clear
-          </button>
+          </KeypadButton>
         </div>
 
         <div
@@ -283,20 +332,20 @@ export default function JoystickCoordinateEditor({
             marginBottom: layout.fineNudgeMarginBottom,
           }}
         >
-          <button
-            type="button"
+          <KeypadButton
+            layout={layout}
+            className="joystick-coordinate-editor__fine-nudge-btn"
             onClick={() => nudgeActive(-FINE_STEP)}
-            style={keypadBtnStyle}
           >
             {activeField.toUpperCase()} −0.1
-          </button>
-          <button
-            type="button"
+          </KeypadButton>
+          <KeypadButton
+            layout={layout}
+            className="joystick-coordinate-editor__fine-nudge-btn"
             onClick={() => nudgeActive(FINE_STEP)}
-            style={keypadBtnStyle}
           >
             {activeField.toUpperCase()} +0.1
-          </button>
+          </KeypadButton>
         </div>
 
         <div
@@ -308,27 +357,23 @@ export default function JoystickCoordinateEditor({
         >
           <button
             type="button"
+            className="joystick-coordinate-editor__apply-btn"
             onClick={tryApply}
-            style={{
-              ...keypadBtnStyle,
-              padding: layout.actionButtonPadding,
-              minHeight: layout.actionButtonMinHeight,
+            style={actionButtonStyle(layout, {
               border: "none",
               background: "#38bdf8",
               color: "#0f172a",
-            }}
+            })}
           >
             Apply
           </button>
           <button
             type="button"
+            className="joystick-coordinate-editor__cancel-btn"
             onClick={onCancel}
-            style={{
-              ...keypadBtnStyle,
-              padding: layout.actionButtonPadding,
-              minHeight: layout.actionButtonMinHeight,
+            style={actionButtonStyle(layout, {
               background: "transparent",
-            }}
+            })}
           >
             Cancel
           </button>

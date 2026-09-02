@@ -562,3 +562,87 @@ USER VALIDATION POSITIONING UX — MOBILE SNAP + COMPACT EDITOR
 USER Validation Positioning UX : PC PASS · Mobile fix pushed (58b9ee1)
 Next manual QA                   : Android snap/triangle/compact editor · 옆돌리기 · 뒤돌리기 대회전 · 옆돌리기 대회전
 ```
+
+---
+
+# 2026-09-02 — USER Validation Positioning UX · Mobile Coordinate Editor 50% Compact
+
+## Mode
+
+**Agent** · Mobile coarse coordinate editor footprint reduction · commit/push · interaction/presentation only
+
+---
+
+## A. 문제 배경
+
+Android Manual QA (`58b9ee1` push 이후) snap/triangle/nudge/coordinate label은 **PASS**였으나, `(pointer: coarse)` Guide/Ball Coordinate Editor 숫자 입력판이 table을 과도하게 가림.
+
+초기 compact layout (`min(88vw, 260px)`, keypad hit 40px) 기준 footprint **260 × 417 px = 108,420 px²**.
+
+---
+
+## B. 적용 변경
+
+| 영역 | 내용 |
+|------|------|
+| **Footprint** | **108,420 px² → 54,900 px²** (약 **49.4%** area reduction) |
+| **Panel** | 260×417 → **180×305** (@ 360vw) · `min(50vw, 180px)` |
+| **Activation** | `(pointer: coarse)` only · desktop fine-pointer **unchanged** (336px) |
+| **Keypad UX** | visual **18px** / hit-area **32px** 분리 (`KeypadButton` wrapper) · overlap test PASS |
+| **SSOT** | Guide/Ball editor 동일 `joystickCoordinateEditorLayout.ts` policy |
+| **Implementation** | layout token 조정 only · `transform: scale()` **미사용** |
+
+**변경 파일:**
+
+- `frontend/src/components/table/JoystickCoordinateEditor.jsx`
+- `frontend/src/components/table/joystickCoordinateEditorLayout.ts`
+- `frontend/src/components/table/JoystickCoordinateEditor.test.jsx`
+- `frontend/src/components/table/joystickCoordinateEditorLayout.test.ts`
+
+---
+
+## C. 테스트
+
+| Suite | Result |
+|-------|--------|
+| `joystickCoordinateEditorLayout.test.ts` | **6/6 PASS** |
+| `JoystickCoordinateEditor.test.jsx` | **3/3 PASS** |
+| **Targeted** | **9/9 PASS** |
+| **Full frontend suite** | **114 files / 1180 tests PASS** |
+| **Production build** | **PASS** |
+
+---
+
+## D. Commit / Deploy
+
+| Field | Value |
+|-------|--------|
+| **Commit** | `75614f7` |
+| **Message** | `fix: compact mobile coordinate editor` |
+| **Branch** | `main` |
+| **Deploy path** | GitHub `main` → Vercel Production |
+
+---
+
+## FINAL VERDICT
+
+```text
+USER VALIDATION POSITIONING UX — MOBILE COORDINATE EDITOR 50% COMPACT
+— PUSHED · READY FOR ANDROID MANUAL QA
+```
+
+---
+
+## Explicit Non-Claims
+
+- triangle spacing 6.5 Rg / snap / nudge semantics 변경 **없음**
+- calculation / trajectory / search / dataset / HPT / Ball Role SSOT 변경 **없음**
+
+---
+
+## Current Status
+
+```text
+USER Validation Positioning UX : Mobile snap PASS · Editor 50% compact pushed
+Next manual QA                   : Android compact editor footprint · 옆돌리기 · 뒤돌리기 대회전 · 옆돌리기 대회전
+```
