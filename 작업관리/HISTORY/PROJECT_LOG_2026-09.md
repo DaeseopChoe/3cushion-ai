@@ -456,3 +456,109 @@ USER VALIDATION POSITIONING UX
 USER Validation Positioning UX : COMPLETE · PC Manual QA PASS
 Next manual QA                   : 옆돌리기 · 뒤돌리기 대회전 · 옆돌리기 대회전 (5&1/2 Production Search)
 ```
+
+---
+
+# 2026-09-02 — USER Validation Positioning UX · Mobile Snap + Compact Editor
+
+## Mode
+
+**Agent** · Mobile snap confirm touch fix · triangle spacing · compact coordinate editor · commit/push · interaction/presentation only
+
+---
+
+## A. 문제 배경 (Mobile Manual QA)
+
+Phase 1 (`8bdfbd6`) PC Manual QA PASS 이후 Android 실기 검증에서:
+
+- Yellow snap/확정 버튼 tap이 triangle coarse hit에 가로채져 **nudge만 발생**하고 snap이 안 되는 경우 발생
+- Triangle offset 3.0 Rg + coarse triangle hit 4.0 Rg → snap center가 triangle hit 영역 **내부**에 위치
+- Pointer priority: `handle → triangle → snap` — triangle이 snap보다 먼저 처리
+- Coordinate editor가 mobile viewport에서 과도하게 큼
+
+---
+
+## B. 적용 변경
+
+| 영역 | 내용 |
+|------|------|
+| **Triangle spacing** | `BALL_GUIDE_TRIANGLE_OFFSET_RG` **3.0 → 6.5 Rg** · snap center ↔ triangle center distance = 6.5 Rg · visual edge gap = 4.1 Rg |
+| **Snap coarse hit** | `BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG_COARSE = 2.8` · `resolveBallGuideHitRadii()`에 `snapHitRadiusRg` 추가 |
+| **Coarse pointer priority** | `(pointer: coarse)` 시 hit 순서: `handle → snap → triangle` (fine은 기존 `handle → triangle → snap` 유지) |
+| **Compact coordinate editor** | `isCoarsePointerEnvironment()` → `(pointer: coarse)` 기준 · `joystickCoordinateEditorLayout.ts` SSOT · panel `min(88vw, 260px)` · padding 8px · field/keypad compact |
+| **Desktop preserved** | PC fine pointer → desktop editor 336px · viewport 축소만으로 compact **미적용** (의도된 동작) |
+| **Triangle semantics** | ±0.1 Rg tap nudge **변경 없음** · descriptor → render 단일 SSOT 유지 |
+
+**변경 파일:**
+
+- `frontend/src/interaction/ballGuideInteractionPolicy.ts`
+- `frontend/src/App.jsx`
+- `frontend/src/components/table/JoystickCoordinateEditor.jsx`
+- `frontend/src/components/table/joystickCoordinateEditorLayout.ts` (신규)
+- 관련 test files
+
+---
+
+## C. Pre-Push Visual Verification
+
+| 항목 | 결과 |
+|------|------|
+| `BALL_GUIDE_TRIANGLE_OFFSET_RG` | **6.5 Rg** |
+| descriptor → render SSOT | **정상** |
+| 3.0 Rg 잔존 render path | **없음** |
+| Compact activation | `(pointer: coarse)` only |
+| PC viewport 축소 | desktop editor 유지 (**정상**) |
+
+**판정:** `A. READY FOR MOBILE PUSH QA`
+
+---
+
+## D. 테스트
+
+| Suite | Result |
+|-------|--------|
+| `ballGuideInteractionPolicy.test.ts` | **14/14 PASS** |
+| `ballGuideTriangleTap.test.ts` | **8/8 PASS** |
+| `joystickCoordinateEditorLayout.test.ts` | **4/4 PASS** |
+| `JoystickCoordinateEditor.test.jsx` | **2/2 PASS** |
+| `useBallGuide.test.ts` | **23/23 PASS** |
+| **Targeted (5 files)** | **51/51 PASS** |
+| **Full frontend suite** | **114 files / 1177 tests PASS** |
+| **Production build** | **PASS** |
+
+---
+
+## E. Commit / Deploy
+
+| Field | Value |
+|-------|--------|
+| **Commit** | `58b9ee1` |
+| **Message** | `fix: improve mobile validation positioning controls` |
+| **Branch** | `main` |
+| **Deploy path** | GitHub `main` → Vercel Production |
+
+---
+
+## FINAL VERDICT
+
+```text
+USER VALIDATION POSITIONING UX — MOBILE SNAP + COMPACT EDITOR
+— PUSHED · READY FOR ANDROID MANUAL QA
+```
+
+---
+
+## Explicit Non-Claims
+
+- calculation / trajectory / search / dataset / HPT / Ball Role SSOT 변경 **없음**
+- Triangle ±0.1 Rg nudge semantics 변경 **없음**
+- USER Display Runtime HPT 변경 **없음**
+
+---
+
+## Current Status
+
+```text
+USER Validation Positioning UX : PC PASS · Mobile fix pushed (58b9ee1)
+Next manual QA                   : Android snap/triangle/compact editor · 옆돌리기 · 뒤돌리기 대회전 · 옆돌리기 대회전
+```
