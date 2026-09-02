@@ -3,6 +3,7 @@ import {
   EMPTY_BALL_GUIDE,
   createBallGuideState,
   selectBallGuideState,
+  setBallGuideIntersection,
   updateBallGuideFromPointer,
   updateBallGuideAxis,
 } from "./useBallGuide";
@@ -60,6 +61,22 @@ describe("Ball Guide runtime state", () => {
     });
   });
 
+  it("sets guide intersection atomically with axis bounds", () => {
+    const guide = createBallGuideState("cue", { x: 10, y: 20 });
+    expect(setBallGuideIntersection(guide, { x: 70, y: 39 })).toEqual({
+      active: true,
+      ballId: "cue",
+      verticalX: 70,
+      horizontalY: 39,
+    });
+    expect(setBallGuideIntersection(guide, { x: 0, y: 50 })).toEqual({
+      active: true,
+      ballId: "cue",
+      verticalX: 0.5,
+      horizontalY: 39.5,
+    });
+  });
+
   it("resolves all four end handles before ball hit-testing", () => {
     const guide = createBallGuideState("cue", { x: 37.2, y: 16.8 });
 
@@ -81,7 +98,7 @@ describe("Ball Guide runtime state", () => {
     const guide = createBallGuideState("cue", { x: 37.2, y: 16.8 });
 
     expect(
-      resolveBallGuideHandleHit({ x: 3, y: 16.8 }, guide, 80, 40)
+      resolveBallGuideHandleHit({ x: 4, y: 16.8 }, guide, 80, 40)
     ).toBeNull();
   });
 
@@ -112,24 +129,27 @@ describe("Ball Guide runtime state", () => {
     });
   });
 
-  it("exposes only vertical arrows for H and horizontal arrows for V", () => {
-    const arrows = getBallGuideArrowDescriptors(
-      createBallGuideState("cue", { x: 37.2, y: 16.8 }),
-      80,
-      40
-    );
+  it("exposes fine-nudge triangles around the snap-action control", () => {
+    const guide = createBallGuideState("cue", { x: 37.2, y: 16.8 });
+    const triangles = getBallGuideArrowDescriptors(guide, 80, 40);
 
-    expect(arrows.map(({ direction }) => direction)).toEqual([
+    expect(triangles.map(({ direction }) => direction)).toEqual([
       "up",
       "down",
       "left",
       "right",
     ]);
-    expect(arrows.filter(({ axis }) => axis === "horizontal")).toHaveLength(2);
-    expect(arrows.filter(({ axis }) => axis === "vertical")).toHaveLength(2);
+    expect(triangles.filter(({ axis }) => axis === "horizontal")).toHaveLength(2);
+    expect(triangles.filter(({ axis }) => axis === "vertical")).toHaveLength(2);
+    const snapX = 37.2 + 3;
+    const snapY = 16.8 + 3;
+    expect(triangles.find(({ direction }) => direction === "left")?.point).toEqual({
+      x: snapX - 3,
+      y: snapY,
+    });
   });
 
-  it("maps arrows to signed 0.1 Rg nudge deltas", () => {
+  it("maps fine-step directions to signed 0.1 Rg deltas", () => {
     expect(ballGuideArrowDeltaRg("up")).toBe(GUIDE_FINE_STEP_RG);
     expect(ballGuideArrowDeltaRg("right")).toBe(GUIDE_FINE_STEP_RG);
     expect(ballGuideArrowDeltaRg("down")).toBe(-GUIDE_FINE_STEP_RG);
@@ -158,7 +178,7 @@ describe("Ball Guide runtime state", () => {
     expect(next).toMatchObject({ horizontalY: 20, verticalX: 29.9 });
   });
 
-  it("hits arrows before falling through to nearby Ball selection", () => {
+  it("hits fine-nudge triangles at the snap-action control cluster", () => {
     const guide = createBallGuideState("cue", { x: 30, y: 20 });
     const up = getBallGuideArrowDescriptors(guide, 80, 40).find(
       ({ direction }) => direction === "up"
@@ -170,7 +190,7 @@ describe("Ball Guide runtime state", () => {
     });
   });
 
-  it("keeps arrow hit positions outside the handle hit radius", () => {
+  it("keeps triangle centers outside end-handle hit radius", () => {
     const guide = createBallGuideState("cue", { x: 30, y: 20 });
 
     for (const arrow of getBallGuideArrowDescriptors(guide, 80, 40)) {
@@ -180,7 +200,7 @@ describe("Ball Guide runtime state", () => {
     }
   });
 
-  it("clamps arrow nudges at all four axis bounds", () => {
+  it("clamps fine-step nudges at all four axis bounds", () => {
     const upperH = createBallGuideState("cue", { x: 30, y: 39.5 });
     const lowerH = createBallGuideState("cue", { x: 30, y: 0.5 });
     const upperV = createBallGuideState("cue", { x: 79.5, y: 20 });

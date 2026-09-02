@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { normalizeRgTenth } from "../interaction/ballGuideCoordinatePolicy";
 
 export type BallGuidePoint = {
   x: number;
@@ -91,6 +92,22 @@ export function updateBallGuideAxis(
   return { ...previous, verticalX: clampedValue };
 }
 
+/** Atomic guide intersection update (verticalX + horizontalY). Ball position unchanged. */
+export function setBallGuideIntersection(
+  previous: BallGuideState,
+  point: BallGuidePoint
+): BallGuideState {
+  if (!previous.active) return previous;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    return previous;
+  }
+  return {
+    ...previous,
+    verticalX: clampBallGuideAxis("vertical", point.x),
+    horizontalY: clampBallGuideAxis("horizontal", point.y),
+  };
+}
+
 export function updateBallGuideFromPointer(
   previous: BallGuideState,
   drag: BallGuideDragState,
@@ -172,8 +189,15 @@ export function useBallGuide() {
           ? previous.horizontalY
           : previous.verticalX;
       if (!Number.isFinite(currentValue)) return previous;
-      return updateBallGuideAxis(previous, axis, currentValue + delta);
+      const nextValue = normalizeRgTenth(
+        clampBallGuideAxis(axis, currentValue + delta)
+      );
+      return updateBallGuideAxis(previous, axis, nextValue);
     });
+  }, []);
+
+  const setGuideIntersection = useCallback((point: BallGuidePoint) => {
+    setGuideState((previous) => setBallGuideIntersection(previous, point));
   }, []);
 
   const endGuideDrag = useCallback((pointerId: number | null = null) => {
@@ -205,6 +229,7 @@ export function useBallGuide() {
     moveGuideDrag,
     endGuideDrag,
     nudgeGuide,
+    setGuideIntersection,
     clearGuide,
   };
 }

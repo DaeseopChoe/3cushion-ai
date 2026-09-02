@@ -1,19 +1,29 @@
 import React from "react";
 import { toPx } from "../../utils/geometry/coords";
 import {
-  getBallGuideArrowDescriptors,
+  BALL_GUIDE_HANDLE_VISUAL_RADIUS_RG,
+  BALL_GUIDE_TRIANGLE_VISUAL_HALF_RG,
   getBallGuideSnapAction,
+  getBallGuideTriangleDescriptors,
 } from "../../interaction/ballGuideInteractionPolicy";
 
 const GUIDE_STROKE = "#38bdf8";
-const GUIDE_HANDLE_RADIUS_PX = 4;
 const GUIDE_SNAP_ACTION_RADIUS_PX = 12;
-const GUIDE_ARROW_GLYPHS = {
-  up: "↑",
-  down: "↓",
-  left: "←",
-  right: "→",
-};
+
+function trianglePolygonPoints(cx, cy, halfSize, direction) {
+  const s = halfSize;
+  switch (direction) {
+    case "left":
+      return `${cx - s},${cy} ${cx + s},${cy - s} ${cx + s},${cy + s}`;
+    case "right":
+      return `${cx + s},${cy} ${cx - s},${cy - s} ${cx - s},${cy + s}`;
+    case "up":
+      return `${cx},${cy - s} ${cx - s},${cy + s} ${cx + s},${cy + s}`;
+    case "down":
+    default:
+      return `${cx},${cy + s} ${cx - s},${cy - s} ${cx + s},${cy - s}`;
+  }
+}
 
 export default function BallGuideLayer({
   active,
@@ -33,27 +43,32 @@ export default function BallGuideLayer({
     return null;
   }
 
+  const tableWidthRg = tableW / scale;
+  const tableHeightRg = tableH / scale;
+  const handleRadiusPx = BALL_GUIDE_HANDLE_VISUAL_RADIUS_RG * scale;
+  const triangleHalfPx = BALL_GUIDE_TRIANGLE_VISUAL_HALF_RG * scale;
+
   const horizontalStart = toPx({ x: 0, y: horizontalY }, scale, tableH);
   const horizontalEnd = toPx(
-    { x: tableW / scale, y: horizontalY },
+    { x: tableWidthRg, y: horizontalY },
     scale,
     tableH
   );
   const verticalStart = toPx({ x: verticalX, y: 0 }, scale, tableH);
   const verticalEnd = toPx(
-    { x: verticalX, y: tableH / scale },
+    { x: verticalX, y: tableHeightRg },
     scale,
     tableH
   );
-  const arrows = getBallGuideArrowDescriptors(
-    { active, horizontalY, verticalX },
-    tableW / scale,
-    tableH / scale
+  const triangles = getBallGuideTriangleDescriptors(
+    { active, ballId, horizontalY, verticalX },
+    tableWidthRg,
+    tableHeightRg
   );
   const snapAction = getBallGuideSnapAction(
     { active, ballId, horizontalY, verticalX },
-    tableW / scale,
-    tableH / scale
+    tableWidthRg,
+    tableHeightRg
   );
 
   return (
@@ -88,7 +103,7 @@ export default function BallGuideLayer({
         data-ball-guide-horizontal-handle="start"
         cx={horizontalStart.x + padding}
         cy={horizontalStart.y + padding}
-        r={GUIDE_HANDLE_RADIUS_PX}
+        r={handleRadiusPx}
         fill={GUIDE_STROKE}
         stroke="#e0f2fe"
         strokeWidth={1}
@@ -99,7 +114,7 @@ export default function BallGuideLayer({
         data-ball-guide-horizontal-handle="end"
         cx={horizontalEnd.x + padding}
         cy={horizontalEnd.y + padding}
-        r={GUIDE_HANDLE_RADIUS_PX}
+        r={handleRadiusPx}
         fill={GUIDE_STROKE}
         stroke="#e0f2fe"
         strokeWidth={1}
@@ -110,7 +125,7 @@ export default function BallGuideLayer({
         data-ball-guide-vertical-handle="start"
         cx={verticalStart.x + padding}
         cy={verticalStart.y + padding}
-        r={GUIDE_HANDLE_RADIUS_PX}
+        r={handleRadiusPx}
         fill={GUIDE_STROKE}
         stroke="#e0f2fe"
         strokeWidth={1}
@@ -121,30 +136,34 @@ export default function BallGuideLayer({
         data-ball-guide-vertical-handle="end"
         cx={verticalEnd.x + padding}
         cy={verticalEnd.y + padding}
-        r={GUIDE_HANDLE_RADIUS_PX}
+        r={handleRadiusPx}
         fill={GUIDE_STROKE}
         stroke="#e0f2fe"
         strokeWidth={1}
         opacity={0.95}
         pointerEvents="none"
       />
-      {arrows.map((arrow) => {
-        const arrowPx = toPx(arrow.point, scale, tableH);
+      {triangles.map((triangle) => {
+        const trianglePx = toPx(triangle.point, scale, tableH);
+        const cx = trianglePx.x + padding;
+        const cy = trianglePx.y + padding;
         return (
-          <text
-            key={`${arrow.axis}-${arrow.direction}`}
-            data-ball-guide-arrow={arrow.direction}
-            x={arrowPx.x + padding}
-            y={arrowPx.y + padding}
-            fill="#e0f2fe"
-            fontSize={14}
-            fontWeight="700"
-            textAnchor="middle"
-            dominantBaseline="middle"
+          <polygon
+            key={`${triangle.axis}-${triangle.direction}`}
+            data-ball-guide-triangle={triangle.direction}
+            data-ball-guide-triangle-axis={triangle.axis}
+            points={trianglePolygonPoints(
+              cx,
+              cy,
+              triangleHalfPx,
+              triangle.direction
+            )}
+            fill="#0ea5e9"
+            stroke="#e0f2fe"
+            strokeWidth={1.5}
+            opacity={0.92}
             pointerEvents="none"
-          >
-            {GUIDE_ARROW_GLYPHS[arrow.direction]}
-          </text>
+          />
         );
       })}
       {snapAction && (

@@ -10,22 +10,39 @@ export type BallGuideHandleHit = {
   side: BallGuideHandleSide;
 };
 
-export const BALL_GUIDE_HANDLE_HIT_RADIUS_RG = 1.5;
+export const BALL_GUIDE_HANDLE_HIT_RADIUS_RG = 3.0;
+/** Coarse pointer (touch) — 2× legacy fine radius (~80px at SCALE 10). */
+export const BALL_GUIDE_HANDLE_HIT_RADIUS_RG_COARSE = 8.0;
+/** End-handle visual radius in Rg (8px at SCALE 10; legacy was 4px). */
+export const BALL_GUIDE_HANDLE_VISUAL_RADIUS_RG = 0.8;
 export const GUIDE_FINE_STEP_RG = 0.1;
 export const GUIDE_ALT_DRAG_FACTOR = 0.1;
+/** Legacy arrow placement — not used by spaced dual-triangle controls. */
 export const BALL_GUIDE_ARROW_OFFSET_RG = 2.5;
-export const BALL_GUIDE_ARROW_HIT_RADIUS_RG = 0.9;
+/** Distance from snap-action center to fine-nudge triangle center (Rg). */
+export const BALL_GUIDE_TRIANGLE_OFFSET_RG = 3.0;
+/** Triangle visual half-extent in Rg (~12px at SCALE 10). */
+export const BALL_GUIDE_TRIANGLE_VISUAL_HALF_RG = 1.2;
+export const BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG = 2.2;
+/** Coarse pointer triangle touch target (~44px at SCALE 10). */
+export const BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE = 4.0;
 export const BALL_GUIDE_SNAP_ACTION_OFFSET_RG = 3;
 export const BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG = 1.6;
 export const BALL_GUIDE_SNAP_ACTION_EDGE_INSET_RG = 1.5;
 
-export type BallGuideArrowDirection = "up" | "down" | "left" | "right";
+export type BallGuideTriangleDirection = "up" | "down" | "left" | "right";
 
-export type BallGuideArrow = {
+export type BallGuideTriangle = {
   axis: BallGuideAxis;
-  direction: BallGuideArrowDirection;
+  direction: BallGuideTriangleDirection;
   point: PointRg;
 };
+
+/** @deprecated Use BallGuideTriangleDirection */
+export type BallGuideArrowDirection = BallGuideTriangleDirection;
+
+/** @deprecated Use BallGuideTriangle */
+export type BallGuideArrow = BallGuideTriangle;
 
 type PointRg = { x: number; y: number };
 
@@ -33,6 +50,32 @@ export type BallGuideSnapAction = {
   point: PointRg;
   target: PointRg;
 };
+
+export type BallGuideHitRadii = {
+  handleHitRadiusRg: number;
+  triangleHitRadiusRg: number;
+};
+
+/** Fine (mouse) vs coarse (touch) hit radii. */
+export function resolveBallGuideHitRadii(
+  isCoarsePointer: boolean
+): BallGuideHitRadii {
+  if (isCoarsePointer) {
+    return {
+      handleHitRadiusRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG_COARSE,
+      triangleHitRadiusRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE,
+    };
+  }
+  return {
+    handleHitRadiusRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG,
+    triangleHitRadiusRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG,
+  };
+}
+
+export function isCoarsePointerEnvironment(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia("(pointer: coarse)").matches;
+}
 
 function isFinitePoint(point: PointRg | null | undefined): boolean {
   return (
@@ -144,82 +187,63 @@ export function resolveBallGuideHandleHit(
   return closest;
 }
 
-export function getBallGuideArrowDescriptors(
+export function getBallGuideTriangleDescriptors(
   guideState: BallGuideState | null | undefined,
   tableWidthRg: number,
   tableHeightRg: number
-): BallGuideArrow[] {
+): BallGuideTriangle[] {
   if (
     !guideState?.active ||
     !Number.isFinite(guideState.horizontalY) ||
-    !Number.isFinite(guideState.verticalX) ||
-    !Number.isFinite(tableWidthRg) ||
-    !Number.isFinite(tableHeightRg)
+    !Number.isFinite(guideState.verticalX)
   ) {
     return [];
   }
 
-  const offset = BALL_GUIDE_ARROW_OFFSET_RG;
-  const perpendicularOffset = 1;
-  const horizontalArrowUpY = Math.min(
-    tableHeightRg - 0.5,
-    guideState.horizontalY + perpendicularOffset
+  const snap = getBallGuideSnapAction(
+    guideState,
+    tableWidthRg,
+    tableHeightRg
   );
-  const horizontalArrowDownY = Math.max(
-    0.5,
-    guideState.horizontalY - perpendicularOffset
-  );
-  const verticalArrowLeftX = Math.max(
-    0.5,
-    guideState.verticalX - perpendicularOffset
-  );
-  const verticalArrowRightX = Math.min(
-    tableWidthRg - 0.5,
-    guideState.verticalX + perpendicularOffset
-  );
+  if (!snap) return [];
+
+  const offset = BALL_GUIDE_TRIANGLE_OFFSET_RG;
+  const { x: sx, y: sy } = snap.point;
+
   return [
     {
       axis: "horizontal",
       direction: "up",
-      point: {
-        x: offset,
-        y: horizontalArrowUpY,
-      },
+      point: { x: sx, y: sy + offset },
     },
     {
       axis: "horizontal",
       direction: "down",
-      point: {
-        x: offset,
-        y: horizontalArrowDownY,
-      },
+      point: { x: sx, y: sy - offset },
     },
     {
       axis: "vertical",
       direction: "left",
-      point: {
-        x: verticalArrowLeftX,
-        y: tableHeightRg - offset,
-      },
+      point: { x: sx - offset, y: sy },
     },
     {
       axis: "vertical",
       direction: "right",
-      point: {
-        x: verticalArrowRightX,
-        y: tableHeightRg - offset,
-      },
+      point: { x: sx + offset, y: sy },
     },
   ];
 }
 
-export function resolveBallGuideArrowHit(
+/** @deprecated Use getBallGuideTriangleDescriptors */
+export const getBallGuideArrowDescriptors = getBallGuideTriangleDescriptors;
+
+export function resolveBallGuideTriangleHit(
   pointerRg: PointRg | null | undefined,
   guideState: BallGuideState | null | undefined,
   tableWidthRg: number,
   tableHeightRg: number,
-  hitRadiusRg: number = BALL_GUIDE_ARROW_HIT_RADIUS_RG
-): BallGuideArrow | null {
+  hitRadiusRg: number = BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG
+): BallGuideTriangle | null {
   if (
     !isFinitePoint(pointerRg) ||
     !Number.isFinite(hitRadiusRg) ||
@@ -228,12 +252,12 @@ export function resolveBallGuideArrowHit(
     return null;
   }
 
-  const candidates = getBallGuideArrowDescriptors(
+  const candidates = getBallGuideTriangleDescriptors(
     guideState,
     tableWidthRg,
     tableHeightRg
   );
-  let closest: BallGuideArrow | null = null;
+  let closest: BallGuideTriangle | null = null;
   let closestDistance = Infinity;
   for (const candidate of candidates) {
     const distance = Math.hypot(
@@ -247,6 +271,9 @@ export function resolveBallGuideArrowHit(
   }
   return closest;
 }
+
+/** @deprecated Use resolveBallGuideTriangleHit */
+export const resolveBallGuideArrowHit = resolveBallGuideTriangleHit;
 
 export function resolveBallGuideSnapActionHit(
   pointerRg: PointRg | null | undefined,
@@ -278,11 +305,31 @@ export function resolveBallGuideSnapActionHit(
     : null;
 }
 
-export function ballGuideArrowDeltaRg(
-  direction: BallGuideArrowDirection
+export function ballGuideFineStepDeltaRg(
+  direction: BallGuideTriangleDirection
 ): number {
   if (direction === "up" || direction === "right") {
     return GUIDE_FINE_STEP_RG;
   }
   return -GUIDE_FINE_STEP_RG;
+}
+
+/** @deprecated Use ballGuideFineStepDeltaRg */
+export const ballGuideArrowDeltaRg = ballGuideFineStepDeltaRg;
+
+export function getBallGuideTriangleSpacingMetrics() {
+  return {
+    triangleOffsetFromSnapCenterRg: BALL_GUIDE_TRIANGLE_OFFSET_RG,
+    triangleVisualHalfRg: BALL_GUIDE_TRIANGLE_VISUAL_HALF_RG,
+    triangleCenterSeparationRg: BALL_GUIDE_TRIANGLE_OFFSET_RG * 2,
+    snapActionOffsetRg: BALL_GUIDE_SNAP_ACTION_OFFSET_RG,
+    triangleHitRadiusRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG,
+    triangleHitRadiusCoarseRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE,
+    handleVisualRadiusRg: BALL_GUIDE_HANDLE_VISUAL_RADIUS_RG,
+    handleHitRadiusRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG,
+    handleHitRadiusCoarseRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG_COARSE,
+    legacyHandleVisualRadiusRg: 0.4,
+    legacyHandleHitRadiusRg: 1.5,
+    legacyHandleHitRadiusCoarseRg: 4.0,
+  };
 }

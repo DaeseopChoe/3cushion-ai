@@ -329,3 +329,130 @@ Next manual QA                               : 옆돌리기 · 뒤돌리기 대�
 2. 뒤돌리기 대회전 Production USER Search 실기 검증
 3. 옆돌리기 대회전 Production USER Search 실기 검증
 4. 5&1/2 시스템 전체 검증 완료 판정 (위 3항 PASS 후)
+
+---
+
+# 2026-09-02 — USER Validation Positioning UX 개선 완료
+
+## Mode
+
+**Agent** · USER table Validation Positioning UX · Interaction/Presentation only · PC Manual QA PASS · Commit/Push
+
+---
+
+## A. 목적
+
+5&1/2 canonical/derived 데이터 실기 검증을 빠르고 정확하게 수행할 수 있도록 USER table positioning UX를 개선하였다.
+
+**핵심 목표:**
+
+- Ball / guide coordinate direct input (numeric keypad)
+- Guide end-handle visual/hit-area 2× 확대 (coarse drag)
+- Snap/확정 버튼 주변 4방향 triangle fine controller (±0.1 Rg tap)
+- Guide coordinate 실시간 1-decimal 표시
+- Rg tenth normalization (floating-point artifact 방지)
+
+---
+
+## B. 구현 범위
+
+| 영역 | 내용 |
+|------|------|
+| **Direct coordinate input** | Joystick coordinate label 클릭 → X/Y editor · 내장 numeric keypad · Apply/Cancel · Enter/Escape · ±0.1 fine adjust |
+| **Guide end-handle** | Visual radius 2× · hit-area 2× (fine/coarse) · coarse drag 유지 |
+| **Triangle fine controller** | Snap/확정 버튼 `(verticalX+3, horizontalY+3)` 중심 상/하/좌/우 배치 · tap = ±0.1 Rg nudge (drag 아님) |
+| **Coordinate display SSOT** | Guide active 시 `(verticalX, horizontalY)` 표시 · ball center 아님 · 모든 이동 경로에서 즉시 갱신 |
+| **Display formatting** | `formatRgCoordinateDisplay` — 사용자-facing 1-decimal round |
+| **Normalization** | `normalizeRgTenth` — nudge path에서 `Math.round(v*10)/10` |
+
+**주요 파일:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/components/table/JoystickCoordinateEditor.jsx`
+- `frontend/src/components/table/BallGuideLayer.jsx`
+- `frontend/src/hooks/useBallGuide.ts`
+- `frontend/src/interaction/ballGuideInteractionPolicy.ts`
+- `frontend/src/interaction/ballGuideCoordinatePolicy.ts`
+- `frontend/src/interaction/ballPositionDirectInputPolicy.ts`
+- 관련 test files (policy · tap runtime · layer render)
+
+---
+
+## C. Triangle tap white-screen 수정
+
+| Field | Value |
+|-------|--------|
+| **증상** | Triangle tap 직후 화면 전체 white screen |
+| **Root cause** | `useBallGuide.ts` `nudgeGuide()`에서 `normalizeRgTenth` **import 누락** |
+| **Exception** | `ReferenceError: normalizeRgTenth is not defined` |
+| **Fix** | `ballGuideCoordinatePolicy.ts`에서 `normalizeRgTenth` import 추가 |
+
+---
+
+## D. Horizontal triangle orientation
+
+Snap/확정 버튼 주변 triangle visual 방향을 **outward** (이동 방향)로 수정:
+
+- ◀ LEFT → `verticalX - 0.1`
+- ▶ RIGHT → `verticalX + 0.1`
+- ▲ UP → `horizontalY + 0.1`
+- ▼ DOWN → `horizontalY - 0.1`
+
+---
+
+## E. Manual QA
+
+| Environment | Result |
+|-------------|--------|
+| **ADMIN UI (PC)** | PASS |
+| **USER UI (PC)** | PASS |
+| Guide end-handle drag | PASS |
+| Snap/확정 버튼 | PASS |
+| Triangle 4방향 표시/방향 | PASS |
+| Triangle tap ±0.1 Rg | PASS |
+| Coordinate label 실시간 갱신 | PASS |
+| Direct coordinate input / keypad | PASS |
+| White-screen regression | PASS (해결 확인) |
+
+---
+
+## F. 테스트
+
+| Suite | Result |
+|-------|--------|
+| `ballGuideTriangleTap.test.ts` | **8/8 PASS** |
+| `ballGuideCoordinatePolicy.test.ts` | **9/9 PASS** |
+| `ballGuideInteractionPolicy.test.ts` | **11/11 PASS** |
+| `ballPositionDirectInputPolicy.test.ts` | **13/13 PASS** |
+| `BallGuideLayer.test.jsx` | **2/2 PASS** |
+| `useBallGuide.test.ts` | **23/23 PASS** |
+| **Full frontend suite** | **112 files / 1168 tests PASS** |
+| **Production build** | **PASS** |
+
+---
+
+## FINAL VERDICT
+
+```text
+USER VALIDATION POSITIONING UX
+— COMPLETE · PC MANUAL QA PASS · REGRESSION COVERED
+```
+
+---
+
+## Explicit Non-Claims
+
+- 5&1/2 sys calculation / Δ_sys / trajectory symmetry 변경 **없음**
+- USER Display Runtime HPT 변경 **없음**
+- ADMIN/USER Search semantics 변경 **없음**
+- Dataset / anchors 변경 **없음**
+- Ball Role SSOT / target/second logical role semantics 변경 **없음**
+
+---
+
+## Current Status
+
+```text
+USER Validation Positioning UX : COMPLETE · PC Manual QA PASS
+Next manual QA                   : 옆돌리기 · 뒤돌리기 대회전 · 옆돌리기 대회전 (5&1/2 Production Search)
+```

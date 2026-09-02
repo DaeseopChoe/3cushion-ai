@@ -193,12 +193,19 @@ import { resolveTrajectoryExtensionOverlayVisibility } from "./renderer/trajecto
 import { useBaselineDraft } from "./overlay/state/baselineDraftState";
 import { useBallGuide } from "./hooks/useBallGuide";
 import {
-  ballGuideArrowDeltaRg,
+  ballGuideFineStepDeltaRg,
   GUIDE_ALT_DRAG_FACTOR,
+  isCoarsePointerEnvironment,
+  resolveBallGuideHitRadii,
   resolveBallGuideSnapActionHit,
-  resolveBallGuideArrowHit,
+  resolveBallGuideTriangleHit,
   resolveBallGuideHandleHit,
 } from "./interaction/ballGuideInteractionPolicy";
+import { formatRgCoordinateDisplay, resolveGuideCoordinateDisplay } from "./interaction/ballGuideCoordinatePolicy";
+import {
+  clampBallCenterRg,
+  clampGuideIntersectionRg,
+} from "./interaction/ballPositionDirectInputPolicy";
 import { useTrajectoryExtensionHandleDrag } from "./overlay/state/trajectoryExtensionHandleDrag";
 import { useC2RailHandleDrag } from "./overlay/state/c2RailHandleDrag";
 import {
@@ -211,6 +218,7 @@ import {
   resolveBaselineImpactSnapTarget,
 } from "./interaction/baselineImpactSnapInteraction";
 import BallGuideLayer from "./components/table/BallGuideLayer";
+import JoystickCoordinateEditor from "./components/table/JoystickCoordinateEditor";
 import {
   normalizeReflectionOverride,
   reflectionOverrideToPoint,
@@ -1520,6 +1528,9 @@ export default function App({
   frozenCushionPathRg: null,
 });
 
+  const tableAreaInnerRef = useRef(null);
+  const [coordEditSession, setCoordEditSession] = useState(null);
+
   /** 볼 더블클릭 — Target Lock = physical Role 선정 (색상 슬롯 아님) */
   function applyTargetFromBallId(ballId) {
     const roleId =
@@ -1584,6 +1595,7 @@ export default function App({
     moveGuideDrag,
     endGuideDrag,
     nudgeGuide,
+    setGuideIntersection,
     clearGuide,
   } = useBallGuide();
   useEffect(() => {
@@ -1601,6 +1613,7 @@ export default function App({
 
   function hideBallPositionController() {
     stopJoystick();
+    setCoordEditSession(null);
     clearGuide();
     setDragState((s) => ({ ...s, joystickVisible: false }));
   }
@@ -2629,6 +2642,60 @@ export default function App({
     }
   }
 
+  function applyBallCenterDirectInput(ballId, x, y) {
+    const clamped = clampBallCenterRg(x, y);
+    if (!clamped || !ballId) return false;
+    setBallsState((prev) => {
+      const cur = prev?.[ballId];
+      if (!cur) return prev;
+      return { ...prev, [ballId]: { x: clamped.x, y: clamped.y } };
+    });
+    invalidateSavedAndRecalledForBallId(ballId);
+    return true;
+  }
+
+  function openJoystickCoordinateEditor(e, displayCoord, mode) {
+    e.preventDefault();
+    e.stopPropagation();
+    const container = tableAreaInnerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    setCoordEditSession({
+      mode,
+      initialX: displayCoord.x,
+      initialY: displayCoord.y,
+      anchor: {
+        left: Math.min(
+          Math.max(8, e.clientX - rect.left - 170),
+          Math.max(8, rect.width - 360)
+        ),
+        top: Math.min(
+          Math.max(8, e.clientY - rect.top - 8),
+          Math.max(8, rect.height - 420)
+        ),
+      },
+    });
+  }
+
+  function handleJoystickCoordinateApply(x, y) {
+    if (!coordEditSession || !dragState.ballId) {
+      setCoordEditSession(null);
+      return;
+    }
+    if (coordEditSession.mode === "guide") {
+      const next = clampGuideIntersectionRg(x, y);
+      if (next) {
+        setGuideIntersection({
+          x: next.verticalX,
+          y: next.horizontalY,
+        });
+      }
+    } else {
+      applyBallCenterDirectInput(dragState.ballId, x, y);
+    }
+    setCoordEditSession(null);
+  }
+
   function nudgeBall(ballId, dx, dy) {
     if (!ballId) return;
     setBallsState((prev) => {
@@ -2749,6 +2816,7 @@ function handleJoyPadPointerDown(e) {
   // joysticks should never trigger table pointer logic
   e.preventDefault();
   e.stopPropagation();
+  if (coordEditSession) return;
   if (!dragState.joystickVisible || !dragState.ballId) return;
 
   beginJoyDrag(e, dragState.ballId, e.currentTarget);
@@ -4060,10 +4128,17 @@ function handlePointerDown(e) {
   // ✅ GUARD: 오버레이 열려있으면 SVG 이벤트 차단
   if (overlayState.open) return;
 
+  if (coordEditSession) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+
   if (!pointerRgEarly) return;
 
+  const guideHitRadii = resolveBallGuideHitRadii(isCoarsePointerEnvironment());
+
   // Priority: Extension → C2 → Baseline/fine arrow → Guide handle →
-  // Guide arrow → Guide Snap → Joystick → Ball → Empty dismiss
   if (
     pointerRgEarly &&
     tryStartExtensionHandleDrag(
@@ -4140,7 +4215,8 @@ function handlePointerDown(e) {
     pointerRgEarly,
     guideState,
     TABLE_W / SCALE,
-    TABLE_H / SCALE
+    TABLE_H / SCALE,
+    guideHitRadii.handleHitRadiusRg
   );
   if (guideHandleHit) {
     e.preventDefault();
@@ -4164,18 +4240,19 @@ function handlePointerDown(e) {
     return;
   }
 
-  const guideArrowHit = resolveBallGuideArrowHit(
+  const guideTriangleHit = resolveBallGuideTriangleHit(
     pointerRgEarly,
     guideState,
     TABLE_W / SCALE,
-    TABLE_H / SCALE
+    TABLE_H / SCALE,
+    guideHitRadii.triangleHitRadiusRg
   );
-  if (guideArrowHit) {
+  if (guideTriangleHit) {
     e.preventDefault();
     e.stopPropagation();
     nudgeGuide(
-      guideArrowHit.axis,
-      ballGuideArrowDeltaRg(guideArrowHit.direction)
+      guideTriangleHit.axis,
+      ballGuideFineStepDeltaRg(guideTriangleHit.direction)
     );
     return;
   }
@@ -5713,27 +5790,21 @@ function handlePointerCancel(e) {
         dragState.ballId &&
         balls[dragState.ballId] && (() => {
   const bp = balls[dragState.ballId];
-  const isGuideActiveForBall =
-    guideState.active &&
-    guideState.ballId === dragState.ballId &&
-    Number.isFinite(guideState.verticalX) &&
-    Number.isFinite(guideState.horizontalY);
-  const displayCoord =
-    guideDragState.active && isGuideActiveForBall
-      ? {
-          x: guideState.verticalX,
-          y: guideState.horizontalY,
-        }
-      : bp;
+  const displaySource = resolveGuideCoordinateDisplay(
+    guideState,
+    dragState.ballId,
+    bp
+  );
+  const displayCoord = { x: displaySource.x, y: displaySource.y };
+  const coordEditMode = displaySource.mode;
 
-  // Joystick geometry: Interaction SSOT와 동일 식 (joystickInteractionPolicy)
   const BASE_R = JOYSTICK_BASE_R_PX;
   const KNOB_R = JOYSTICK_KNOB_R_PX;
   const jc = computeJoystickCenterRg(bp, BALL_RADIUS_RG, SCALE);
-
   const jp = toPx({ x: jc.x, y: jc.y }, SCALE, TABLE_H);
   const cx = jp.x + PADDING;
   const cy = jp.y + PADDING;
+  const labelX = cx + (bp.x <= 40 ? BASE_R + 14 : -(BASE_R + 14));
 
   return (
     <g
@@ -5752,16 +5823,19 @@ function handlePointerCancel(e) {
       <circle cx={cx} cy={cy} r={KNOB_R - 6} fill="rgba(15,23,42,0.35)" />
       <text
         data-ball-coordinate="1"
-        x={cx + (bp.x <= 40 ? BASE_R + 14 : -(BASE_R + 14))}
+        x={labelX}
         y={cy}
         textAnchor={bp.x <= 40 ? "start" : "end"}
         dominantBaseline="middle"
         fill="rgba(255,255,255,0.85)"
         fontSize="16"
         fontWeight="400"
-        pointerEvents="none"
+        style={{ cursor: "pointer", pointerEvents: "all" }}
+        onPointerDown={(e) =>
+          openJoystickCoordinateEditor(e, displayCoord, coordEditMode)
+        }
       >
-        ({displayCoord.x.toFixed(1)}, {displayCoord.y.toFixed(1)})
+        ({formatRgCoordinateDisplay(displayCoord.x)}, {formatRgCoordinateDisplay(displayCoord.y)})
       </text>
     </g>
   );
@@ -5777,7 +5851,17 @@ function handlePointerCancel(e) {
         variant={userToast.variant}
       />
       <div className="table-area">
-        <div className="table-area-inner" style={{ position: "relative" }}>
+        <div className="table-area-inner" ref={tableAreaInnerRef} style={{ position: "relative" }}>
+          {coordEditSession ? (
+            <JoystickCoordinateEditor
+              mode={coordEditSession.mode}
+              initialX={coordEditSession.initialX}
+              initialY={coordEditSession.initialY}
+              anchor={coordEditSession.anchor}
+              onApply={handleJoystickCoordinateApply}
+              onCancel={() => setCoordEditSession(null)}
+            />
+          ) : null}
           {isDerivedReviewSessionPending && derivedReviewUi.reviewMode === "REVIEW" ? (
             <DerivedReviewOverlay
               visible={derivedReviewUi.overlayVisible}
