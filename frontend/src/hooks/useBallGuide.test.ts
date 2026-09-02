@@ -9,6 +9,7 @@ import {
 } from "./useBallGuide";
 import {
   ballGuideArrowDeltaRg,
+  BALL_GUIDE_TRIANGLE_OFFSET_RG,
   getBallGuideSnapAction,
   getBallGuideArrowDescriptors,
   GUIDE_ALT_DRAG_FACTOR,
@@ -144,7 +145,7 @@ describe("Ball Guide runtime state", () => {
     const snapX = 37.2 + 3;
     const snapY = 16.8 + 3;
     expect(triangles.find(({ direction }) => direction === "left")?.point).toEqual({
-      x: snapX - 3,
+      x: snapX - BALL_GUIDE_TRIANGLE_OFFSET_RG,
       y: snapY,
     });
   });

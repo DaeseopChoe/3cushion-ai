@@ -220,6 +220,10 @@ import {
 import BallGuideLayer from "./components/table/BallGuideLayer";
 import JoystickCoordinateEditor from "./components/table/JoystickCoordinateEditor";
 import {
+  computeJoystickCoordinateEditorAnchor,
+  resolveJoystickCoordinateEditorLayout,
+} from "./components/table/joystickCoordinateEditorLayout";
+import {
   normalizeReflectionOverride,
   reflectionOverrideToPoint,
   shouldClearReflectionOverrideOnHptTipSideChange,
@@ -2660,20 +2664,19 @@ export default function App({
     const container = tableAreaInnerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
+    const editorLayout = resolveJoystickCoordinateEditorLayout(
+      isCoarsePointerEnvironment()
+    );
     setCoordEditSession({
       mode,
       initialX: displayCoord.x,
       initialY: displayCoord.y,
-      anchor: {
-        left: Math.min(
-          Math.max(8, e.clientX - rect.left - 170),
-          Math.max(8, rect.width - 360)
-        ),
-        top: Math.min(
-          Math.max(8, e.clientY - rect.top - 8),
-          Math.max(8, rect.height - 420)
-        ),
-      },
+      anchor: computeJoystickCoordinateEditorAnchor(
+        e.clientX,
+        e.clientY,
+        rect,
+        editorLayout
+      ),
     });
   }
 
@@ -4137,6 +4140,9 @@ function handlePointerDown(e) {
   if (!pointerRgEarly) return;
 
   const guideHitRadii = resolveBallGuideHitRadii(isCoarsePointerEnvironment());
+  const isCoarseGuidePointer = isCoarsePointerEnvironment();
+  const tableWidthRg = TABLE_W / SCALE;
+  const tableHeightRg = TABLE_H / SCALE;
 
   // Priority: Extension → C2 → Baseline/fine arrow → Guide handle →
   if (
@@ -4240,13 +4246,31 @@ function handlePointerDown(e) {
     return;
   }
 
+  const guideSnapHit = resolveBallGuideSnapActionHit(
+    pointerRgEarly,
+    guideState,
+    tableWidthRg,
+    tableHeightRg,
+    guideHitRadii.snapHitRadiusRg
+  );
+
   const guideTriangleHit = resolveBallGuideTriangleHit(
     pointerRgEarly,
     guideState,
-    TABLE_W / SCALE,
-    TABLE_H / SCALE,
+    tableWidthRg,
+    tableHeightRg,
     guideHitRadii.triangleHitRadiusRg
   );
+
+  if (isCoarseGuidePointer && guideSnapHit) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (guideState.ballId && balls[guideState.ballId]) {
+      snapBallToGuideIntersection(guideState.ballId, guideSnapHit.target);
+    }
+    return;
+  }
+
   if (guideTriangleHit) {
     e.preventDefault();
     e.stopPropagation();
@@ -4257,12 +4281,6 @@ function handlePointerDown(e) {
     return;
   }
 
-  const guideSnapHit = resolveBallGuideSnapActionHit(
-    pointerRgEarly,
-    guideState,
-    TABLE_W / SCALE,
-    TABLE_H / SCALE
-  );
   if (guideSnapHit) {
     e.preventDefault();
     e.stopPropagation();

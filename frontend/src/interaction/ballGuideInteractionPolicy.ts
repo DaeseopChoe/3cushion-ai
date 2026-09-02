@@ -20,7 +20,7 @@ export const GUIDE_ALT_DRAG_FACTOR = 0.1;
 /** Legacy arrow placement — not used by spaced dual-triangle controls. */
 export const BALL_GUIDE_ARROW_OFFSET_RG = 2.5;
 /** Distance from snap-action center to fine-nudge triangle center (Rg). */
-export const BALL_GUIDE_TRIANGLE_OFFSET_RG = 3.0;
+export const BALL_GUIDE_TRIANGLE_OFFSET_RG = 6.5;
 /** Triangle visual half-extent in Rg (~12px at SCALE 10). */
 export const BALL_GUIDE_TRIANGLE_VISUAL_HALF_RG = 1.2;
 export const BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG = 2.2;
@@ -28,6 +28,8 @@ export const BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG = 2.2;
 export const BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE = 4.0;
 export const BALL_GUIDE_SNAP_ACTION_OFFSET_RG = 3;
 export const BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG = 1.6;
+/** Coarse pointer snap confirm touch target (~28px at SCALE 10). */
+export const BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG_COARSE = 2.8;
 export const BALL_GUIDE_SNAP_ACTION_EDGE_INSET_RG = 1.5;
 
 export type BallGuideTriangleDirection = "up" | "down" | "left" | "right";
@@ -54,6 +56,7 @@ export type BallGuideSnapAction = {
 export type BallGuideHitRadii = {
   handleHitRadiusRg: number;
   triangleHitRadiusRg: number;
+  snapHitRadiusRg: number;
 };
 
 /** Fine (mouse) vs coarse (touch) hit radii. */
@@ -64,11 +67,13 @@ export function resolveBallGuideHitRadii(
     return {
       handleHitRadiusRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG_COARSE,
       triangleHitRadiusRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE,
+      snapHitRadiusRg: BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG_COARSE,
     };
   }
   return {
     handleHitRadiusRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG,
     triangleHitRadiusRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG,
+    snapHitRadiusRg: BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG,
   };
 }
 
@@ -325,6 +330,8 @@ export function getBallGuideTriangleSpacingMetrics() {
     snapActionOffsetRg: BALL_GUIDE_SNAP_ACTION_OFFSET_RG,
     triangleHitRadiusRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG,
     triangleHitRadiusCoarseRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE,
+    snapHitRadiusRg: BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG,
+    snapHitRadiusCoarseRg: BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG_COARSE,
     handleVisualRadiusRg: BALL_GUIDE_HANDLE_VISUAL_RADIUS_RG,
     handleHitRadiusRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG,
     handleHitRadiusCoarseRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG_COARSE,

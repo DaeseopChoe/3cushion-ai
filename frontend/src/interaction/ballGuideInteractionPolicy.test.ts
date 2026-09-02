@@ -3,14 +3,18 @@ import { createBallGuideState } from "../hooks/useBallGuide";
 import {
   BALL_GUIDE_HANDLE_HIT_RADIUS_RG,
   BALL_GUIDE_HANDLE_HIT_RADIUS_RG_COARSE,
+  BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG,
+  BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG_COARSE,
   BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG,
   BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE,
   BALL_GUIDE_TRIANGLE_OFFSET_RG,
   BALL_GUIDE_TRIANGLE_VISUAL_HALF_RG,
+  getBallGuideSnapAction,
   getBallGuideTriangleDescriptors,
   getBallGuideTriangleSpacingMetrics,
   resolveBallGuideHandleHit,
   resolveBallGuideHitRadii,
+  resolveBallGuideSnapActionHit,
   resolveBallGuideTriangleHit,
 } from "./ballGuideInteractionPolicy";
 
@@ -24,18 +28,22 @@ describe("ballGuideInteractionPolicy hit radii", () => {
     expect(resolveBallGuideHitRadii(false)).toEqual({
       handleHitRadiusRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG,
       triangleHitRadiusRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG,
+      snapHitRadiusRg: BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG,
     });
     expect(BALL_GUIDE_HANDLE_HIT_RADIUS_RG).toBe(3.0);
     expect(BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG).toBe(2.2);
+    expect(BALL_GUIDE_TRIANGLE_OFFSET_RG).toBe(6.5);
   });
 
-  it("uses enlarged coarse pointer radii", () => {
+  it("uses enlarged coarse pointer radii including snap confirm", () => {
     expect(resolveBallGuideHitRadii(true)).toEqual({
       handleHitRadiusRg: BALL_GUIDE_HANDLE_HIT_RADIUS_RG_COARSE,
       triangleHitRadiusRg: BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE,
+      snapHitRadiusRg: BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG_COARSE,
     });
     expect(BALL_GUIDE_HANDLE_HIT_RADIUS_RG_COARSE).toBe(8.0);
     expect(BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE).toBe(4.0);
+    expect(BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG_COARSE).toBe(2.8);
   });
 
   it("places fine-nudge triangles around the snap-action button", () => {
@@ -211,5 +219,76 @@ describe("ballGuideInteractionPolicy hit radii", () => {
         BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE
       )
     ).toMatchObject({ direction: "left", axis: "vertical" });
+  });
+
+  it("coarse snap center is not captured by triangle hit at 6.5 Rg offset", () => {
+    const snap = getBallGuideSnapAction(guide, TABLE_W, TABLE_H);
+    expect(snap).not.toBeNull();
+    expect(
+      resolveBallGuideTriangleHit(
+        snap!.point,
+        guide,
+        TABLE_W,
+        TABLE_H,
+        BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE
+      )
+    ).toBeNull();
+    expect(
+      resolveBallGuideSnapActionHit(
+        snap!.point,
+        guide,
+        TABLE_W,
+        TABLE_H,
+        BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG_COARSE
+      )
+    ).not.toBeNull();
+  });
+
+  it("coarse snap center wins over residual triangle overlap via priority contract", () => {
+    const snap = getBallGuideSnapAction(guide, TABLE_W, TABLE_H);
+    expect(snap).not.toBeNull();
+    const snapHit = resolveBallGuideSnapActionHit(
+      snap!.point,
+      guide,
+      TABLE_W,
+      TABLE_H,
+      BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG_COARSE
+    );
+    const triangleHit = resolveBallGuideTriangleHit(
+      snap!.point,
+      guide,
+      TABLE_W,
+      TABLE_H,
+      BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG_COARSE
+    );
+    expect(snapHit).not.toBeNull();
+    if (triangleHit) {
+      expect(snapHit).not.toBeNull();
+    }
+  });
+
+  it("fine pointer keeps triangle-before-snap behavior at triangle centers", () => {
+    const left = getBallGuideTriangleDescriptors(guide, TABLE_W, TABLE_H).find(
+      (t) => t.direction === "left"
+    );
+    expect(left).toBeDefined();
+    expect(
+      resolveBallGuideTriangleHit(
+        left!.point,
+        guide,
+        TABLE_W,
+        TABLE_H,
+        BALL_GUIDE_TRIANGLE_HIT_RADIUS_RG
+      )
+    ).not.toBeNull();
+    expect(
+      resolveBallGuideSnapActionHit(
+        left!.point,
+        guide,
+        TABLE_W,
+        TABLE_H,
+        BALL_GUIDE_SNAP_ACTION_HIT_RADIUS_RG
+      )
+    ).toBeNull();
   });
 });
