@@ -19,6 +19,7 @@ import {
   resolvePublishedLeafHints,
   adminSysFromRecallEntry,
 } from "./recallHydrateFlow";
+import { resolveAdminRecallTargetMeta } from "../../domain/system/adminEditSessionContract";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +55,7 @@ export type AdminSearchFlowContext = {
     slotId: string,
     meta: { targetBall: string | null }
   ) => void;
+  hydrateAdminRecallTarget: (targetBall: string | null) => void;
 
   // HELPER
   clearAdminSearchDisplayRuntime: () => void;
@@ -246,11 +248,16 @@ export async function runAdminSearch(
 
   ctx.applyPositionRecall(spatialResult.record);
 
-  if (searchQueryTargetBall) {
+  const targetMeta = resolveAdminRecallTargetMeta({
+    searchQueryTargetBall,
+    recordTargetBall: spatialResult.record?.targetBall,
+  });
+  if (targetMeta) {
     ctx.patchSlotRuntimeMeta(ctx.activeSlot, {
-      targetBall: searchQueryTargetBall,
+      targetBall: targetMeta,
     });
   }
+  ctx.hydrateAdminRecallTarget(targetMeta);
 
   const recallEntry = (
     spatialResult.record?.strategies as

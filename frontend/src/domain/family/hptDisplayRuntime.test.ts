@@ -339,4 +339,90 @@ describe("ADMIN Published Search target hydration (preserved)", () => {
     const lock = applyAdminRecallTargetLockHydrate("yellow");
     expect(lock.isTargetSelected).toBe(true);
   });
+
+  it("Target=NONE role permutation: resolved logical target identity reaches patchSlotRuntimeMeta and hydrateAdminRecallTarget identically", async () => {
+    // UI layout: object ball A at target slot, object ball B at second slot (Target=NONE).
+    // Published record stores logical target = object ball B (record.targetBall = "red").
+    const uiBalls = {
+      cue: { x: 30, y: 70 },
+      target: { x: 20, y: 50 },
+      second: { x: 15, y: 30 },
+    };
+    const recordRedLogicalTarget: PositionRecord = {
+      positionId: "pub_red_logical_target",
+      targetBall: "red",
+      balls: {
+        cue: { x: 30, y: 70 },
+        target: { x: 15, y: 30 },
+        second: { x: 20, y: 50 },
+      },
+      strategies: {
+        S1: {
+          slot: "S1",
+          track: "B2T_R",
+          memberOrigin: "AUTHORED",
+          hpT: canonicalHpt,
+          signature: {
+            systemId: "5_half_system",
+            formulaHash: "v1",
+            shotType: "옆돌리기",
+          },
+        },
+      },
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        status: 200,
+        ok: true,
+        json: async () => ({
+          schemaVersion: 2,
+          shotType: "옆돌리기",
+          systemId: "5_half_system",
+          systemLabel: "파이브앤하프",
+          records: [recordRedLogicalTarget],
+        }),
+      })
+    );
+
+    const patchSlotRuntimeMetaMock = vi.fn();
+    const hydrateAdminRecallTargetMock = vi.fn();
+
+    const ctx: AdminSearchFlowContext = {
+      ballsState: uiBalls,
+      adminState: { sys: { shotType: "옆돌리기", systemId: "5_half_system" } },
+      activeSlot: "S1",
+      slots: {},
+      isTargetSelected: false,
+      targetColor: null,
+      userPublishedSearchContext: null,
+      setAdminState: vi.fn(),
+      setIsAdminPublishedSearchMatched: vi.fn(),
+      setAdminTableLayersVisible: vi.fn(),
+      setShowCoaching: vi.fn(),
+      applyPositionRecall: vi.fn(),
+      patchSlotRuntimeMeta: patchSlotRuntimeMetaMock,
+      hydrateAdminRecallTarget: hydrateAdminRecallTargetMock,
+      clearAdminSearchDisplayRuntime: vi.fn(),
+      beginAdminInputSession: () => true,
+      getAdminRecallQueryTargetBall: () => null,
+      rejectAdminRecallHydrateForMismatch: () => false,
+      resolveFormulaHash: () => "v1",
+    };
+
+    const ok = await runAdminSearch(ctx);
+    expect(ok).toBe(true);
+
+    const expectedLogicalTarget = "red";
+    expect(patchSlotRuntimeMetaMock).toHaveBeenCalledWith("S1", {
+      targetBall: expectedLogicalTarget,
+    });
+    expect(hydrateAdminRecallTargetMock).toHaveBeenCalledWith(
+      expectedLogicalTarget
+    );
+    expect(hydrateAdminRecallTargetMock.mock.calls[0]?.[0]).toBe(
+      patchSlotRuntimeMetaMock.mock.calls[0]?.[1]?.targetBall
+    );
+  });
 });

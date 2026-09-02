@@ -183,3 +183,149 @@ Next manual QA                                    : 옆돌리기 · 뒤돌리기
 2. 뒤돌리기 대회전 Production USER Search 실기 검증
 3. 옆돌리기 대회전 Production USER Search 실기 검증
 4. 5&1/2 시스템 전체 검증 완료 판정 (위 3항 PASS 후)
+
+---
+
+# 2026-09-02 — ADMIN Published Search Target Hydrate Parity 완료
+
+## Mode
+
+**Agent** · ADMIN Published Search · target-meta hydrate parity · behavioral regression test · commit/push
+
+---
+
+## A. 문제 / 잔여 작업 발견
+
+5&1/2 USER 검증을 시작하기 전 Working Tree hygiene 과정에서 기존 미커밋 변경 2개가 발견됨:
+
+- `frontend/src/application/flows/adminSearchFlow.ts`
+- `frontend/src/application/flows/publishedSearchLeafResolution.contract.test.ts`
+
+단순 잔여/쓰레기 변경으로 폐기하지 않고 provenance와 diff를 조사함.
+
+조사 결과 두 파일은 하나의 유효한 **ADMIN Published Search target hydrate parity** 작업 단위임을 확인.
+
+---
+
+## B. Runtime 변경 목적
+
+ADMIN Published Search recall 성공 후 target metadata 처리 계약을 LocalDB Search와 일치시킴.
+
+**핵심 흐름:**
+
+```text
+Published Search match
+→ applyPositionRecall(record)
+→ resolveAdminRecallTargetMeta({
+     searchQueryTargetBall,
+     recordTargetBall: record.targetBall
+   })
+→ targetMeta 존재 시 patchSlotRuntimeMeta(...)
+→ hydrateAdminRecallTarget(targetMeta)
+```
+
+**변경 파일:**
+
+- `frontend/src/application/flows/adminSearchFlow.ts` — runtime parity
+- `frontend/src/application/flows/publishedSearchLeafResolution.contract.test.ts` — `hydrateAdminRecallTarget` mock companion (3곳)
+
+---
+
+## C. SSOT
+
+**`resolveAdminRecallTargetMeta` 의미:**
+
+1. 유효한 `searchQueryTargetBall` 우선
+2. 없으면 `record.targetBall` fallback
+3. 둘 다 없으면 `null`
+
+**Ball Role SSOT 준수:**
+
+- red/yellow는 물리 색상
+- target/second는 논리 역할
+- `red = second` 또는 `yellow = target` 같은 intrinsic binding **금지**
+
+---
+
+## D. LocalDB ↔ Published Search
+
+target-meta **의미 계약 parity** 확인.
+
+LocalDB와 Published Search 모두 동일 계약 사용:
+
+```text
+resolveAdminRecallTargetMeta
+→ patchSlotRuntimeMeta
+→ hydrateAdminRecallTarget
+```
+
+---
+
+## E. Behavioral regression 보강
+
+**파일:** `frontend/src/domain/family/hptDisplayRuntime.test.ts`
+
+**신규 behavioral regression test 1개:**
+
+`Target=NONE role permutation: resolved logical target identity reaches patchSlotRuntimeMeta and hydrateAdminRecallTarget identically`
+
+**검증 내용:**
+
+Target=NONE + role permutation 상황에서 resolved logical target identity가 `patchSlotRuntimeMeta`와 `hydrateAdminRecallTarget` 양쪽에 **동일하게** 전달되는지 직접 검증.
+
+**결과:** PASS
+
+---
+
+## F. 관련 테스트
+
+| Suite | Result |
+|-------|--------|
+| `hptDisplayRuntime.test.ts` — ADMIN Published Search target hydration | **2/2 PASS** |
+| `publishedSearchLeafResolution.contract.test.ts` | **17/17 PASS** |
+| `adminTargetBallRules.contract.test.ts` | **27/27 PASS** |
+| `adminEditSessionContract.test.ts` — target resolver | **1/1 PASS** |
+| **Full frontend suite** | **107 files / 1124 tests PASS** |
+
+FAIL 없음.
+
+---
+
+## FINAL VERDICT
+
+```text
+ADMIN PUBLISHED SEARCH TARGET HYDRATE PARITY
+— VERIFIED / REGRESSION COVERED
+```
+
+**관리 원칙:**
+
+- 이번 작업은 USER 5&1/2 시스템 검증과 **독립적인 ADMIN 작업**.
+- 완료 후 Working Tree hygiene 회복.
+
+---
+
+## Explicit Non-Claims
+
+- USER 5&1/2 옆돌리기 / 뒤돌리기 대회전 / 옆돌리기 대회전 Production 실기 검증 **미완** (본 항목 범위 외)
+- USER Display Runtime HPT regression baseline (`73c7ac0`) 변경 **없음**
+- Search matcher / Euclidean threshold / dataset records 변경 **없음**
+
+---
+
+## Current Status
+
+```text
+ADMIN Published Search target hydrate parity : VERIFIED · REGRESSION COVERED
+USER Display Runtime HPT (Five-and-Half)   : RESOLVED · Android Production VERIFIED (unchanged)
+Next manual QA                               : 옆돌리기 · 뒤돌리기 대회전 · 옆돌리기 대회전
+```
+
+---
+
+## Next
+
+1. 옆돌리기 Production USER Search 실기 검증
+2. 뒤돌리기 대회전 Production USER Search 실기 검증
+3. 옆돌리기 대회전 Production USER Search 실기 검증
+4. 5&1/2 시스템 전체 검증 완료 판정 (위 3항 PASS 후)
