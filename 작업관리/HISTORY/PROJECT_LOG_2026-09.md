@@ -617,7 +617,7 @@ Android Manual QA (`58b9ee1` push 이후) snap/triangle/nudge/coordinate label�
 
 | Field | Value |
 |-------|--------|
-| **Commit** | `75614f7` |
+| **Commit** | `48029c5` |
 | **Message** | `fix: compact mobile coordinate editor` |
 | **Branch** | `main` |
 | **Deploy path** | GitHub `main` → Vercel Production |
