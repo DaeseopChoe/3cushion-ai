@@ -10,7 +10,22 @@ import {
   computeHptVizGeometry,
 } from "../../domain/hptVizGeometry";
 
+/** Modal edit draft — marker hit_point SSOT (ignores persisted displayData). */
+export function resolveHptOverlayDraftHitPoint(tempData, hptHp = { x: 0, y: 0 }) {
+  return {
+    x: Number.isFinite(tempData?.hit_point?.x) ? tempData.hit_point.x : hptHp.x,
+    y: Number.isFinite(tempData?.hit_point?.y) ? tempData.hit_point.y : hptHp.y,
+  };
+}
+
+/** Modal edit draft — viz T + hit_point SSOT for ball layout and marker. */
+export function resolveHptOverlayDraftVizSource(tempData) {
+  return tempData ?? { T: "8/8", hit_point: { x: 0, y: 0 } };
+}
+
 export function HptOverlay({ data, displayData, sysHpNResult, onSave, onCancel, applyDisabled = false }) {
+  // displayData: persisted Display Runtime HPT for callers; modal edit renders from tempData draft SSOT.
+  void displayData;
   const [tempData, setTempData] = useState(data);
   const [lastChanged, setLastChanged] = useState(null); // 'x' or 'y'
   const [isClamped, setIsClamped] = useState(false);
@@ -142,26 +157,17 @@ export function HptOverlay({ data, displayData, sysHpNResult, onSave, onCancel, 
   };
 
   // ==========================================
-  // 볼 시각화 (domain SSOT — USER HptBallReadOnlyViz와 동일)
+  // 볼 시각화 — modal edit draft is render SSOT (not persisted displayData)
   // ==========================================
-  const vizSource = displayData ?? data;
-  const vizHitX = Number.isFinite(vizSource.hit_point?.x) ? vizSource.hit_point.x : 0;
-  const vizHitY = Number.isFinite(vizSource.hit_point?.y) ? vizSource.hit_point.y : 0;
+  const draftVizSource = resolveHptOverlayDraftVizSource(tempData);
+  const draftHit = resolveHptOverlayDraftHitPoint(tempData, hpt.hp);
   const { impactX, targetX, limit60Radius } = computeHptVizGeometry(
-    vizSource.T ?? "8/8",
-    vizHitX,
-    vizHitY
+    draftVizSource.T ?? "8/8",
+    draftHit.x,
+    draftHit.y
   );
-  const markerHitX = isDragging
-    ? Number.isFinite(tempData.hit_point?.x)
-      ? tempData.hit_point.x
-      : hpt.hp.x
-    : vizHitX;
-  const markerHitY = isDragging
-    ? Number.isFinite(tempData.hit_point?.y)
-      ? tempData.hit_point.y
-      : hpt.hp.y
-    : vizHitY;
+  const markerHitX = draftHit.x;
+  const markerHitY = draftHit.y;
 
   // ==========================================
   // 드래그 핸들러
@@ -327,7 +333,7 @@ export function HptOverlay({ data, displayData, sysHpNResult, onSave, onCancel, 
             />
           )}
           
-          {/* 타점 마커 — Display Runtime HPT (drag 시 physics runtime) */}
+          {/* 타점 마커 — modal draft hit_point (persisted displayData is not render SSOT) */}
           {(() => {
             const hitX = markerHitX;
             const hitY = markerHitY;
@@ -340,6 +346,9 @@ export function HptOverlay({ data, displayData, sysHpNResult, onSave, onCancel, 
             
             return (
               <circle
+                data-testid="hpt-contact-marker"
+                data-hit-x={hitX}
+                data-hit-y={hitY}
                 cx={markerX}
                 cy={markerY}
                 r={markerRadius}
