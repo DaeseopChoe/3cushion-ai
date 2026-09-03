@@ -96,10 +96,11 @@ import { useAdminOverlayLifecycle } from "./overlay/state/overlayStateMachine";
 import { useUserOverlayRouter } from "./overlay/router/userOverlayRouter";
 import { useSysLabelScale } from "./renderer/labels/labelScalePolicy";
 import {
+  BALL_POSITION_JOYSTICK_PAD_VISIBLE,
   JOYSTICK_BASE_R_PX,
   JOYSTICK_KNOB_R_PX,
   computeJoystickCenterRg,
-  isPointerOnJoystick,
+  shouldJoystickPadCapturePointer,
 } from "./interaction/joystickInteractionPolicy";
 import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRenderModel";
 import { buildBaselineHandleModel } from "./renderer/trajectory/baselineHandleModel";
@@ -206,6 +207,11 @@ import {
   clampBallCenterRg,
   clampGuideIntersectionRg,
 } from "./interaction/ballPositionDirectInputPolicy";
+import {
+  resolveBallVisualCoreHit,
+  resolveClosestBallHit,
+  shouldPreferSnapOverRailHandle,
+} from "./interaction/ballPositionPointerPriorityPolicy";
 import { useTrajectoryExtensionHandleDrag } from "./overlay/state/trajectoryExtensionHandleDrag";
 import { useC2RailHandleDrag } from "./overlay/state/c2RailHandleDrag";
 import {
@@ -1600,6 +1606,7 @@ export default function App({
     endGuideDrag,
     nudgeGuide,
     setGuideIntersection,
+    syncGuideAttachmentToBallCenter,
     clearGuide,
   } = useBallGuide();
   useEffect(() => {
@@ -4217,6 +4224,22 @@ function handlePointerDown(e) {
     return;
   }
 
+  const allowImpactDrag = appMode === "ADMIN" && impactMode === "FREE";
+
+  // Absolute priority: pointer inside ball visual core → direct ball drag
+  // (guide association preserved; expanded 5× pick still below guide controls).
+  const ballVisualCoreHit = resolveBallVisualCoreHit(
+    pointerRgEarly,
+    balls,
+    BALL_RADIUS_RG,
+    { allowImpactDrag }
+  );
+  if (ballVisualCoreHit) {
+    e.preventDefault();
+    beginDirectBallDragFromHit(ballVisualCoreHit, pointerRgEarly);
+    return;
+  }
+
   const guideHandleHit = resolveBallGuideHandleHit(
     pointerRgEarly,
     guideState,
@@ -4224,7 +4247,28 @@ function handlePointerDown(e) {
     TABLE_H / SCALE,
     guideHitRadii.handleHitRadiusRg
   );
-  if (guideHandleHit) {
+
+  const guideSnapHit = resolveBallGuideSnapActionHit(
+    pointerRgEarly,
+    guideState,
+    tableWidthRg,
+    tableHeightRg,
+    guideHitRadii.snapHitRadiusRg
+  );
+
+  const guideTriangleHit = resolveBallGuideTriangleHit(
+    pointerRgEarly,
+    guideState,
+    tableWidthRg,
+    tableHeightRg,
+    guideHitRadii.triangleHitRadiusRg
+  );
+
+  // Edge overlap: snap wins over rail handle; triangle vs snap order unchanged below.
+  if (
+    guideHandleHit &&
+    !shouldPreferSnapOverRailHandle(guideSnapHit, guideHandleHit)
+  ) {
     e.preventDefault();
     stopBallPointerInteractionPreservingGuide();
     const startValue =
@@ -4245,22 +4289,6 @@ function handlePointerDown(e) {
     }
     return;
   }
-
-  const guideSnapHit = resolveBallGuideSnapActionHit(
-    pointerRgEarly,
-    guideState,
-    tableWidthRg,
-    tableHeightRg,
-    guideHitRadii.snapHitRadiusRg
-  );
-
-  const guideTriangleHit = resolveBallGuideTriangleHit(
-    pointerRgEarly,
-    guideState,
-    tableWidthRg,
-    tableHeightRg,
-    guideHitRadii.triangleHitRadiusRg
-  );
 
   if (isCoarseGuidePointer && guideSnapHit) {
     e.preventDefault();
@@ -4296,9 +4324,10 @@ function handlePointerDown(e) {
   //   hit another/same ball → switch/reselect immediately
   //   miss (empty space) → clear selection below
   if (
-    dragState.joystickVisible &&
-    dragState.ballId &&
-    isPointerOnJoystick(
+    shouldJoystickPadCapturePointer(
+      BALL_POSITION_JOYSTICK_PAD_VISIBLE,
+      dragState.joystickVisible,
+      dragState.ballId,
       pointerRgEarly,
       balls[dragState.ballId],
       BALL_RADIUS_RG,
@@ -4317,38 +4346,13 @@ function handlePointerDown(e) {
   const pointerRg = pointerToRg(e, svgRef.current, SCALE, TABLE_H, PADDING);
   if (!pointerRg) return;
 
-  // hit-test: Interaction SSOT (BALL_PICK_RADIUS_RG) — render size unchanged
-  let closestBall = null;
-  let minDist = Infinity;
-
-  for (const [ballId, ballPos] of Object.entries(balls)) {
-    if (!ballPos) continue;
-
-    // Phase 2 Role UI: ignore legacy target_center when balls.target exists;
-    // otherwise treat target_center hit as Role id "target".
-    let hitId = ballId;
-    if (ballId === "target_center") {
-      if (balls.target) continue;
-      hitId = "target";
-    }
-    
-    // ⭐ impact 드래그 조건
-    if (hitId === "impact") {
-      // USER 모드: 임펙트볼 드래그 완전 금지
-      if (appMode === "USER") continue;
-      // ADMIN 모드: FREE 모드일 때만 드래그 가능
-      if (impactMode !== "FREE") continue;
-    }
-    
-    const dx = pointerRg.x - ballPos.x;
-    const dy = pointerRg.y - ballPos.y;
-    const dist = Math.hypot(dx, dy);
-
-    if (dist <= BALL_PICK_RADIUS_RG && dist < minDist) {
-      minDist = dist;
-      closestBall = { id: hitId, pos: ballPos };
-    }
-  }
+  // Expanded pick (5×) — below guide controls; visual-core already handled above.
+  const closestBall = resolveClosestBallHit(
+    pointerRg,
+    balls,
+    BALL_PICK_RADIUS_RG,
+    { allowImpactDrag }
+  );
 
   // Empty space: dismiss the complete Ball editing session.
   if (!closestBall) {
@@ -4356,6 +4360,14 @@ function handlePointerDown(e) {
     return;
   }
 
+  beginDirectBallDragFromHit(closestBall, pointerRg);
+
+  // Pointer Capture는 여기서 걸지 않는다 — handlePointerMove의 실제 Drag 시작 시점으로 이동.
+  // pointerdown에서 캡처하면 두 번째 click의 native dblclick target이
+  // Ball <circle>에서 table SVG로 바뀌어 Ball.onDoubleClick이 끊긴다.
+}
+
+function beginDirectBallDragFromHit(closestBall, pointerRg) {
   // Ball hit: select / switch immediately (one-touch ball→ball)
   if (dragState.joystickVisible) {
     stopJoystick();
@@ -4392,10 +4404,6 @@ function handlePointerDown(e) {
     frozenCushionPathAttr: derivedRef.current.cushionPathAttr,
     frozenCushionPathRg: derivedRef.current.cushionPathRg,
   }));
-
-  // Pointer Capture는 여기서 걸지 않는다 — handlePointerMove의 실제 Drag 시작 시점으로 이동.
-  // pointerdown에서 캡처하면 두 번째 click의 native dblclick target이
-  // Ball <circle>에서 table SVG로 바뀌어 Ball.onDoubleClick이 끊긴다.
 }
 
 function isGuideDragPointer(e) {
@@ -4645,6 +4653,15 @@ function handlePointerUp(e) {
       }
       return next;
     });
+    // Direct ball drag finalize: guide attachment follows FINAL ball center
+    // (post-autoSeparate) so coordinate label does not revert to stale guide.
+    if (
+      nextBallPos &&
+      Number.isFinite(nextBallPos.x) &&
+      Number.isFinite(nextBallPos.y)
+    ) {
+      syncGuideAttachmentToBallCenter(dragState.ballId, nextBallPos);
+    }
   } else if (dragState.previousPosRg) {
     setBallsState((prev) => {
       const next = {
@@ -5799,10 +5816,8 @@ function handlePointerCancel(e) {
         }
       />
       )}
-      {/* Joystick pad는 SVG 최상단 렌더 + pointerEvents:all(판정 참여).
-          Pad DOM handler가 1차 경로다 — preventDefault(브라우저 기본 동작 차단) +
-          stopPropagation(baseline/ball 판정과 격리) + pad `<g>` pointer capture를 함께 수행한다.
-          SVG 좌표 SSOT(isPointerOnJoystick) 분기는 Pad가 다른 레이어에 덮인 경우의 fallback. */}
+      {/* Ball coordinate label (+ optional joystick pad when BALL_POSITION_JOYSTICK_PAD_VISIBLE).
+          Pad hidden: label only — direct ball drag + guide positioning experiment. */}
       {dragState.joystickVisible &&
         canEditPosition &&
         dragState.ballId &&
@@ -5811,7 +5826,8 @@ function handlePointerCancel(e) {
   const displaySource = resolveGuideCoordinateDisplay(
     guideState,
     dragState.ballId,
-    bp
+    bp,
+    { ballDirectDragActive: dragState.dragging }
   );
   const displayCoord = { x: displaySource.x, y: displaySource.y };
   const coordEditMode = displaySource.mode;
@@ -5824,6 +5840,29 @@ function handlePointerCancel(e) {
   const cy = jp.y + PADDING;
   const labelX = cx + (bp.x <= 40 ? BASE_R + 14 : -(BASE_R + 14));
 
+  const coordinateLabel = (
+    <text
+      data-ball-coordinate="1"
+      x={labelX}
+      y={cy}
+      textAnchor={bp.x <= 40 ? "start" : "end"}
+      dominantBaseline="middle"
+      fill="rgba(255,255,255,0.85)"
+      fontSize="16"
+      fontWeight="400"
+      style={{ cursor: "pointer", pointerEvents: "all" }}
+      onPointerDown={(e) =>
+        openJoystickCoordinateEditor(e, displayCoord, coordEditMode)
+      }
+    >
+      ({formatRgCoordinateDisplay(displayCoord.x)}, {formatRgCoordinateDisplay(displayCoord.y)})
+    </text>
+  );
+
+  if (!BALL_POSITION_JOYSTICK_PAD_VISIBLE) {
+    return coordinateLabel;
+  }
+
   return (
     <g
       data-joystick="1"
@@ -5833,28 +5872,11 @@ function handlePointerCancel(e) {
       onPointerUp={handleJoyPadPointerUp}
       onPointerCancel={handleJoyPadPointerCancel}
     >
-      {/* base */}
       <circle cx={cx} cy={cy} r={BASE_R} fill="rgba(15,23,42,0.55)" />
       <circle cx={cx} cy={cy} r={BASE_R - 6} fill="rgba(255,255,255,0.10)" />
-      {/* knob (static visual; movement is via drag vector) */}
       <circle cx={cx} cy={cy} r={KNOB_R} fill="rgba(255,255,255,0.85)" />
       <circle cx={cx} cy={cy} r={KNOB_R - 6} fill="rgba(15,23,42,0.35)" />
-      <text
-        data-ball-coordinate="1"
-        x={labelX}
-        y={cy}
-        textAnchor={bp.x <= 40 ? "start" : "end"}
-        dominantBaseline="middle"
-        fill="rgba(255,255,255,0.85)"
-        fontSize="16"
-        fontWeight="400"
-        style={{ cursor: "pointer", pointerEvents: "all" }}
-        onPointerDown={(e) =>
-          openJoystickCoordinateEditor(e, displayCoord, coordEditMode)
-        }
-      >
-        ({formatRgCoordinateDisplay(displayCoord.x)}, {formatRgCoordinateDisplay(displayCoord.y)})
-      </text>
+      {coordinateLabel}
     </g>
   );
 })()}

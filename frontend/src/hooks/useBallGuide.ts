@@ -200,6 +200,25 @@ export function useBallGuide() {
     setGuideState((previous) => setBallGuideIntersection(previous, point));
   }, []);
 
+  /**
+   * After successful direct ball drag: re-attach guide intersection to final ball center.
+   * No-op unless guide is active for the same ballId.
+   */
+  const syncGuideAttachmentToBallCenter = useCallback(
+    (ballId: string, point: BallGuidePoint) => {
+      if (!ballId || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
+        return;
+      }
+      setGuideState((previous) => {
+        if (!previous.active || previous.ballId !== ballId) {
+          return previous;
+        }
+        return setBallGuideIntersection(previous, point);
+      });
+    },
+    []
+  );
+
   const endGuideDrag = useCallback((pointerId: number | null = null) => {
     const current = guideDragRef.current;
     if (!current.active) return false;
@@ -230,6 +249,7 @@ export function useBallGuide() {
     endGuideDrag,
     nudgeGuide,
     setGuideIntersection,
+    syncGuideAttachmentToBallCenter,
     clearGuide,
   };
 }

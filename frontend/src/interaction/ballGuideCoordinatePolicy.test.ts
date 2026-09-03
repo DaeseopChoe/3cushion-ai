@@ -76,6 +76,17 @@ describe("ballGuideCoordinatePolicy", () => {
     expect(display.y).toBe(18.7);
   });
 
+  it("TEST G2: ball direct drag overrides guide intersection in display source", () => {
+    const guide = createBallGuideState("cue", { x: 53.0, y: 20.6 });
+    const display = resolveGuideCoordinateDisplay(
+      guide,
+      "cue",
+      { x: 15.5, y: 22.1 },
+      { ballDirectDragActive: true }
+    );
+    expect(display).toEqual({ x: 15.5, y: 22.1, mode: "ball" });
+  });
+
   it("TEST H: snap action target remains guide intersection", () => {
     const guide = createBallGuideState("cue", { x: 53.0, y: 20.6 });
     const snap = getBallGuideSnapAction(guide, 80, 40);

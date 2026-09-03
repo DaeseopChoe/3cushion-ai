@@ -15,6 +15,29 @@ export type PointRg = { x: number; y: number };
 export const JOYSTICK_BASE_R_PX = 52;
 export const JOYSTICK_KNOB_R_PX = 22;
 
+/**
+ * UX experiment — visible joystick pad render + hit-test.
+ * false: direct ball drag + guide only (implementation retained for easy restore).
+ */
+export const BALL_POSITION_JOYSTICK_PAD_VISIBLE = false;
+
+/** Must match App.jsx `BALL_PICK_RADIUS_RG = BALL_RADIUS_RG * BALL_PICK_RADIUS_MULTIPLIER`. */
+export const BALL_PICK_RADIUS_MULTIPLIER = 5.0;
+
+/** Pad hit-test gate — false when pad is hidden so ball pick remains reachable. */
+export function shouldJoystickPadCapturePointer(
+  padVisible: boolean,
+  joystickSessionVisible: boolean,
+  selectedBallId: string | null,
+  pointerRg: PointRg | null | undefined,
+  ballPos: PointRg | null | undefined,
+  ballRadiusRg: number,
+  scale: number
+): boolean {
+  if (!padVisible || !joystickSessionVisible || !selectedBallId) return false;
+  return isPointerOnJoystick(pointerRg, ballPos, ballRadiusRg, scale);
+}
+
 /** Pad는 테이블 중심 방향으로 배치되고 테이블 안쪽으로 clamp된다. */
 const TABLE_CENTER_RG: PointRg = { x: 40, y: 20 };
 const CLAMP_MIN_X = 3;

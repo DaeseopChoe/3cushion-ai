@@ -28,11 +28,25 @@ export type GuideCoordinateDisplaySource = {
   mode: "guide" | "ball";
 };
 
+export type GuideCoordinateDisplayOptions = {
+  /** Direct ball drag active — label follows live ball center, not guide intersection. */
+  ballDirectDragActive?: boolean;
+};
+
 export function resolveGuideCoordinateDisplay(
   guideState: BallGuideState,
   selectedBallId: string | null,
-  ballCenter: { x: number; y: number }
+  ballCenter: { x: number; y: number },
+  options?: GuideCoordinateDisplayOptions
 ): GuideCoordinateDisplaySource {
+  if (options?.ballDirectDragActive) {
+    return {
+      x: ballCenter.x,
+      y: ballCenter.y,
+      mode: "ball",
+    };
+  }
+
   const guideActiveForBall =
     guideState.active &&
     guideState.ballId === selectedBallId &&

@@ -78,6 +78,20 @@ describe("Ball Guide runtime state", () => {
     });
   });
 
+  it("direct-drag finalize sync: guide follows final ball center (not stale start)", () => {
+    const guideAtStart = createBallGuideState("cue", { x: 20, y: 20 });
+    const finalBall = { x: 45.5, y: 18.2 };
+    const synced = setBallGuideIntersection(guideAtStart, finalBall);
+    expect(synced).toEqual({
+      active: true,
+      ballId: "cue",
+      verticalX: 45.5,
+      horizontalY: 18.2,
+    });
+    // same-ball reselect preserves synced guide (does not revert to 20,20)
+    expect(selectBallGuideState(synced, "cue", { x: 99, y: 99 })).toBe(synced);
+  });
+
   it("resolves all four end handles before ball hit-testing", () => {
     const guide = createBallGuideState("cue", { x: 37.2, y: 16.8 });
 
