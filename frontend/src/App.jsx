@@ -24,6 +24,7 @@ import {
 } from "./domain/strategyButtonModel";
 import { buildUserInfoPanel } from "./domain/userInfoPanelModel";
 import { buildUserHptViewModel } from "./domain/userHptViewModel";
+import { resolveCurrentTipWithUserOverride } from "./domain/userRuntimeTipOverride";
 import {
   buildUserDisplayHptTrace,
   DISPLAY_HPT_DIAGNOSTIC_BUILD_ID,
@@ -857,6 +858,21 @@ export default function App({
   const [userTableDisplaySlotId, setUserTableDisplaySlotId] = useState(null);
   /** USER: 마지막 Search 성공 record — rail label SSOT */
   const [userLastSearchRecord, setUserLastSearchRecord] = useState(null);
+  /**
+   * USER Phase 2B calibration: ephemeral tipCount (0–4) for trajectory only.
+   * Does not mutate hydrated/persisted slot HPT or dataset.
+   */
+  const [userRuntimeTipCountOverride, setUserRuntimeTipCountOverride] =
+    useState(null);
+
+  /** Drop ephemeral tip override when leaving USER or changing search/slot. */
+  useEffect(() => {
+    setUserRuntimeTipCountOverride(null);
+  }, [
+    appMode,
+    userTableDisplaySlotId,
+    userLastSearchRecord?.positionId ?? null,
+  ]);
   /** Phase 5 Mission 01 — parallel Real Interpolation path (feature-flagged). */
   const REAL_INTERPOLATION_SEARCH_ENABLED =
     import.meta?.env?.VITE_REAL_INTERPOLATION_SEARCH === "1";
@@ -4795,6 +4811,15 @@ function handlePointerCancel(e) {
   const HIT_TOLERANCE = Math.max(2, BALL_RADIUS_RG * 4);
 
   const currentTip = (() => {
+    if (
+      appMode === "USER" &&
+      userRuntimeTipCountOverride != null
+    ) {
+      return resolveCurrentTipWithUserOverride({
+        baseHpt: adminState?.hpt,
+        userTipCountOverride: userRuntimeTipCountOverride,
+      });
+    }
     const hp = adminState?.hpt?.hit_point ?? adminState?.hpt?.hp;
     if (!hp || typeof hp.x !== "number" || typeof hp.y !== "number") return null;
     const side = hp.x >= 0 ? "R" : "L";
@@ -4892,8 +4917,15 @@ function handlePointerCancel(e) {
   const CO_line = coLine;
   const C1_line = c1Line;
 
-  if (reflectedDiagnostics && canEdit) {
-    console.log("🔷 C2 reflection fallback:", reflectedDiagnostics);
+  if (
+    reflectedDiagnostics &&
+    (canEdit ||
+      (appMode === "USER" && userRuntimeTipCountOverride != null))
+  ) {
+    console.log("🔷 C2 reflection fallback:", reflectedDiagnostics, {
+      userRuntimeTipCountOverride,
+      currentTip,
+    });
   }
 
   const impact = dragState.dragging ? dragState.frozenImpact : impactRaw;
@@ -6362,7 +6394,26 @@ function handlePointerCancel(e) {
         contentClassName={userOverlayLayout.contentClassName}
         draggable
       >
-        {overlayContent === "HPT" && <UserHptPanel model={userHptModel} />}
+        {overlayContent === "HPT" && (
+          <UserHptPanel
+            model={userHptModel}
+            tipCount={
+              userRuntimeTipCountOverride != null
+                ? userRuntimeTipCountOverride
+                : typeof adminState?.hpt?.tipCount === "number"
+                  ? Math.max(
+                      0,
+                      Math.min(4, Math.round(adminState.hpt.tipCount))
+                    )
+                  : 0
+            }
+            onTipCountChange={
+              userTableDisplaySlotId
+                ? (n) => setUserRuntimeTipCountOverride(n)
+                : null
+            }
+          />
+        )}
         {overlayContent === "AI" && <UserAiPanel model={userInfoPanel} />}
         {overlayContent === "CALC" && (
           <UserCalculationPanel

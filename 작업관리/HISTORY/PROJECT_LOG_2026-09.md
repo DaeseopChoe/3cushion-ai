@@ -6,6 +6,57 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-07 — Phase 2B q/K Option 1 · 각비 기준 회전량 v1 실전 승인
+
+## Mode
+
+**Agent** · Phase 2B Option 1 SSOT 확정 · USER live practical validation · Commit/Push
+
+---
+
+## A. Architecture (Option 1)
+
+| Stage | Rule |
+|-------|------|
+| Base selection (Phase 2A) | P7 PASS → R1b; P7 FAIL → R0 |
+| Spin scale (Phase 2B) | Eligible C1_f: `finalθ = baseθ + rawSpin × K(q)` exactly once |
+| tip=0 | `effectiveSpin = 0` → Phase 2A bit-identical |
+
+q/K는 R1b base law의 일부가 아니다. P7과 q eligibility는 분리된다.  
+Short-rail C1_f는 base=R0를 유지하면서 tip≠0 시 K(q) 적용 가능.
+
+## B. q/K v1 SSOT
+
+| Item | Value |
+|------|-------|
+| q (TOP/BOTTOM) | `|B.x − H.x|` |
+| q (LEFT/RIGHT) | `|B.y − H.y|` |
+| K knots | q=3 → 1.00; q=6 → 0.50; lerp + clamp |
+| Live fixture | q≈6.3 → K≈0.50 |
+| Status | **Phase 2B 각비 기준 회전량 v1** — USER practical approved |
+| Future | Real-table / data accumulation 후 calibration **허용** (영구 물리값 아님) |
+
+## C. USER live practical check
+
+동일 live scene (LEFT_F → BOTTOM_F, P7 fail, baseLaw=R0, q≈6.3 / K≈0.50):
+
+| Tip | Result |
+|-----|--------|
+| TIP=4 | PASS — 실전 감각상 합리적 |
+| TIP=3 | PASS |
+| TIP=2 | PASS |
+| TIP=1 | PASS |
+| TIP=0 | PASS — Phase 2A base geometry 복귀 |
+
+TIP 감소에 따라 C2 반사 진행이 base 방향으로 연속 이동함을 확인.
+
+## D. Docs / code SSOT
+
+- `작업관리/4_CALCULATION_RULES.md` — Phase 2B Option 1 + v1 승인 문구
+- Code SSOT: `applyAngleRatioSpin.ts` · `angleRatioCalibration.ts` · `angleRatioGeometry.ts` · `reflectionPolicy.ts`
+
+---
+
 # 2026-09-02 — USER Display Runtime HPT Android Production 검증 완료
 
 ## Mode

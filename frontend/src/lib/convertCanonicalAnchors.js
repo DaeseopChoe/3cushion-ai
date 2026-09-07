@@ -4,11 +4,23 @@
 
 function unwrapAnchor(anchor) {
   if (!anchor) return null;
+  const sysFieldKey =
+    typeof anchor.sysFieldKey === "string" && anchor.sysFieldKey.length > 0
+      ? anchor.sysFieldKey
+      : undefined;
   if (anchor.coord && typeof anchor.coord.x === "number" && typeof anchor.coord.y === "number") {
-    return { pt: anchor.coord, valueSpace: anchor.valueSpace };
+    return {
+      pt: anchor.coord,
+      valueSpace: anchor.valueSpace,
+      sysFieldKey,
+    };
   }
   if (typeof anchor.x === "number" && typeof anchor.y === "number") {
-    return { pt: { x: anchor.x, y: anchor.y }, valueSpace: null };
+    return {
+      pt: { x: anchor.x, y: anchor.y },
+      valueSpace: anchor.valueSpace ?? null,
+      sysFieldKey,
+    };
   }
   return null;
 }
@@ -31,7 +43,15 @@ export function convertCanonicalAnchors(anchors, canonical) {
       result[key] = null;
       continue;
     }
-    result[key] = { x: un.pt.x, y: un.pt.y };
+    // Preserve Phase 1 Mark reference provenance when present.
+    const out = { x: un.pt.x, y: un.pt.y };
+    if (un.valueSpace === "Fg" || un.valueSpace === "Rg") {
+      out.valueSpace = un.valueSpace;
+    }
+    if (un.sysFieldKey) {
+      out.sysFieldKey = un.sysFieldKey;
+    }
+    result[key] = out;
   }
 
   return result;

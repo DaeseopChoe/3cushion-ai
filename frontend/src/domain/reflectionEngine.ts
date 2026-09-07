@@ -45,6 +45,28 @@ export type ReflectionOutput = {
     c3Rail: Rail;
     candidateRails: Rail[];
     selectedBy: "preferredRail" | "track_bias" | "first_valid";
+    /** Phase 2A: base outgoing law (R0 = rail-normal specular; R1b = Frame progression). */
+    baseLaw?: "R0" | "R1b";
+    /**
+     * Phase 2B EXPERIMENTAL angle-ratio diagnostics (observation only).
+     * q = |B∥ − H∥|; K scales spin magnitude after base θ — never moves H/D.
+     * incidenceAngleDeg is NOT the angle-ratio input (removed from K path).
+     */
+    angleRatio?: number | null;
+    longitudinalAxis?: "x" | "y";
+    frameAimLongitudinal?: number;
+    railHitLongitudinal?: number;
+    frameAimPoint?: Point;
+    physicalRailHit?: Point;
+    angleRatioK?: number;
+    rawSpinCorrectionDeg?: number;
+    effectiveSpinCorrectionDeg?: number;
+    baseThetaOutDeg?: number;
+    finalThetaOutDeg?: number;
+    /** Phase 2B Option 1: q/K eligibility / single-application markers. */
+    angleRatioEligible?: boolean;
+    angleRatioApplied?: boolean;
+    angleRatioApplicationCount?: 0 | 1;
   };
 };
 

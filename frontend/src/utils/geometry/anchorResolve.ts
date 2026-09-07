@@ -12,12 +12,20 @@ import {
 import type { Point } from "./line";
 
 export type AnchorInput =
-  | { x: number; y: number; coord?: never; valueSpace?: never }
-  | { coord: { x: number; y: number }; valueSpace?: "Fg" | "Rg"; x?: never; y?: never };
+  | { x: number; y: number; coord?: never; valueSpace?: never; sysFieldKey?: never }
+  | {
+      coord: { x: number; y: number };
+      valueSpace?: "Fg" | "Rg";
+      sysFieldKey?: string;
+      x?: never;
+      y?: never;
+    };
 
 export type NormalizedAnchor = {
   coord: { x: number; y: number };
   valueSpace?: "Fg" | "Rg";
+  /** Formula / sysValues key (e.g. "C1_f") — Phase 1 provenance; optional. */
+  sysFieldKey?: string;
 };
 
 export type ResolveAnchorContext = {
@@ -39,14 +47,20 @@ export function normalizeAnchor(anchor: unknown): NormalizedAnchor | null {
     const vs = a.valueSpace;
     const valueSpace =
       vs === "Fg" || vs === "Rg" ? vs : undefined;
-    return { coord: { x, y }, valueSpace };
+    const keyRaw = a.sysFieldKey;
+    const sysFieldKey =
+      typeof keyRaw === "string" && keyRaw.length > 0 ? keyRaw : undefined;
+    return { coord: { x, y }, valueSpace, sysFieldKey };
   }
 
   if ("x" in a && "y" in a) {
     const x = Number(a.x);
     const y = Number(a.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    return { coord: { x, y } };
+    const keyRaw = a.sysFieldKey;
+    const sysFieldKey =
+      typeof keyRaw === "string" && keyRaw.length > 0 ? keyRaw : undefined;
+    return { coord: { x, y }, sysFieldKey };
   }
 
   return null;

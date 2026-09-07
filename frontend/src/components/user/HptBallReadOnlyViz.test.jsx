@@ -83,11 +83,27 @@ describe("HptBallReadOnlyViz — actual SVG render (TEST G ~ TEST I)", () => {
     });
     const panelHtml = renderToStaticMarkup(createElement(UserHptPanel, { model }));
     expect(panelHtml).toContain("두께 우측 5/8");
+    expect(panelHtml).not.toContain("회전 tip");
 
     expect(model.viz).not.toBeNull();
     const rendered = overlapFromRenderedSvg(model.viz.T);
     expect(rendered.impactCx).toBeGreaterThan(CENTER_X);
     expect(rendered.metrics.overlapFraction).toBeCloseTo(5 / 8, 10);
+  });
+
+  it("UserHptPanel tip controls appear when onTipCountChange is provided", () => {
+    const model = buildUserHptViewModel({
+      hpt: { T: "8/8", hit_point: { x: 1, y: 0 }, mode: "TIP", tipCount: 0 },
+    });
+    const panelHtml = renderToStaticMarkup(
+      createElement(UserHptPanel, {
+        model,
+        tipCount: 2,
+        onTipCountChange: () => {},
+      })
+    );
+    expect(panelHtml).toContain("회전 tip");
+    expect(panelHtml).toContain('aria-pressed="true"');
   });
 });
 

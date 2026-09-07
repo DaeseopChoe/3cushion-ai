@@ -198,6 +198,39 @@ anchors.json id 형식: CO_(82.25,10)_60 → mark, x, y, sys 파싱
 - **C1_rail:** CO–1C 직선과 첫 쿠션 레일의 **실제 충돌점** (`computeRailImpactPoint`, mark `"1C"`).
 - **C3_r:** 입력·lookup 모두 **레일 계열 값**; 앵커 좌표는 SSOT에서 사용.
 
+**Mark reference provenance (Phase 1 transport) + Phase 2A R1b (opt-in):**
+
+- `sysFieldKey` (예: `CO_f`, `C1_f`, `C3_r`) = formula/sysValues의 **reference intent** (기존 key; 신규 SSOT 아님).
+- `valueSpace` (`Fg` | `Rg`) = lookup 후 **resolved coordinate embedding**.
+- `B` = reference aim (`C1` prep / `c1Aim`); `H` = physical cushion bend (`C1_rail`).
+- **`B ≠ H` 허용.** 물리 궤적은 반드시 `H`에서 꺾인다. Frame에서 꺾이지 않는다.
+- Provenance는 `resolveReflectionC2` optional `reference`로 Policy에 전달된다.
+- **Frame-reference reflection does not convert C1_f sys to C1_r sys.** The resolved Frame aim coordinate is used as geometry provenance. For approved parallel opposite-Frame fixtures, the physical bend remains H, while the outgoing reference direction follows destination-preserving Frame progression (`D_∥ = 2·B_∥ − A_∥`, outgoing `H→D`). Short-rail/perpendicular remains legacy R0. Spin angle-ratio K(theta) is not part of Phase 2A.
+- R1b는 전역 Frame 반사 법칙이 아니다. C1_r / Native Rail / no-reference / uncertain → R0.
+- `reflectionEngine`은 `"_f"` suffix를 파싱하지 않는다. gate는 Policy 계층만.
+- `C3`를 전역 Rail로 하드코딩하거나 `C3_r`→`C3_f`로 변환하지 않는다. 실제 formula key를 보존한다. C3는 R1b outgoing θ 입력이 아니다.
+- Frame→Frame→Frame 전역 규칙 / MODEL G를 이 provenance로 승격하지 않는다.
+
+**Phase 2B — EXPERIMENTAL angle-ratio K(q) (spin layer only · Option 1):**
+
+- **Angle Ratio is not an incidence angle (degree).** Definition:
+  `q = |Frame aim longitudinal coordinate − physical Rail hit longitudinal coordinate|`
+  (TOP/BOTTOM: `|B.x − H.x|`; LEFT/RIGHT: `|B.y − H.y|`).
+- This is **not** sys conversion (`C1_f` sys → `C1_r` sys). B and H are already resolved geometry points.
+- Frame↔Rail normal offset **2.25 is not** the angle ratio.
+- Phase 2A **base-law selection is unchanged**: P7 PASS → R1b; P7 FAIL → R0 (including short-rail / perpendicular). K does not alter R0/R1b base equations, H, or R1b D.
+- **q/K is not part of the R1b base law.** After base θ is chosen (R0 or R1b), eligible **C1_f** scenes apply spin scale exactly once:
+  `finalθ = baseθ + existingSignedSpin × K(q)`.
+- Eligibility (independent of P7): `C1_f` provenance + finite Frame aim B + finite physical rail hit H + identifiable rail. C1_r / Native / no-reference → legacy full spin (no K).
+- Short-rail **C1_f** with P7 false keeps **baseLaw=R0** but may still receive K(q) on tip≠0.
+- `tip = 0` ⇒ effective spin 0 ⇒ **identical** to Phase 2A.
+- Initial EXPERIMENTAL calibration (provisional — real-table validation required):
+  - `q=3` → `K=1.00`
+  - `q=6` → `K=0.50`
+  - between: piecewise linear; outside: clamp. Numbers only change in the calibration SSOT.
+- **Phase 2B 각비 기준 회전량 v1 (USER practical approved, 2026-09-07):** live short-rail C1_f fixture (`q≈6.3` → `K≈0.50`)에서 TIP 4→0 단계 검증으로 현 calibration을 v1 실전 기준으로 채택. 영구 물리 상수 아님 — 향후 실기 데이터로 보완 가능.
+- SSOT: `applyAngleRatioSpin.ts` + `angleRatioCalibration.ts` + `angleRatioGeometry.ts`. Incidence φ helper is **not** the angle-ratio input.
+
 9️⃣-4 Calibration Rule (모듈)
 
 `calibrationEngine.ts`: impact pivot 기준 CO→C1 보정 **가능**. **현재 App.jsx 궤적 조립에서는 사용하지 않음.**

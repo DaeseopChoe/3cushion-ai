@@ -28,6 +28,11 @@ export type AnchorLookupMark =
 export type AnchorLookupResult = {
   coord: { x: number; y: number };
   valueSpace: "Fg" | "Rg";
+  /**
+   * Formula / sysValues key used for this lookup (e.g. "C1_f", "C3_r").
+   * Phase 1 Mark reference provenance — optional when caller omits sysFieldKey.
+   */
+  sysFieldKey?: string;
 };
 
 /**
@@ -363,7 +368,11 @@ export function getAnchorCoordFromSys(
     valueSpace = "Rg";
   }
 
-  return { coord: outCoord, valueSpace };
+  const result: AnchorLookupResult = { coord: outCoord, valueSpace };
+  if (typeof sysFieldKey === "string" && sysFieldKey.length > 0) {
+    result.sysFieldKey = sysFieldKey;
+  }
+  return result;
 }
 
 export type GetSysValueFromAnchorCoordInput = {

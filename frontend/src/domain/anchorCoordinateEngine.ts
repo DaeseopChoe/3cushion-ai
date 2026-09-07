@@ -170,6 +170,11 @@ export function getLabelNumericSuffix(
 export type AnchorPointWithSpace = {
   coord: { x: number; y: number };
   valueSpace: "Fg" | "Rg";
+  /**
+   * Formula / sysValues key that produced this mark (e.g. "CO_f", "C3_r").
+   * Preserved for Phase 1 Mark reference provenance transport.
+   */
+  sysFieldKey?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -200,7 +205,11 @@ function sysToCoordFromAnchors(
     });
     if (!hit) continue;
 
-    result[labelKey] = hit;
+    // L1: preserve formula keyUsed on the resolved anchor (do not drop at lookup→render).
+    result[labelKey] = {
+      ...hit,
+      sysFieldKey: hit.sysFieldKey ?? extracted.keyUsed,
+    };
     // #region agent log
     if (labelKey === "C3") {
       const comp = result.C3;

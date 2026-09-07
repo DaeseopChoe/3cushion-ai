@@ -21,6 +21,7 @@ import {
   computeRailImpactPoint,
   normalizeAnchor,
   resolveAnchorPoint,
+  type NormalizedAnchor,
   type ResolveAnchorContext,
 } from "../../utils/geometry/anchorResolve";
 import { snapToRail } from "../../utils/geometry/rail";
@@ -33,6 +34,7 @@ import {
   type PathPoint,
 } from "./pathNodeHelpers";
 import { resolveReflectionC2 } from "./reflectionPolicy";
+import type { ReflectionMarkReference, MarkReferenceProvenance } from "./reflectionPolicy";
 import { readBaselineHandleCoord } from "./baselineMarkAxisSnap";
 
 const DEFAULT_CURVE_EPS = 1e-6;
@@ -127,9 +129,48 @@ export type TrajectoryBuildResult = {
     c1Prep: PathPoint | null;
     coRail: PathPoint | null;
     c1Rail: PathPoint | null;
+    /**
+     * Phase 1: Mark reference provenance (B = c1Aim, physical bend = c1Rail).
+     * Transport only — does not alter reflection math.
+     */
+    markReference: ReflectionMarkReference | null;
     reflectedDiagnostics: Record<string, unknown> | null;
   };
 };
+
+/** Phase 1: build MarkRef from normalized anchor + resolved reference point. */
+function markReferenceFromAnchor(
+  anchor: NormalizedAnchor | null,
+  point: PathPoint | null | undefined
+): MarkReferenceProvenance | undefined {
+  if (
+    !point ||
+    typeof point.x !== "number" ||
+    typeof point.y !== "number" ||
+    !Number.isFinite(point.x) ||
+    !Number.isFinite(point.y)
+  ) {
+    return undefined;
+  }
+  const ref: MarkReferenceProvenance = {
+    point: { x: point.x, y: point.y },
+  };
+  if (anchor?.sysFieldKey) ref.sysFieldKey = anchor.sysFieldKey;
+  if (anchor?.valueSpace) ref.valueSpace = anchor.valueSpace;
+  return ref;
+}
+
+function buildMarkReferenceBag(parts: {
+  co?: MarkReferenceProvenance;
+  c1Aim?: MarkReferenceProvenance;
+  c3?: MarkReferenceProvenance;
+}): ReflectionMarkReference | null {
+  const bag: ReflectionMarkReference = {};
+  if (parts.co) bag.co = parts.co;
+  if (parts.c1Aim) bag.c1Aim = parts.c1Aim;
+  if (parts.c3) bag.c3 = parts.c3;
+  return bag.co || bag.c1Aim || bag.c3 ? bag : null;
+}
 
 function labelPayload(anchorOrPoint: unknown): LabelAnchorPayload | null {
   if (anchorOrPoint == null) return null;
@@ -306,13 +347,17 @@ function buildBaselineBranch(
   }
 
   const C3_anchor_bb = anchorsBase["C3"];
-  const C3_prep_bb = resolveAnchorPoint(
-    normalizeAnchor(C3_anchor_bb),
-    resolveAnchorCtx
-  );
+  const C3_norm_bb = normalizeAnchor(C3_anchor_bb);
+  const C3_prep_bb = resolveAnchorPoint(C3_norm_bb, resolveAnchorCtx);
   const C3_point_bb =
     C3_prep_bb ?? resolveAnchorPointOrCoord(C3_anchor_bb, resolveAnchorCtx);
   const C3_snapped_bb = snapToRail(C3_point_bb) ?? C3_point_bb;
+
+  const markReferenceBb = buildMarkReferenceBag({
+    co: markReferenceFromAnchor(CO_anchor_bb, CO_prep_bb),
+    c1Aim: markReferenceFromAnchor(C1_anchor_bb, C1_prep_bb),
+    c3: markReferenceFromAnchor(C3_norm_bb, C3_point_bb),
+  });
 
   let C2_bb = anchorsBase["C2"];
   if (!C2_bb && CO_rail_bb && C1_rail_bb && C3_snapped_bb) {
@@ -324,6 +369,7 @@ function buildBaselineBranch(
       track: trackForAnchors ?? undefined,
       manualHint: c2ManualHint ?? null,
       systemId: systemIdForGrid,
+      reference: markReferenceBb,
     });
     C2_bb = refBb?.c2 ?? null;
   }
@@ -466,6 +512,7 @@ export function buildTrajectory(
     if (pt) CO_rail = pt;
   }
 
+  // H = physical cushion bend (SSOT). B = C1_prep Frame/Rail aim — kept separate.
   const C1_rail =
     CO_prep && C1_prep
       ? computeRailImpactPoint(CO_prep, C1_prep, {
@@ -476,11 +523,10 @@ export function buildTrajectory(
 
   const CO_path0 = coStartForCushionPath(CO_rail, CO_prep, C1_prep);
 
-  const C3_anchor = anchors["C3"];
-  const C3_prep = resolveAnchorPoint(
-    normalizeAnchor(C3_anchor),
-    resolveAnchorCtx
-  );
+  // Prefer rawAnchors for C3 provenance; fall back to converted anchors map.
+  const C3_anchor = rawAnchors["C3"] ?? anchors["C3"];
+  const C3_norm = normalizeAnchor(C3_anchor);
+  const C3_prep = resolveAnchorPoint(C3_norm, resolveAnchorCtx);
   const C3_point =
     C3_prep ??
     (C3_anchor &&
@@ -490,6 +536,12 @@ export function buildTrajectory(
       ? (C3_anchor as { coord: PathPoint }).coord
       : (C3_anchor as PathPoint | null));
   const C3_snapped = snapToRail(C3_point) ?? C3_point;
+
+  const markReference = buildMarkReferenceBag({
+    co: markReferenceFromAnchor(CO_anchor, CO_prep),
+    c1Aim: markReferenceFromAnchor(C1_anchor, C1_prep),
+    c3: markReferenceFromAnchor(C3_norm, C3_point),
+  });
 
   const reflected =
     !anchors["C2"] && CO_rail && C1_rail && C3_snapped
@@ -501,6 +553,7 @@ export function buildTrajectory(
           track: trackForAnchors ?? undefined,
           manualHint: c2ManualHint ?? null,
           systemId: systemIdForGrid,
+          reference: markReference,
         })
       : null;
 
@@ -709,6 +762,7 @@ export function buildTrajectory(
       c1Prep: C1_prep,
       coRail: CO_rail,
       c1Rail: C1_rail,
+      markReference,
       reflectedDiagnostics: reflected?.diagnostics ?? null,
     },
   };
