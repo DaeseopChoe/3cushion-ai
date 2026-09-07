@@ -146,7 +146,6 @@ export function lockTargetRoleFromClickedBall(
         cue: balls.cue ?? null,
         target: clonePoint(targetPos),
         second: clonePoint(secondPos),
-        ...(balls.impact ? { impact: balls.impact } : {}),
       },
       targetColor: provisional,
     };
@@ -158,7 +157,6 @@ export function lockTargetRoleFromClickedBall(
       cue: balls.cue ?? null,
       target: clonePoint(secondPos),
       second: clonePoint(targetPos),
-      ...(balls.impact ? { impact: balls.impact } : {}),
     },
     targetColor: oppositeColor(provisional),
   };

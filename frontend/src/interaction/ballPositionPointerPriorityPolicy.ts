@@ -11,7 +11,7 @@ export type BallHitCandidate = {
 };
 
 export type ResolveClosestBallHitOptions = {
-  /** ADMIN FREE impact drag only when true. */
+  /** ADMIN Impact drag when Target is selected (CONTACT ownership). */
   allowImpactDrag?: boolean;
 };
 

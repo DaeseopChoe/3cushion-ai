@@ -39,7 +39,7 @@ export function hydrateBallsStateForUi(
   if (balls.cue) out.cue = { x: balls.cue.x, y: balls.cue.y };
   if (target) out.target = { x: target.x, y: target.y };
   if (balls.second) out.second = { x: balls.second.x, y: balls.second.y };
-  if (balls.impact) out.impact = { x: balls.impact.x, y: balls.impact.y };
+  // Runtime Impact is CONTACT-derived — never hydrate authored balls.impact.
   return out;
 }
 

@@ -55,6 +55,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
+| **ADMIN Impact CONTACT ownership** | ✅ **COMPLETE** (2026-09-07 · practical PASS) — runtime Impact = CONTACT · temporary `balls.impact` only while dragging · dblclick = nearest-trajectory snap → T/HPT → CONTACT · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
+| **ADMIN HP/T zero-tip tipSideIntent** | ✅ **COMPLETE** (2026-09-07 · practical PASS) — UI `tipSideIntent` survives tipCount=0 · left 0 calc == right 0 calc · no fake ε · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
 | **History / Search Corpus Separation** | ✅ **COMPLETE** — History snapshot load no longer overwrites searchable corpus · independent search pool preserved |
 | **USER Search Normalization & Role Permutation** | ✅ **COMPLETE** — 2-way Target/Second permutation · winning matchedBalls preserved · Trajectory Target alignment |
 | **ADMIN Target Selection Contract** | ✅ **COMPLETE** — Target defaults to NONE · explicit double-click reassign · non-target search supported |
@@ -65,7 +67,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
-| **Working tree** | **대량 uncommitted 보존** · Commit/Push는 사용자 요청 전까지 금지 |
+| **Working tree** | Impact CONTACT + HPT tipSideIntent **committed this checkpoint** · unrelated `incidenceAngle.ts` 등 **보존** |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
 | **ADMIN History Overlay UX** | ✅ **COMPLETE** (2026-08-28 · Selection/Shift/Density/Delete/Sizing · 브라우저 검증 완료 · **Commit/Push 대기**) |
 | **Ball Fine Position Controller** | ✅ **COMPLETE** (`1eaf76c` · Desktop PASS · Mobile Production PASS · Admin/User PASS) |
@@ -986,6 +988,7 @@ App.jsx를 Application Runtime Orchestrator로 전환하기 위한 Architecture 
 
 - **두께/타점 Overlay**: **ADMIN 전용** 편집 (`HptOverlay`, `overlayState` HPT).
 - **관리자 입력**: `adminState.hpt`, slot `draft`/`applied` 동기화.
+- **Zero-tip tipSideIntent (2026-09-07)**: UI-only `left`|`right` intent in `useHptController` — tipCount=0에서도 side-first 입력 가능 · geometry는 center 유지 · Apply canonical 불변.
 - **USER HP/T read-only 오버레이**: 좌측 **두께/타점** · `UserHptPanel` + `userHptViewModel` · Common Shell = **AI 규격** (`widthRatio 0.42`, `maxHeightRatio 0.85`, `medium`, `fitContent: false`, `glassDark`)
   - 공/텍스트 Content 크기 독립 유지 및 SVG viewBox crop = **UX Polish 보류** (임시로 Shell `--uos-w` 커플링 수용)
 
@@ -1317,7 +1320,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | C2 Track-change invalidate | IMPLEMENTED (uncommitted) |
 | History restore `adminTableLayersVisible` ON · session false | IMPLEMENTED (uncommitted) |
 | `app_ui_mode_v1` F5 USER/ADMIN | IMPLEMENTED (uncommitted) |
-| HPT tip-side C2 invalidate | IMPLEMENTED (uncommitted) |
+| HPT tip-side C2 invalidate | ✅ **COMPLETE** (`896221e`) |
 | **BUG-A** display-cap nearest-rail | IMPLEMENTED (uncommitted) |
 | **BUG-B** Reset/History stale | **UNCONFIRMED** — BUG-A 수정 후 재현 필요 |
 | Family Master/Member | **Shadow physical stores IMPLEMENTED** (3A-321…326) · production SSOT still `positions_dataset` · normalized READ **OFF** |

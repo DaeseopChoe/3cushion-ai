@@ -6,6 +6,71 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-07 — ADMIN Impact CONTACT ownership · HP/T zero-tip side intent
+
+## Mode
+
+**Agent** · ADMIN UX finalize · Commit/Push · user practical PASS
+
+## A. Impact Ball CONTACT ownership
+
+### Symptom
+
+Target 선택·이동 후 Impact가 Target contact relation에서 분리됨. Impact dblclick이 Target contact 복귀처럼 보이던 잘못된 UX.
+
+### Root cause
+
+Long-lived FREE `balls.impact`가 CONTACT SSOT(`calcImpactBall`)를 가림. Target 변경 시 Impact 재바인딩 부재.
+
+### Fix / contract
+
+- Runtime Impact ownership = CONTACT (`resolveContactImpactRg` / `calcImpactBall`).
+- Temporary `balls.impact` only during active Impact drag; cleared on drag end / Target mutation.
+- Impact drag end → HPT/T update → CONTACT derived 복귀.
+- Impact dblclick → `projectImpactOntoNearestTrajectory` → thickness/T → CONTACT 복귀 (Target contact 단순 복귀 UX 제거).
+- `trajectoryBuilder` no longer prefers stale authored `balls.impact`.
+- Undo / Recall / SAVE 계약 유지.
+
+### Practical
+
+USER 실전 확인 PASS (Target rebind · drag · dblclick nearest trajectory · Undo).
+
+## B. HP/T zero-tip tipSideIntent
+
+### Symptom
+
+우측 0에서 tipCount를 먼저 넣어야만 좌측 변경 가능. side-first 입력 불가.
+
+### Root cause
+
+`hpDirection = hpX >= 0 ? "right" : "left"`. tipCount=0이면 L/R 모두 center `(≈0,4)`로 붕괴 → UI가 항상 right.
+
+### Fix / contract
+
+- UI-only `tipSideIntent` (`left`|`right`); `hpDirection = tipSideIntent`.
+- tipCount=0: side click → intent만 변경, center geometry 유지 (fake ε/spin 금지).
+- 0→N / N→0→N: intent + tipCount → 기존 `setHpFromSystem`.
+- left 0 calc == right 0 calc; Apply canonical 의미 불변.
+- Modal 내부 zero-tip side click ≠ Undo transaction.
+
+### Practical
+
+USER 실전 확인 PASS (right 0 → left 0 → left N · N→0 intent 유지).
+
+## C. Verification
+
+Targeted Impact + HPT zero-tip tests · full frontend suite · `npm run build` — PASS (finalize run).
+
+## Non-goals
+
+HP/T formula · thickness · q/K · R0/R1b/P7 · C2 · Undo/Recall architecture · anchors/sys/dataset · USER semantics · `incidenceAngle.ts` (unrelated WT preserved / not committed).
+
+## Docs
+
+this log · `PROJECT_MASTER_INDEX.md` pointer (architecture ownership / HPT UI intent only)
+
+---
+
 # 2026-09-07 — ADMIN Undo + Recall (Reset 교체) · Persistent Recall Origin
 
 ## Mode

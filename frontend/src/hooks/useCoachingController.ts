@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { toPx } from "../utils/geometry/coords";
+import { resolveContactImpactRg } from "../domain/admin/impactContactOwnership";
 
 const EMPTY = {
   guideLineNode: null as { x1: number; y1: number; x2: number; y2: number } | null,
@@ -8,6 +9,8 @@ const EMPTY = {
   impactBallOpacity: null as number | null,
   onImpactBallDoubleClick: undefined as ((e: React.MouseEvent) => void) | undefined,
   impactBallCursor: "default" as string,
+  /** Resolved CONTACT impact in Rg (for hit-testing / snap). */
+  contactImpactRg: null as { x: number; y: number } | null,
 };
 
 export type CoachingControllerProps = {
@@ -16,12 +19,15 @@ export type CoachingControllerProps = {
   showCoaching: boolean;
   canEdit: boolean;
   T: string;
-  impactMode: string;
-  setImpactMode?: React.Dispatch<React.SetStateAction<string>>;
   balls: Record<string, { x: number; y: number } | undefined>;
   targetPointForImpact?: { x: number; y: number } | null;
-  setBallsState?: React.Dispatch<React.SetStateAction<Record<string, { x: number; y: number } | undefined> | null>>;
+  /**
+   * Temporary Impact center while ADMIN is dragging the Impact ball.
+   * When null/undefined, display always uses CONTACT calcImpactBall.
+   */
+  liveDragImpactRg?: { x: number; y: number } | null;
   calcImpactBall: (cue: { x: number; y: number }, target: { x: number; y: number }, T: string) => { x: number; y: number } | null;
+  onImpactBallDoubleClick?: (e: React.MouseEvent) => void;
   SCALE: number;
   TABLE_H: number;
   PADDING: number;
@@ -35,12 +41,11 @@ export function computeCoachingState({
   showCoaching,
   canEdit,
   T,
-  impactMode,
-  setImpactMode,
   balls,
   targetPointForImpact,
-  setBallsState,
+  liveDragImpactRg,
   calcImpactBall,
+  onImpactBallDoubleClick,
   SCALE,
   TABLE_H,
   PADDING,
@@ -61,12 +66,19 @@ export function computeCoachingState({
     return EMPTY;
   }
 
-  let impactBall: { x: number; y: number } | null = null;
-  if (impactMode === "CONTACT") {
-    impactBall = calcImpactBall(balls.cue, targetForImpact, T);
-  } else {
-    impactBall = balls.impact || calcImpactBall(balls.cue, targetForImpact, T);
-  }
+  const contactImpactRg = resolveContactImpactRg({
+    cue: balls.cue,
+    target: targetForImpact,
+    T,
+    calcImpactBall,
+  });
+
+  const impactBall =
+    liveDragImpactRg &&
+    Number.isFinite(liveDragImpactRg.x) &&
+    Number.isFinite(liveDragImpactRg.y)
+      ? liveDragImpactRg
+      : contactImpactRg;
 
   if (!impactBall) {
     return EMPTY;
@@ -90,25 +102,6 @@ export function computeCoachingState({
   const impactBallRadius = BALL_RADIUS_RG * SCALE;
   const impactBallOpacity = 0.6;
 
-  const onImpactBallDoubleClick = canEdit
-    ? (e: React.MouseEvent) => {
-        e.stopPropagation();
-        console.log("🎯🎯 ImpactBall 더블클릭! 현재 모드:", impactMode);
-        setImpactMode?.((prev) => {
-          const nextMode = prev === "CONTACT" ? "FREE" : "CONTACT";
-          console.log("✅ 모드 전환:", prev, "→", nextMode);
-          if (nextMode === "FREE" && targetForImpact) {
-            const currentImpact = calcImpactBall(balls.cue!, targetForImpact, T);
-            if (currentImpact) {
-              console.log("💾 impact 저장:", currentImpact);
-              setBallsState?.((prev) => (prev ? { ...prev, impact: currentImpact } : { impact: currentImpact }));
-            }
-          }
-          return nextMode;
-        });
-      }
-    : undefined;
-
   const impactBallCursor = canEdit ? "pointer" : "default";
 
   return {
@@ -116,8 +109,9 @@ export function computeCoachingState({
     impactBallPx,
     impactBallRadius,
     impactBallOpacity,
-    onImpactBallDoubleClick,
+    onImpactBallDoubleClick: canEdit ? onImpactBallDoubleClick : undefined,
     impactBallCursor,
+    contactImpactRg,
   };
 }
 
@@ -130,12 +124,11 @@ export function useCoachingController(props: CoachingControllerProps) {
       props.showCoaching,
       props.canEdit,
       props.T,
-      props.impactMode,
       props.balls,
       props.targetPointForImpact,
-      props.setImpactMode,
-      props.setBallsState,
+      props.liveDragImpactRg,
       props.calcImpactBall,
+      props.onImpactBallDoubleClick,
       props.SCALE,
       props.TABLE_H,
       props.PADDING,

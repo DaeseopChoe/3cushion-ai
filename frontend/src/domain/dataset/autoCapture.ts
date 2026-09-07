@@ -36,9 +36,7 @@ export function useAutoCapture({
     if (!cue || !target) return;
 
     const timer = setTimeout(() => {
-      const impact =
-        balls.impact ??
-        calcImpactBall(cue, target, adminHptT ?? "8/8");
+      const impact = calcImpactBall(cue, target, adminHptT ?? "8/8");
       const sysVals =
         (adminSys as { systemValues?: Record<string, unknown>; inputs?: Record<string, unknown> } | null)
           ?.systemValues ??

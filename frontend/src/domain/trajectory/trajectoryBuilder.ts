@@ -674,7 +674,8 @@ export function buildTrajectory(
     impactTargetBall,
     impactContactThicknessT
   );
-  const impactContactRg = balls.impact ?? calcImpactForContact;
+  // CONTACT SSOT: never let stale authored balls.impact shadow calcImpactBall.
+  const impactContactRg = calcImpactForContact;
 
   const corrections = slotRenderSys?.corrections ?? {};
   const corrBundleForCurve = {

@@ -102,11 +102,9 @@ export function validateImpactSourceConsistency(
 /**
  * Resolve the Impact center currently visible to the user.
  *
- * The visible coaching result is authoritative for Precision Editing:
- * CONTACT uses its calculated visible result; FREE uses the stored free
- * Impact when present and otherwise the same calculated fallback used by the
- * coaching controller. An optional equivalent trajectory source is only a
- * consistency check; it never replaces or averages the visible point.
+ * Precision Editing SSOT: CONTACT (calcImpactBall) is authoritative.
+ * FREE mode remains only for legacy callers / temporary drag mirrors —
+ * App.jsx always resolves CONTACT after Impact ownership normalization.
  */
 export function resolveActiveImpactForPrecision(
   input: ActiveImpactForPrecisionInput | null | undefined

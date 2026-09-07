@@ -121,6 +121,11 @@ import {
   computeThicknessFromImpact,
   snapImpactToOrbit,
 } from "./utils/physics/ImpactEngine";
+import {
+  projectImpactOntoNearestTrajectory,
+  resolveImpactPointToCanonicalThickness,
+  stripAuthoredImpactBall,
+} from "./domain/admin/impactContactOwnership";
 import SystemValueLabels from "./components/table/SystemValueLabels";
 import BaselineFineNudgeLayer from "./components/table/BaselineFineNudgeLayer";
 import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
@@ -1500,9 +1505,7 @@ export default function App({
   // ============================================
   // ImpactBall 모드 상태
   // ============================================
-  const [impactMode, setImpactMode] = useState("CONTACT");
-  // "CONTACT": 타겟볼 접선 고정 (기본)
-  // "FREE": 자유 이동 (더블클릭 후)
+  // Impact Ball ownership SSOT = CONTACT (calcImpactBall). Temporary balls.impact only while dragging Impact.
   const [unifiedDerivedReview, setUnifiedDerivedReview] = useState(null);
   const derivedReviewUi = useCueImpactDerivedReviewUi();
   const reviewBaselineSnapshotRef = useRef(null);
@@ -1582,7 +1585,7 @@ export default function App({
       targetColor
     );
     stopJoystick();
-    setBallsState(locked.balls);
+    setBallsState(stripAuthoredImpactBall(locked.balls) ?? locked.balls);
     setTargetColor(locked.targetColor);
     setIsTargetSelected(true);
     actions.patchSlotRuntimeMeta(slotId, { targetBall: locked.targetColor });
@@ -2260,7 +2263,7 @@ export default function App({
     );
     const liveOverride = normalizeReflectionOverride(c2ReflectionOverride);
     return {
-      ballsState: structuredClone(ballsState),
+      ballsState: stripAuthoredImpactBall(structuredClone(ballsState)) ?? structuredClone(ballsState),
       targetColor,
       isTargetSelected,
       adminHpt: structuredClone(adminState?.hpt ?? null),
@@ -2287,7 +2290,10 @@ export default function App({
       if (!snap) return;
       hideBallPositionController();
       closeOverlay();
-      setBallsState(structuredClone(snap.ballsState));
+      setBallsState(
+        stripAuthoredImpactBall(structuredClone(snap.ballsState)) ??
+          structuredClone(snap.ballsState)
+      );
       setTargetColor(snap.targetColor);
       setIsTargetSelected(!!snap.isTargetSelected);
       setAdminState((prev) => ({
@@ -2783,13 +2789,13 @@ export default function App({
       const cur = prev?.[ballId];
       if (!cur) return prev;
       
-      // ⭐ impact는 FREE 모드일 때 쿠션 근처까지 허용
+      // ⭐ impact drag: temporary CONTACT edit — cushion-near range
       let minX = 0.5;
       let maxX = 79.5;
       let minY = 0.5;
       let maxY = 39.5;
       
-      if (ballId === "impact" && impactMode === "FREE") {
+      if (ballId === "impact") {
         minX = -CUSHION_RG;
         maxX = 80 + CUSHION_RG;
         minY = -CUSHION_RG;
@@ -3735,18 +3741,72 @@ function handleJoyPadPointerCancel(e) {
       ? showCoaching || userStrategyLayersVisible
       : showCoaching;
 
+  /** Impact dblclick → nearest displayed trajectory → canonical HPT/T → CONTACT recompute. */
+  function handleImpactNearestTrajectorySnap(e) {
+    e?.stopPropagation?.();
+    if (appMode !== "ADMIN" || !canEdit) return;
+    if (!isTargetSelected) return;
+    const cue = ballsForCoaching?.cue;
+    const target =
+      coachingImpactTarget ??
+      uiTargetRoleCoords(ballsForCoaching) ??
+      null;
+    if (!cue || !target) return;
+
+    const currentImpact =
+      calcImpactBall(cue, target, systemCtrl.T) ??
+      ballsForCoaching?.impact ??
+      null;
+    if (!currentImpact) return;
+
+    const segments = projectionSegmentsRef.current ?? [];
+    if (!segments.length) return;
+
+    const proj = projectImpactOntoNearestTrajectory({
+      impact: currentImpact,
+      segments,
+    });
+    if (!proj?.point) return;
+
+    const resolved = resolveImpactPointToCanonicalThickness({
+      cue,
+      target,
+      impactCandidate: proj.point,
+      scale: PHYSICS_SCALE,
+    });
+    if (!resolved) return;
+
+    if (appMode === "ADMIN") {
+      adminEditHistory.recordBefore(captureAdminEditSnapshot());
+    }
+
+    if (systemCtrl && typeof systemCtrl.onChangeT === "function") {
+      systemCtrl.onChangeT(resolved.thickness.legacyT);
+    }
+    if (systemCtrl && typeof systemCtrl.onChangeThickness === "function") {
+      systemCtrl.onChangeThickness(
+        resolved.thickness.displayThickness,
+        resolved.thickness.side
+      );
+    }
+    setBallsState((prev) => stripAuthoredImpactBall(prev) ?? prev);
+    setIsSaved(false);
+  }
+
   const coaching = useCoachingController({
     appMode,
     isTargetSelected,
     showCoaching: effectiveShowCoaching,
     canEdit,
     T: systemCtrl.T,
-    impactMode,
-    setImpactMode,
     balls: ballsForCoaching,
     targetPointForImpact: coachingImpactTarget,
-    setBallsState,
+    liveDragImpactRg:
+      dragState.dragging && dragState.ballId === "impact"
+        ? ballsForCoaching.impact ?? null
+        : null,
     calcImpactBall,
+    onImpactBallDoubleClick: handleImpactNearestTrajectorySnap,
     SCALE,
     TABLE_H,
     PADDING,
@@ -3781,6 +3841,13 @@ function handleJoyPadPointerCancel(e) {
 
   const ui = view.ui;
   const balls = ballsState ?? (ui.balls || {});
+  /** Hit-test Impact = live drag point or CONTACT-derived (no FREE ownership). */
+  const ballsForPointerHit = {
+    ...balls,
+    ...(coaching.contactImpactRg || balls.impact
+      ? { impact: balls.impact ?? coaching.contactImpactRg }
+      : {}),
+  };
   const adminTableLayersActive =
     appMode !== "ADMIN" || adminTableLayersVisible;
   const system = systemCtrl.system;
@@ -4295,13 +4362,14 @@ function handlePointerDown(e) {
     return;
   }
 
-  const allowImpactDrag = appMode === "ADMIN" && impactMode === "FREE";
+  const allowImpactDrag =
+    appMode === "ADMIN" && canEdit && isTargetSelected;
 
   // Absolute priority: pointer inside ball visual core → direct ball drag
   // (guide association preserved; expanded 5× pick still below guide controls).
   const ballVisualCoreHit = resolveBallVisualCoreHit(
     pointerRgEarly,
-    balls,
+    ballsForPointerHit,
     BALL_RADIUS_RG,
     { allowImpactDrag }
   );
@@ -4420,7 +4488,7 @@ function handlePointerDown(e) {
   // Expanded pick (5×) — below guide controls; visual-core already handled above.
   const closestBall = resolveClosestBallHit(
     pointerRg,
-    balls,
+    ballsForPointerHit,
     BALL_PICK_RADIUS_RG,
     { allowImpactDrag }
   );
@@ -4442,6 +4510,13 @@ function beginDirectBallDragFromHit(closestBall, pointerRg) {
   // Ball hit: select / switch immediately (one-touch ball→ball)
   if (appMode === "ADMIN" && isAdminInputSessionActive) {
     adminEditHistory.beginTransaction(captureAdminEditSnapshot());
+  }
+  // Impact drag: seed temporary authored point from CONTACT (cleared on drag end).
+  if (closestBall.id === "impact") {
+    setBallsState((prev) => ({
+      ...(prev || {}),
+      impact: { x: closestBall.pos.x, y: closestBall.pos.y },
+    }));
   }
   if (dragState.joystickVisible) {
     stopJoystick();
@@ -4570,14 +4645,14 @@ function handlePointerMove(e) {
   let maxX = 79.5;
   let minY = 0.5;
   let maxY = 39.5;
-  if (dragState.ballId === "impact" && impactMode === "FREE") {
+  if (dragState.ballId === "impact") {
     minX = -CUSHION_RG;
     maxX = 80 + CUSHION_RG;
     minY = -CUSHION_RG;
     maxY = 40 + CUSHION_RG;
   }
 
-  if (dragState.ballId === "impact" && impactMode === "FREE") {
+  if (dragState.ballId === "impact") {
     let thicknessCue = null;
     let thicknessTarget = null;
     let nextImpactForThickness = null;
@@ -4713,6 +4788,40 @@ function handlePointerUp(e) {
   if (!dragState.dragging || !dragState.ballId) return;
   stopJoystick();
 
+  // Impact drag end: T already updated during move → clear temp impact → CONTACT recompute.
+  if (dragState.ballId === "impact") {
+    setBallsState((prev) => stripAuthoredImpactBall(prev) ?? prev);
+    setIsSaved(false);
+    setIsAdminPublishedSearchMatched(false);
+    if (appMode === "ADMIN") {
+      adminEditHistory.commitTransaction(
+        {
+          ...captureAdminEditSnapshot(),
+          ballsState:
+            stripAuthoredImpactBall(structuredClone(ballsState)) ??
+            structuredClone(ballsState),
+        },
+        "ball"
+      );
+    }
+    ballDragLastPointerRgRef.current = null;
+    setDragState((s) => ({
+      ...s,
+      dragging: false,
+      grabOffsetRg: { x: 0, y: 0 },
+      previousPosRg: null,
+      frozenImpact: null,
+      frozenCushionPathAttr: null,
+      frozenCushionPathRg: null,
+    }));
+    if (svgRef.current) {
+      try {
+        svgRef.current.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+    return;
+  }
+
   const draggedBall = { ...balls[dragState.ballId] };
   const otherBalls = Object.entries(balls)
     .filter(([id]) => id !== dragState.ballId)
@@ -4730,6 +4839,15 @@ function handlePointerUp(e) {
       };
       if (dragState.ballId === "target" && next.target_center) {
         delete next.target_center;
+      }
+      // Target/cue/second move must not leave stale authored Impact.
+      if (
+        dragState.ballId === "target" ||
+        dragState.ballId === "target_center" ||
+        dragState.ballId === "cue" ||
+        dragState.ballId === "second"
+      ) {
+        delete next.impact;
       }
       return next;
     });
@@ -4773,6 +4891,7 @@ function handlePointerUp(e) {
         delete afterBalls.target_center;
       }
     }
+    delete afterBalls.impact;
     adminEditHistory.commitTransaction(
       { ...captureAdminEditSnapshot(), ballsState: afterBalls },
       "ball"
@@ -4990,9 +5109,9 @@ function handlePointerCancel(e) {
         )
       : null;
   const activeImpactForPrecision = resolveActiveImpactForPrecision({
-    impactMode,
+    impactMode: "CONTACT",
     contactVisibleImpactRg: calculatedVisibleImpactRg,
-    freeStoredImpactRg: ballsForCoaching.impact,
+    freeStoredImpactRg: null,
     freeCalculatedFallbackImpactRg: calculatedVisibleImpactRg,
     trajectoryContactImpactRg: impactContactRg,
   });
