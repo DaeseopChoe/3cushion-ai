@@ -336,9 +336,9 @@ export function useSettings({
       setWorkspaceHistoryVersion((v) => v + 1);
       setIsSaved(false);
       setIsAdminPublishedSearchMatched(false);
-      // View-only after History load — Reset re-opens editable session (POLICY A).
-      setIsAdminInputSessionActive(false);
-      // Explicit Target Lock hydrate — no stale previous lock (POLICY A).
+      // Load → immediately editable (Undo/Recall model; no Reset gate).
+      setIsAdminInputSessionActive(true);
+      // Explicit Target Lock hydrate — no stale previous lock.
       const restoredTarget = normalizeAdminTargetBall(s.targetBall);
       setTargetColor(restoredTarget);
       setIsTargetSelected(restoredTarget != null);

@@ -54,7 +54,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Next Track** | Commit/Push when user requests (Issue A code + docs; exclude user dataset dirty) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
-| **ADMIN Recall→Edit** | **POLICY A (canonical):** view-only Recall · **Reset only** → edit · Target dblclick ≠ session API · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
+| **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
 | **History / Search Corpus Separation** | ✅ **COMPLETE** — History snapshot load no longer overwrites searchable corpus · independent search pool preserved |
 | **USER Search Normalization & Role Permutation** | ✅ **COMPLETE** — 2-way Target/Second permutation · winning matchedBalls preserved · Trajectory Target alignment |
 | **ADMIN Target Selection Contract** | ✅ **COMPLETE** — Target defaults to NONE · explicit double-click reassign · non-target search supported |
@@ -189,7 +189,7 @@ Derived Data
 | **NO MATCH** | No persisted sample within coarse gate → **expected** ("해당 데이터 없음") |
 | **Not changed** | Product cardinality / generators / Published `adminStrict` (Manhattan) |
 
-> Edit-session after Recall: **POLICY A** — see `TRAJECTORY_EXTENSION_SSOT.md` §7 · Issue B close: `HISTORY/PROJECT_LOG_2026-08.md`.
+> Edit-session after Load: **Undo/Recall model** — see `TRAJECTORY_EXTENSION_SSOT.md` §7 · log: `HISTORY/PROJECT_LOG_2026-09.md`.
 
 ### Phase 5 Mission 01 — Real Interpolation (Implemented)
 

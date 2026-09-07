@@ -1,12 +1,19 @@
 /**
  * ADMIN edit-session gates (SYS / HP/T / STR / AI / SAVE).
  *
- * POLICY A (canonical):
- * - Recall (LocalDB / History) = view-only → isAdminInputSessionActive = false
- * - Reset = only Recall→Edit transition → session true + Target Ready
- * - Target dblclick does NOT resume edit session while recalled view-only
- *   (layers visible + session inactive). Locked Target dblclick remains no-op;
- *   Second dblclick Projection is unchanged (handled outside this module).
+ * POLICY (canonical — Undo/Recall model):
+ * - Load (LocalDB / History) = editable
+ *     → isAdminInputSessionActive = true (beginAdminInputSession / History hydrate)
+ *     → capture recallOriginSnapshot S0 (App / useAdminEditHistory)
+ *     → Target Lock hydrate is explicit (meta → lock; no meta → unlock; no stale lock)
+ * - Undo = repeated authored edit-transaction rollback (floor = empty stack / Origin)
+ * - Recall (UI label "Recall") = restore immutable Load Origin S0; clears Undo
+ * - SAVE ≠ replace Recall Origin; SAVE ≠ clear Undo
+ * - New Load replaces Origin; page refresh clears Origin
+ * - Fresh blank → no Recall Origin
+ *
+ * Legacy Reset (view-only unlock) removed — applyAdminWorkResetSession retained as
+ * pure helper for Target Ready + session true (tests / migration).
  *
  * canUseSystemControls =
  *   ADMIN && isAdminInputSessionActive && targetReady
@@ -48,8 +55,8 @@ export function canUseAdminSystemControls(args: {
 }
 
 /**
- * Reset resolves Target metadata from active slot or current targetColor.
- * Preserves recalled physical target identity across Recall → Edit transition.
+ * Resolve Target metadata for Ready (Load hydrate / legacy Reset helper).
+ * Preserves recalled physical target identity.
  * When target was unselected (Target=NONE), returns null.
  */
 export function resolveAdminResetTargetMeta(args?: {
@@ -75,7 +82,7 @@ export function resolveAdminRecallTargetMeta(args: {
 }
 
 /**
- * POLICY A — Recall Target Lock hydrate must be explicit (no stale lock).
+ * Load Target Lock hydrate must be explicit (no stale lock).
  * meta present → lock true; meta absent → lock false + clear color.
  */
 export function applyAdminRecallTargetLockHydrate(
@@ -91,8 +98,7 @@ export function applyAdminRecallTargetLockHydrate(
 }
 
 /**
- * POLICY A — unlocked Target dblclick must not open edit session while
- * recall/history view-only display is active (layers on + session off).
+ * Guard for layers-on + session-off edge (should not occur after successful Load).
  * Fresh ADMIN (layers off) still allows Target lock → beginAdminInputSession.
  */
 export function shouldBlockTargetDblclickEditSession(args: {
@@ -105,8 +111,8 @@ export function shouldBlockTargetDblclickEditSession(args: {
 }
 
 /**
- * Pure transition: post-recall view-only → Reset → editable.
- * Preserves recalled Target physical identity if present, or stays NONE if unselected.
+ * Pure: ensure editable + Target Ready metadata.
+ * Legacy name kept — no longer the only Load→Edit path (Load is immediately editable).
  */
 export function applyAdminWorkResetSession(args: {
   appMode: string;
@@ -145,12 +151,59 @@ export function applyAdminWorkResetSession(args: {
   };
 }
 
-/** One POLICY A cycle step for tests (Recall view-only → optional dblclick → Reset). */
-export function simulateAdminRecallViewOnlyState(args: {
+/** Post-Load editable state for tests (LocalDB / History). */
+export function simulateAdminRecallLoadedEditableState(args: {
   appMode?: string;
   recordTargetBall: unknown;
   searchQueryTargetBall?: unknown;
   /** Stale UI lock before hydrate — must be overwritten. */
+  prevIsTargetSelected?: boolean;
+  prevTargetColor?: unknown;
+}): {
+  isAdminInputSessionActive: true;
+  adminTableLayersVisible: true;
+  targetColor: AdminTargetBall | null;
+  isTargetSelected: boolean;
+  canUseSystemControls: boolean;
+  blockTargetDblclickEditSession: boolean;
+} {
+  const meta = resolveAdminRecallTargetMeta({
+    searchQueryTargetBall: args.searchQueryTargetBall ?? null,
+    recordTargetBall: args.recordTargetBall,
+  });
+  const lock = applyAdminRecallTargetLockHydrate(meta);
+  const session = true as const;
+  const layers = true as const;
+  const ready = resolveAdminTargetReadyBall({
+    isTargetSelected: lock.isTargetSelected,
+    targetColor: lock.targetColor,
+    slotTargetBall: lock.targetColor,
+  });
+  return {
+    isAdminInputSessionActive: session,
+    adminTableLayersVisible: layers,
+    targetColor: lock.targetColor,
+    isTargetSelected: lock.isTargetSelected,
+    canUseSystemControls: canUseAdminSystemControls({
+      appMode: args.appMode ?? "ADMIN",
+      isAdminInputSessionActive: session,
+      targetReadyBall: ready,
+    }),
+    blockTargetDblclickEditSession: shouldBlockTargetDblclickEditSession({
+      isAdminInputSessionActive: session,
+      adminTableLayersVisible: layers,
+    }),
+  };
+}
+
+/**
+ * @deprecated Use simulateAdminRecallLoadedEditableState — Load is immediately editable.
+ * Kept for documenting the layers-on + session-off edge guard only.
+ */
+export function simulateAdminRecallViewOnlyState(args: {
+  appMode?: string;
+  recordTargetBall: unknown;
+  searchQueryTargetBall?: unknown;
   prevIsTargetSelected?: boolean;
   prevTargetColor?: unknown;
 }): {

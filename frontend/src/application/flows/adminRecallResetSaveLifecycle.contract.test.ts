@@ -2,12 +2,12 @@
  * adminRecallResetSaveLifecycle.contract.test.ts
  *
  * Full Lifecycle End-to-End Contract Tests for ADMIN:
- * Local DB Search → Recall (View-Only) → Reset → Edit → SAVE
+ * Local DB Search → Load (immediately editable) → Edit → SAVE
  *
  * Invariants Verified:
- * - TEST A: Red Target Recall → Reset → Edit → SAVE Success with Family Identity Preserved
- * - TEST B: Yellow Target Recall → Reset → Edit → SAVE Success with Physical Color Invariance
- * - TEST C: Target=NONE Search Preparation → Matched Record Recall → Reset → SAVE Success
+ * - TEST A: Red Target Load → Edit → SAVE Success with Family Identity Preserved
+ * - TEST B: Yellow Target Load → Edit → SAVE Success with Physical Color Invariance
+ * - TEST C: Target=NONE Search Preparation → Matched Record Load → SAVE Success
  * - TEST D: patchSlotRuntimeMeta does not create targetOnlyStub in applied (applied=null preserved)
  * - TEST E: Defensive Identity Resolver recovers complete Family Identity from draft when applied is partial
  * - TEST F: SAVE failure provides explicit user feedback (alert) instead of Silent No-Op
@@ -18,8 +18,7 @@ import { runAdminLocalDbRecall } from "./adminLocalDbFlow";
 import { runCanonicalSave, type HistoryFlowContext } from "./historyFlow";
 import { runSaveStrategy, type SaveFlowContext } from "./saveFlow";
 import {
-  applyAdminWorkResetSession,
-  simulateAdminRecallViewOnlyState,
+  simulateAdminRecallLoadedEditableState,
 } from "../../domain/system/adminEditSessionContract";
 import type {
   Ball3,
@@ -95,13 +94,13 @@ function createMemoryLocalStorage(): Storage {
   };
 }
 
-describe("ADMIN Recall → Reset → Edit → SAVE Lifecycle Contract", () => {
+describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.stubGlobal("localStorage", createMemoryLocalStorage());
   });
 
-  it("TEST A — Red Target Lifecycle: Red Target → Recall (View-Only) → Reset → Edit → SAVE Success", async () => {
+  it("TEST A — Red Target Lifecycle: Red Target → Load (editable) → Edit → SAVE Success", async () => {
     const record = createSampleAuthoredRecord("pos_red_01", ballsRedTarget, "red");
     const dataset = [record];
 
@@ -157,32 +156,22 @@ describe("ADMIN Recall → Reset → Edit → SAVE Lifecycle Contract", () => {
       rejectAdminRecallHydrateForMismatch: () => false,
     };
 
-    // 1. Recall
+    // 1. Load → immediately editable
     const matched = await runAdminLocalDbRecall(recallCtx as any);
     expect(matched).toBe(true);
     expect(layersVisible).toBe(true);
     expect(targetHydrated).toBe("red");
+    expect(sessionActive).toBe(true);
 
-    // 2. View-only state check
-    const viewOnly = simulateAdminRecallViewOnlyState({
+    const loaded = simulateAdminRecallLoadedEditableState({
       recordTargetBall: "red",
       searchQueryTargetBall: "red",
     });
-    expect(viewOnly.isAdminInputSessionActive).toBe(false);
-    expect(viewOnly.canUseSystemControls).toBe(false);
+    expect(loaded.isAdminInputSessionActive).toBe(true);
+    expect(loaded.canUseSystemControls).toBe(true);
+    expect(loaded.targetColor).toBe("red");
 
-    // 3. Reset Transition
-    const reset = applyAdminWorkResetSession({
-      appMode: "ADMIN",
-      targetColor: viewOnly.targetColor,
-      slotTargetBall: "red",
-    });
-    expect(reset.isAdminInputSessionActive).toBe(true);
-    expect(reset.isTargetSelected).toBe(true);
-    expect(reset.targetColor).toBe("red");
-    expect(reset.canUseSystemControls).toBe(true);
-
-    // 4. Edit + SAVE
+    // 2. Edit + SAVE
     let historyCommitted = false;
     let savedDataset: PositionRecord[] | null = null;
     const alertMock = vi.fn();
@@ -204,7 +193,7 @@ describe("ADMIN Recall → Reset → Edit → SAVE Lifecycle Contract", () => {
       system: null,
       resolvedSlotSysValues: { CO_f: 30, C3_r: 20 },
       autoSave: false,
-      canUseSystemControls: reset.canUseSystemControls,
+      canUseSystemControls: loaded.canUseSystemControls,
       saveWorkingDataset: (ds) => { savedDataset = ds; },
       setDataset: vi.fn(),
       setUserPublishedSearchContext: vi.fn(),
@@ -224,23 +213,17 @@ describe("ADMIN Recall → Reset → Edit → SAVE Lifecycle Contract", () => {
     expect(saveResult.familyId).toBe("fm_lifecycle_001");
   });
 
-  it("TEST B — Yellow Target Lifecycle: Yellow Target → Recall → Reset → Edit → SAVE Success", async () => {
+  it("TEST B — Yellow Target Lifecycle: Yellow Target → Load (editable) → Edit → SAVE Success", async () => {
     const record = createSampleAuthoredRecord("pos_yellow_01", ballsYellowTarget, "yellow");
     const dataset = [record];
 
-    const viewOnly = simulateAdminRecallViewOnlyState({
+    const loaded = simulateAdminRecallLoadedEditableState({
       recordTargetBall: "yellow",
       searchQueryTargetBall: "yellow",
     });
-    expect(viewOnly.targetColor).toBe("yellow");
-
-    const reset = applyAdminWorkResetSession({
-      appMode: "ADMIN",
-      targetColor: viewOnly.targetColor,
-      slotTargetBall: "yellow",
-    });
-    expect(reset.targetColor).toBe("yellow");
-    expect(reset.canUseSystemControls).toBe(true);
+    expect(loaded.targetColor).toBe("yellow");
+    expect(loaded.isAdminInputSessionActive).toBe(true);
+    expect(loaded.canUseSystemControls).toBe(true);
 
     let historyCommitted = false;
     const saveCtx: HistoryFlowContext = {
@@ -280,7 +263,7 @@ describe("ADMIN Recall → Reset → Edit → SAVE Lifecycle Contract", () => {
       system: null,
       resolvedSlotSysValues: { CO_f: 30, C3_r: 20 },
       autoSave: false,
-      canUseSystemControls: reset.canUseSystemControls,
+      canUseSystemControls: loaded.canUseSystemControls,
       saveWorkingDataset: vi.fn(),
       setDataset: vi.fn(),
       setUserPublishedSearchContext: vi.fn(),
@@ -299,26 +282,17 @@ describe("ADMIN Recall → Reset → Edit → SAVE Lifecycle Contract", () => {
     expect(historyCommitted).toBe(true);
   });
 
-  it("TEST C — Target=NONE Search Preparation → Matched Record Recall → Reset → SAVE Success", () => {
+  it("TEST C — Target=NONE Search Preparation → Matched Record Load → SAVE Success", () => {
     // 1. Search in Target=NONE mode, matches a record with targetBall="red"
-    const recallState = simulateAdminRecallViewOnlyState({
+    const recallState = simulateAdminRecallLoadedEditableState({
       recordTargetBall: "red",
       searchQueryTargetBall: null, // query was Target=NONE
     });
     expect(recallState.targetColor).toBe("red");
-    expect(recallState.isAdminInputSessionActive).toBe(false);
+    expect(recallState.isAdminInputSessionActive).toBe(true);
+    expect(recallState.canUseSystemControls).toBe(true);
 
-    // 2. Reset to Edit
-    const editState = applyAdminWorkResetSession({
-      appMode: "ADMIN",
-      targetColor: recallState.targetColor,
-      slotTargetBall: "red",
-    });
-    expect(editState.isAdminInputSessionActive).toBe(true);
-    expect(editState.targetColor).toBe("red");
-    expect(editState.canUseSystemControls).toBe(true);
-
-    // 3. Save
+    // 2. Save
     let historyCommitted = false;
     const saveCtx: HistoryFlowContext = {
       dataset: [createSampleAuthoredRecord("pos_none_01", ballsRedTarget, "red")],
@@ -357,7 +331,7 @@ describe("ADMIN Recall → Reset → Edit → SAVE Lifecycle Contract", () => {
       system: null,
       resolvedSlotSysValues: { CO_f: 30, C3_r: 20 },
       autoSave: false,
-      canUseSystemControls: editState.canUseSystemControls,
+      canUseSystemControls: recallState.canUseSystemControls,
       saveWorkingDataset: vi.fn(),
       setDataset: vi.fn(),
       setUserPublishedSearchContext: vi.fn(),

@@ -1,7 +1,7 @@
 /**
  * History restore display contract:
  * - layers ON → trajectory/sys labels can resolve (view)
- * - session stays false until Reset (edit)
+ * - Load/History → immediately editable (Undo/Recall model)
  * Search / LocalDB post-match display must remain intact.
  */
 import { readFileSync } from "node:fs";
@@ -60,14 +60,13 @@ describe("History restore → Admin table layers (view vs edit)", () => {
     ).toBeNull();
   });
 
-  it("T2: History onLoad enables layers only on success; does not beginAdminInputSession", () => {
+  it("T2: History onLoad enables layers on success; session true (editable)", () => {
     const app = readSrc("App.jsx");
     const settings = readSrc("hooks/useSettings.js");
 
     expect(app).toMatch(
       /if\s*\(\s*handleLoadWorkspaceSnapshot\(id\)\s*\)\s*\{\s*setAdminTableLayersVisible\(true\)/
     );
-    expect(settings).toMatch(/setIsAdminInputSessionActive\(false\)/);
     expect(settings).toMatch(/return true;/);
     expect(settings).toMatch(/return false;/);
 
@@ -76,38 +75,45 @@ describe("History restore → Admin table layers (view vs edit)", () => {
       settings.indexOf("clearEditSourceContext")
     );
     expect(loadBody).not.toMatch(/beginAdminInputSession/);
-    expect(loadBody).not.toMatch(/setIsAdminInputSessionActive\(true\)/);
+    expect(loadBody).toMatch(/setIsAdminInputSessionActive\(true\)/);
+    expect(loadBody).not.toMatch(/setIsAdminInputSessionActive\(false\)/);
     expect(loadBody).not.toMatch(/setAdminTableLayersVisible/);
     expect(loadBody).not.toMatch(/commitDraftSys|handleAdminWorkReset/);
   });
 
-  it("T3: Reset keeps data and sets session true (source contract)", () => {
+  it("T3: ADMIN Undo/Recall UI present; Reset button removed", () => {
     const app = readSrc("App.jsx");
-    const resetStart = app.indexOf("const handleAdminWorkReset");
-    const resetEnd = app.indexOf("}, [", resetStart);
-    expect(resetStart).toBeGreaterThan(-1);
-    expect(resetEnd).toBeGreaterThan(resetStart);
-    const resetBody = app.slice(resetStart, resetEnd);
-    expect(resetBody).toMatch(/setIsAdminInputSessionActive\(true\)/);
-    expect(resetBody).toMatch(/extractSlotTargetBall|readyTarget/);
-    expect(resetBody).not.toMatch(/clearAdminWorkSlots/);
-    expect(resetBody).not.toMatch(/setAdminTableLayersVisible\(false\)/);
-    expect(resetBody).not.toMatch(/resetTrajectory/);
+    expect(app).toMatch(/useAdminEditHistory/);
+    expect(app).toMatch(/handleAdminUndo/);
+    expect(app).toMatch(/handleAdminRecall/);
+    expect(app).toMatch(/\n\s*Recall\s*\n/);
+    expect(app).not.toMatch(/\n\s*Reset\s*\n/);
+    expect(app).not.toMatch(/handleAdminWorkReset/);
+    expect(app.includes("되돌리기")).toBe(true);
   });
 
-  it("T3b: LocalDB match leaves session view-only until Reset (source contract)", () => {
+  it("T3d: Recall restores Origin directly without confirm dialog", () => {
+    const app = readSrc("App.jsx");
+    const start = app.indexOf("const handleAdminRecall");
+    expect(start).toBeGreaterThan(-1);
+    const end = app.indexOf("}, [", start);
+    const body = app.slice(start, end);
+    expect(body).toMatch(/recallToOrigin/);
+    expect(body).not.toMatch(/window\.confirm/);
+    expect(body).not.toMatch(/불러왔던 원본 상태로 되돌리시겠습니까/);
+  });
+
+  it("T3b: LocalDB match keeps editable session (no session false after begin)", () => {
     const localDb = readSrc("application/flows/adminLocalDbFlow.ts");
-    expect(localDb).toMatch(/setIsAdminInputSessionActive\(false\)/);
+    expect(localDb).not.toMatch(/setIsAdminInputSessionActive\(false\)/);
     expect(localDb).toMatch(/hydrateAdminRecallTarget/);
     expect(localDb).toMatch(/resolveAdminRecallTargetMeta/);
+    expect(localDb).toMatch(/beginAdminInputSession/);
   });
 
-  it("T3c: POLICY A — Target dblclick does not resume edit while view-only (source)", () => {
+  it("T3c: Target dblclick guard retained for layers-on + session-off edge", () => {
     const app = readSrc("App.jsx");
     expect(app).toMatch(/shouldBlockTargetDblclickEditSession/);
-    expect(app).toMatch(
-      /POLICY A: Recall\/History view-only|POLICY A: explicit Lock hydrate/
-    );
   });
 
   it("T4: same Track keeps reflectionOverride (display path does not strip)", () => {
@@ -119,7 +125,6 @@ describe("History restore → Admin table layers (view vs edit)", () => {
       reflectionOverride: sampleSlot.applied.reflectionOverride,
     };
     expect(layer.reflectionOverride).toEqual({ rail: "TOP", t: 0.4 });
-    // layers ON still sees override on slot — strip only on Track flip helpers
     expect(
       resolveSlotSys({
         appMode: "ADMIN",

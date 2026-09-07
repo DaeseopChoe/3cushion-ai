@@ -1,9 +1,9 @@
-﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+﻿import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { flushSync } from "react-dom";
 import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
+import { useAdminEditHistory } from "./hooks/useAdminEditHistory";
 import { resolveSlotSys } from "./domain/system/slotSysViewModel";
 import {
-  resolveAdminResetTargetMeta,
   shouldBlockTargetDblclickEditSession,
 } from "./domain/system/adminEditSessionContract";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
@@ -1198,12 +1198,16 @@ export default function App({
   const baselineLabelSsotRef = useRef(null);
   const autoSave = true;
 
-  /** ADMIN Search/Recall 후 Editing Session (Reset 전까지 유지) */
+  /** ADMIN Search/Load 후 Editing Session (Load → immediately editable) */
   const [isAdminInputSessionActive, setIsAdminInputSessionActive] = useState(false);
   const [isTargetSelected, setIsTargetSelected] = useState(false);
   const [isAdminPublishedSearchMatched, setIsAdminPublishedSearchMatched] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [targetColor, setTargetColor] = useState(null);
+
+  /** ADMIN Undo stack + Recall Origin S0 (separate lifecycles). */
+  const adminEditHistory = useAdminEditHistory();
+  const [adminRecallOriginNonce, setAdminRecallOriginNonce] = useState(0);
 
   /** ADMIN Search/Recall 타겟 SSOT: UI state 우선 (명시적 선택 시만 반환) */
   function getAdminSearchTargetBall(slotId = shotEditor.activeSlot) {
@@ -1567,6 +1571,10 @@ export default function App({
           : null;
     if (!roleId) return;
 
+    if (appMode === "ADMIN") {
+      adminEditHistory.recordBefore(captureAdminEditSnapshot());
+    }
+
     const slotId = shotEditor.activeSlot;
     const locked = lockTargetRoleFromClickedBall(
       ballsState,
@@ -1755,7 +1763,12 @@ export default function App({
       c2ReflectionOverrideRef.current = next;
       setC2ReflectionOverride(next);
     },
-    onHandleDragStart: clearBallPointerInteractionState,
+    onHandleDragStart: () => {
+      if (appMode === "ADMIN") {
+        adminEditHistory.beginTransaction(captureAdminEditSnapshot());
+      }
+      clearBallPointerInteractionState();
+    },
   });
 
   function handleBallDoubleClickForTarget(ballId, e) {
@@ -1774,8 +1787,7 @@ export default function App({
             : null;
     if (!roleId || roleId === "cue") return;
 
-    // POLICY A: Recall/History view-only (layers on + session off) —
-    // Target dblclick must not open edit session. Reset is canonical.
+    // POLICY: layers-on + session-off edge — Target dblclick must not open edit session.
     if (
       shouldBlockTargetDblclickEditSession({
         isAdminInputSessionActive,
@@ -2169,7 +2181,7 @@ export default function App({
   async function handlePositionRecall() {
     if (appMode !== "ADMIN") return;
     hideBallPositionController();
-    await runAdminSearch({
+    const matched = await runAdminSearch({
       ballsState,
       adminState,
       activeSlot: shotEditor.activeSlot,
@@ -2199,6 +2211,9 @@ export default function App({
       rejectAdminRecallHydrateForMismatch,
       resolveFormulaHash,
     });
+    if (matched) {
+      setAdminRecallOriginNonce((n) => n + 1);
+    }
   }
 
   /** Search/Recall 후 Editing Session 시작 (볼 이동 허용, SYS는 Apply 전까지 참고용) */
@@ -2233,55 +2248,94 @@ export default function App({
   }, [actions, trajectory]);
 
   /**
-   * ADMIN Reset — keep hydrated Position/slot/adminState data;
-   * re-open edit gates (Target Lock unlock + session active). Does not touch dataset.
-   * Shared contract with History restore: view-only recall → Reset → editable.
+   * ADMIN Undo / Recall — replace Reset.
+   * Capture Origin after successful Load/History hydrate (nonce bump).
    */
-  const handleAdminWorkReset = useCallback(() => {
-    if (appMode !== "ADMIN") return;
-
-    hideBallPositionController();
-    closeOverlay();
-
-    // Reset: Recall → Edit transition. Preserve recalled target identity if present.
+  const captureAdminEditSnapshot = useCallback(() => {
     const slot = shotEditor.slots[shotEditor.activeSlot];
-    const slotTarget = extractSlotTargetBall(slot);
-    const readyTarget = resolveAdminResetTargetMeta({
+    const fromSlot = normalizeReflectionOverride(
+      slot?.draft?.reflectionOverride ??
+        slot?.applied?.reflectionOverride ??
+        null
+    );
+    const liveOverride = normalizeReflectionOverride(c2ReflectionOverride);
+    return {
+      ballsState: structuredClone(ballsState),
       targetColor,
-      slotTargetBall: slotTarget,
-    });
-
-    if (readyTarget) {
-      setIsTargetSelected(true);
-      setTargetColor(readyTarget);
-      actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
-        targetBall: readyTarget,
-      });
-    } else {
-      setIsTargetSelected(false);
-      setTargetColor(null);
-      actions.patchSlotRuntimeMeta(shotEditor.activeSlot, {
-        targetBall: null,
-      });
-    }
-
-    setIsAdminInputSessionActive(true);
-    if (ballsState?.cue) {
-      actions.syncBallsToAllSlots(ballsState);
-    }
-    setIsSaved(false);
-    setUnifiedDerivedReview(null);
-    derivedReviewUi.resetReviewUi();
-    reviewBaselineSnapshotRef.current = null;
+      isTargetSelected,
+      adminHpt: structuredClone(adminState?.hpt ?? null),
+      adminSys: structuredClone(adminState?.sys ?? null),
+      adminStr: structuredClone(adminState?.str ?? null),
+      adminAi: structuredClone(adminState?.ai ?? null),
+      c2ReflectionOverride: liveOverride ?? fromSlot,
+      shotEditor: structuredClone(shotEditor),
+    };
   }, [
-    appMode,
-    actions,
-    shotEditor.slots,
-    shotEditor.activeSlot,
-    targetColor,
     ballsState,
-    derivedReviewUi,
+    targetColor,
+    isTargetSelected,
+    adminState?.hpt,
+    adminState?.sys,
+    adminState?.str,
+    adminState?.ai,
+    c2ReflectionOverride,
+    shotEditor,
   ]);
+
+  const restoreAdminEditSnapshot = useCallback(
+    (snap) => {
+      if (!snap) return;
+      hideBallPositionController();
+      closeOverlay();
+      setBallsState(structuredClone(snap.ballsState));
+      setTargetColor(snap.targetColor);
+      setIsTargetSelected(!!snap.isTargetSelected);
+      setAdminState((prev) => ({
+        ...prev,
+        hpt: structuredClone(snap.adminHpt),
+        sys: structuredClone(snap.adminSys),
+        str: structuredClone(snap.adminStr),
+        ai: structuredClone(snap.adminAi),
+      }));
+      actions.restoreShotEditor(structuredClone(snap.shotEditor));
+      const ov = snap.c2ReflectionOverride
+        ? structuredClone(snap.c2ReflectionOverride)
+        : null;
+      c2ReflectionOverrideRef.current = ov;
+      setC2ReflectionOverride(ov);
+      setIsAdminInputSessionActive(true);
+      setIsSaved(false);
+      setUnifiedDerivedReview(null);
+      derivedReviewUi.resetReviewUi();
+      reviewBaselineSnapshotRef.current = null;
+    },
+    // closeOverlay / hideBallPositionController are stable function decls in render
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mirror Reset restore deps
+    [actions, derivedReviewUi]
+  );
+
+  useLayoutEffect(() => {
+    if (adminRecallOriginNonce === 0) return;
+    if (appMode !== "ADMIN") return;
+    adminEditHistory.captureRecallOrigin(captureAdminEditSnapshot());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- nonce-driven capture only
+  }, [adminRecallOriginNonce]);
+
+  const handleAdminUndo = useCallback(() => {
+    if (appMode !== "ADMIN") return;
+    const snap = adminEditHistory.undo();
+    if (!snap) return;
+    restoreAdminEditSnapshot(snap);
+  }, [appMode, adminEditHistory, restoreAdminEditSnapshot]);
+
+  const handleAdminRecall = useCallback(() => {
+    if (appMode !== "ADMIN") return;
+    if (!adminEditHistory.hasRecallOrigin) return;
+    // Direct restore — no confirm dialog (UX: immediate Origin S0).
+    const snap = adminEditHistory.recallToOrigin();
+    if (!snap) return;
+    restoreAdminEditSnapshot(snap);
+  }, [appMode, adminEditHistory, restoreAdminEditSnapshot]);
 
   const handleAdminSearch = useCallback(async () => {
     if (appMode !== "ADMIN") return;
@@ -2319,6 +2373,7 @@ export default function App({
     });
     if (matched) {
       setUserTableDisplaySlotId(null);
+      setAdminRecallOriginNonce((n) => n + 1);
     }
     // no-match: 포지션 유지, beginAdminInputSession으로 새 입력 상태 진입
   }, [
@@ -4385,6 +4440,9 @@ function handlePointerDown(e) {
 
 function beginDirectBallDragFromHit(closestBall, pointerRg) {
   // Ball hit: select / switch immediately (one-touch ball→ball)
+  if (appMode === "ADMIN" && isAdminInputSessionActive) {
+    adminEditHistory.beginTransaction(captureAdminEditSnapshot());
+  }
   if (dragState.joystickVisible) {
     stopJoystick();
   }
@@ -4631,7 +4689,13 @@ function handlePointerUp(e) {
     return;
   }
 
-  if (endC2HandleDrag(e)) return;
+  if (endC2HandleDrag(e)) {
+    if (appMode === "ADMIN") {
+      adminEditHistory.commitTransaction(captureAdminEditSnapshot(), "c2");
+      setIsSaved(false);
+    }
+    return;
+  }
   if (endCoBaselineDraftDrag(e)) {
     if (!suppressBaselineApply) {
       onBaselineDraftApplyClick("CO");
@@ -4701,6 +4765,20 @@ function handlePointerUp(e) {
     // targetColor / isTargetSelected: pointerUp에서 건드리지 않음 (조이스틱=후보, Target으로만 확정/무효화는 뷰/복원 등에서)
   }
 
+  if (appMode === "ADMIN") {
+    const afterBalls = structuredClone(ballsState) ?? {};
+    if (nextBallPos && dragState.ballId) {
+      afterBalls[dragState.ballId] = { ...nextBallPos };
+      if (dragState.ballId === "target" && afterBalls.target_center) {
+        delete afterBalls.target_center;
+      }
+    }
+    adminEditHistory.commitTransaction(
+      { ...captureAdminEditSnapshot(), ballsState: afterBalls },
+      "ball"
+    );
+  }
+
   // CAL-006 → ballDragFlow.runBallDrag
   runBallDrag({
     canEdit,
@@ -4740,7 +4818,12 @@ function handlePointerCancel(e) {
     return;
   }
 
-  if (endC2HandleDrag(e)) return;
+  if (endC2HandleDrag(e)) {
+    if (appMode === "ADMIN") {
+      adminEditHistory.cancelTransaction();
+    }
+    return;
+  }
   if (endCoBaselineDraftDrag(e)) {
     clearAppliedBaselineDraftMark("CO");
     return;
@@ -5965,9 +6048,10 @@ function handlePointerCancel(e) {
           history={workspaceHistory}
           onClose={() => setShowHistoryModal(false)}
           onLoad={(id) => {
-            // Success → Admin table layers ON (trajectory/sys labels). Session stays false until Reset.
+            // Success → Admin table layers ON + editable; capture Recall Origin S0.
             if (handleLoadWorkspaceSnapshot(id)) {
               setAdminTableLayersVisible(true);
+              setAdminRecallOriginNonce((n) => n + 1);
             }
             setShowHistoryModal(false);
           }}
@@ -6010,6 +6094,9 @@ function handlePointerCancel(e) {
                 evaluateSysOverlayHasAllInputs={evaluateSysOverlayHasAllInputs}
                 onSave={(newData) => {
                   if (isDerivedReviewInspectLocked) return;
+                  if (appMode === "ADMIN") {
+                    adminEditHistory.recordBefore(captureAdminEditSnapshot());
+                  }
                   console.log("[SYS_APPLY_START]", {
                     hypothesisId: "SYS_APPLY_START",
                     ts: Date.now(),
@@ -6174,6 +6261,9 @@ function handlePointerCancel(e) {
                 applyDisabled={isDerivedReviewInspectLocked}
                 onSave={(newData) => {
                   if (isDerivedReviewInspectLocked) return;
+                  if (appMode === "ADMIN") {
+                    adminEditHistory.recordBefore(captureAdminEditSnapshot());
+                  }
                   console.log("[HPT_APPLY_START]", {
                     hypothesisId: "HPT_APPLY_START",
                     ts: Date.now(),
@@ -6254,6 +6344,9 @@ function handlePointerCancel(e) {
                 applyDisabled={isDerivedReviewInspectLocked}
                 onSave={(newData) => {
                   if (isDerivedReviewInspectLocked) return;
+                  if (appMode === "ADMIN") {
+                    adminEditHistory.recordBefore(captureAdminEditSnapshot());
+                  }
                   console.log("[STR_APPLY_START]", {
                     hypothesisId: "STR_APPLY_START",
                     ts: Date.now(),
@@ -6311,6 +6404,9 @@ function handlePointerCancel(e) {
                 applyDisabled={isDerivedReviewInspectLocked}
                 onSave={(newData) => {
                   if (isDerivedReviewInspectLocked) return;
+                  if (appMode === "ADMIN") {
+                    adminEditHistory.recordBefore(captureAdminEditSnapshot());
+                  }
                   console.log("[AI_APPLY_START]", {
                     hypothesisId: "AI_APPLY_START",
                     ts: Date.now(),
@@ -6497,6 +6593,58 @@ function handlePointerCancel(e) {
             </button>
             <button
               type="button"
+              className="control-button"
+              disabled={!adminEditHistory.canUndo || isDerivedReviewSessionPending}
+              onClick={() => {
+                hideBallPositionController();
+                handleAdminUndo();
+              }}
+              title="마지막 편집 작업 되돌리기"
+              style={{
+                backgroundColor: "#64748b",
+                color: "white",
+                opacity:
+                  adminEditHistory.canUndo && !isDerivedReviewSessionPending
+                    ? 1
+                    : 0.45,
+                cursor:
+                  adminEditHistory.canUndo && !isDerivedReviewSessionPending
+                    ? "pointer"
+                    : "not-allowed",
+              }}
+            >
+              되돌리기
+            </button>
+            <button
+              type="button"
+              className="control-button"
+              disabled={
+                !adminEditHistory.hasRecallOrigin || isDerivedReviewSessionPending
+              }
+              onClick={() => {
+                hideBallPositionController();
+                handleAdminRecall();
+              }}
+              title="불러왔던 원본 상태로 복원"
+              style={{
+                backgroundColor: "#475569",
+                color: "white",
+                opacity:
+                  adminEditHistory.hasRecallOrigin &&
+                  !isDerivedReviewSessionPending
+                    ? 1
+                    : 0.45,
+                cursor:
+                  adminEditHistory.hasRecallOrigin &&
+                  !isDerivedReviewSessionPending
+                    ? "pointer"
+                    : "not-allowed",
+              }}
+            >
+              Recall
+            </button>
+            <button
+              type="button"
               disabled={!canUseSystemControls || isDerivedReviewSessionPending}
               className={`control-button save-btn${isSaved ? " active" : ""}`}
               onClick={() => { hideBallPositionController(); handleCanonicalRightPanelSave(); }}
@@ -6509,21 +6657,6 @@ function handlePointerCancel(e) {
               }}
             >
               SAVE
-            </button>
-            <button
-              type="button"
-              className="control-button"
-              onClick={() => {
-                hideBallPositionController();
-                handleAdminWorkReset();
-              }}
-              title="현재 데이터 유지, 재편집 가능 상태로 전환"
-              style={{
-                backgroundColor: "#64748b",
-                color: "white",
-              }}
-            >
-              Reset
             </button>
           </div>
           <div className="right-panel-divider" aria-hidden="true" />

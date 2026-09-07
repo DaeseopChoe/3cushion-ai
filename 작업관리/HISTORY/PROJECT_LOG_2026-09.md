@@ -6,6 +6,33 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-07 — ADMIN Undo + Recall (Reset 교체) · Persistent Recall Origin
+
+## Mode
+
+**Agent** · ADMIN edit UX · Undo/Recall · Commit/Push
+
+## Change
+
+- Removed ADMIN **Reset** button / `handleAdminWorkReset` view-only unlock gate.
+- Added ADMIN **되돌리기** (repeatable authored-transaction Undo) + **Recall** (restore immutable Load Origin S0).
+- SSOT: `useAdminEditHistory` + `adminEditHistory` — `undoStack` and `recallOriginSnapshot` are separate.
+- Load (LocalDB / History / Published Search match) → immediately editable; capture Origin S0.
+- SAVE does not replace Origin and does not clear Undo.
+- Recall clears Undo; new Load replaces Origin; refresh clears Origin.
+- Snapshot = authored canonical inputs only (no calculated C2 / trajectory / q-K).
+- UX: Recall runs **without confirm** — direct Origin restore.
+
+## Non-goals
+
+q/K · R0/R1b · P7 · tip table · anchors/sys/dataset · USER semantics · calculation formulas · Ctrl+Z / Redo (deferred)
+
+## Docs
+
+`TRAJECTORY_EXTENSION_SSOT.md` POLICY updated · this log entry
+
+---
+
 # 2026-09-07 — ADMIN C2 manual override lifecycle · HPT tip dependency invalidate
 
 ## Mode

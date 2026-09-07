@@ -21,7 +21,8 @@
 | v1.2 | Reflection Table 철학 명문화 — Reverse Spin 물리 엔진이 아님 · 표준 Default Proposal만 생성 |
 | v1.3 | Runtime Snap / Constraint / Attachment 제거 · Target Lock + DoubleClick Projection · Role vs Slot · Handle Pointer Priority |
 | **v1.4** | **Product Complete** · USER Search Runtime Activation · **`activateStrategySlot`** · Search ↔ Strategy Pick **단일 Runtime 경로** · Search 전용 Hydrate **없음** |
-| v1.4.1 | **POLICY A** · Recall view-only · Reset = only Recall→Edit · Target dblclick ≠ session resume while view-only · Search ≠ trajectory proximity · Role Ball3 unchanged |
+| v1.4.2 | **ADMIN Undo/Recall** · Load → immediately editable · Undo = authored transaction rollback · Recall = restore Load Origin S0 · SAVE ≠ Origin replace · Reset removed |
+| v1.4.1 | **POLICY A** · (superseded by v1.4.2) Recall view-only · Reset = only Recall→Edit · Target dblclick ≠ session resume while view-only · Search ≠ trajectory proximity · Role Ball3 unchanged |
 
 ---
 
@@ -325,23 +326,27 @@ Lock 유지 중
   어떤 Ball DoubleClick도 Target Role 변경 금지
 ```
 
-**POLICY A — Recall → Edit (ADMIN)** · *canonical edit-session contract*
+**ADMIN edit session — Load → Undo / Recall** · *canonical edit-session contract*
 
 ```text
-Recall (LocalDB / History) = view-only
-  → isAdminInputSessionActive = false
+Load (LocalDB / History / Published Search match) = editable
+  → isAdminInputSessionActive = true
+  → capture recallOriginSnapshot S0 (immutable until new Load / refresh)
   → Target Lock hydrate is explicit (meta → lock; no meta → unlock; no stale lock)
-  → Target dblclick does NOT resume edit session while view-only
-  → Second dblclick Projection unchanged (§7.3)
-Reset = ONLY canonical Recall→Edit transition
-  → unlock Target Lock
-  → restore Target Ready metadata (color / slot targetBall)
-  → session true → SYS / HP/T / STR / AI / SAVE when Ready
+Undo (UI: 「되돌리기」) = repeated authored edit-transaction rollback
+  → HP/T·SYS·STR·AI Apply / C2 drag end / Ball drag end / Target commit
+  → UI-only (modal open/close, overlay toggle) NOT in history
+Recall (UI label: 「Recall」 — never "Recall Origin") = restore S0
+  → clears Undo stack; Origin retained
+  → derived trajectory/C2/q-K recomputed via existing pipeline
+SAVE ≠ replace Recall Origin; SAVE ≠ clear Undo
+New Load replaces Origin; page refresh clears Origin
+Fresh blank → Recall unavailable
 Role-based Ball3 SSOT unchanged (field name == physical role)
 ```
 
-> Status pointer / Issue B: `PROJECT_MASTER_INDEX.md` · detail log: `HISTORY/PROJECT_LOG_2026-08.md`.  
-> Impl (non-SSOT): `App.jsx` · `adminLocalDbFlow.ts` · `adminEditSessionContract.ts` · `useSettings.js`.
+> Status pointer: `PROJECT_MASTER_INDEX.md` · detail log: `HISTORY/PROJECT_LOG_2026-09.md`.  
+> Impl (non-SSOT): `App.jsx` · `useAdminEditHistory.ts` · `adminEditHistory.ts` · `adminLocalDbFlow.ts` · `adminEditSessionContract.ts` · `useSettings.js`.
 
 ### 7.1.1 LocalDB Search vs trajectory (existing contract — clarified)
 

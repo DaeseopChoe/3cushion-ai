@@ -43,9 +43,9 @@ export type AdminLocalDbFlowContext = {
   setIsAdminPublishedSearchMatched: (value: boolean) => void;
   setAdminTableLayersVisible: (value: boolean) => void;
   setShowCoaching: (value: boolean) => void;
-  /** View-only after match — Reset re-opens editable session (History parity). */
+  /** Load success → editable session (Undo/Recall model; no Reset gate). */
   setIsAdminInputSessionActive: (value: boolean) => void;
-  /** Hydrate Target color metadata for Ready after Reset unlock. */
+  /** Hydrate Target color metadata for Target Ready after Load. */
   hydrateAdminRecallTarget: (targetBall: AdminTargetBall | null) => void;
   setBallsState?: (balls: Record<string, { x: number; y: number } | undefined> | ((prev: any) => any)) => void;
 
@@ -284,14 +284,14 @@ export async function runAdminLocalDbRecall(
     alert("유사도 낮음");
   }
 
-  // Sync table balls into slots, then leave view-only until Reset (History parity).
+  // Sync table balls into slots and keep editable (Load → editable; no Reset gate).
   if (!ctx.beginAdminInputSession()) {
     // session 시작 실패 — recall은 match이지만 layer 표시 생략
     return true;
   }
-  ctx.setIsAdminInputSessionActive(false);
+  // beginAdminInputSession already set session true — keep it.
 
-  // Post-match display (view-only: SYS/SAVE gated off until Reset)
+  // Post-match display: layers on + editable when Target Ready
   ctx.setAdminTableLayersVisible(true);
   ctx.setShowCoaching(true);
 
