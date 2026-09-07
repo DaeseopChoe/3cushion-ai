@@ -6,6 +6,34 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-07 — ADMIN C2 manual override lifecycle · HPT tip dependency invalidate
+
+## Mode
+
+**Agent** · ADMIN C2 Reflection Override · tipCount invalidate · Commit/Push
+
+---
+
+## Problem
+
+After C2 handle drag (`c2ReflectionOverride` `{rail,t}`), same tip-side **tipCount** changes kept the override. `anchors.C2` continued to bypass `resolveReflectionC2`, so calculated C2 never became effective.
+
+## Fix
+
+`shouldClearReflectionOverrideOnHptDependencyChange`: clear on tip **side** L↔R **or** **tipCount** change. Thickness `T` alone does **not** clear (not a C2 reflection tip input).
+
+Wired in `App.jsx` HPT Apply + `useShotSlots.applyHptToSlot` (draft/applied strip).
+
+## Contract
+
+ADMIN C2 manual override lifecycle: C2-dependent HPT condition change invalidates stale manual C2 override.
+
+## Non-goals
+
+C2 formula / q/K / R0/R1b/P7 / USER search semantics unchanged.
+
+---
+
 # 2026-09-07 — Phase 2B q/K Option 1 · 각비 기준 회전량 v1 실전 승인
 
 ## Mode

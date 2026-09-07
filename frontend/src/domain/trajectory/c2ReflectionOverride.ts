@@ -198,6 +198,10 @@ export type CanonicalTipSide = "L" | "R";
 export type HptTipSideSource = {
   hit_point?: { x?: unknown; y?: unknown } | null;
   hp?: { x?: unknown; y?: unknown } | null;
+  tipCount?: unknown;
+  mode?: unknown;
+  /** Thickness — NOT a C2 reflection tip dependency; ignored by invalidate. */
+  T?: unknown;
 } | null | undefined;
 
 export function canonicalTipSideFromHpt(
@@ -206,6 +210,19 @@ export function canonicalTipSideFromHpt(
   const hp = hpt?.hit_point ?? hpt?.hp;
   if (!hp || typeof hp.x !== "number" || !Number.isFinite(hp.x)) return null;
   return hp.x >= 0 ? "R" : "L";
+}
+
+/**
+ * Canonical tipCount for C2 reflection (TIP mode path in App/currentTip).
+ * Missing / non-finite → null (no tipCount-change decision).
+ */
+export function canonicalTipCountFromHpt(
+  hpt: HptTipSideSource
+): number | null {
+  if (!hpt || typeof hpt !== "object") return null;
+  const raw = hpt.tipCount;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  return Math.max(0, Math.min(4, Math.round(raw)));
 }
 
 /**
@@ -221,6 +238,27 @@ export function shouldClearReflectionOverrideOnHptTipSideChange(
   const next = canonicalTipSideFromHpt(nextHpt);
   if (prev == null || next == null) return false;
   return prev !== next;
+}
+
+/**
+ * C2 reflection tip dependencies that invalidate manual {rail,t} override:
+ * - tip side L↔R (existing)
+ * - tipCount change (same side still clears — spin magnitude changed)
+ *
+ * Does NOT clear on thickness T alone (T is not passed into resolveReflectionC2 tip).
+ * Unknown side/count on either side → that axis does not force clear.
+ */
+export function shouldClearReflectionOverrideOnHptDependencyChange(
+  previousHpt: HptTipSideSource,
+  nextHpt: HptTipSideSource
+): boolean {
+  if (shouldClearReflectionOverrideOnHptTipSideChange(previousHpt, nextHpt)) {
+    return true;
+  }
+  const prevCount = canonicalTipCountFromHpt(previousHpt);
+  const nextCount = canonicalTipCountFromHpt(nextHpt);
+  if (prevCount == null || nextCount == null) return false;
+  return prevCount !== nextCount;
 }
 
 /** Remove reflectionOverride from a draft/applied layer (other fields kept). */

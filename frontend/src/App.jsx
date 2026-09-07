@@ -233,7 +233,7 @@ import {
 import {
   normalizeReflectionOverride,
   reflectionOverrideToPoint,
-  shouldClearReflectionOverrideOnHptTipSideChange,
+  shouldClearReflectionOverrideOnHptDependencyChange,
   shouldClearReflectionOverrideOnTrackChange,
 } from "./domain/trajectory/c2ReflectionOverride";
 import {
@@ -6184,7 +6184,7 @@ function handlePointerCancel(e) {
                   const prevHpt =
                     slot?.draft?.hpt ?? slot?.applied?.hpt ?? adminState.hpt;
                   const shouldClear =
-                    shouldClearReflectionOverrideOnHptTipSideChange(
+                    shouldClearReflectionOverrideOnHptDependencyChange(
                       prevHpt,
                       newData
                     );
@@ -6233,7 +6233,7 @@ function handlePointerCancel(e) {
                       hptTrajectoryDiagSessionRef.current.applyMeta = applyMeta;
                     }
                   }
-                  // Tip L↔R → clear React C2 mirror + slot layers together
+                  // Tip side L↔R or tipCount change → clear React C2 mirror + slot layers together
                   if (shouldClear) {
                     setC2ReflectionOverride(null);
                     c2ReflectionOverrideRef.current = null;

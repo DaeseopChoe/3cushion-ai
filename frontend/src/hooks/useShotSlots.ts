@@ -19,7 +19,7 @@ import {
   resolveSlotSysForRender,
 } from '../domain/slotSysResolve';
 import {
-  shouldClearReflectionOverrideOnHptTipSideChange,
+  shouldClearReflectionOverrideOnHptDependencyChange,
   shouldClearReflectionOverrideOnTrackChange,
   stripReflectionOverrideFromLayer,
 } from '../domain/trajectory/c2ReflectionOverride';
@@ -538,7 +538,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
   };
 
   // Draft.hpt/str/ai -> Applied.hpt/str/ai 확정 (오버레이 "적용" 시 호출)
-  // Tip side L↔R → strip stale C2 reflectionOverride (slot SSOT + mirror owner).
+  // Tip side L↔R or tipCount change → strip stale C2 reflectionOverride (slot SSOT + mirror owner).
   const applyHptToSlot = (slotId: SlotId, data: DraftState['hpt']) => {
     if (data == null) return;
     setShotEditor((s) => {
@@ -546,11 +546,11 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       const prevApplied = slot.applied ?? {};
       const prevHpt = slot.draft?.hpt ?? slot.applied?.hpt ?? null;
       const cloned = structuredClone(data);
-      const clearOverrideOnTipSideFlip =
-        shouldClearReflectionOverrideOnHptTipSideChange(prevHpt, cloned);
+      const clearOverrideOnHptDependency =
+        shouldClearReflectionOverrideOnHptDependencyChange(prevHpt, cloned);
       let nextDraft: DraftState = { ...(slot.draft ?? {}), hpt: cloned };
       let nextApplied: DraftState = { ...prevApplied, hpt: cloned };
-      if (clearOverrideOnTipSideFlip) {
+      if (clearOverrideOnHptDependency) {
         nextDraft = stripReflectionOverrideFromLayer(nextDraft);
         nextApplied = stripReflectionOverrideFromLayer(nextApplied);
       }
