@@ -119,6 +119,7 @@ export default function CategoryManageModal({
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
+                if (e.isComposing || e.nativeEvent?.isComposing) return;
                 e.preventDefault();
                 handleCreate();
               }
@@ -195,6 +196,7 @@ export default function CategoryManageModal({
                     }
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
+                        if (e.isComposing || e.nativeEvent?.isComposing) return;
                         e.preventDefault();
                         if (canSave) handleUpdate(cat.no);
                       }

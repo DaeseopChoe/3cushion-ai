@@ -6,6 +6,87 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-08 — AI Writing Assistant (Proofreading) finalize
+
+## Mode
+
+**Agent** · AI Proofreading 최종 정리 · Docs · Commit/Push
+
+## Feature
+
+관리자 AI 코멘트 / One-Point Lesson 전용 **교정 편집자**.
+
+```text
+Admin AiOverlay (onePointDraft)
+  → [AI 교정]
+  → POST /api/proofread
+  → Vite middleware / Vercel Function
+  → Style Contract + numericGuard
+  → OpenAI Responses API (structured output)
+  → before/after preview
+  → [교정안 적용] → setOnePointDraft
+  → 기존 Apply / Save / 전체 적용 / SAVE
+```
+
+- **자동 overwrite 금지** · 관리자 승인 필수
+- Auto Comment (`buildAiAutoCommentModel`) **제외** (read-only · OpenAI 미전송)
+- 별도 persistence layer 없음 (기존 draft/save owner 재사용)
+- native browser `spellCheck` 실험 **폐기** · Category IME Enter guard **유지**
+
+## Architecture / Provider
+
+| Item | Value |
+|------|--------|
+| Endpoint | `POST /api/proofread` |
+| Provider | OpenAI Responses API |
+| Model | env `OPENAI_PROOFREAD_MODEL` (local: `gpt-5.6-luna`) |
+| `temperature` | **absent** (gpt-5.6-luna unsupported) |
+| Output | json_schema structured (`corrected_text`, `changed`) |
+| Timeout | ~25s |
+| Local env | Vite `loadEnv` → middleware `runProofread({ body, env })` |
+
+## Root causes resolved
+
+1. **503 CONFIG** — `.env.local` 존재했으나 middleware가 `process.env`만 사용 → `loadEnv` + explicit `env` 전달.
+2. **502 PROVIDER / 400** — Responses payload의 `temperature: 0`이 모델에서 unsupported → 해당 parameter **제거**.
+
+## Security
+
+- `OPENAI_API_KEY` server-only · `frontend/.env.local` gitignored · no `VITE_*` secrets
+- browser에 upstream detail / Authorization / user text 미노출
+- non-2xx 시 server terminal safe diagnostics만 (`status` / `type` / `code` / sanitized `message` / `param`)
+
+## Calculation isolation
+
+SYS · formulas · Fg/Rg · mappings · Δ_sys · anchors · trajectory · Impact · Ball Guide · CO/C1 · dataset/schema · SAVE/History semantics — **UNTOUCHED**.
+
+AI Writing Assistant는 calculation engine과 분리된 UI/text/service 기능.
+
+## Verification
+
+- targeted proofreading + IME guard tests PASS
+- full `npm test` — 129 files / 1364 tests PASS
+- `npm run build` PASS
+- live OpenAI call during Agent finalize — **NONE** (mock only)
+- user local live proofreading success — **CONFIRMED**
+
+## Docs
+
+- `PROJECT_MASTER_INDEX.md` — AI Writing Assistant 상태 · 코드 SSOT 맵
+- `3_SYSTEM_ARCHITECTURE.md` — 계산 비변경 · UI/text 경계 한 줄
+- this log
+
+## Protected / excluded from commit
+
+- `frontend/src/domain/trajectory/incidenceAngle.ts` (unrelated WT)
+- `frontend/.env.local` (secrets)
+
+## Non-goals
+
+Manual Vercel deploy · Vercel env mutation · billing/account notes · calculation rule changes
+
+---
+
 # 2026-09-07 — ADMIN Impact CONTACT ownership · HP/T zero-tip side intent
 
 ## Mode

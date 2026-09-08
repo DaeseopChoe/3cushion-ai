@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   DndContext,
   closestCenter,
@@ -17,6 +17,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { buildAiAutoCommentFromContext } from "../../domain/userInfoPanelModel";
 import { hasRenderableOutputsResult } from "../../domain/slotSysResolve";
+import {
+  canAcceptProofreadResponse,
+  fetchProofreading,
+} from "../../domain/lesson/proofreadingClient";
 import { AiAutoCommentDisplay } from "../user/UserAiPanel";
 
 export function ensureLessonItems(items) {
@@ -129,8 +133,94 @@ export function AiOverlay({
 
   const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [manageMenuOpen, setManageMenuOpen] = useState(false);
+  const [proofreadPhase, setProofreadPhase] = useState("idle");
+  const [proofreadOriginal, setProofreadOriginal] = useState("");
+  const [proofreadCorrected, setProofreadCorrected] = useState("");
+  const [proofreadError, setProofreadError] = useState("");
+  const proofreadGenerationRef = useRef(0);
+  const proofreadAbortRef = useRef(null);
+  const onePointDraftRef = useRef(onePointDraft);
+  onePointDraftRef.current = onePointDraft;
 
   const lessons = useMemo(() => ensureLessonItems(onePointLessons), [onePointLessons]);
+  const proofreadBusy = proofreadPhase === "loading";
+
+  const clearProofreadPreview = () => {
+    setProofreadPhase("idle");
+    setProofreadOriginal("");
+    setProofreadCorrected("");
+    setProofreadError("");
+  };
+
+  useEffect(() => {
+    return () => {
+      proofreadGenerationRef.current += 1;
+      proofreadAbortRef.current?.abort();
+    };
+  }, []);
+
+  const handleProofreadRequest = async () => {
+    const requestText = String(onePointDraft || "").trim();
+    if (!requestText || proofreadBusy) return;
+
+    proofreadAbortRef.current?.abort();
+    const controller = new AbortController();
+    proofreadAbortRef.current = controller;
+    const generation = proofreadGenerationRef.current + 1;
+    proofreadGenerationRef.current = generation;
+
+    setProofreadPhase("loading");
+    setProofreadError("");
+    setProofreadOriginal(requestText);
+    setProofreadCorrected("");
+
+    const result = await fetchProofreading(requestText, {
+      signal: controller.signal,
+    });
+
+    if (
+      !canAcceptProofreadResponse({
+        generation,
+        currentGeneration: proofreadGenerationRef.current,
+        requestText,
+        currentDraft: String(onePointDraftRef.current || "").trim(),
+      })
+    ) {
+      return;
+    }
+
+    if (!result.ok) {
+      if (result.error.code === "ABORTED") return;
+      setProofreadPhase("error");
+      setProofreadError(result.error.message);
+      return;
+    }
+
+    if (!result.data.changed) {
+      setProofreadPhase("unchanged");
+      setProofreadCorrected(result.data.corrected_text);
+      return;
+    }
+
+    setProofreadPhase("preview");
+    setProofreadCorrected(result.data.corrected_text);
+  };
+
+  const handleProofreadApply = () => {
+    if (proofreadPhase !== "preview") return;
+    const corrected = String(proofreadCorrected || "");
+    if (!corrected.trim()) return;
+    setOnePointDraft?.(corrected);
+    clearProofreadPreview();
+  };
+
+  const handleProofreadCancel = () => {
+    if (proofreadBusy) {
+      proofreadGenerationRef.current += 1;
+      proofreadAbortRef.current?.abort();
+    }
+    clearProofreadPreview();
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -372,6 +462,7 @@ export function AiOverlay({
         <textarea
           value={onePointDraft}
           onChange={(e) => setOnePointDraft?.(e.target.value)}
+          readOnly={proofreadBusy}
           placeholder={
             onePointSelectedId
               ? "레슨 문장을 수정하세요."
@@ -387,9 +478,32 @@ export function AiOverlay({
             marginBottom: 10,
             fontFamily: 'inherit',
             resize: 'vertical',
+            backgroundColor: proofreadBusy ? '#f8fafc' : '#fff',
           }}
         />
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          <button
+            type="button"
+            onClick={handleProofreadRequest}
+            disabled={proofreadBusy || !String(onePointDraft || "").trim()}
+            style={{
+              padding: '10px 16px',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#0f766e',
+              backgroundColor: '#ccfbf1',
+              border: '1px solid #5eead4',
+              borderRadius: '6px',
+              cursor:
+                proofreadBusy || !String(onePointDraft || "").trim()
+                  ? 'not-allowed'
+                  : 'pointer',
+              opacity:
+                proofreadBusy || !String(onePointDraft || "").trim() ? 0.6 : 1,
+            }}
+          >
+            {proofreadBusy ? "교정 중…" : "AI 교정"}
+          </button>
           <button
             type="button"
             onClick={() => applyOnePointToShot?.()}
@@ -444,6 +558,130 @@ export function AiOverlay({
             </button>
           ) : null}
         </div>
+        {proofreadPhase === "error" && proofreadError ? (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 10,
+              padding: "10px 12px",
+              fontSize: 13,
+              color: "#991b1b",
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              borderRadius: 6,
+            }}
+          >
+            {proofreadError}
+          </div>
+        ) : null}
+        {proofreadPhase === "unchanged" ? (
+          <div
+            style={{
+              marginBottom: 10,
+              padding: "10px 12px",
+              fontSize: 13,
+              color: "#334155",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 6,
+            }}
+          >
+            교정할 내용이 없습니다.
+            <button
+              type="button"
+              onClick={handleProofreadCancel}
+              style={{
+                marginLeft: 8,
+                fontSize: 13,
+                border: "none",
+                background: "transparent",
+                color: "#2563eb",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              닫기
+            </button>
+          </div>
+        ) : null}
+        {proofreadPhase === "preview" ? (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: 12,
+              border: "1px solid #cbd5e1",
+              borderRadius: 8,
+              background: "#ffffff",
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>
+              원문
+            </div>
+            <div
+              style={{
+                whiteSpace: "pre-wrap",
+                fontSize: 14,
+                lineHeight: 1.5,
+                color: "#334155",
+                marginBottom: 12,
+                maxHeight: 160,
+                overflowY: "auto",
+              }}
+            >
+              {proofreadOriginal}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f766e", marginBottom: 4 }}>
+              교정안
+            </div>
+            <div
+              style={{
+                whiteSpace: "pre-wrap",
+                fontSize: 14,
+                lineHeight: 1.5,
+                color: "#0f172a",
+                marginBottom: 12,
+                maxHeight: 160,
+                overflowY: "auto",
+              }}
+            >
+              {proofreadCorrected}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleProofreadApply}
+                style={{
+                  padding: "8px 12px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#fff",
+                  backgroundColor: "#0f766e",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                }}
+              >
+                교정안 적용
+              </button>
+              <button
+                type="button"
+                onClick={handleProofreadCancel}
+                style={{
+                  padding: "8px 12px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#334155",
+                  backgroundColor: "#e2e8f0",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                }}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* 전체 적용 / 취소 */}

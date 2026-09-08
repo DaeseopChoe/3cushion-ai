@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.03
-Last Updated: 2026-08-29
+Version: 2.04
+Last Updated: 2026-09-08
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -1030,9 +1030,17 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
 - **자동 생성 SSOT**: `domain/aiAutoCommentViewModel.ts` — `buildAiAutoCommentModel`, `composeAiAutoComment`.
   - SYS 보정 전/후, STR만 포함 (**HP/T·타격강도 제외**).
   - 사용자 공식: `1쿠션값 = 출발값 - 3쿠션값`.
+  - **read-only Auto Comment** — OpenAI / proofreading 대상 **아님** (SYS+STR 자동문장만).
 - **표시 형식**: `[기본 공식]` 한 줄, 문단 `\n\n`, `[원 포인트 레슨]` 분리.
 - **원 포인트 레슨**: `adminState.ai.onePointLessons` — 저장 구조 유지, USER는 `collectOnePointLessonTexts`로 draft/applied/admin 병합 표시.
-- **ADMIN UI**: `App.jsx` `AiOverlay` — 자동 미리보기 + 레슨 DnD + 전체 적용(`text: ""`, 레슨만 slot 반영).
+- **ADMIN UI**: `components/overlays/AiOverlay.jsx` — 자동 미리보기 + 레슨 DnD + 전체 적용(`text: ""`, 레슨만 slot 반영).
+- **AI Writing Assistant (Proofreading)** — **Implemented** (2026-09-08)
+  - 대상: 관리자 One-Point Lesson 원문(`onePointDraft`)만.
+  - 흐름: `[AI 교정]` → `POST /api/proofread` → Style Contract + OpenAI Responses API → before/after preview → 관리자 `[교정안 적용]` → `setOnePointDraft` → 기존 Apply/Save.
+  - **자동 overwrite 금지** · numeric mutation reject · 의미/전문용어/숫자 보존.
+  - Provider: OpenAI Responses API · model env `OPENAI_PROOFREAD_MODEL` (local/ops: `gpt-5.6-luna`) · `temperature` **미사용**.
+  - Security: API key **server-only** (`OPENAI_API_KEY`) · Vite `loadEnv`로 dev middleware에만 전달 · browser/VITE_* secret 없음 · non-2xx 시 server-only safe diagnostics.
+  - 계산 엔진(SYS/Fg/Rg/Δ_sys/anchors/trajectory/Impact 등)과 **분리**된 UI/text/service 기능.
 - **USER AI 패널**: `components/user/UserAiPanel.jsx` + `domain/userInfoPanelModel.ts` (`buildUserInfoPanel`).
   - 본문 32px / 제목 40px, 패널 `min(80vw, 1400px)`, `max-height: 72vh`.
   - 상단 공략 제목 중복 제거, 공간 최적화.
@@ -1268,12 +1276,22 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | USER 오버레이 | `frontend/src/App.jsx` (`overlayContent`: AI · HPT · CALC) |
 | USER Overlay Shell | `frontend/src/components/common/UserOverlayShell.jsx` — 공통 Layout Layer · **Centering SSOT** (Ratio · Surface · Drag · Clamp · live panel measure · Panel/Table ResizeObserver · Close 없음) |
 | Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`USER_FUNC_IDS`, `onUserFuncButtonSelect`) |
-| ADMIN AI | `frontend/src/App.jsx` `AiOverlay` |
+| ADMIN AI Overlay | `frontend/src/components/overlays/AiOverlay.jsx` |
+| AI Proofreading client | `frontend/src/domain/lesson/proofreadingClient.ts` |
+| AI Proofreading API | `frontend/api/proofread.js` · `frontend/api/_lib/*` (Style Contract · numericGuard · OpenAI provider) |
+| AI Proofreading local middleware | `frontend/vite.config.js` (`loadEnv` + `/api/proofread`) |
 | 스타일 | `frontend/src/index.css` (`.modal-panel--user-ai`, `.modal-panel--user-hpt`, `.modal-panel--user-calc`, `.user-calc-toolbar`) |
 
 ---
 
 ## 현재 완료 상태
+
+### AI Writing Assistant / Proofreading (2026-09-08)
+
+- **역할**: 관리자 One-Point Lesson **교정 편집자** (콘텐츠 자동 작성기 아님)
+- **경계**: Auto Comment · SYS/STR/계산 엔진 · SAVE/History persistence **비대상** (승인 후 `onePointDraft`만 갱신 → 기존 Apply/Save)
+- **검증**: targeted + full suite PASS · `vite build` PASS · local live OpenAI 교정 실사용 PASS
+- **상세:** `HISTORY/PROJECT_LOG_2026-09.md` 2026-09-08
 
 ### Runtime Contract SSOT 안정화 (2026-08-01)
 

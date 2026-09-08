@@ -471,6 +471,7 @@ dataset (App.jsx state) → localStorage "positions_dataset"
 - UI 레이어는 impact/final을 계산하지 않음
 - Domain 레이어가 모든 기하/시스템 평가 수행
 - adminSaveEngine은 저장 조율만 담당
+- **AI Writing Assistant (Proofreading)** 는 calculation engine과 분리된 UI/text/service 기능이다. SYS·Fg/Rg·Δ_sys·anchors·trajectory·Impact·SAVE semantics를 변경하지 않으며, 승인 후 One-Point Lesson draft 텍스트만 기존 Apply/Save 경로로 전달한다.
 
 7.6 App.jsx 현재 상태 요약 (계산 관점)
 
