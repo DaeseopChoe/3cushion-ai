@@ -6,6 +6,66 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-08 — 5&Half Baseline Display Ceiling (corrected Cn)
+
+## Mode
+
+**Agent** · Display Cap product-contract change · Docs · Commit/Push
+
+## Discovery
+
+5&1/2 검증 중: corrected는 second-ball로 C4에서 DISPLAY 종료되나,
+baseline은 PhysicalLimit(C4≥20→C6)으로 C5/C6까지 표시되어 비교 화면이 과밀해짐.
+계산(q/K/R0/…/pathNodes)은 정상 — **DISPLAY Cap 정책** 문제.
+
+## Product contract (확정)
+
+```text
+5&Half baseline calculation (pathNodes) = independent / may retain C5·C6
+5&Half baseline DISPLAY end
+  = min(existingBaselineCap, correctedDisplayEndIndex)
+
+existingBaselineCap = min(chain, same-rail, PhysicalLimit)
+```
+
+- corrected second-ball **XY**로 baseline을 spatial clip **금지**
+- baseline은 매칭 Cn까지 **자신의** geometry (예: 자신의 C4)
+- cushionPath + C labels = **동일** Cap
+- **5&Half only** · 타 시스템 baseline Cap 불변
+
+## OLD → NEW
+
+| OLD (D-DBP-05 Phase 1) | NEW (D-DBP-05 v1.5) |
+|------------------------|---------------------|
+| baseline DISPLAY ≠ corrected ceiling | baseline DISPLAY ≤ corrected DISPLAY Cn |
+| pathNodes 독립 | pathNodes 독립 **유지** |
+
+## Implementation
+
+- `trajectoryPathDisplayPolicy.resolveBaselineTrajectoryDisplayCap` — corrected ceiling 적용 · reason `corrected_ceiling`
+- `trajectoryBuilder.buildBaselineBranch` — `capCorrected.endIndex` 전달
+- labels: 기존 `buildTrajectoryRenderModel` / `visibleKeysForLabels`가 `capBaseline` 공유
+- tests: “no corrected ceiling” 회귀 → 새 계약 검증으로 교체
+
+## Non-goals / untouched
+
+formula · q/K · R0/R1b/P7 · C2 · HPT/tip · anchors/sys/dataset · Impact · Undo/Recall · Save · `incidenceAngle.ts`
+
+## Verification
+
+- targeted `trajectoryPathDisplayPolicy` — PASS
+- full `npm test` — 129 files / 1369 tests PASS
+- `npm run build` PASS
+- formula / q/K / R0/R1b/P7 / C2 / HPT — untouched
+
+## Docs
+
+- `DISPLAY_BOUNDARY_POLICY_SSOT.md` **v1.5**
+- `PROJECT_MASTER_INDEX.md` pointer
+- this log
+
+---
+
 # 2026-09-08 — AI Writing Assistant (Proofreading) finalize
 
 ## Mode

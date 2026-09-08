@@ -1,10 +1,10 @@
 # Display Boundary Policy SSOT v1.4
 
-**Status:** Active · Phase 1 Cap + Phase 2A Overlay Gate · **Reading Mode Implemented** · **C2 Reflection Rail Handle Implemented** · **same-rail identity nearest-rail (BUG-A) Implemented** · Corrected Minimum·Continuation·Boundary 잔여  
-**Scope:** USER 기준값 / 보정값 Display Layer · USER Overlay Reading Mode · ADMIN C2 Reflection Override (Display)  
+**Status:** Active · Phase 1 Cap + Phase 2A Overlay Gate · **Reading Mode Implemented** · **C2 Reflection Rail Handle Implemented** · **same-rail identity nearest-rail (BUG-A) Implemented** · **5&Half Baseline Display Ceiling (v1.5)** · Corrected Minimum·Continuation·Boundary 잔여  
+**Scope:** USER 기준값 / 보정값 Display Layer · USER Overlay Reading Mode · ADMIN C2 Reflection Override (Display) · **5&Half baseline DISPLAY ceiling**  
 **Out of scope:** Trajectory Extension Runtime redesign · Formula · Search · `activateStrategySlot` · Reflection Engine 수식 변경 · `detectRail` 공통 시그니처/Y-first 순서 변경  
 **Related (Consume · Do Not Modify here):** `TRAJECTORY_EXTENSION_SSOT.md` v1.4 (Task Closed) · `OVERLAY_LAYOUT_SSOT_v1.2.md` (Shell 규약) · `trajectoryPathDisplayPolicy.ts`  
-**Last Updated:** 2026-08-17
+**Last Updated:** 2026-09-08
 
 > 본 문서는 **Display Layer의 단일 제품 정책(SSOT)** 이다.  
 > Trajectory Extension Runtime은 Completed / Freeze이며, 본 문서는 Extension을 재설계하지 않는다.  
@@ -21,6 +21,7 @@
 | v1.3 | **Reading Mode (Overlay UX)** 정책 · D-DBP-13…15 · 문서 확정 |
 | **v1.4** | Reading Mode **Implemented** · C2 Reflection Rail Handle **Implemented** · Corner Cap skipSameRail · D-DBP-16…18 |
 | **v1.4.1** | **BUG-A:** same-rail **presence** = `detectRail(eps)` · **identity** = `resolveNearestRail` (LEFT/RIGHT tie-break). `detectRail` 함수 자체 미변경. `skipSameRail`은 C2 override 예외로 **유지** (BUG-B와 별개 · BUG-B는 현재 **UNCONFIRMED / reproduction required**). |
+| **v1.5** | **5&Half Baseline Display Ceiling** — baseline **계산**은 독립(full pathNodes 보존) · baseline **DISPLAY**는 corrected DISPLAY endIndex(Cn)를 초과하지 않음 · corrected second-ball XY spatial clip 금지 · segments/labels 동일 Cap · D-DBP-05 **개정** |
 
 ---
 
@@ -173,7 +174,8 @@ same-rail은 Invalid/Chain 계열 안전망으로 유지한다. Continuation과 
 
 | 분기 | Cap 정책 |
 |------|----------|
-| **baseline** | Minimum Guarantee C4 (§6.1) + Continuation (§7) + 안전(chain / same-rail). **corrected second_ball · corrected ceiling에 종속하지 않음.** |
+| **baseline (5&Half)** | existing = min(chain, same-rail, PhysicalLimit) · **DisplayEnd = min(existing, correctedDisplayEndIndex)** (§6.1 / §6.1.1). 계산 pathNodes는 독립·보존. |
+| **baseline (기타)** | legacy `resolveTrajectoryDisplayCap` (second_ball 등) — **corrected ceiling 미적용**. |
 | **corrected** | **Corrected Display Minimum Guarantee** (§6.2) + Continuation (§7) + 안전. **second_ball로 C3 종료 금지.** C5/C6는 Continuation. |
 
 ### 5.5 Baseline ↔ Corrected (최소 표시)
@@ -195,24 +197,40 @@ Corrected
 
 ## 6. Minimum Guarantee
 
-### 6.1 Baseline C4 Minimum Guarantee
+### 6.1 Baseline C4 / PhysicalLimit (5&Half)
 
 ```text
-baseline은 세컨드볼 위치와 관계없이
-최소 C4(path index 4)까지 반드시 표시한다.
+baseline 내부 계산(pathNodes)은 세컨드볼·corrected와 독립적으로
+C1…C6까지 생성·보존될 수 있다.
+
+baseline DISPLAY는 PhysicalLimit(C4 SYS 값)와 안전 Cap(chain / same-rail)을 적용한다.
+C4 < 20 → PhysicalLimit C4 / C4 ≥ 20 → PhysicalLimit C6.
 ```
 
-- 세컨드볼이 baseline 선상에 없어도 C4까지 표시한다.
-- C4 이후는 Continuation Rule(§7)을 만족할 때만 C5·C6로 연장한다.
+#### 6.1.1 5&Half Baseline Display Ceiling (v1.5 · 제품 계약)
 
-#### 비종속 (필수)
+```text
+BaselineDisplayEnd
+  = min(existingBaselineDisplayCap, correctedDisplayEndIndex)
 
-| 금지 종속 | 이유 |
-|-----------|------|
-| corrected `second_ball` Cap | 보정 분기의 세컨드볼 종료가 기준 표시를 C3 등으로 끌어내리면 안 됨 |
-| **corrected ceiling** (`CorrectedDisplayEnd`로 baseline을 상한) | C4 Minimum · baseline 독립 Cap과 충돌 |
+existingBaselineDisplayCap = min(chain, same-rail, PhysicalLimit)
+```
 
-> Phase 1에서 baseline Cap의 corrected ceiling 종속을 제거하는 방향이 확정되었다. Builder/Extension Runtime이 아니다.
+| 규칙 | 내용 |
+|------|------|
+| **계산 보존** | `baseline.pathNodes`의 C5/C6 등 내부 계산 노드는 제거하지 않는다. |
+| **DISPLAY 상한** | 화면의 baseline trajectory·C labels는 corrected **DISPLAY** 종료 쿠션 차수(endIndex)를 초과하지 않는다. |
+| **공유 단위** | cushion order / `endIndex`만 공유. **corrected second-ball XY ≠ baseline spatial truncate point.** |
+| **자체 geometry** | baseline은 매칭된 Cn까지 **자신의** Cushion geometry를 표시한다 (예: 자신의 C4). |
+| **labels** | `visibleKeysForLabels`는 동일 baseline Cap에서 파생 — line과 label 동기. |
+| **범위** | **5&Half 전용.** 다른 시스템 baseline Cap은 기존 동작 유지. |
+| **금지** | corrected second-ball 좌표로 baseline polyline을 mid-segment clip. |
+
+구현: `resolveBaselineTrajectoryDisplayCap` · Builder가 `capCorrected.endIndex`를 전달 · `slicePathNodesToCap` / `buildTrajectoryRenderModel`.
+
+> **D-DBP-05 개정 (v1.5):** Phase 1의 “corrected ceiling 비종속”은 **철회**한다.  
+> 5&Half에서 baseline **DISPLAY**는 corrected DISPLAY end에 ceiling된다.  
+> baseline **계산** 독립성은 유지한다.
 
 ### 6.2 Corrected Display Minimum Guarantee (v1.1)
 
@@ -440,7 +458,7 @@ Extension Overlay의 **표시 attach**만 Display Layer 범위이며, Extension 
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
-| 1 | Baseline C4 Minimum · corrected ceiling 제거 | Cap 코드 |
+| 1 | Baseline Cap + **5&Half corrected DISPLAY ceiling** (v1.5) | Cap 코드 |
 | 1.5 | Corrected Display Minimum Guarantee | 문서 |
 | **2A** | **Overlay Attach/Visibility Gate (CASE B)** | **Implemented** |
 | **RM** | **Reading Mode (USER Overlay Shell UX)** | **Implemented** |
@@ -471,7 +489,7 @@ Freeze된 Extension Runtime을 깨고 Display를 맞추지 않는다. Display를
 | **D-DBP-02** | Trajectory Extension ≠ Difference. Runtime Geometry는 Boundary 입력이 아니다. |
 | **D-DBP-03** | Flow: Builder → Cap → Boundary → Overlay Attach → Render. |
 | **D-DBP-04** | Continuation은 Display Cap 하위 규칙이다. Boundary에 두지 않는다. |
-| **D-DBP-05** | baseline C4 Minimum Guarantee. corrected second_ball / corrected ceiling에 비종속. |
+| **D-DBP-05** | **(v1.5 개정)** 5&Half: baseline **계산** 독립 · baseline **DISPLAY**는 corrected DISPLAY endIndex ceiling. second-ball XY spatial clip 금지. |
 | **D-DBP-06** | Continuation=false → 다음 segment 미표시 · **C4에서 종료**. |
 | **D-DBP-07** | Axis(long/short) 교차 = Continuation true · 동일 axis 연속 = Reverse End(Display). |
 | **D-DBP-08** | Overlay Attach는 Boundary 결과에 따른다. Runtime을 삭제·null 처리하지 않는다. |
@@ -641,4 +659,4 @@ Manual Reflection Override가 있으면 Display Cap **sameRail 절단을 수행�
 
 ---
 
-*End of DISPLAY_BOUNDARY_POLICY_SSOT.md — v1.4 · 2026-08-04*
+*End of DISPLAY_BOUNDARY_POLICY_SSOT.md — v1.5 · 2026-09-08*

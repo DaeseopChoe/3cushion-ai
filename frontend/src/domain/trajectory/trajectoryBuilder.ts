@@ -306,7 +306,9 @@ function buildBaselineBranch(
   secondPoint: PathPoint | null,
   hitTolerance: number,
   baseSysValues: Record<string, unknown> | null | undefined,
-  displayCapOpts?: TrajectoryBuildInput["displayCapOpts"]
+  displayCapOpts?: TrajectoryBuildInput["displayCapOpts"],
+  /** 5&Half: corrected DISPLAY endIndex ceiling (cushion order only). */
+  correctedDisplayEndIndex?: number | null
 ): BaselinePathBundle | null {
   if (!anchorsBase) {
     return null;
@@ -425,12 +427,17 @@ function buildBaselineBranch(
     C6_path_b,
   ];
 
-  // 5&Half: Baseline Cap = PhysicalLimit + chain/same-rail (C4 Minimum · no corrected ceiling)
-  // 그 외: legacy second-ball Cap 유지
+  // 5&Half: Baseline Cap = min(PhysicalLimit+chain/same-rail, corrected DISPLAY endIndex)
+  // Internal pathNodes (C5/C6) preserved; cushionPath/labels only truncated.
+  // Non-5&Half: legacy second-ball Cap (unchanged; no corrected ceiling).
   const capBaseline = isFiveHalfSystemId(systemIdForGrid)
     ? resolveBaselineTrajectoryDisplayCap({
         pathNodes,
         baselineC4Value: resolveBaselineC4Value(baseSysValues),
+        correctedDisplayEndIndex:
+          correctedDisplayEndIndex == null
+            ? undefined
+            : correctedDisplayEndIndex,
         opts: displayCapOpts,
       })
     : resolveTrajectoryDisplayCap(
@@ -720,7 +727,8 @@ export function buildTrajectory(
     secondPoint,
     hitTolerance,
     baseSysValues,
-    displayCapOpts
+    displayCapOpts,
+    capCorrected.endIndex
   );
 
   const coRg = readBaselineHandleCoord(anchorsBase?.CO);

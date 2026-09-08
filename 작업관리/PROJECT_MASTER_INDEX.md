@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.04
+Version: 2.05
 Last Updated: 2026-09-08
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -486,7 +486,7 @@ Architecture Review
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | **Operations** — Session Read Order · Startup Rules · Current / Next / Carry |
 | `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
-| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4** — Cap / Boundary · Phase 2A · **Reading Mode Implemented** · **C2 Reflection Rail Handle** · C4 Minimum |
+| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.5** — Cap / Boundary · Phase 2A · Reading Mode · C2 Override · **5&Half Baseline Display Ceiling** |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension Overlay Runtime SSOT **v1.4** (Task Closed · Freeze) |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8–Ch.11 Ratified** · **B0–B8 Completed** · **Final Validation Gate v1.0** |
 | `System Platform Standard (SPS) v1.0/Certification_Platform/` | **STEP9 Certification Platform SSOT v1.0 · FROZEN** · P-01…P-05 · FC-01…FC-08 |
@@ -1154,28 +1154,29 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 
 #### Trajectory Display Cap
 
-2026-06에 추가된 표시 안전 정책은 유지한다.
+2026-06에 추가된 표시 안전 정책은 유지한다. **2026-09-08:** 5&Half Baseline Display Ceiling 확정.
 
 - `domain/trajectoryPathDisplayPolicy.ts`
-- baseline/corrected 독립 path depth
-- `endIndex = min(sameRailCap, secondBallCap, chainBreakCap)`
+- corrected: `endIndex = min(sameRailCap, secondBallCap, chainBreakCap)`
+- **5&Half baseline DISPLAY:** `min(chain, sameRail, PhysicalLimit, correctedDisplayEndIndex)` — 내부 pathNodes(C5/C6) 보존 · cushionPath/labels만 절단 · second-ball XY spatial clip 금지
+- 비-5&Half baseline: 기존 second-ball Cap 유지 (corrected ceiling 미적용)
 - 연속 segment `(node[i] → node[i+1])` 양 끝 동일 rail이면 해당 segment부터 path/label 미표시
 - CO–C3–C6 같은 비연속 동일 rail은 허용
 - 계산 엔진 및 C5/C6 sync rule은 변경하지 않음
 
-#### Display Boundary Policy (2026-08-04)
+#### Display Boundary Policy (2026-08-04 · **v1.5 2026-09-08**)
 
-**상태:** Policy SSOT **v1.4** · Phase 1 Cap + Phase 2A · **Reading Mode Completed** · **C2 Reflection Rail Handle Completed** · Continuation/Boundary/Corrected Cap 잔여
+**상태:** Policy SSOT **v1.5** · Phase 1 Cap + Phase 2A · **Reading Mode Completed** · **C2 Reflection Rail Handle Completed** · **5&Half Baseline Display Ceiling** · Continuation/Boundary/Corrected Cap 잔여
 
 USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Runtime(Freeze)과 역할을 분리한다.
 
-- SSOT: `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` **v1.4**
+- SSOT: `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` **v1.5**
 - Flow: Builder → **Display Cap** → **Display Boundary** → **Overlay Attach** → Render
 - **Phase 2A:** `trajectoryExtensionOverlayVisibility.ts` — USER baseline CASE B 미부착 · corrected/ADMIN 부착 · Runtime 유지
 - **Reading Mode (§15):** USER Overlay Shell · Original Aspect · Zoom → **table-area center** (`dragOffset=0`) · `ReadingFontScale=1.45` · **Completed**
 - **C2 Reflection Rail Handle (§16):** ADMIN only · rail+t Override · Cap `skipSameRail` · **Completed**
 - **Extension ≠ Difference** · Extension Runtime은 Boundary 입력이 아님
-- **Baseline · Corrected 공통 Minimum Guarantee (C4)** · Continuation은 C4 이후만
+- **5&Half:** baseline DISPLAY ceiling = corrected DISPLAY Cn (D-DBP-05 v1.5)
 - 구현 범위: Display Cap / Boundary / Overlay Attach / Reading Shell / C2 Override Presentation · Extension Runtime **비대상**
 
 | 항목 | 상태 |
@@ -1588,7 +1589,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 - **USER HP/T read-only 오버레이** — 모바일 스케일·반투명 패널·SVG 축소 · `UserHptPanel`
 - **USER System Value Labels** — phone landscape 1.5× · 터치 persistent selection · `App.jsx` hooks 순서 수정
 - **USER 동선분석 Overlay** — 투명 패널 · 가독성(26px·shadow) · `[공식]`/`[계산]` 섹션 · 기준/보정 계산값 제목 제거
-- **Trajectory Display Cap** — same-rail 연속 segment 차단 · baseline/corrected 독립 세컨드볼 cap · `trajectoryPathDisplayPolicy.ts`
+- **Trajectory Display Cap** — same-rail 연속 segment 차단 · **5&Half baseline DISPLAY ceiling = corrected Cn** (v1.5) · `trajectoryPathDisplayPolicy.ts`
 - **ADMIN Target Ball native dblclick Regression 해결 (2026-07-30)** — Pointer Capture를 pointerdown→실제 Drag 시작 시점으로 이동 · Drag/DoubleClick 충돌 제거 · Playwright trusted event 검증 · Regression 없음 · Interaction SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Pointer Capture Timing)
 - **Runtime Contract SSOT 완성 (2026-08-01)** — `buildSlotDraftWithUpdatedSys()` legacy `profile` dangling reference 제거 · SYS Apply 백지화(`ReferenceError` → React root unmount) 해결 · Contract에서 해석된 `formulaExpr` 재사용 · Build/Lint PASS · Regression 없음 (`abeca84`)
 - **ADMIN Overlay Native Selection 처리 (2026-08-01)** — ModalShell `open` 전환 시 1회 native Selection 초기화 · 새로고침 후 첫 SYS Overlay 파란 highlight 해결 · Pointer Capture / preventDefault / user-select CSS 비변경 · Overlay SSOT 고정 (`2_FRONTEND_ARCHITECTURE_BASELINE_v1.md` §Overlay Native Selection) (`7ef9601`)
@@ -1948,7 +1949,7 @@ Framework / Pipeline / STEP6 Freeze surfaces 비공식 수정 **금지**. STEP7�
 
 ### 최우선 (Product Carry) — 병행 가능 잔여
 
-- **Display Boundary Policy** — SSOT **v1.4.1** · BUG-A same-rail identity **Implemented** · Reading Mode · C2 Handle · skipSameRail 유지 · Next: Continuation / CASE A · Corrected Cap Minimum · Boundary · **BUG-B UNCONFIRMED**
+- **Display Boundary Policy** — SSOT **v1.5** · **5&Half Baseline Display Ceiling** · BUG-A same-rail identity **Implemented** · Reading Mode · C2 Handle · Next: Continuation / CASE A · Corrected Cap Minimum · Boundary · **BUG-B UNCONFIRMED**
 - **Handle First Drag 잔여 간섭** (명시적 후속 · Extension Handle vs Ball/Joystick) — 또는 신규 Product 세션
 - 인계: `DISPLAY_BOUNDARY_POLICY_SSOT.md`
 
@@ -2051,7 +2052,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | **Session Operations** — Official Read Order · Startup Rules · Current / Next / Carry |
 | `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
 | `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` | **Family Data Architecture** — CONFIRMED DESIGN · CURRENT vs TARGET · Derived Data **3A-359 COMPLETE** · production WRITE SSOT still `positions_dataset` · gated READ default ON |
-| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.4.1** — same-rail nearest-rail identity (BUG-A) · Reading Mode · C2 Handle |
+| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.5** — 5&Half Baseline Display Ceiling · same-rail nearest-rail identity (BUG-A) · Reading Mode · C2 Handle |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
 | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` | **Architecture Impact Working Guideline** — PASS · Consume · Freeze Candidate |

@@ -4,8 +4,10 @@ import {
   computeBaselinePhysicalLimitEndIndex,
   computeSameRailCapEndIndex,
   computeSecondBallCapEndIndex,
+  PATH_NODE_MARKS,
   resolveBaselineTrajectoryDisplayCap,
   resolveTrajectoryDisplayCap,
+  slicePathNodesToCap,
   type PathPoint,
 } from "./trajectoryPathDisplayPolicy";
 
@@ -129,7 +131,7 @@ describe("trajectoryPathDisplayPolicy", () => {
     expect(cap.reason).toBe("missing_node");
   });
 
-  describe("Baseline Display Cap SSOT (5&Half) — C4 Minimum · no corrected ceiling", () => {
+  describe("Baseline Display Cap SSOT (5&Half) — corrected DISPLAY ceiling", () => {
     it("PhysicalLimit: C4 < 20 → C4; C4 >= 20 → C6", () => {
       expect(computeBaselinePhysicalLimitEndIndex(16)).toBe(4);
       expect(computeBaselinePhysicalLimitEndIndex(19.9)).toBe(4);
@@ -138,7 +140,7 @@ describe("trajectoryPathDisplayPolicy", () => {
       expect(computeBaselinePhysicalLimitEndIndex(null)).toBe(4);
     });
 
-    it("Case1: Baseline C4<20 → Baseline ends at C4 (PhysicalLimit)", () => {
+    it("Case1: Baseline C4<20 → Baseline ends at C4 (PhysicalLimit) without ceiling", () => {
       const cap = resolveBaselineTrajectoryDisplayCap({
         pathNodes: fullPathNodes(),
         baselineC4Value: 16,
@@ -147,7 +149,7 @@ describe("trajectoryPathDisplayPolicy", () => {
       expect(cap.reason).toBe("baseline_physical");
     });
 
-    it("Case2: Baseline C4>=20 → Baseline to C6 (independent of corrected)", () => {
+    it("Case2: Baseline C4>=20 → Baseline to C6 when no corrected ceiling", () => {
       const cap = resolveBaselineTrajectoryDisplayCap({
         pathNodes: fullPathNodes(),
         baselineC4Value: 25,
@@ -156,35 +158,103 @@ describe("trajectoryPathDisplayPolicy", () => {
       expect(cap.reason).toBe("full");
     });
 
-    it("C4 Minimum: correctedEnd=C3 must not pull baseline below C4", () => {
+    it("T1: corrected ends C4 → baseline DISPLAY ends C4 (even if PhysicalLimit C6)", () => {
       const cap = resolveBaselineTrajectoryDisplayCap({
         pathNodes: fullPathNodes(),
-        correctedDisplayEndIndex: 3,
-        baselineC4Value: 16,
-      });
-      expect(cap.endIndex).toBe(4);
-      expect(cap.reason).toBe("baseline_physical");
-      expect(cap.reason).not.toBe("corrected_ceiling");
-    });
-
-    it("C4 Minimum: correctedEnd=C3 + C4>=20 → still C6 (no ceiling)", () => {
-      const cap = resolveBaselineTrajectoryDisplayCap({
-        pathNodes: fullPathNodes(),
-        correctedDisplayEndIndex: 3,
+        correctedDisplayEndIndex: 4,
         baselineC4Value: 25,
       });
-      expect(cap.endIndex).toBe(6);
-      expect(cap.reason).not.toBe("corrected_ceiling");
+      expect(cap.endIndex).toBe(4);
+      expect(cap.reason).toBe("corrected_ceiling");
     });
 
-    it("legacy Case3: correctedEnd=C5 no longer ceilings baseline (C4>=20 → C6)", () => {
+    it("T2: corrected ends C5 → baseline DISPLAY ends C5", () => {
       const cap = resolveBaselineTrajectoryDisplayCap({
         pathNodes: fullPathNodes(),
         correctedDisplayEndIndex: 5,
         baselineC4Value: 25,
       });
+      expect(cap.endIndex).toBe(5);
+      expect(cap.reason).toBe("corrected_ceiling");
+    });
+
+    it("T3: internal pathNodes C5/C6 preserved; cushionPath only through corrected Cn", () => {
+      const pathNodes = fullPathNodes();
+      expect(pathNodes.filter(Boolean)).toHaveLength(7);
+      const cap = resolveBaselineTrajectoryDisplayCap({
+        pathNodes,
+        correctedDisplayEndIndex: 4,
+        baselineC4Value: 25,
+      });
+      const sliced = slicePathNodesToCap(pathNodes, cap);
+      expect(pathNodes[5]).toEqual(top(16));
+      expect(pathNodes[6]).toEqual(bottom(16));
+      expect(sliced).toHaveLength(5);
+      expect(sliced[4]).toEqual(pathNodes[4]);
+      expect(sliced.some((p) => p === pathNodes[5] || p === pathNodes[6])).toBe(
+        false
+      );
+    });
+
+    it("T4: labels share same cap — C5/C6 keys absent when corrected ends C4", () => {
+      const cap = resolveBaselineTrajectoryDisplayCap({
+        pathNodes: fullPathNodes(),
+        correctedDisplayEndIndex: 4,
+        baselineC4Value: 25,
+      });
+      const visibleKeys = PATH_NODE_MARKS.slice(0, cap.endIndex + 1);
+      expect(visibleKeys).toEqual(["CO", "C1", "C2", "C3", "C4"]);
+      expect(visibleKeys).not.toContain("C5");
+      expect(visibleKeys).not.toContain("C6");
+    });
+
+    it("T6: ceiling is index-only — baseline C4 geometry stays baseline node, not second-ball XY", () => {
+      const pathNodes = fullPathNodes();
+      const secondBallXy = { x: 12, y: 8 };
+      const cap = resolveBaselineTrajectoryDisplayCap({
+        pathNodes,
+        correctedDisplayEndIndex: 4,
+        baselineC4Value: 25,
+      });
+      const sliced = slicePathNodesToCap(pathNodes, cap);
+      expect(sliced[4]).toEqual(pathNodes[4]);
+      expect(sliced[4]).not.toEqual(secondBallXy);
+    });
+
+    it("T13: corrected display end change updates baseline ceiling", () => {
+      const pathNodes = fullPathNodes();
+      const atC4 = resolveBaselineTrajectoryDisplayCap({
+        pathNodes,
+        correctedDisplayEndIndex: 4,
+        baselineC4Value: 25,
+      });
+      const atC5 = resolveBaselineTrajectoryDisplayCap({
+        pathNodes,
+        correctedDisplayEndIndex: 5,
+        baselineC4Value: 25,
+      });
+      expect(atC4.endIndex).toBe(4);
+      expect(atC5.endIndex).toBe(5);
+    });
+
+    it("T14: corrected at max (C6) preserves PhysicalLimit C6 behavior", () => {
+      const cap = resolveBaselineTrajectoryDisplayCap({
+        pathNodes: fullPathNodes(),
+        correctedDisplayEndIndex: 6,
+        baselineC4Value: 25,
+      });
       expect(cap.endIndex).toBe(6);
-      expect(cap.reason).not.toBe("corrected_ceiling");
+      expect(cap.reason).toBe("full");
+    });
+
+    it("PhysicalLimit still binds when tighter than corrected ceiling", () => {
+      const cap = resolveBaselineTrajectoryDisplayCap({
+        pathNodes: fullPathNodes(),
+        correctedDisplayEndIndex: 6,
+        baselineC4Value: 16,
+      });
+      expect(cap.endIndex).toBe(4);
+      expect(cap.reason).toBe("baseline_physical");
     });
   });
 

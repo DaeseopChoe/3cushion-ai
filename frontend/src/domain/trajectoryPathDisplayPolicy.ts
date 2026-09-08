@@ -1,8 +1,9 @@
 /**
  * Trajectory 표시 레이어 cap — same-rail 연속 segment 차단 · 세컨드볼 종료.
- * Baseline(5&Half): PhysicalLimit + chain/same-rail.
- * C4 Minimum Guarantee — corrected second_ball / corrected ceiling에 비종속
- * (DISPLAY_BOUNDARY_POLICY_SSOT §6 · Phase 1).
+ * Baseline(5&Half): PhysicalLimit + chain/same-rail + corrected DISPLAY ceiling.
+ * Internal baseline pathNodes(C5/C6)는 보존; cushionPath/labels만 Cap으로 절단.
+ * corrected second-ball XY로 baseline을 spatial clip하지 않음 (endIndex 상한만 공유).
+ * (DISPLAY_BOUNDARY_POLICY_SSOT · 5&Half Baseline Display Ceiling).
  * 계산 엔진/SYS 값 생성과 분리 (Display Layer only).
  */
 
@@ -56,8 +57,9 @@ export type TrajectoryDisplayCapOptions = {
 export type BaselineDisplayCapInput = {
   pathNodes: (PathPoint | null | undefined)[];
   /**
-   * @deprecated Phase 1 (D-DBP-05): ignored — baseline Cap은 corrected ceiling에
-   * 종속하지 않는다. 호출부 호환을 위해 필드는 유지한다.
+   * 5&Half: corrected DISPLAY endIndex (cushion-order ceiling).
+   * When finite ≥ 0, baseline display cannot exceed this index.
+   * Does NOT spatialize-clip baseline to corrected second-ball XY.
    */
   correctedDisplayEndIndex?: number;
   /** Baseline 4쿠션 SYS 값 (DisplayModel과 동일 기준). */
@@ -275,11 +277,26 @@ export function computeBaselinePhysicalLimitEndIndex(
   return PATH_INDEX_C6;
 }
 
+function normalizeCorrectedDisplayCeiling(
+  correctedDisplayEndIndex: number | null | undefined
+): number | null {
+  if (
+    correctedDisplayEndIndex == null ||
+    !Number.isFinite(correctedDisplayEndIndex)
+  ) {
+    return null;
+  }
+  const n = Math.trunc(correctedDisplayEndIndex);
+  return n >= 0 ? n : null;
+}
+
 function bindingReasonBaseline(
   endIndex: number,
   chain: TrajectoryDisplayCap,
   sameRail: TrajectoryDisplayCap,
-  physicalLimit: number
+  physicalLimit: number,
+  existingEndIndex: number,
+  correctedCeiling: number | null
 ): Pick<TrajectoryDisplayCap, "reason" | "stoppedSegment"> {
   if (endIndex === sameRail.endIndex && sameRail.reason === "same_rail") {
     return {
@@ -293,6 +310,14 @@ function bindingReasonBaseline(
       stoppedSegment: chain.stoppedSegment,
     };
   }
+  // Corrected DISPLAY cushion-order ceiling bound the result below existing baseline cap.
+  if (
+    correctedCeiling != null &&
+    endIndex === correctedCeiling &&
+    correctedCeiling < existingEndIndex
+  ) {
+    return { reason: "corrected_ceiling" };
+  }
   // PhysicalLimit stopped at C4 (C4 < 20 threshold) — not full chain
   if (endIndex === physicalLimit && physicalLimit === PATH_INDEX_C4) {
     return { reason: "baseline_physical" };
@@ -301,44 +326,46 @@ function bindingReasonBaseline(
 }
 
 /**
- * Baseline Display Cap (5&Half) — DISPLAY_BOUNDARY_POLICY_SSOT §6 Phase 1:
- * BaselineEnd = min(chain, same-rail, PhysicalLimit)
- * C4 Minimum: PhysicalLimit ≥ C4 · corrected ceiling / second_ball 비종속.
- * Continuation Rule은 본 Phase에서 미구현.
+ * Baseline Display Cap (5&Half):
+ * existing = min(chain, same-rail, PhysicalLimit)
+ * BaselineDisplayEnd = min(existing, correctedDisplayEndIndex?) when ceiling provided.
+ *
+ * Corrected second-ball XY is NOT a spatial clip point — only DISPLAY endIndex/Cn.
+ * Internal pathNodes (incl. C5/C6) stay intact; callers slice cushionPath/labels via Cap.
  */
 export function resolveBaselineTrajectoryDisplayCap(
   input: BaselineDisplayCapInput
 ): TrajectoryDisplayCap {
-  const { pathNodes, baselineC4Value, opts } = input;
+  const { pathNodes, baselineC4Value, correctedDisplayEndIndex, opts } = input;
 
   const chain = computeChainBreakCapEndIndex(pathNodes);
   const sameRail = computeSameRailCapEndIndex(pathNodes, opts);
   const physicalLimit = computeBaselinePhysicalLimitEndIndex(baselineC4Value);
+  const correctedCeiling = normalizeCorrectedDisplayCeiling(
+    correctedDisplayEndIndex
+  );
 
-  const candidates = [
+  const existingCandidates = [
     chain.endIndex,
     sameRail.endIndex,
     physicalLimit,
   ].filter((n) => n >= 0);
 
-  let endIndex = candidates.length > 0 ? Math.min(...candidates) : -1;
+  const existingEndIndex =
+    existingCandidates.length > 0 ? Math.min(...existingCandidates) : -1;
 
-  // C4 Minimum Guarantee: safety(chain/same-rail)가 C4+를 허용하면 C3 이하로 내리지 않음.
-  // (과거 corrected_ceiling / second_ball 종속 회귀 방지)
-  if (
-    endIndex >= 0 &&
-    endIndex < PATH_INDEX_C4 &&
-    chain.endIndex >= PATH_INDEX_C4 &&
-    sameRail.endIndex >= PATH_INDEX_C4
-  ) {
-    endIndex = Math.min(PATH_INDEX_C4, physicalLimit, chain.endIndex, sameRail.endIndex);
+  let endIndex = existingEndIndex;
+  if (endIndex >= 0 && correctedCeiling != null) {
+    endIndex = Math.min(endIndex, correctedCeiling);
   }
 
   const meta = bindingReasonBaseline(
     endIndex,
     chain,
     sameRail,
-    physicalLimit
+    physicalLimit,
+    existingEndIndex,
+    correctedCeiling
   );
   return { endIndex, ...meta };
 }
