@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.05
-Last Updated: 2026-09-08
+Version: 2.06
+Last Updated: 2026-09-09
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -1154,27 +1154,28 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 
 #### Trajectory Display Cap
 
-2026-06에 추가된 표시 안전 정책은 유지한다. **2026-09-08:** 5&Half Baseline Display Ceiling 확정.
+2026-06에 추가된 표시 안전 정책은 유지한다. **2026-09-08:** 5&Half Baseline Display Ceiling 확정. **2026-09-09:** Active C2 Handle Ownership 사용자 검증 PASS.
 
 - `domain/trajectoryPathDisplayPolicy.ts`
 - corrected: `endIndex = min(sameRailCap, secondBallCap, chainBreakCap)`
 - **5&Half baseline DISPLAY:** `min(chain, sameRail, PhysicalLimit, correctedDisplayEndIndex)` — 내부 pathNodes(C5/C6) 보존 · cushionPath/labels만 절단 · second-ball XY spatial clip 금지
 - 비-5&Half baseline: 기존 second-ball Cap 유지 (corrected ceiling 미적용)
+- **ADMIN C2 Handle:** `resolveActiveC2HandleRg` + `showBaseLine` — Baseline/Corrected active C2 · display≡drag seed · click-only no mutate
 - 연속 segment `(node[i] → node[i+1])` 양 끝 동일 rail이면 해당 segment부터 path/label 미표시
 - CO–C3–C6 같은 비연속 동일 rail은 허용
 - 계산 엔진 및 C5/C6 sync rule은 변경하지 않음
 
-#### Display Boundary Policy (2026-08-04 · **v1.5 2026-09-08**)
+#### Display Boundary Policy (2026-08-04 · **v1.5 / v1.5.1 2026-09-09**)
 
-**상태:** Policy SSOT **v1.5** · Phase 1 Cap + Phase 2A · **Reading Mode Completed** · **C2 Reflection Rail Handle Completed** · **5&Half Baseline Display Ceiling** · Continuation/Boundary/Corrected Cap 잔여
+**상태:** Policy SSOT **v1.5.1** · Phase 1 Cap + Phase 2A · **Reading Mode Completed** · **C2 Active Ownership Completed** · **5&Half Baseline Display Ceiling** · Continuation/Boundary/Corrected Cap 잔여
 
 USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Runtime(Freeze)과 역할을 분리한다.
 
-- SSOT: `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` **v1.5**
+- SSOT: `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` **v1.5.1**
 - Flow: Builder → **Display Cap** → **Display Boundary** → **Overlay Attach** → Render
 - **Phase 2A:** `trajectoryExtensionOverlayVisibility.ts` — USER baseline CASE B 미부착 · corrected/ADMIN 부착 · Runtime 유지
 - **Reading Mode (§15):** USER Overlay Shell · Original Aspect · Zoom → **table-area center** (`dragOffset=0`) · `ReadingFontScale=1.45` · **Completed**
-- **C2 Reflection Rail Handle (§16):** ADMIN only · rail+t Override · Cap `skipSameRail` · **Completed**
+- **C2 Reflection Rail Handle (§16):** ADMIN only · **Active trajectory C2** ownership (`resolveActiveC2HandleRg`) · click-only no mutate · rail+t Override · Cap `skipSameRail` · **Completed**
 - **Extension ≠ Difference** · Extension Runtime은 Boundary 입력이 아님
 - **5&Half:** baseline DISPLAY ceiling = corrected DISPLAY Cn (D-DBP-05 v1.5)
 - 구현 범위: Display Cap / Boundary / Overlay Attach / Reading Shell / C2 Override Presentation · Extension Runtime **비대상**

@@ -105,7 +105,7 @@ import {
 } from "./interaction/joystickInteractionPolicy";
 import { buildTrajectoryRenderModel } from "./renderer/trajectory/trajectoryRenderModel";
 import { buildBaselineHandleModel } from "./renderer/trajectory/baselineHandleModel";
-import { buildC2HandleModel } from "./renderer/trajectory/c2HandleModel";
+import { buildC2HandleModel, resolveActiveC2HandleRg } from "./renderer/trajectory/c2HandleModel";
 import { buildTrajectoryPathAttrModel } from "./renderer/trajectory/trajectoryPathAttrModel";
 import { buildSystemAxisLabelModel } from "./renderer/labels/systemAxisLabelModel";
 import { buildRgAnchors } from "./renderer/trajectory/anchorConversionModel";
@@ -1766,11 +1766,13 @@ export default function App({
       c2ReflectionOverrideRef.current = next;
       setC2ReflectionOverride(next);
     },
+    onHandleHit: () => {
+      clearBallPointerInteractionState();
+    },
     onHandleDragStart: () => {
       if (appMode === "ADMIN") {
         adminEditHistory.beginTransaction(captureAdminEditSnapshot());
       }
-      clearBallPointerInteractionState();
     },
   });
 
@@ -4764,10 +4766,15 @@ function handlePointerUp(e) {
     return;
   }
 
-  if (endC2HandleDrag(e)) {
+  const c2End = endC2HandleDrag(e);
+  if (c2End.handled) {
     if (appMode === "ADMIN") {
-      adminEditHistory.commitTransaction(captureAdminEditSnapshot(), "c2");
-      setIsSaved(false);
+      if (c2End.didMutate) {
+        adminEditHistory.commitTransaction(captureAdminEditSnapshot(), "c2");
+        setIsSaved(false);
+      } else {
+        adminEditHistory.cancelTransaction();
+      }
     }
     return;
   }
@@ -4937,7 +4944,8 @@ function handlePointerCancel(e) {
     return;
   }
 
-  if (endC2HandleDrag(e)) {
+  const c2Cancel = endC2HandleDrag(e);
+  if (c2Cancel.handled) {
     if (appMode === "ADMIN") {
       adminEditHistory.cancelTransaction();
     }
@@ -5789,12 +5797,13 @@ function handlePointerCancel(e) {
     </g>
   ) : null;
 
-  // ADMIN C2 rail handle — pathNodes[2] (override or reflected)
-  const c2PathRg = (() => {
-    const n = correctedPathNodes?.[2];
-    if (n && Number.isFinite(n.x) && Number.isFinite(n.y)) return n;
-    return c2OverridePoint;
-  })();
+  // ADMIN C2 rail handle — active trajectory C2 (showBaseLine → baseline | corrected)
+  const c2PathRg = resolveActiveC2HandleRg({
+    active: showBaseLine ? "baseline" : "corrected",
+    baselinePathNodes: baseline?.pathNodes ?? null,
+    correctedPathNodes: correctedPathNodes ?? null,
+    overridePoint: c2OverridePoint,
+  });
   c2HandleRgRef.current = c2PathRg ?? null;
   const c2HandleModel = buildC2HandleModel(
     {

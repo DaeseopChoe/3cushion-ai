@@ -6,6 +6,117 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-09 — Finalize: Display Ceiling + Active C2 Handle Ownership
+
+## Mode
+
+**Agent** · Docs finalize · Regression · Commit/Push
+
+## User manual validation
+
+**PASS** (ADMIN 실화면):
+
+1. Baseline ON → C2 handle = Baseline C2 꼭지점
+2. Corrected ON → C2 handle = Corrected C2 꼭지점
+3. Baseline ↔ Corrected 전환 시 handle owner 정상 전환
+4. Corrected C4 종료 → Baseline display도 C4까지만 (C5/C6 미표시)
+
+## Final contracts
+
+**A. 5&Half Baseline Display Ceiling** (`fb1e5cf` + preserved):
+BaselineDisplayEnd = min(existingBaselineCap, correctedDisplayEnd); pathNodes C5/C6 preserved; no spatial second-ball truncate.
+
+**B. C2 Handle Active Ownership** (this commit):
+`resolveActiveC2HandleRg` + `showBaseLine` → display ≡ hit ≡ drag seed; click-only/zero-move no mutate; override dual inject after actual drag.
+
+## Non-goals
+
+formula · q/K · R0/R1b/P7 · HPT · Impact · USER semantics · `incidenceAngle.ts` (unrelated WT preserved)
+
+## Verification
+
+- targeted ownership + display policy + C2 reflection — 72 tests PASS
+- full `npm test` — PASS (finalize)
+- `npm run build` PASS
+- User manual ADMIN validation — PASS
+- Commit/Push — this finalize
+
+---
+
+# 2026-09-09 — C2 Handle Active Trajectory Ownership SSOT
+
+## Mode
+
+**Agent** · Option B active C2 owner · Tests/Build · later finalized (see entry above)
+
+## Discovery
+
+직전 uncommitted fix가 Handle을 `baseline.pathNodes[2] always`로 고정 →
+Corrected 화면에서도 Baseline C2에 핸들이 남음.
+
+## Product contract
+
+```text
+C2 HANDLE OWNER = ACTIVE TRAJECTORY C2
+ADMIN showBaseLine=true  → baseline.pathNodes[2]
+ADMIN showBaseLine=false → correctedPathNodes[2]
+display XY ≡ c2HandleRgRef ≡ pointer-down seed
+```
+
+## Fix
+
+- `resolveActiveC2HandleRg({ active, baselineNodes, correctedNodes, override })`
+- App: `active: showBaseLine ? "baseline" : "corrected"`
+- click-only / zero-move no-mutate · override dual inject · display ceiling **preserved**
+
+## Non-goals
+
+formula · q/K · R0/R1b/P7 · HPT · Impact · ceiling · `incidenceAngle.ts` · Commit/Push
+
+## Verification
+
+- targeted ownership + display policy + C2 tip invalidate + admin history — PASS
+- full `npm test` — 130 files / 1382 tests PASS
+- `npm run build` PASS
+- User manual + Commit/Push: see finalize entry above
+
+---
+
+# 2026-09-08 — Baseline C2 Handle Ownership + Click-Snap Fix
+
+## Mode
+
+**Agent** · C2 handle interaction ownership · Tests/Build · **No Commit/Push** (await user review)
+
+## Discovery
+
+ADMIN Baseline 표시에서 C2 handle이 Corrected C2에 놓이고,
+handle 클릭만으로 Baseline 궤적이 Corrected C2로 snap.
+
+## Root cause
+
+1. `App.jsx` `c2PathRg` ← `correctedPathNodes[2]` (Baseline C2 무시)
+2. `tryStartC2HandleDrag` pointer-down 즉시 `setOverride(pointer)` → anchors+anchorsBase inject
+
+## Fix
+
+- Handle display: `resolveC2HandleDisplayRg(baseline.pathNodes[2] | override)` — Corrected fallback **금지**
+- Drag session: click/zero-move **no mutate**; first differing rail+t → setOverride + Undo begin
+- Display ceiling (v1.5) **unchanged**
+
+## Non-goals
+
+formula · q/K · R0/R1b/P7 · HPT · Impact · ceiling contract · `incidenceAngle.ts` · Commit/Push
+
+## Verification
+
+- targeted `c2HandleOwnership` (11) + display policy + admin history + C2 tip invalidate — PASS
+- full `npm test` — 130 files / 1380 tests PASS
+- `npm run build` PASS
+- Commit/Push: **NONE** (await user review)
+
+---
+
 # 2026-09-08 — 5&Half Baseline Display Ceiling (corrected Cn)
 
 ## Mode

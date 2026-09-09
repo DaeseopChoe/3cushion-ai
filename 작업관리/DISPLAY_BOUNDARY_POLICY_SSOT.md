@@ -1,10 +1,10 @@
-# Display Boundary Policy SSOT v1.4
+# Display Boundary Policy SSOT v1.5.1
 
-**Status:** Active · Phase 1 Cap + Phase 2A Overlay Gate · **Reading Mode Implemented** · **C2 Reflection Rail Handle Implemented** · **same-rail identity nearest-rail (BUG-A) Implemented** · **5&Half Baseline Display Ceiling (v1.5)** · Corrected Minimum·Continuation·Boundary 잔여  
-**Scope:** USER 기준값 / 보정값 Display Layer · USER Overlay Reading Mode · ADMIN C2 Reflection Override (Display) · **5&Half baseline DISPLAY ceiling**  
+**Status:** Active · Phase 1 Cap + Phase 2A Overlay Gate · **Reading Mode Implemented** · **C2 Reflection Rail Handle Implemented** · **same-rail identity nearest-rail (BUG-A) Implemented** · **5&Half Baseline Display Ceiling (v1.5)** · **C2 Active Ownership (v1.5.1)** · Corrected Minimum·Continuation·Boundary 잔여  
+**Scope:** USER 기준값 / 보정값 Display Layer · USER Overlay Reading Mode · ADMIN C2 Reflection Override (Display) · **5&Half baseline DISPLAY ceiling** · **ADMIN active C2 handle**  
 **Out of scope:** Trajectory Extension Runtime redesign · Formula · Search · `activateStrategySlot` · Reflection Engine 수식 변경 · `detectRail` 공통 시그니처/Y-first 순서 변경  
-**Related (Consume · Do Not Modify here):** `TRAJECTORY_EXTENSION_SSOT.md` v1.4 (Task Closed) · `OVERLAY_LAYOUT_SSOT_v1.2.md` (Shell 규약) · `trajectoryPathDisplayPolicy.ts`  
-**Last Updated:** 2026-09-08
+**Related (Consume · Do Not Modify here):** `TRAJECTORY_EXTENSION_SSOT.md` v1.4 (Task Closed) · `OVERLAY_LAYOUT_SSOT_v1.2.md` (Shell 규약) · `trajectoryPathDisplayPolicy.ts` · `c2HandleModel.resolveActiveC2HandleRg`  
+**Last Updated:** 2026-09-09
 
 > 본 문서는 **Display Layer의 단일 제품 정책(SSOT)** 이다.  
 > Trajectory Extension Runtime은 Completed / Freeze이며, 본 문서는 Extension을 재설계하지 않는다.  
@@ -22,6 +22,7 @@
 | **v1.4** | Reading Mode **Implemented** · C2 Reflection Rail Handle **Implemented** · Corner Cap skipSameRail · D-DBP-16…18 |
 | **v1.4.1** | **BUG-A:** same-rail **presence** = `detectRail(eps)` · **identity** = `resolveNearestRail` (LEFT/RIGHT tie-break). `detectRail` 함수 자체 미변경. `skipSameRail`은 C2 override 예외로 **유지** (BUG-B와 별개 · BUG-B는 현재 **UNCONFIRMED / reproduction required**). |
 | **v1.5** | **5&Half Baseline Display Ceiling** — baseline **계산**은 독립(full pathNodes 보존) · baseline **DISPLAY**는 corrected DISPLAY endIndex(Cn)를 초과하지 않음 · corrected second-ball XY spatial clip 금지 · segments/labels 동일 Cap · D-DBP-05 **개정** |
+| **v1.5.1** | **C2 Handle Active Trajectory Ownership** — Handle = Active C2 (`resolveActiveC2HandleRg` + `showBaseLine`) · display≡drag seed · click-only no mutate · Display Ceiling과 독립 · user manual PASS 2026-09-09 |
 
 ---
 
@@ -633,10 +634,18 @@ Drag 중에는 transition을 끈다.
 
 | 적용 | 비적용 |
 |------|--------|
-| **ADMIN** only · C2 위치에 작은 노란 점 Handle (`r≈2.5`) | USER · Handle 비표시 |
+| **ADMIN** only · **Active trajectory C2**에 작은 노란 점 Handle (`r≈2.5`) | USER · Handle 비표시 |
+| Baseline active (`showBaseLine`) → Handle = Baseline `pathNodes[2]` | Baseline-only / Corrected-only hardcode |
+| Corrected active → Handle = Corrected `pathNodes[2]` | display와 drag seed 분리 |
+| Display XY ≡ `c2HandleRgRef` ≡ pointer-down seed (단일 owner) | 모드별 장기 handle state 복제 |
+| Click / zero-movement → **C2 mutation 없음** · 실제 move 후 override | pointer-down 즉시 setOverride |
 | 1D Rail Drag (`projectPointToRail`) | 2D 자유 Drag |
 | Persist: `StrategyEntry.reflectionOverride = { rail, t }` | 절대좌표 저장 |
 | Builder: `anchors.C2` 있으면 Reflection **skip** | Reflection Engine / `detectRail` 수식 변경 |
+
+> **Ownership (2026-09-09):** `C2 HANDLE OWNER = ACTIVE TRAJECTORY C2`.  
+> `resolveActiveC2HandleRg`가 display + drag seed를 지배한다.  
+> Display Ceiling(v1.5)과 독립. 실제 drag 후 override는 anchors + anchorsBase에 공유 inject.
 
 ### 16.3 Corner · Display Cap
 
@@ -652,11 +661,12 @@ Manual Reflection Override가 있으면 Display Cap **sameRail 절단을 수행�
 | 파일 | 역할 |
 |------|------|
 | `domain/trajectory/c2ReflectionOverride.ts` | rail+t · snap · edge ε |
+| `overlay/state/c2DragSession.ts` | click vs drag session (seed · mutate) |
 | `overlay/state/c2RailHandleDrag.ts` | ADMIN 1D drag |
-| `renderer/trajectory/c2HandleModel.ts` | C2 위치 작은 점 |
+| `renderer/trajectory/c2HandleModel.ts` | `resolveActiveC2HandleRg` · ADMIN handle display |
 | `trajectoryPathDisplayPolicy.ts` | `skipSameRail` |
 | `positionSearchEngine` / saveFlow / hydrate | persist · restore |
 
 ---
 
-*End of DISPLAY_BOUNDARY_POLICY_SSOT.md — v1.5 · 2026-09-08*
+*End of DISPLAY_BOUNDARY_POLICY_SSOT.md — v1.5.1 · Active C2 Handle Ownership finalized 2026-09-09*

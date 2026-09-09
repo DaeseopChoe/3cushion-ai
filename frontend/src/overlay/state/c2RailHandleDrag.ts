@@ -2,20 +2,22 @@
  * c2RailHandleDrag.ts
  * Overlay Runtime — ADMIN C2 rail handle drag (1D, projectPointToRail).
  *
- * Immediate Reflection Override update (no Apply button).
+ * Click / zero-movement: capture only — no setOverride, no Undo begin.
+ * First move that changes rail+t from active-handle seed → mutate + onHandleDragStart.
  * Rail lock uses resolveRailForC2Handle (not detectRail EPS=3).
- * Snap always keeps a non-null override on the locked rail (edge ε clamp).
  */
 
 import { useCallback, useRef, useState } from "react";
-import type { Rail } from "../../domain/reflectionEngine";
 import {
   hitTestC2Handle,
-  resolveRailForC2Handle,
-  snapPointerToReflectionOverride,
   type ReflectionOverride,
   type RgPoint,
 } from "../../domain/trajectory/c2ReflectionOverride";
+import {
+  advanceC2DragSession,
+  beginC2DragSession,
+  type C2DragSession,
+} from "./c2DragSession";
 
 export type UseC2RailHandleDragOptions = {
   svgRef: React.RefObject<SVGSVGElement | null>;
@@ -23,20 +25,29 @@ export type UseC2RailHandleDragOptions = {
   canDrag: () => boolean;
   getOverride: () => ReflectionOverride | null;
   setOverride: (next: ReflectionOverride | null) => void;
-  /** Called after C2 hit — clear Ball / joystick selection. */
+  /** Pointer hit on handle — clear Ball / joystick (not Undo). */
+  onHandleHit?: () => void;
+  /** First real C2 geometry mutation — begin Undo transaction. */
   onHandleDragStart?: () => void;
 };
+
+export type EndC2HandleDragResult =
+  | { handled: false }
+  | { handled: true; didMutate: boolean };
 
 export function useC2RailHandleDrag({
   svgRef,
   canDrag,
   getOverride,
   setOverride,
+  onHandleHit,
   onHandleDragStart,
 }: UseC2RailHandleDragOptions) {
   const [dragging, setDragging] = useState(false);
   const draggingRef = useRef(false);
-  const railLockRef = useRef<Rail | null>(null);
+  const sessionRef = useRef<C2DragSession | null>(null);
+  const onHandleHitRef = useRef(onHandleHit);
+  onHandleHitRef.current = onHandleHit;
   const onHandleDragStartRef = useRef(onHandleDragStart);
   onHandleDragStartRef.current = onHandleDragStart;
 
@@ -50,16 +61,13 @@ export function useC2RailHandleDrag({
       if (!hitTestC2Handle(pointerRg, handleRg)) return false;
       if (!handleRg) return false;
 
-      const existing = getOverride();
-      const rail = resolveRailForC2Handle(handleRg, existing?.rail ?? null);
-
-      railLockRef.current = rail;
+      sessionRef.current = beginC2DragSession({
+        handleRg,
+        existingOverride: getOverride(),
+      });
       draggingRef.current = true;
       setDragging(true);
-      onHandleDragStartRef.current?.();
-
-      // Always set — snap never returns null for a valid rail lock.
-      setOverride(snapPointerToReflectionOverride(pointerRg, rail));
+      onHandleHitRef.current?.();
 
       try {
         svgRef.current?.setPointerCapture?.(e.pointerId);
@@ -70,26 +78,39 @@ export function useC2RailHandleDrag({
       e.stopPropagation?.();
       return true;
     },
-    [canDrag, getOverride, setOverride, svgRef]
+    [canDrag, getOverride, svgRef]
   );
 
   const handleC2PointerMove = useCallback(
     (pointerRg: RgPoint | null | undefined): boolean => {
       if (!draggingRef.current) return false;
-      const rail = railLockRef.current;
-      if (!rail || !pointerRg) return true;
-      setOverride(snapPointerToReflectionOverride(pointerRg, rail));
+      const session = sessionRef.current;
+      if (!session || !pointerRg) return true;
+
+      const { session: nextSession, nextOverride } = advanceC2DragSession(
+        session,
+        pointerRg
+      );
+      sessionRef.current = nextSession;
+
+      if (nextOverride == null) return true;
+
+      if (!session.hasMutated && nextSession.hasMutated) {
+        onHandleDragStartRef.current?.();
+      }
+      setOverride(nextOverride);
       return true;
     },
     [setOverride]
   );
 
   const endC2HandleDrag = useCallback(
-    (e?: React.PointerEvent | PointerEvent): boolean => {
-      if (!draggingRef.current) return false;
+    (e?: React.PointerEvent | PointerEvent): EndC2HandleDragResult => {
+      if (!draggingRef.current) return { handled: false };
+      const didMutate = sessionRef.current?.hasMutated === true;
       draggingRef.current = false;
       setDragging(false);
-      railLockRef.current = null;
+      sessionRef.current = null;
 
       if (e && svgRef.current?.hasPointerCapture?.(e.pointerId)) {
         try {
@@ -98,7 +119,7 @@ export function useC2RailHandleDrag({
           /* ignore */
         }
       }
-      return true;
+      return { handled: true, didMutate };
     },
     [svgRef]
   );
