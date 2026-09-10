@@ -206,8 +206,8 @@ overlayMaxH  = tableHeight × overlayMaxHeightRatio
 
 | Overlay | Width Ratio | MaxHeight Ratio | sizeVariant | fitContent | Notes |
 |---------|-------------|-----------------|-------------|------------|-------|
-| **AI** | `0.42` | `0.85` | medium | false | 기준 Shell |
-| **HPT** | `0.42` | `0.85` | medium | false | AI와 동일 Shell mapping · Content 크기 독립은 **Polish 보류** |
+| **AI** | `0.63` | `0.85` | medium | false | Phase 3C ~1.5× base (was 0.42) |
+| **HPT** | `0.42` | `0.85` | medium | false | legacy silhouette 유지 · AI와 width 분리 |
 | **CALC** | `0.62` | `0.85` | medium | false | AI 디자인 언어 · 정보량 전용 폭 · AI Typography |
 
 ---
@@ -317,10 +317,11 @@ Width **policy** (ratio token → target CSS width)는 유지한다:
 
 | Overlay | widthRatio |
 |---------|------------|
-| AI / HPT | `0.42` |
+| AI | `0.63` (Phase 3C; was 0.42) |
+| HPT | `0.42` (AI와 분리) |
 | CALC | `0.62` |
 
-Centering SSOT와 width policy는 별개다. widthRatio를 바꾸지 않는다.
+Centering SSOT와 width policy는 별개다. AI/HPT width ratio는 Phase 3C에서 분리되었다.
 
 ### Observer 구조
 
@@ -373,7 +374,7 @@ Switch → dragOffset = 0
       → Panel RO가 placement 재수렴
 ```
 
-특히 `CALC (0.62) → AI (0.42)` 경로에서도 최종 AI panel center = table-area center.
+특히 `CALC (0.62) → AI (0.63)` 경로에서도 최종 AI panel center = table-area center.
 
 ### Lifecycle
 
@@ -546,7 +547,7 @@ v1.2에서 공식 확정된 사항:
 ### 2026-07-28 Incremental Decisions
 
 10. Close(X) 제거 · 외부 터치 닫기 · Close gutter 금지.
-11. AI / HPT Shell mapping = `widthRatio 0.42` · CALC = `0.62`.
+11. AI Shell mapping = `widthRatio 0.63` · HPT = `0.42` · CALC = `0.62`.
 12. Calculation Toolbar는 Shell 밖 Controller.
 13. HPT Content/Shell 크기 독립은 Polish 보류.
 
@@ -560,7 +561,7 @@ v1.2에서 공식 확정된 사항:
 19. Open / Re-open / Switch / Zoom / layout·size 변경 → `dragOffset = 0`.
 20. Zoom In/Out = table-area center 재배치 (이전 시각 중심 유지 금지).
 21. Root Cause B+C (stale panel dimensions + content reflow) → Panel RO로 해결.
-22. widthRatio 정책(0.42 / 0.62) · DisplayModel / SYS **미변경**.
+22. widthRatio 정책(AI `0.63` / HPT `0.42` / CALC `0.62`) · DisplayModel / SYS **미변경**.
 
 ### 2026-08-28 Incremental Decisions (ADMIN Workspace History Overlay UX)
 

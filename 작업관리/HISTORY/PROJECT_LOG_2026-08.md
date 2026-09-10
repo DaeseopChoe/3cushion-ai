@@ -4,6 +4,8 @@ Version : v1.69
 Period : 2026-08
 Status : Active Project Log
 
+> **2026-09 follow-on (pointer):** AI Comment Phase **3B.1.1** Strategy Summary correction explanation (기울기→C3) is logged in `HISTORY/PROJECT_LOG_2026-09.md`. August log unchanged for calc rules.
+
 ---
 
 # 2026-08-29 (Search Normalization, History-Corpus Separation, Regression Test Foundation & CI Automation)

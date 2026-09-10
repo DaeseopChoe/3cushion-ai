@@ -23,6 +23,7 @@ import {
   strategyCountMapFromButtons,
 } from "./domain/strategyButtonModel";
 import { buildUserInfoPanel } from "./domain/userInfoPanelModel";
+import { selectCommittedSlotAiForUser } from "./domain/lesson/committedAiPresentation";
 import { buildUserHptViewModel } from "./domain/userHptViewModel";
 import { resolveCurrentTipWithUserOverride } from "./domain/userRuntimeTipOverride";
 import {
@@ -56,6 +57,10 @@ import { parseSysFormulaExpr } from "./domain/calculator/formulaExpr";
 import {
   loadOnePoints,
   saveOnePoints,
+  sortOnePointLibraryForDropdown,
+  updateOnePointLibraryItemById,
+  registerOnePointLibraryItem,
+  deleteOnePointLibraryItemById,
 } from "./domain/lesson/onePointLibrary";
 import {
   loadOnePointCategories,
@@ -63,6 +68,24 @@ import {
   updateOnePointCategory,
   deleteOnePointCategory,
 } from "./domain/lesson/onePointCategoryLibrary";
+import {
+  captureAiCommentCommittedSnapshot,
+  isAiCommentDraftDirty,
+  normalizeStrategySummaryDraftText,
+} from "./domain/lesson/aiCommentEditorSession";
+import {
+  assertStrategySummaryNumericPreserved,
+  buildAiCommentApplyPayloadWithSummary,
+  buildStrategySummaryFingerprintInputs,
+  isStrategySummaryOverrideStale,
+  resolveEffectiveStrategySummary,
+  serializeStrategySummaryFingerprint,
+} from "./domain/lesson/strategySummaryPersistence";
+import {
+  buildStrategySummaryTemplateInputs,
+  composeFinalStrategySummary,
+} from "./domain/lesson/strategySummaryTemplate";
+import { hasRenderableOutputsResult } from "./domain/slotSysResolve";
 import CategoryManageModal from "./components/overlays/CategoryManageModal";
 import LessonOrderManageModal from "./components/overlays/LessonOrderManageModal";
 import { SysOverlay } from "./components/overlays/SysOverlay";
@@ -1332,7 +1355,20 @@ export default function App({
   // 원 포인트 레슨 라이브러리 (로컬스토리지 — domain/lesson/onePointLibrary.ts 위임)
   const [onePointLibrary, setOnePointLibrary] = useState(loadOnePoints);
   const [onePointSelectedId, setOnePointSelectedId] = useState("");
-  const [onePointDraft, setOnePointDraft] = useState("");
+  /** Phase 3A: current-shot PRO ONE POINT (Apply SSOT). */
+  const [shotOnePointDraft, setShotOnePointDraft] = useState("");
+  /** Phase 3A: reusable library workspace (수정/등록/AI교정). */
+  const [libraryDraft, setLibraryDraft] = useState("");
+  /** Phase 3A/3B: Strategy Summary session draft (Apply → slot.ai override). */
+  const [strategySummaryDraft, setStrategySummaryDraft] = useState("");
+  /** Phase 3B: numeric-guard Apply reject message (ADMIN only). */
+  const [strategySummaryApplyError, setStrategySummaryApplyError] = useState("");
+  /** Last Apply-committed AI Comment snapshot (Cancel rollback target). */
+  const [aiCommentCommitted, setAiCommentCommitted] = useState(null);
+  /** Slot id for which aiCommentCommitted / working draft session was hydrated. */
+  const [aiCommentSessionSlotId, setAiCommentSessionSlotId] = useState(null);
+  /** Bumps to clear AiOverlay proofread preview after Apply/Cancel (keep-open). */
+  const [aiProofreadClearNonce, setAiProofreadClearNonce] = useState(0);
   /** Lesson Library 전용 Category 선택 — "" = 선택 안함 (Dataset 미전달) */
   const [onePointCategories, setOnePointCategories] = useState(loadOnePointCategories);
   const [onePointCategoryNo, setOnePointCategoryNo] = useState("");
@@ -1355,26 +1391,30 @@ export default function App({
     setOnePointLibrary(next);
     saveOnePoints(next);
   };
-  /** Category Combo 기준 Lesson Combo 필터 (선택 안함 = categoryNo 없는 항목) */
+  /** Category Combo 기준 Lesson Combo 필터 (선택 안함 = categoryNo 없는 항목) — LessonOrder modal용 */
   const matchesOnePointCategoryFilter = (item, categoryNo) => {
     if (categoryNo === "" || categoryNo == null) {
       return item.categoryNo == null || !Number.isFinite(Number(item.categoryNo));
     }
     return Number(item.categoryNo) === Number(categoryNo);
   };
-  /** 현재 Category Lesson — Library 배열 순서 유지 (순서 관리 DnD 반영) */
+  /** Lesson Order modal: category filter + array order (not FIFO display). */
   const filteredSortedOnePointLibrary = useMemo(() => {
     return onePointLibrary.filter((item) =>
       matchesOnePointCategoryFilter(item, onePointCategoryNo)
     );
   }, [onePointLibrary, onePointCategoryNo]);
-  const onSelectOnePointCategory = (no) => {
+  /** Phase 2A Sentence Library dropdown: flat + newest-first (createdAt age). */
+  const sentenceLibraryForDropdown = useMemo(
+    () => sortOnePointLibraryForDropdown(onePointLibrary),
+    [onePointLibrary]
+  );  const onSelectOnePointCategory = (no) => {
     setOnePointCategoryNo(no);
     if (!onePointSelectedId) return;
     const item = onePointLibrary.find((x) => x.id === onePointSelectedId);
     if (!item || !matchesOnePointCategoryFilter(item, no)) {
       setOnePointSelectedId("");
-      setOnePointDraft("");
+      setLibraryDraft("");
     }
   };
   /** 현재 Category 슬롯만 orderedIds 순서로 치환 — 객체 필드/타 Category 위치 유지 */
@@ -1402,104 +1442,371 @@ export default function App({
       ? rest
       : { ...rest, categoryNo: no };
   };
+  const resolveStrategySummaryTemplateInputs = () => {
+    const sys = slotRenderSys ?? adminState.sys;
+    return buildStrategySummaryTemplateInputs({
+      systemId:
+        sys?.systemId ??
+        sys?.system_id ??
+        sys?.system ??
+        resolvedSlotSys?.systemId ??
+        "5_half_system",
+      shotType: sys?.shotType,
+      baseValues: resolvedSlotBaseSysValues,
+      correctedValues: resolvedSlotSysValues,
+      corrections: sys?.corrections,
+    });
+  };
+
+  /** Phase 3B.1: final natural-language Strategy Summary from resolved scalars. */
+  const resolveGeneratedStrategySummaryText = () => {
+    const sys = slotRenderSys ?? adminState.sys;
+    if (!hasRenderableOutputsResult(sys)) return "";
+    return composeFinalStrategySummary(resolveStrategySummaryTemplateInputs());
+  };
+
+  const resolveCurrentStrategySummaryFingerprint = () =>
+    serializeStrategySummaryFingerprint(
+      buildStrategySummaryFingerprintInputs(
+        resolveStrategySummaryTemplateInputs()
+      )
+    );
+
+  /** Phase 3A.1: last edited PRO ONE POINT surface — Apply / AI 교정 routing. */
+  const [aiOnePointEditTarget, setAiOnePointEditTarget] = useState("shot");
+
+  /**
+   * Hydrate AI Comment session when entering AI for a (new) slot.
+   * Same-slot reopen preserves dirty drafts (close ≠ cancel).
+   * Phase 3B.1: generated-only CLEAN → refresh from current resolved scalars.
+   * Committed override → keep override (stale detected separately).
+   */
+  const hydrateAiCommentEditorSessionIfNeeded = () => {
+    const slotId = shotEditor.activeSlot;
+    const slot = shotEditor.slots[slotId];
+    const committedAi =
+      slot?.applied?.ai ?? slot?.draft?.ai ?? adminState.ai;
+    const generatedSummary = resolveGeneratedStrategySummaryText();
+    const slotOverride = normalizeStrategySummaryDraftText(
+      committedAi?.strategySummaryOverride
+    );
+
+    if (aiCommentSessionSlotId !== slotId || !aiCommentCommitted) {
+      const effectiveSummary = resolveEffectiveStrategySummary({
+        generatedSummary,
+        strategySummaryOverride: slotOverride,
+      });
+      const snap = captureAiCommentCommittedSnapshot({
+        ai: committedAi,
+        onePointSelectedId: "",
+        strategySummaryText: effectiveSummary,
+      });
+      setAiCommentCommitted(snap);
+      setAiCommentSessionSlotId(slotId);
+      setShotOnePointDraft(snap.onePointText);
+      setStrategySummaryDraft(snap.strategySummaryText);
+      setLibraryDraft("");
+      setOnePointSelectedId("");
+      setAiOnePointEditTarget("shot");
+      setStrategySummaryApplyError("");
+      return;
+    }
+
+    const committedOverride = normalizeStrategySummaryDraftText(
+      aiCommentCommitted?.strategySummaryOverride ?? slotOverride
+    );
+    const dirty = isAiCommentDraftDirty({
+      shotOnePointDraft,
+      strategySummaryDraft,
+      committed: aiCommentCommitted,
+    });
+
+    // CASE A: generated-only CLEAN → always refresh to current resolved summary
+    if (!committedOverride && !dirty) {
+      if (strategySummaryDraft !== generatedSummary) {
+        setStrategySummaryDraft(generatedSummary);
+      }
+      if (aiCommentCommitted.strategySummaryText !== generatedSummary) {
+        setAiCommentCommitted({
+          ...aiCommentCommitted,
+          strategySummaryText: generatedSummary,
+        });
+      }
+      return;
+    }
+
+    // Backfill empty summary only when committed summary is also empty
+    const draftEmpty = !String(strategySummaryDraft || "").trim();
+    const committedEmpty = !String(
+      aiCommentCommitted?.strategySummaryText || ""
+    ).trim();
+    if (draftEmpty && committedEmpty && generatedSummary) {
+      setStrategySummaryDraft(generatedSummary);
+      setAiCommentCommitted({
+        ...aiCommentCommitted,
+        strategySummaryText: generatedSummary,
+      });
+    }
+  };
+
   const onSelectOnePoint = (id) => {
-    // "" = "문장 입력..." 신규 작성 모드 — Category는 유지
+    // "" = preview / unselected — clear selectedId only; never wipe shot draft
     if (!id) {
       setOnePointSelectedId("");
-      setOnePointDraft("");
       return;
     }
     const item = onePointLibrary.find(x => x.id === id);
     if (!item) return;
     setOnePointSelectedId(id);
-    setOnePointDraft(item.text);
+    // Phase 3A.1: selection loads upper shot only — no lower duplicate
+    setShotOnePointDraft(item.text);
+    setAiOnePointEditTarget("shot");
     setOnePointCategoryNo(
       Number.isFinite(Number(item.categoryNo)) && item.categoryNo != null
         ? Number(item.categoryNo)
         : ""
     );
   };
-  const applyOnePointToShot = () => {
-    const text = normalizeLesson(onePointDraft);
-    if (!text) return;
-    const newItem = { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, text };
-    setAdminState(prev => ({
-      ...prev,
-      ai: {
-        ...prev.ai,
-        onePointLessons: [...ensureLessonItems(prev.ai?.onePointLessons || []), newItem]
-      }
-    }));
-    const existing = onePointLibrary.find(x => normalizeLesson(x.text) === text);
-    if (existing) {
-      const now = Date.now();
-      const nextLib = onePointLibrary.map(x =>
-        x.id === existing.id ? { ...x, count: (x.count || 0) + 1, updatedAt: now } : x
-      );
-      saveOnePointLibrary(nextLib);
+
+  /**
+   * Phase 3B Apply: shot PRO ONE POINT + Strategy Summary override (numeric guard).
+   * Library LS unchanged. Overlay keep-open. Upper surface syncs immediately.
+   */
+  const commitAiCommentEditorSession = () => {
+    if (isDerivedReviewInspectLocked) return;
+    const generatedSummary = resolveGeneratedStrategySummaryText();
+    const numericGuard = assertStrategySummaryNumericPreserved(
+      generatedSummary,
+      strategySummaryDraft
+    );
+    if (!numericGuard.ok) {
+      setStrategySummaryApplyError(numericGuard.message);
+      return;
     }
+    setStrategySummaryApplyError("");
+    const preferId =
+      (aiCommentCommitted?.onePointLessons?.[0]?.id &&
+        String(aiCommentCommitted.onePointLessons[0].id)) ||
+      null;
+    let shotText = shotOnePointDraft;
+    if (
+      aiOnePointEditTarget === "library" &&
+      String(libraryDraft || "").trim()
+    ) {
+      shotText = libraryDraft;
+      setShotOnePointDraft(shotText);
+    }
+    const fingerprint = resolveCurrentStrategySummaryFingerprint();
+    const newData = buildAiCommentApplyPayloadWithSummary({
+      draftText: shotText,
+      preferLessonId: preferId,
+      strategySummaryDraft,
+      generatedStrategySummary: generatedSummary,
+      fingerprint,
+    });
+    if (appMode === "ADMIN") {
+      adminEditHistory.recordBefore(captureAdminEditSnapshot());
+    }
+    console.log("[AI_APPLY_START]", {
+      hypothesisId: "AI_APPLY_START",
+      ts: Date.now(),
+      onePointLessonCount: newData.onePointLessons.length,
+      hasStrategySummaryOverride: Boolean(newData.strategySummaryOverride),
+    });
+    setAdminState((prev) => ({ ...prev, ai: newData }));
+    actions.applyAiToSlot(shotEditor.activeSlot, newData);
+    const effectiveSummary = resolveEffectiveStrategySummary({
+      generatedSummary,
+      strategySummaryOverride: newData.strategySummaryOverride,
+    });
+    const snap = captureAiCommentCommittedSnapshot({
+      ai: newData,
+      onePointSelectedId,
+      strategySummaryText: effectiveSummary,
+    });
+    setAiCommentCommitted(snap);
+    setAiCommentSessionSlotId(shotEditor.activeSlot);
+    setShotOnePointDraft(snap.onePointText);
+    setStrategySummaryDraft(snap.strategySummaryText);
+    if (aiOnePointEditTarget === "library") {
+      setLibraryDraft("");
+      setAiOnePointEditTarget("shot");
+    }
+    setAdminTableLayersVisible(true);
+    setIsSaved(false);
+    setAiProofreadClearNonce((n) => n + 1);
+    // Phase 2B.1 / 3A / 3B: keep AI overlay open after Apply
+  };
+
+  /** @deprecated name retained for AiOverlay prop — maps to commit (replace, not append). */
+  const applyOnePointToShot = () => {
+    commitAiCommentEditorSession();
+  };
+
+  /** Cancel = rollback shot/summary drafts to lastCommitted; keep open; library LS untouched. */
+  const cancelAiCommentEditorSession = () => {
+    const slot = shotEditor.slots[shotEditor.activeSlot];
+    const fallbackAi = slot?.applied?.ai ?? slot?.draft?.ai ?? adminState.ai;
+    const snap =
+      aiCommentCommitted ??
+      captureAiCommentCommittedSnapshot({
+        ai: fallbackAi,
+        onePointSelectedId,
+        strategySummaryText:
+          strategySummaryDraft || resolveGeneratedStrategySummaryText(),
+      });
+    setShotOnePointDraft(snap.onePointText);
+    setStrategySummaryDraft(snap.strategySummaryText);
+    setOnePointSelectedId(snap.onePointSelectedId);
+    setLibraryDraft("");
+    setAiOnePointEditTarget("shot");
+    setStrategySummaryApplyError("");
+    const rolledAi = {
+      text: snap.aiText || "",
+      onePointLessons: snap.onePointLessons,
+    };
+    if (snap.strategySummaryOverride) {
+      rolledAi.strategySummaryOverride = snap.strategySummaryOverride;
+      if (snap.strategySummaryFingerprint) {
+        rolledAi.strategySummaryFingerprint = snap.strategySummaryFingerprint;
+      }
+    }
+    setAdminState((prev) => ({
+      ...prev,
+      ai: rolledAi,
+    }));
+    setAiCommentCommitted(snap);
+    setAiProofreadClearNonce((n) => n + 1);
+    // Phase 2B.1 / 3A / 3B: keep AI overlay open after Cancel
+  };
+
+  const onStrategySummaryDraftChange = (next) => {
+    setStrategySummaryApplyError("");
+    setStrategySummaryDraft(next);
+  };
+
+  /**
+   * Phase 3B.1: clear committed override and adopt current generated summary.
+   * Distinct from Cancel (session rollback). Keep-open.
+   */
+  const restoreStrategySummaryToGenerated = () => {
+    if (isDerivedReviewInspectLocked) return;
+    const generatedSummary = resolveGeneratedStrategySummaryText();
+    const fingerprint = resolveCurrentStrategySummaryFingerprint();
+    const preferId =
+      (aiCommentCommitted?.onePointLessons?.[0]?.id &&
+        String(aiCommentCommitted.onePointLessons[0].id)) ||
+      null;
+    const newData = buildAiCommentApplyPayloadWithSummary({
+      draftText: shotOnePointDraft,
+      preferLessonId: preferId,
+      strategySummaryDraft: generatedSummary,
+      generatedStrategySummary: generatedSummary,
+      fingerprint,
+    });
+    if (appMode === "ADMIN") {
+      adminEditHistory.recordBefore(captureAdminEditSnapshot());
+    }
+    setAdminState((prev) => ({ ...prev, ai: newData }));
+    actions.applyAiToSlot(shotEditor.activeSlot, newData);
+    const snap = captureAiCommentCommittedSnapshot({
+      ai: newData,
+      onePointSelectedId,
+      strategySummaryText: generatedSummary,
+    });
+    setAiCommentCommitted(snap);
+    setAiCommentSessionSlotId(shotEditor.activeSlot);
+    setStrategySummaryDraft(generatedSummary);
+    setStrategySummaryApplyError("");
+    setIsSaved(false);
   };
   const deleteLesson = (id) => {
-    setAdminState(prev => {
+    setAdminState((prev) => {
       const items = ensureLessonItems(prev.ai?.onePointLessons || []);
       return {
         ...prev,
-        ai: { ...prev.ai, onePointLessons: items.filter((l) => l.id !== id) }
+        ai: { ...prev.ai, onePointLessons: items.filter((l) => l.id !== id) },
       };
     });
   };
   const reorderLessons = (newItems) => {
-    setAdminState(prev => ({
+    setAdminState((prev) => ({
       ...prev,
-      ai: { ...prev.ai, onePointLessons: newItems }
+      ai: { ...prev.ai, onePointLessons: newItems },
     }));
   };
-  const saveDraftAsNewLesson = () => {
-    const text = normalizeLesson(onePointDraft);
-    if (!text) return;
-    const now = Date.now();
-    if (onePointSelectedId) {
-      const selectedItem = onePointLibrary.find((x) => x.id === onePointSelectedId);
-      if (selectedItem) {
-        const nextLib = onePointLibrary.map((x) =>
-          x.id === onePointSelectedId
-            ? withSelectedCategoryNo({ ...x, text, updatedAt: now })
-            : x
-        );
-        saveOnePointLibrary(nextLib);
-        return;
-      }
-    }
-    const existing = onePointLibrary.find(x => normalizeLesson(x.text) === text);
-    if (existing) {
-      const nextLib = onePointLibrary.map(x =>
-        x.id === existing.id
-          ? withSelectedCategoryNo({ ...x, text, updatedAt: now })
-          : x
+
+  /**
+   * Explicit 「문장 수정」 — updates selected library item from upper shotOnePointDraft.
+   * selected + empty shot draft → confirm delete. Shot commit / Apply not invoked.
+   */
+  const updateSelectedOnePointLibraryItem = () => {
+    if (!onePointSelectedId) return;
+    const trimmed = String(shotOnePointDraft || "").trim();
+    if (!trimmed) {
+      const ok = window.confirm("선택한 등록 문장을 삭제하시겠습니까?");
+      if (!ok) return;
+      const result = deleteOnePointLibraryItemById(
+        onePointLibrary,
+        onePointSelectedId
       );
-      saveOnePointLibrary(nextLib);
-      setOnePointSelectedId(existing.id);
-      setOnePointDraft(text);
+      if (!result.ok) return;
+      saveOnePointLibrary(result.items);
+      setOnePointSelectedId("");
+      setOnePointCategoryNo("");
       return;
     }
-    const newItem = withSelectedCategoryNo({
-      id: `${now}-${Math.random().toString(16).slice(2)}`,
-      text,
-      count: 0,
-      createdAt: now,
-      updatedAt: now,
+    const result = updateOnePointLibraryItemById(onePointLibrary, {
+      id: onePointSelectedId,
+      text: shotOnePointDraft,
     });
-    const nextLib = [newItem, ...onePointLibrary];
-    saveOnePointLibrary(nextLib);
-    setOnePointSelectedId(newItem.id);
-    setOnePointDraft(text);
+    if (!result.ok) return;
+    const withCat = result.items.map((x) =>
+      String(x.id) === String(onePointSelectedId)
+        ? withSelectedCategoryNo(x)
+        : x
+    );
+    saveOnePointLibrary(withCat);
   };
+
+  /** Explicit 「문장 등록」 — libraryDraft only (+ FIFO on new insert); shot/USER unchanged. */
+  const registerOnePointLibraryItemFromDraft = () => {
+    const catRaw =
+      onePointCategoryNo === "" || onePointCategoryNo == null
+        ? null
+        : Number(onePointCategoryNo);
+    const result = registerOnePointLibraryItem(onePointLibrary, {
+      text: libraryDraft,
+      categoryNo: Number.isFinite(catRaw) ? catRaw : null,
+    });
+    if (!result.ok) return;
+    saveOnePointLibrary(result.items);
+    setOnePointSelectedId(result.item.id);
+    setLibraryDraft(result.item.text);
+  };
+
+  /**
+   * Phase 2A transitional 「저장」 for existing callers:
+   * selected → update; else → register.
+   */
+  const saveDraftAsNewLesson = () => {
+    if (onePointSelectedId) {
+      updateSelectedOnePointLibraryItem();
+      return;
+    }
+    registerOnePointLibraryItemFromDraft();
+  };
+
   const deleteSelectedOnePointLibraryItem = () => {
     if (!onePointSelectedId) return;
-    const nextLib = onePointLibrary.filter((x) => x.id !== onePointSelectedId);
-    saveOnePointLibrary(nextLib);
+    const result = deleteOnePointLibraryItemById(
+      onePointLibrary,
+      onePointSelectedId
+    );
+    if (!result.ok) return;
+    saveOnePointLibrary(result.items);
     setOnePointSelectedId("");
-    setOnePointDraft("");
+    setLibraryDraft("");
     setOnePointCategoryNo("");
   };
   // ============================================
@@ -1995,10 +2302,54 @@ export default function App({
     hideBallPositionController();
   }
 
-  // 오버레이 닫기
+  // Phase 3A.1: openOverlay("AI") may bypass handleSelectAdminButton — still hydrate.
+  useEffect(() => {
+    if (appMode !== "ADMIN") return;
+    if (!overlayState.open || overlayState.type !== "AI") return;
+    hydrateAiCommentEditorSessionIfNeeded();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: open/type/slot only
+  }, [appMode, overlayState.open, overlayState.type, shotEditor.activeSlot]);
+
+  /** Phase 3A: shot dirty = summary + current-shot PRO ONE POINT (libraryDraft alone ≠ dirty). */
+  const isAiCommentOverlayDirty =
+    overlayState.open &&
+    overlayState.type === "AI" &&
+    isAiCommentDraftDirty({
+      shotOnePointDraft,
+      strategySummaryDraft,
+      committed: aiCommentCommitted,
+    });
+
+  /** Phase 3B: stale = committed override fingerprint ≠ current generator (≠ dirty). */
+  const isStrategySummaryStale =
+    overlayState.open &&
+    overlayState.type === "AI" &&
+    isStrategySummaryOverrideStale({
+      strategySummaryOverride:
+        aiCommentCommitted?.strategySummaryOverride ??
+        adminState.ai?.strategySummaryOverride,
+      strategySummaryFingerprint:
+        aiCommentCommitted?.strategySummaryFingerprint ??
+        adminState.ai?.strategySummaryFingerprint,
+      currentFingerprint: resolveCurrentStrategySummaryFingerprint(),
+    });
+
+  // 오버레이 닫기 — dirty AI Comment blocks accidental dismiss (X / backdrop / ESC).
+  // Admin modal type switches use openOverlay/setOverlayState and are NOT blocked.
   function closeOverlay() {
     if (isDerivedReviewInspectLocked) {
       handleExitDerivedInspect();
+      return;
+    }
+    if (
+      overlayState.open &&
+      overlayState.type === "AI" &&
+      isAiCommentDraftDirty({
+        shotOnePointDraft,
+        strategySummaryDraft,
+        committed: aiCommentCommitted,
+      })
+    ) {
       return;
     }
     const wasType = overlayState.type;
@@ -2677,6 +3028,12 @@ export default function App({
     
     // 조이스틱 숨김
     setDragState(prev => ({ ...prev, joystickVisible: false }));
+
+    // AI Comment editor session: hydrate committed snapshot when entering AI
+    // for a (new) slot. Re-open same slot preserves working draft (close ≠ cancel).
+    if (buttonId === "AI") {
+      hydrateAiCommentEditorSessionIfNeeded();
+    }
     
     setOverlayState({
       open: true,
@@ -3525,7 +3882,11 @@ function handleJoyPadPointerCancel(e) {
       slot?.draft?.str ?? slot?.applied?.str ?? adminState?.str ?? null;
     const draftAi = slot?.draft?.ai ?? null;
     const appliedAi = slot?.applied?.ai ?? null;
-    const adminAi = adminState?.ai ?? null;
+    // Phase 3C: USER prefers applied (Apply-committed), never admin session drafts.
+    const committedUserAi = selectCommittedSlotAiForUser({
+      draftAi,
+      appliedAi,
+    });
     return buildUserInfoPanel({
       strategyButtonLabel: activeStrategyLabel,
       slotRenderSys,
@@ -3535,8 +3896,8 @@ function handleJoyPadPointerCancel(e) {
       appliedSys,
       hpt,
       str,
-      ai: draftAi ?? appliedAi ?? adminAi,
-      aiLessonSources: [draftAi, appliedAi, adminAi],
+      ai: committedUserAi,
+      // Phase 3C: no draft+applied dual merge for USER AI lessons
       sysHpNResult,
       viewStrategyNarrative: hasSlotSys ? (view?.ui?.strategy ?? null) : null,
     });
@@ -3552,7 +3913,6 @@ function handleJoyPadPointerCancel(e) {
     resolvedSlotBaseSysValues,
     userSlotDisplayHpt,
     adminState?.str,
-    adminState?.ai,
     sysHpNResult,
     view?.ui?.strategy,
   ]);
@@ -6193,6 +6553,7 @@ function handlePointerCancel(e) {
       <ModalShell
         open={overlayState.open}
         onClose={closeOverlay}
+        disableBackdropClick={isAiCommentOverlayDirty}
         draggable
         title={
           overlayState.type === "SYS"
@@ -6530,43 +6891,36 @@ function handlePointerCancel(e) {
                 resolvedSlotSysValues={resolvedSlotSysValues}
                 resolvedSlotBaseSysValues={resolvedSlotBaseSysValues}
                 applyDisabled={isDerivedReviewInspectLocked}
-                onSave={(newData) => {
-                  if (isDerivedReviewInspectLocked) return;
-                  if (appMode === "ADMIN") {
-                    adminEditHistory.recordBefore(captureAdminEditSnapshot());
-                  }
-                  console.log("[AI_APPLY_START]", {
-                    hypothesisId: "AI_APPLY_START",
-                    ts: Date.now(),
-                  });
-                  setAdminState({ ...adminState, ai: newData });
-                  actions.applyAiToSlot(shotEditor.activeSlot, newData);
-                  setAdminTableLayersVisible(true);
-                  setIsSaved(false);
-                  closeOverlay();
+                onSave={() => {
+                  commitAiCommentEditorSession();
                 }}
-                onCancel={closeOverlay}
+                onCancel={cancelAiCommentEditorSession}
                 onePointLibrary={onePointLibrary}
-                sortedOnePointLibrary={filteredSortedOnePointLibrary}
+                sortedOnePointLibrary={sentenceLibraryForDropdown}
                 onePointSelectedId={onePointSelectedId}
-                onePointDraft={onePointDraft}
-                setOnePointDraft={setOnePointDraft}
+                strategySummaryDraft={strategySummaryDraft}
+                setStrategySummaryDraft={onStrategySummaryDraftChange}
+                strategySummaryApplyError={strategySummaryApplyError}
+                strategySummaryStale={isStrategySummaryStale}
+                onRestoreStrategySummaryToGenerated={
+                  restoreStrategySummaryToGenerated
+                }
+                shotOnePointDraft={shotOnePointDraft}
+                setShotOnePointDraft={setShotOnePointDraft}
+                libraryDraft={libraryDraft}
+                setLibraryDraft={setLibraryDraft}
+                aiOnePointEditTarget={aiOnePointEditTarget}
+                setAiOnePointEditTarget={setAiOnePointEditTarget}
                 onSelectOnePoint={onSelectOnePoint}
                 applyOnePointToShot={applyOnePointToShot}
-                saveDraftAsNewLesson={saveDraftAsNewLesson}
-                deleteSelectedOnePointLibraryItem={deleteSelectedOnePointLibraryItem}
-                onePointLessons={adminState.ai?.onePointLessons ?? []}
-                onDeleteLesson={deleteLesson}
-                onReorderLessons={reorderLessons}
-                onePointCategories={onePointCategories}
-                onePointCategoryNo={onePointCategoryNo}
-                onSelectOnePointCategory={onSelectOnePointCategory}
-                onOpenCategoryManage={() => setShowCategoryManageModal(true)}
-                onOpenLessonOrderManage={() => setShowLessonOrderManageModal(true)}
+                updateSelectedOnePointLibraryItem={updateSelectedOnePointLibraryItem}
+                registerOnePointLibraryItemFromDraft={registerOnePointLibraryItemFromDraft}
+                proofreadClearNonce={aiProofreadClearNonce}
               />
             )}
       </ModalShell>
 
+      {/* Category / Lesson Order modals retained for data compatibility; AI Overlay no longer opens them (Phase 2B). */}
       <CategoryManageModal
         open={showCategoryManageModal}
         categories={onePointCategories}

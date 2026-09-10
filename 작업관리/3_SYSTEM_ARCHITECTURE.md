@@ -472,6 +472,18 @@ dataset (App.jsx state) → localStorage "positions_dataset"
 - Domain 레이어가 모든 기하/시스템 평가 수행
 - adminSaveEngine은 저장 조율만 담당
 - **AI Writing Assistant (Proofreading)** 는 calculation engine과 분리된 UI/text/service 기능이다. SYS·Fg/Rg·Δ_sys·anchors·trajectory·Impact·SAVE semantics를 변경하지 않으며, 승인 후 One-Point Lesson draft 텍스트만 기존 Apply/Save 경로로 전달한다.
+- **AI Comment Editor Session (Phase 1)** 도 calculation과 분리된다. close=draft 유지 · Cancel=lastCommitted rollback · Apply=shot AI commit(single PRO ONE POINT block) · USER는 committed slot AI만 소비한다. C3/C4 표시 의미 문서는 presentation mapping이며 계산 규칙을 바꾸지 않는다.
+- **Sentence Library (Phase 2A)** 는 presentation/text persistence다. Apply≠register/update/delete · MAX 30 FIFO(createdAt) · Category/Order 데이터 보존 · 계산 엔진 비대상.
+- **PRO ONE POINT Library UI (Phase 2B)** 는 AiOverlay 하단 UX만 연결한다. flat `문장 선택` · 명시적 `문장 수정`/`문장 등록`/`삭제` · Category/Order manage UI 은퇴(데이터·모달 파일 보존) · Strategy Summary/USER WYSIWYG는 Phase 3.
+- **PRO ONE POINT Shell UX (Phase 2B.1)** 는 Apply/Cancel keep-open · dirty 시 X/backdrop/ESC 차단 · dirty여도 관리자 modal 전환 허용+draft 보존 · dropdown preview≠selected · empty+문장 수정=confirm delete. Strategy Summary editable은 Phase 3.
+- **AI Comment WYSIWYG Session (Phase 3A)** 는 공략 요약/PRO ONE POINT current-shot 직접 편집 · shot/library dual draft · Apply keep-open 즉시 상단 갱신 · summary session draft만(영구 override·fingerprint·USER VM은 3B/3C). 계산/OpenAI 비대상.
+- **AI Comment WYSIWYG UX (Phase 3A.1)** 는 summary real-value 부분 수정 · library select→upper only · lower=new-entry · AI교정 shot|library routing · Apply promote new-entry. 계산/OpenAI 비대상.
+- **Strategy Summary Persistence (Phase 3B)** 는 `strategySummaryOverride`+fingerprint additive 저장 · generated fallback · numeric token guard · stale preserve+ADMIN warning · SAVE/History `ai` clone 호환 · USER layout은 Phase 3C · OpenAI/latency는 Phase 3D. 계산 비대상.
+- **Final Strategy Summary Template (Phase 3B.1)** 는 resolved scalar presentation template(무 재계산) · STR 문단 제외 · generated-only refresh · override KEEP+stale+원본 복귀 · fingerprint v2 · numeric submultiset · Modal Undo는 3B.2/3B.3. 계산/OpenAI 비대상.
+- **Strategy Summary Correction Explanation (Phase 3B.1.1)** 는 밀림/끌림=출발값 · 기울기=3쿠션 도착 · Sn=최종 도착 설명 정밀화 · 없는 보정 생략 · Summary→SYS 역편집 금지 · 조사 자동화 deferred · **밀림/끌림 signed (`+N`/`-N`)** display hotfix. 계산/OpenAI 비대상.
+- **USER Shared AI Presentation (Phase 3C)** 는 committed-only read-only 투영이다. `buildCommittedAiPresentation` · override ?: generated (동일 Strategy Summary SSOT) · committed PRO ONE POINT · applied-first selector · dual `aiLessonSources` merge 제거(USER path) · ADMIN draft/library/proofread/stale/fingerprint UI 미노출 · OpenAI/calc/Undo 비대상 · latency는 Phase 3D.
+- **USER AI Overlay Responsive Width (Phase 3C follow-up)** 는 AI Reading OFF `widthRatio` 0.42→0.63 · HPT 0.42 분리 · Reading clamp/font scale/text reflow 유지 · CALC/ADMIN/calc/OpenAI 비대상 · **PC manual PASS** · mobile은 Push 후 검증.
+- **Phase 1→3C cumulative** 는 ADMIN AI editor + Strategy Summary template/persistence + USER presentation + AI width 0.63까지 main에 반영. Modal Undo(3B.2/3B.3)·latency(3D)·조사 자동화는 deferred.
 
 7.6 App.jsx 현재 상태 요약 (계산 관점)
 

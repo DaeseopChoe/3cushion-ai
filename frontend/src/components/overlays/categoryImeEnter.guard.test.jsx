@@ -35,13 +35,22 @@ describe("Category Korean IME Enter guard (source contract)", () => {
 });
 
 describe("AiOverlay proofreading UI wiring (source contract)", () => {
-  it("exposes AI 교정 controls and does not enable native spellCheck", () => {
+  it("proofreading still wires AI 교정 to fetchProofreading (shot|library target)", () => {
     const source = readOverlaySource("AiOverlay.jsx");
     expect(source).not.toMatch(/spellCheck\s*=\s*\{\s*true\s*\}/);
     expect(source).toContain("AI 교정");
     expect(source).toContain("교정안 적용");
     expect(source).toContain("fetchProofreading");
     expect(source).toContain("canAcceptProofreadResponse");
-    expect(source).toContain("setOnePointDraft?.(corrected)");
+    expect(source).toContain("resolveProofreadTarget");
+  });
+});
+
+describe("AiOverlay Phase 1 Apply/Cancel wiring (source contract)", () => {
+  it("form Apply commits via applyOnePointToShot and Cancel uses onCancel", () => {
+    const source = readOverlaySource("AiOverlay.jsx");
+    expect(source).toContain("applyOnePointToShot()");
+    expect(source).toContain("onClick={onCancel}");
+    expect(source).not.toContain("전체 적용");
   });
 });

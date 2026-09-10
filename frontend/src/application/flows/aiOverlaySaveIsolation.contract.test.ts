@@ -158,18 +158,27 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
     const initialHistory = loadWorkspaceHistory();
     const derivedReviewOpenSpy = vi.fn();
 
-    // Simulate AI overlay "적용" (applyOnePointToShot)
-    const newLesson = { id: `shot-lesson-${Date.now()}`, text: "두께 1/4 부드럽게 팔로우" };
+    // Phase 1 Apply: single-block replace (not append stack).
+    const lessonId = `shot-lesson-${Date.now()}`;
     adminState = {
       ...adminState,
       ai: {
-        ...adminState.ai,
-        onePointLessons: [...adminState.ai.onePointLessons, newLesson],
+        text: "",
+        onePointLessons: [{ id: lessonId, text: "두께 1/4 부드럽게 팔로우" }],
+      },
+    };
+    adminState = {
+      ...adminState,
+      ai: {
+        text: "",
+        onePointLessons: [
+          { id: lessonId, text: "수정된 단일 블록\n둘째 문단" },
+        ],
       },
     };
 
     expect(adminState.ai.onePointLessons).toHaveLength(1);
-    expect(adminState.ai.onePointLessons[0].text).toBe("두께 1/4 부드럽게 팔로우");
+    expect(adminState.ai.onePointLessons[0].text).toContain("둘째 문단");
 
     expect(loadWorkingDataset()).toEqual(initialDataset);
     expect(loadWorkingDataset()).toHaveLength(0);

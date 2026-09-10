@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.06
-Last Updated: 2026-09-09
+Version: 2.15
+Last Updated: 2026-09-10
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -989,7 +989,7 @@ App.jsx를 Application Runtime Orchestrator로 전환하기 위한 Architecture 
 - **두께/타점 Overlay**: **ADMIN 전용** 편집 (`HptOverlay`, `overlayState` HPT).
 - **관리자 입력**: `adminState.hpt`, slot `draft`/`applied` 동기화.
 - **Zero-tip tipSideIntent (2026-09-07)**: UI-only `left`|`right` intent in `useHptController` — tipCount=0에서도 side-first 입력 가능 · geometry는 center 유지 · Apply canonical 불변.
-- **USER HP/T read-only 오버레이**: 좌측 **두께/타점** · `UserHptPanel` + `userHptViewModel` · Common Shell = **AI 규격** (`widthRatio 0.42`, `maxHeightRatio 0.85`, `medium`, `fitContent: false`, `glassDark`)
+- **USER HP/T read-only 오버레이**: 좌측 **두께/타점** · `UserHptPanel` + `userHptViewModel` · Common Shell = HPT 규격 (`widthRatio 0.42`, `maxHeightRatio 0.85`, `medium`, `fitContent: false`, `glassDark`) — AI `0.63`과 분리
   - 공/텍스트 Content 크기 독립 유지 및 SVG viewBox crop = **UX Polish 보류** (임시로 Shell `--uos-w` 커플링 수용)
 
 ### 시스템 레슨 (System Lesson)
@@ -1032,8 +1032,64 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - 사용자 공식: `1쿠션값 = 출발값 - 3쿠션값`.
   - **read-only Auto Comment** — OpenAI / proofreading 대상 **아님** (SYS+STR 자동문장만).
 - **표시 형식**: `[기본 공식]` 한 줄, 문단 `\n\n`, `[원 포인트 레슨]` 분리.
-- **원 포인트 레슨**: `adminState.ai.onePointLessons` — 저장 구조 유지, USER는 `collectOnePointLessonTexts`로 draft/applied/admin 병합 표시.
-- **ADMIN UI**: `components/overlays/AiOverlay.jsx` — 자동 미리보기 + 레슨 DnD + 전체 적용(`text: ""`, 레슨만 slot 반영).
+- **원 포인트 레슨**: `adminState.ai.onePointLessons` — 저장 구조 유지. **Phase 1 Apply** = 현재 shot **single PRO ONE POINT block replace** (블록 내부 복수 문장/개행 허용). USER는 **slot draft/applied.ai만** (`adminState` 미확정 merge 금지).
+- **ADMIN UI**: `components/overlays/AiOverlay.jsx` — 자동 미리보기 + editor session · **Apply=commit** · **Cancel=rollback** · close(X/other modal)=draft 유지 · Category/Lesson-order manage 메뉴 **숨김**(데이터·모달 파일 보존).
+- **AI Comment Editor Session (Phase 1 · 2026-09-09)**
+  - Helpers: `domain/lesson/aiCommentEditorSession.ts`
+  - close ≠ cancel · Apply ≠ Library Save ≠ canonical SAVE
+  - proofreading = working draft only · calculation engine **완전 분리**
+  - C3/C4 의미(표시 매핑용): C3=밀림 반영 후 3쿠션 도착 · C4=4쿠션 보정 반영 최종 도착 — **계산 미변경**
+- **Sentence Library (Phase 2A · 2026-09-10)**
+  - SSOT: `domain/lesson/onePointLibrary.ts` · key `ONE_POINT_LESSON_LIBRARY_V1` · **MAX 30 FIFO (`createdAt` age)**
+  - Explicit: select / update / register / delete · Apply와 library mutation **완전 분리**
+  - identical text register → reuse id · load >30 non-destructive · cancel does not rollback library
+  - dropdown feed: flat + newest-first · Category/Order **data preserved** (UI → Phase 2B)
+- **PRO ONE POINT Library UI (Phase 2B · 2026-09-10)**
+  - AiOverlay: `문장 선택` / `문장 수정` / `문장 등록` / `AI 교정` / `적용` / `취소` (+ selected `삭제` confirm)
+  - Category/Order manage UI **retired from overlay** · modal files + LS/`categoryNo` **preserved**
+  - mixed 「저장」 UI removed · Strategy Summary / USER WYSIWYG → **Phase 3**
+- **PRO ONE POINT Shell UX (Phase 2B.1 · 2026-09-10)**
+  - Apply = commit + **keep-open** · Cancel = rollback + **keep-open**
+  - dirty → X/backdrop/ESC **blocked** · dirty → SYS/STR modal switch **allowed** + draft preserved
+  - dropdown newest preview ≠ selected · delete via empty + 문장 수정 + confirm
+  - shot dirty = draft text only (selectedId alone ≠ dirty) · USER committed-only preserved
+- **AI Comment WYSIWYG Session (Phase 3A · 2026-09-10)**
+  - bold **공략 요약** + **PRO ONE POINT** current-shot editors · `strategySummaryDraft` session-only
+  - dual draft: `shotOnePointDraft` (Apply) ≠ `libraryDraft` (수정/등록/AI교정)
+  - Apply keep-open + **immediate upper refresh** · library-only ≠ shot dirty
+  - summary override / fingerprint / numeric guard / USER shared VM → **Phase 3B/3C**
+- **AI Comment WYSIWYG UX Refinement (Phase 3A.1 · 2026-09-10)**
+  - summary = real controlled value (partial edit) · select → upper only · lower = new-entry
+  - 문장 수정 = selected + upper shot text · AI 교정 = shot|library target routing
+  - Apply promotes last-edited new-entry · hydrate on openOverlay(AI) path
+- **Strategy Summary Persistence (Phase 3B · 2026-09-10)**
+  - additive `slot.ai.strategySummaryOverride` + `strategySummaryFingerprint` (no hard migration)
+  - effective summary = override ?: generated · identical Apply → omit override
+  - numeric token multiset guard on Apply · stale fingerprint warning (preserve override)
+  - SAVE/History via existing `ai` cloneJson · USER committed-slot only · layout → **Phase 3C (done)**
+  - OpenAI / latency → **Phase 3D**
+- **Final Strategy Summary Template (Phase 3B.1 · 2026-09-10)**
+  - presentation SSOT: `strategySummaryTemplate.ts` — resolved scalars only · **no recalc** · no STR prose paragraph
+  - generated-only CLEAN → SYS/STR reopen refresh · committed override KEEP + stale + 「원본 요약으로 되돌리기」
+  - fingerprint v2 aligned to template inputs · numeric **submultiset** guard (optional sentence delete OK)
+  - Modal Undo → **Phase 3B.2/3B.3** · USER layout → **Phase 3C (done)** · latency → **Phase 3D**
+- **Strategy Summary Correction Explanation (Phase 3B.1.1 · 2026-09-10)**
+  - 밀림/끌림 = 출발값 보정 설명 · 기울기(`curve_ratio`) = 3쿠션 도착 설명 · Sn = 최종 도착(`출발값 보정`) 설명
+  - correction 없으면 해당 문구 생략 · Summary→SYS reverse edit 없음 · 한국어 조사 자동화 **deferred**
+  - **hotfix:** 밀림/끌림은 signed display (`밀림값 +N` / `끌림값 -N`, `fmtSignedDeparture`) · calc/OpenAI untouched
+- **USER Shared AI Presentation (Phase 3C · 2026-09-10)**
+  - USER AI read-only: 「공략 요약」 + 「PRO ONE POINT」 · shared `committedAiPresentation.ts`
+  - effective = committed `strategySummaryOverride` ?: Strategy Summary template SSOT (ADMIN과 동일)
+  - `selectCommittedSlotAiForUser` applied-first · USER path no draft+applied `aiLessonSources` dual merge
+  - ADMIN draft/library/proofread/stale/fingerprint/editing chrome **미노출** · no OpenAI · no calc
+  - Modal Undo → **Phase 3B.2/3B.3** · latency → **Phase 3D**
+- **USER AI Overlay Responsive Width (Phase 3C follow-up · 2026-09-11)**
+  - AI Reading OFF `widthRatio` **0.42 → 0.63** (~1.5×) · `HPT_OVERLAY_WIDTH_RATIO` **0.42** 분리 유지
+  - Reading Mode clamp / `READING_FONT_SCALE` / text reflow (`pre-line`) **unchanged** · CALC/ADMIN untouched
+  - **PC manual review PASS** · mobile device validation **after Push/deploy**
+- **Phase 1→3C cumulative status (2026-09-11)**
+  - ADMIN editor + Strategy Summary SSOT/persistence + USER committed presentation + AI width 0.63 **shipped to main**
+  - Deferred: Modal Undo **3B.2/3B.3** · latency **3D** · Korean particle automation
 - **AI Writing Assistant (Proofreading)** — **Implemented** (2026-09-08)
   - 대상: 관리자 One-Point Lesson 원문(`onePointDraft`)만.
   - 흐름: `[AI 교정]` → `POST /api/proofread` → Style Contract + OpenAI Responses API → before/after preview → 관리자 `[교정안 적용]` → `setOnePointDraft` → 기존 Apply/Save.
@@ -1042,10 +1098,11 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - Security: API key **server-only** (`OPENAI_API_KEY`) · Vite `loadEnv`로 dev middleware에만 전달 · browser/VITE_* secret 없음 · non-2xx 시 server-only safe diagnostics.
   - 계산 엔진(SYS/Fg/Rg/Δ_sys/anchors/trajectory/Impact 등)과 **분리**된 UI/text/service 기능.
 - **USER AI 패널**: `components/user/UserAiPanel.jsx` + `domain/userInfoPanelModel.ts` (`buildUserInfoPanel`).
+  - Phase 3C: `strategySummaryText` + `onePointText` (committed presentation) · multiline `pre-line`
   - 본문 32px / 제목 40px, 패널 `min(80vw, 1400px)`, `max-height: 72vh`.
   - 상단 공략 제목 중복 제거, 공간 최적화.
   - **반응형 스케일**: `--ai-scale` (tablet 0.72 · phone landscape 0.44) — SYSTEM_LESSON 등과 동일 계수, 변수명만 분리 (통합 Phase 2 **보류**)
-- **Deprecated**: `utils/aiPlayStrategyBuilder.ts` `buildPlayStrategy()` — SYS/HP/T/STR 나열형.
+- **Deprecated**: `utils/aiPlayStrategyBuilder.ts` `buildPlayStrategy()` — SYS/HP/T/STR 나열형. · legacy USER `AiAutoCommentDisplay` (intro+STR) — USER AI path에서 Strategy Summary SSOT로 대체.
 
 ### USER Projection Rule (공식)
 
@@ -1220,7 +1277,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | Search / Reset | — | Search 성공 시 Reset으로 전환 · Reset은 공 위치만 유지하고 검색 결과/공략/오버레이/타겟 상태 초기화 |
 | 공략 버튼 | — | USER Search 성공 시 활성 · 선택 공략 기준으로 AI/타점/계산 표시 |
 | AI | `overlayContent === "AI"` | `UserAiPanel` · Common Shell · 기준 UX |
-| 두께/타점 | `overlayContent === "HPT"` | `UserHptPanel` · AI Shell 규격 (`widthRatio 0.42`) |
+| 두께/타점 | `overlayContent === "HPT"` | `UserHptPanel` · HPT Shell (`widthRatio 0.42`) |
 | 계산 | `overlayContent === "CALC"` (id `TRAJECTORY` 유지) | `UserCalculationPanel` + `UserCalcToolbar` · DisplayModel Viewer |
 | History | 모달 | |
 
@@ -1279,6 +1336,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | USER Overlay Shell | `frontend/src/components/common/UserOverlayShell.jsx` — 공통 Layout Layer · **Centering SSOT** (Ratio · Surface · Drag · Clamp · live panel measure · Panel/Table ResizeObserver · Close 없음) |
 | Stage 버튼 연동 | `frontend/src/components/Stage.jsx` (`USER_FUNC_IDS`, `onUserFuncButtonSelect`) |
 | ADMIN AI Overlay | `frontend/src/components/overlays/AiOverlay.jsx` |
+| AI Comment editor session | `frontend/src/domain/lesson/aiCommentEditorSession.ts` |
 | AI Proofreading client | `frontend/src/domain/lesson/proofreadingClient.ts` |
 | AI Proofreading API | `frontend/api/proofread.js` · `frontend/api/_lib/*` (Style Contract · numericGuard · OpenAI provider) |
 | AI Proofreading local middleware | `frontend/vite.config.js` (`loadEnv` + `/api/proofread`) |
@@ -1363,7 +1421,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | **USER Overlay Common Shell** | **Implemented** · Close(X) 없음 · 외부 터치 닫기 |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** — Root Cause B+C · Panel ResizeObserver · 브라우저 검증 · build PASS · **Commit/Push 대기** |
 | **USER Projection Rule** | **Official** — DisplayModel Viewer |
-| **AI Overlay** | **Completed** · 기준 UX / 기준 Shell (`widthRatio 0.42`) |
+| **AI Overlay** | **Completed** · Shell `widthRatio 0.63` (Phase 3C ~1.5×; was 0.42) |
 | **HPT Overlay** | **Common Shell 적용 완료** · AI Shell 규격 · 공 크기 독립은 **Polish 보류** |
 | **Calculation Overlay** | **Completed** · Common Shell + Toolbar + DisplayModel Viewer · `widthRatio 0.62` |
 | **좌측 메뉴** | `동선` → **`계산`** |
@@ -1381,7 +1439,7 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 | **Reset** | Open / Re-open / Switch / Zoom / layout·size → `dragOffset = 0` |
 | **Drag** | temporary center-relative offset 유지 · Panel RO는 offset 리셋 금지 |
 | **Zoom** | 항상 table-area center (이전 시각 중심 유지 폐기) |
-| **Width policy** | AI/HPT `0.42` · CALC `0.62` **미변경** |
+| **Width policy** | AI `0.63` · HPT `0.42` · CALC `0.62` |
 | **Code** | `frontend/src/components/common/UserOverlayShell.jsx` only · `index.css` 최종 미수정 |
 | **Out of scope** | DisplayModel · Projection · SYS · Content · Toolbar · App positioning |
 | **Git** | **Commit/Push 대기** (코드+문서 미커밋) |
@@ -2106,7 +2164,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 > `--overlay-scale` / `--ai-scale` / `--overlay-svg-scale`는 bridge token이며, 장기 SSOT는 Ratio/Surface/Typography token이다.
 
 ```
-좌측 AI → overlayContent = "AI" → UserAiPanel (Shell widthRatio 0.42)
+좌측 AI → overlayContent = "AI" → UserAiPanel (Shell widthRatio 0.63)
 
 좌측 두께/타점 → overlayContent = "HPT" → UserHptPanel (AI Shell 규격 0.42 · Polish: 공 크기 독립 보류)
 

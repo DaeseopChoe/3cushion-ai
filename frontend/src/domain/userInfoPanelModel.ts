@@ -10,6 +10,8 @@ import {
   composeAiAutoComment,
   type AiAutoCommentModel,
 } from "./aiAutoCommentViewModel";
+import { buildCommittedAiPresentation } from "./lesson/committedAiPresentation";
+import { buildStrategySummaryTemplateInputs } from "./lesson/strategySummaryTemplate";
 import {
   formatThickness,
   getSystemNameKo,
@@ -23,12 +25,18 @@ export type UserInfoPanelModel = {
   title: string;
   shotType: string;
   systemName: string;
-  /** @deprecated 레거시 — autoComment + compose 사용 권장 */
+  /** @deprecated 레거시 — strategySummaryText 사용 권장 */
   summaryText: string;
-  /** SYS+STR 자동 생성 (HP/T·타격강도 제외) */
+  /** @deprecated 레거시 intro+STR — USER AI는 strategySummaryText 사용 */
   autoComment: AiAutoCommentModel | null;
-  /** 관리자 원 포인트 레슨만 (자동 문장과 분리) */
+  /** @deprecated 레거시 — onePointText 사용 권장 */
   onePointLessons: string[];
+  /** Phase 3C: effective Strategy Summary (override ?: generated template). */
+  strategySummaryText: string;
+  strategySummaryParagraphs: string[];
+  /** Phase 3C: committed PRO ONE POINT block text. */
+  onePointText: string;
+  onePointParagraphs: string[];
   systemValues: {
     co?: string;
     c1?: string;
@@ -70,6 +78,8 @@ export type UserInfoStrSlice = {
 export type UserInfoAiSlice = {
   text?: string;
   onePointLessons?: Array<{ id?: string; text?: string; content?: string } | string>;
+  strategySummaryOverride?: string;
+  strategySummaryFingerprint?: string;
 };
 
 export type BuildUserInfoPanelArgs = {
@@ -82,7 +92,10 @@ export type BuildUserInfoPanelArgs = {
   hpt?: UserInfoHptSlice | null;
   str?: UserInfoStrSlice | null;
   ai?: UserInfoAiSlice | null;
-  /** USER 표시 전용: draft/applied/admin ai에서 레슨 텍스트 병합 (저장 구조 변경 없음) */
+  /**
+   * @deprecated Phase 3C USER AI uses committed `ai` only.
+   * Kept for legacy callers; when set, still merges lesson texts (non-USER paths).
+   */
   aiLessonSources?: (UserInfoAiSlice | null | undefined)[];
   sysHpNResult?: number | null;
   viewStrategyNarrative?: string[] | null;
@@ -268,7 +281,31 @@ export function buildUserInfoPanel(args: BuildUserInfoPanelArgs): UserInfoPanelM
     resolvedSlotBaseSysValues: args.resolvedSlotBaseSysValues,
     str: args.str,
   });
-  const summaryText = composeAiAutoComment(autoComment);
+  const legacySummaryText = composeAiAutoComment(autoComment);
+
+  // Phase 3C: shared Strategy Summary SSOT + committed override priority
+  const templateInputs = buildStrategySummaryTemplateInputs({
+    systemId,
+    shotType: args.slotRenderSys?.shotType,
+    baseValues: args.resolvedSlotBaseSysValues ?? null,
+    correctedValues: args.resolvedSlotSysValues ?? null,
+    corrections: args.slotRenderSys?.corrections ?? null,
+  });
+  const committedPresentation = buildCommittedAiPresentation({
+    committedAi: args.ai ?? null,
+    templateInputs,
+  });
+  // Prefer committed one-point text; fall back to legacy lesson list join
+  const onePointText =
+    committedPresentation.onePointText ||
+    (onePointLessons.length > 0 ? onePointLessons.join("\n\n") : "");
+  const onePointParagraphs =
+    committedPresentation.onePointParagraphs.length > 0
+      ? committedPresentation.onePointParagraphs
+      : onePointText
+          .split(/\n/)
+          .map((l) => l.trimEnd())
+          .filter((l) => l.trim().length > 0);
 
   const spinText =
     typeof args.str?.spin === "number" && Number.isFinite(args.str.spin)
@@ -279,9 +316,18 @@ export function buildUserInfoPanel(args: BuildUserInfoPanelArgs): UserInfoPanelM
     title,
     shotType,
     systemName,
-    summaryText,
+    summaryText: committedPresentation.strategySummaryText || legacySummaryText,
     autoComment,
-    onePointLessons,
+    onePointLessons:
+      onePointLessons.length > 0
+        ? onePointLessons
+        : onePointText
+          ? [onePointText]
+          : [],
+    strategySummaryText: committedPresentation.strategySummaryText,
+    strategySummaryParagraphs: committedPresentation.strategySummaryParagraphs,
+    onePointText,
+    onePointParagraphs,
     systemValues: sysValues,
     trajectorySummary: {
       arrival: arrivalNum != null ? String(arrivalNum) : sysValues.c3,

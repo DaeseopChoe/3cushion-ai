@@ -32,20 +32,25 @@ export const OVERLAY_SIZE_VARIANTS: Record<OverlaySizeVariant, OverlaySizeToken>
 };
 
 /**
- * AI Overlay silhouette ≈ width:height 6:4 on a 2:1 table.
- * width = tableW × 0.42 ⇒ ≈ 0.84 × tableH; height≈auto targets ~0.56 × tableH at 6:4.
+ * USER AI Overlay base width (Reading OFF).
+ * Phase 3C responsive: prior 0.42 × ~1.5 → 0.63 (table-area ratio only).
+ * Reading ON still uses originalAspect + table inset clamp (not this OFF ratio alone).
  */
-export const AI_OVERLAY_WIDTH_RATIO = 0.42;
+export const AI_OVERLAY_WIDTH_RATIO = 0.63;
 export const AI_OVERLAY_MAX_HEIGHT_RATIO = 0.85;
 /** OFF silhouette + Reading ON originalAspect (width / height). */
 export const AI_OVERLAY_ASPECT_RATIO = 6 / 4;
 
-/** HPT shares AI Shell silhouette; Reading ON uses this originalAspect. */
+/**
+ * HPT keeps legacy AI silhouette (0.42) — do not share AI 0.63.
+ * Reading ON uses HPT originalAspect (same 6:4 as AI design).
+ */
+export const HPT_OVERLAY_WIDTH_RATIO = 0.42;
 export const HPT_OVERLAY_ASPECT_RATIO = AI_OVERLAY_ASPECT_RATIO;
 
 /**
- * Calculation Overlay — wider than AI so dense DisplayModel lines reflow less.
- * ~48% wider than AI (0.42 → 0.62); table-area ratio only (no vw/px).
+ * Calculation Overlay — dense DisplayModel; table-area ratio only (no vw/px).
+ * Independent of AI/HPT (AI base is now ~0.63; CALC stays 0.62).
  */
 export const CALC_OVERLAY_WIDTH_RATIO = 0.62;
 export const CALC_OVERLAY_MAX_HEIGHT_RATIO = AI_OVERLAY_MAX_HEIGHT_RATIO;
@@ -136,7 +141,7 @@ export function resolveUserOverlayLayout(
         contentTypeScale: OVERLAY_CONTENT_TYPE_SCALE.AI,
         contentClassName: "modal-panel--user-hpt",
         fitContent: OVERLAY_SIZE_VARIANTS.medium.fitContent,
-        widthRatio: AI_OVERLAY_WIDTH_RATIO,
+        widthRatio: HPT_OVERLAY_WIDTH_RATIO,
         maxHeightRatio: AI_OVERLAY_MAX_HEIGHT_RATIO,
         readingOriginalAspect: HPT_OVERLAY_ASPECT_RATIO,
       };

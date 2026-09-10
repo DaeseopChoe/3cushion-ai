@@ -1,27 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { buildAiAutoCommentFromContext } from "../../domain/userInfoPanelModel";
-import { hasRenderableOutputsResult } from "../../domain/slotSysResolve";
+import { useState, useEffect, useRef } from "react";
 import {
   canAcceptProofreadResponse,
   fetchProofreading,
 } from "../../domain/lesson/proofreadingClient";
-import { AiAutoCommentDisplay } from "../user/UserAiPanel";
+import { formatOnePointDropdownLabel } from "../../domain/lesson/onePointLibrary";
 
 export function ensureLessonItems(items) {
   if (!items || !Array.isArray(items)) return [];
@@ -37,48 +19,20 @@ export function ensureLessonItems(items) {
   });
 }
 
-function LessonRow({ lesson, selected, onSelect }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: lesson.id });
+const headingStyle = {
+  fontSize: 13,
+  fontWeight: 700,
+  color: "#0f172a",
+  marginBottom: 8,
+  letterSpacing: "0.02em",
+};
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        ...style,
-        display: "flex",
-        alignItems: "center",
-        padding: "4px 0",
-        background: selected ? "#eef2ff" : "transparent",
-        opacity: isDragging ? 0.5 : 1,
-      }}
-      onClick={onSelect}
-    >
-      <div
-        {...attributes}
-        {...listeners}
-        className="drag-handle"
-        style={{ marginRight: 8, flexShrink: 0 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        ☰
-      </div>
-      <div style={{ fontSize: 14, lineHeight: 1.42, flex: 1 }}>{lesson.text}</div>
-    </div>
-  );
-}
-
+/**
+ * Phase 3A.1 AiOverlay:
+ * - Upper: Strategy Summary + current-shot PRO ONE POINT (real controlled values)
+ * - Lower: new-entry library workspace (no select duplicate)
+ * - AI 교정 routes to last-edited shot|library surface
+ */
 export function AiOverlay({
   data,
   sysData,
@@ -92,64 +46,67 @@ export function AiOverlay({
   onePointLibrary,
   sortedOnePointLibrary,
   onePointSelectedId,
-  onePointDraft,
-  setOnePointDraft,
+  strategySummaryDraft,
+  setStrategySummaryDraft,
+  strategySummaryApplyError = "",
+  strategySummaryStale = false,
+  onRestoreStrategySummaryToGenerated,
+  shotOnePointDraft,
+  setShotOnePointDraft,
+  libraryDraft,
+  setLibraryDraft,
+  aiOnePointEditTarget = "shot",
+  setAiOnePointEditTarget,
   onSelectOnePoint,
   applyOnePointToShot,
-  saveDraftAsNewLesson,
-  deleteSelectedOnePointLibraryItem,
-  onePointLessons,
-  onDeleteLesson,
-  onReorderLessons,
-  onePointCategories = [],
-  onePointCategoryNo = "",
-  onSelectOnePointCategory,
-  onOpenCategoryManage,
-  onOpenLessonOrderManage,
+  updateSelectedOnePointLibraryItem,
+  registerOnePointLibraryItemFromDraft,
+  proofreadClearNonce = 0,
 }) {
-  const str = strData || data?.str || {};
-  const sysForAutoComment = slotRenderSys ?? sysData;
-  const canShowAutoComment = hasRenderableOutputsResult(sysForAutoComment);
-
-  const autoComment = useMemo(
-    () =>
-      canShowAutoComment
-        ? buildAiAutoCommentFromContext({
-            slotRenderSys: sysForAutoComment,
-            resolvedSlotSysValues,
-            resolvedSlotBaseSysValues,
-            str,
-          })
-        : null,
-    [
-      canShowAutoComment,
-      sysForAutoComment,
-      resolvedSlotSysValues,
-      resolvedSlotBaseSysValues,
-      strData,
-      str,
-    ]
-  );
-
-  const [selectedLessonId, setSelectedLessonId] = useState(null);
-  const [manageMenuOpen, setManageMenuOpen] = useState(false);
   const [proofreadPhase, setProofreadPhase] = useState("idle");
   const [proofreadOriginal, setProofreadOriginal] = useState("");
   const [proofreadCorrected, setProofreadCorrected] = useState("");
   const [proofreadError, setProofreadError] = useState("");
+  const [proofreadRequestTarget, setProofreadRequestTarget] = useState(null);
   const proofreadGenerationRef = useRef(0);
   const proofreadAbortRef = useRef(null);
-  const onePointDraftRef = useRef(onePointDraft);
-  onePointDraftRef.current = onePointDraft;
+  const shotDraftRef = useRef(shotOnePointDraft);
+  const libraryDraftRef = useRef(libraryDraft);
+  shotDraftRef.current = shotOnePointDraft;
+  libraryDraftRef.current = libraryDraft;
 
-  const lessons = useMemo(() => ensureLessonItems(onePointLessons), [onePointLessons]);
+  const libraryOptions = sortedOnePointLibrary || onePointLibrary || [];
+  const newestPreviewLabel =
+    libraryOptions.length > 0
+      ? formatOnePointDropdownLabel(libraryOptions[0].text)
+      : "등록 문장";
   const proofreadBusy = proofreadPhase === "loading";
+  const libraryTrimmed = String(libraryDraft || "").trim();
+  const shotTrimmed = String(shotOnePointDraft || "").trim();
+  const canUpdateLibrary = Boolean(onePointSelectedId);
+  const canRegisterLibrary = Boolean(libraryTrimmed);
+
+  const resolveProofreadTarget = () => {
+    const prefer = aiOnePointEditTarget === "library" ? "library" : "shot";
+    if (prefer === "library" && libraryTrimmed) {
+      return { target: "library", text: libraryTrimmed };
+    }
+    if (prefer === "shot" && shotTrimmed) {
+      return { target: "shot", text: shotTrimmed };
+    }
+    if (shotTrimmed) return { target: "shot", text: shotTrimmed };
+    if (libraryTrimmed) return { target: "library", text: libraryTrimmed };
+    return null;
+  };
+
+  const canProofread = Boolean(resolveProofreadTarget());
 
   const clearProofreadPreview = () => {
     setProofreadPhase("idle");
     setProofreadOriginal("");
     setProofreadCorrected("");
     setProofreadError("");
+    setProofreadRequestTarget(null);
   };
 
   useEffect(() => {
@@ -159,9 +116,20 @@ export function AiOverlay({
     };
   }, []);
 
+  useEffect(() => {
+    if (!proofreadClearNonce) return;
+    proofreadGenerationRef.current += 1;
+    proofreadAbortRef.current?.abort();
+    clearProofreadPreview();
+  }, [proofreadClearNonce]);
+
+  const markShotEdit = () => setAiOnePointEditTarget?.("shot");
+  const markLibraryEdit = () => setAiOnePointEditTarget?.("library");
+
   const handleProofreadRequest = async () => {
-    const requestText = String(onePointDraft || "").trim();
-    if (!requestText || proofreadBusy) return;
+    const resolved = resolveProofreadTarget();
+    if (!resolved || proofreadBusy) return;
+    const { target, text: requestText } = resolved;
 
     proofreadAbortRef.current?.abort();
     const controller = new AbortController();
@@ -169,6 +137,7 @@ export function AiOverlay({
     const generation = proofreadGenerationRef.current + 1;
     proofreadGenerationRef.current = generation;
 
+    setProofreadRequestTarget(target);
     setProofreadPhase("loading");
     setProofreadError("");
     setProofreadOriginal(requestText);
@@ -178,12 +147,17 @@ export function AiOverlay({
       signal: controller.signal,
     });
 
+    const currentDraft =
+      target === "shot"
+        ? String(shotDraftRef.current || "").trim()
+        : String(libraryDraftRef.current || "").trim();
+
     if (
       !canAcceptProofreadResponse({
         generation,
         currentGeneration: proofreadGenerationRef.current,
         requestText,
-        currentDraft: String(onePointDraftRef.current || "").trim(),
+        currentDraft,
       })
     ) {
       return;
@@ -210,7 +184,14 @@ export function AiOverlay({
     if (proofreadPhase !== "preview") return;
     const corrected = String(proofreadCorrected || "");
     if (!corrected.trim()) return;
-    setOnePointDraft?.(corrected);
+    const target = proofreadRequestTarget || "library";
+    if (target === "shot") {
+      setShotOnePointDraft?.(corrected);
+      setAiOnePointEditTarget?.("shot");
+    } else {
+      setLibraryDraft?.(corrected);
+      setAiOnePointEditTarget?.("library");
+    }
     clearProofreadPreview();
   };
 
@@ -222,51 +203,22 @@ export function AiOverlay({
     clearProofreadPreview();
   };
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  const handleDragEnd = (event) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = lessons.findIndex((l) => l.id === active.id);
-    const newIndex = lessons.findIndex((l) => l.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const next = arrayMove(lessons, oldIndex, newIndex);
-    onReorderLessons?.(next);
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Delete" && selectedLessonId) {
-        onDeleteLesson?.(selectedLessonId);
-        setSelectedLessonId(null);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedLessonId, onDeleteLesson]);
-
   const handleGlobalApplySubmit = (e) => {
     e.preventDefault();
     if (applyDisabled) return;
-    const newData = {
-      ...data,
-      text: "",
-      onePointLessons: data?.onePointLessons ?? [],
-    };
-    onSave(newData);
+    if (typeof applyOnePointToShot === "function") {
+      applyOnePointToShot();
+      return;
+    }
+    onSave?.();
   };
 
-  /** 적용/저장 버튼: Enter 시 클릭 대신 전체 적용(submit) */
-  const redirectEnterToGlobalApply = (e) => {
+  const redirectEnterToApply = (e) => {
     if (e.key !== "Enter" || e.isComposing) return;
     e.preventDefault();
     e.currentTarget.form?.requestSubmit();
   };
 
-  /** textarea 밖 읽기 전용 영역 등: Enter → 전체 적용 */
   const handleAiFormKeyDown = (e) => {
     if (e.key !== "Enter" || e.isComposing) return;
     if (e.target.tagName === "TEXTAREA") return;
@@ -274,6 +226,30 @@ export function AiOverlay({
     if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
     e.preventDefault();
     e.currentTarget.requestSubmit();
+  };
+
+  const btnBase = {
+    padding: "10px 16px",
+    fontSize: "14px",
+    fontWeight: 600,
+    borderRadius: "6px",
+    border: "none",
+    cursor: "pointer",
+  };
+
+  const editorStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    fontSize: "14px",
+    lineHeight: 1.5,
+    color: "#0f172a",
+    border: "1px solid #cbd5e1",
+    borderRadius: "6px",
+    marginBottom: 0,
+    fontFamily: "inherit",
+    resize: "vertical",
+    backgroundColor: "#fff",
+    boxSizing: "border-box",
   };
 
   return (
@@ -292,36 +268,98 @@ export function AiOverlay({
           background: "#ffffff",
         }}
       >
-        {autoComment ? <AiAutoCommentDisplay model={autoComment} /> : null}
-        {lessons.length > 0 ? (
-          <>
-            <hr className="ai-comment-divider" />
-            <div className="ai-one-point-lessons__list">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={lessons.map((l) => l.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {lessons.map((lesson) => (
-                  <LessonRow
-                    key={lesson.id}
-                    lesson={lesson}
-                    selected={selectedLessonId === lesson.id}
-                    onSelect={() => setSelectedLessonId(lesson.id)}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
+        <div style={headingStyle}>공략 요약</div>
+        {strategySummaryStale ? (
+          <div
+            role="status"
+            style={{
+              marginBottom: 8,
+              padding: "8px 10px",
+              fontSize: 13,
+              lineHeight: 1.45,
+              color: "#92400e",
+              background: "#fffbeb",
+              border: "1px solid #fcd34d",
+              borderRadius: 6,
+            }}
+          >
+            <div style={{ marginBottom: onRestoreStrategySummaryToGenerated ? 8 : 0 }}>
+              공략 조건이 변경되었습니다. 공략 요약 내용을 확인해 주세요.
             </div>
-          </>
+            {onRestoreStrategySummaryToGenerated ? (
+              <button
+                type="button"
+                onClick={() => onRestoreStrategySummaryToGenerated()}
+                style={{
+                  padding: "6px 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#92400e",
+                  background: "#fff",
+                  border: "1px solid #f59e0b",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                }}
+              >
+                원본 요약으로 되돌리기
+              </button>
+            ) : null}
+          </div>
         ) : null}
+        <textarea
+          value={strategySummaryDraft ?? ""}
+          onChange={(e) => setStrategySummaryDraft?.(e.target.value)}
+          placeholder="공략 요약을 입력하세요."
+          rows={4}
+          aria-label="공략 요약"
+          style={{ ...editorStyle, marginBottom: strategySummaryApplyError ? 8 : 14 }}
+        />
+        {strategySummaryApplyError ? (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 14,
+              fontSize: 13,
+              lineHeight: 1.45,
+              color: "#b91c1c",
+            }}
+          >
+            {strategySummaryApplyError}
+          </div>
+        ) : null}
+
+        <hr
+          className="ai-comment-divider"
+          style={{ border: 0, borderTop: "1px solid #e2e8f0", margin: "4px 0 14px" }}
+        />
+
+        <div style={headingStyle}>PRO ONE POINT</div>
+        <textarea
+          value={shotOnePointDraft ?? ""}
+          onChange={(e) => {
+            markShotEdit();
+            setShotOnePointDraft?.(e.target.value);
+          }}
+          onFocus={markShotEdit}
+          placeholder="PRO ONE POINT"
+          rows={4}
+          aria-label="현재 샷 PRO ONE POINT"
+          style={editorStyle}
+        />
       </div>
 
-      <div style={{ marginTop: 14, marginBottom: 12 }}>
+      <div style={{ marginTop: 16, marginBottom: 12 }}>
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#64748b",
+            marginBottom: 8,
+          }}
+        >
+          등록 문장 라이브러리
+        </div>
+
         <div
           style={{
             display: "flex",
@@ -331,17 +369,12 @@ export function AiOverlay({
           }}
         >
           <select
-            value={onePointCategoryNo === "" || onePointCategoryNo == null
-              ? ""
-              : String(onePointCategoryNo)}
-            onChange={(e) => {
-              const v = e.target.value;
-              onSelectOnePointCategory?.(v === "" ? "" : Number(v));
-            }}
-            aria-label="Category 번호"
+            value={onePointSelectedId || ""}
+            onChange={(e) => onSelectOnePoint?.(e.target.value)}
+            aria-label="등록 문장"
             style={{
-              width: 120,
-              flexShrink: 0,
+              flex: 1,
+              minWidth: 0,
               padding: "10px 12px",
               fontSize: "14px",
               border: "1px solid #cbd5e1",
@@ -349,215 +382,81 @@ export function AiOverlay({
               backgroundColor: "#fff",
             }}
           >
-            <option value="">선택 안함</option>
-            {(onePointCategories || []).map((cat) => (
-              <option key={cat.no} value={String(cat.no)}>
-                {cat.no}
+            <option value="">{newestPreviewLabel}</option>
+            {libraryOptions.map((item) => (
+              <option key={item.id} value={item.id} title={item.text}>
+                {formatOnePointDropdownLabel(item.text)}
               </option>
             ))}
           </select>
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={() => setManageMenuOpen((open) => !open)}
-              aria-label="관리 메뉴"
-              aria-expanded={manageMenuOpen}
-              style={{
-                padding: "10px 12px",
-                fontSize: "14px",
-                border: "1px solid #94a3b8",
-                borderRadius: "6px",
-                backgroundColor: "#f8fafc",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              관리
-            </button>
-            {manageMenuOpen ? (
-              <div
-                role="menu"
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  marginTop: 4,
-                  minWidth: 160,
-                  background: "#fff",
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 6,
-                  boxShadow: "0 8px 20px rgba(15, 23, 42, 0.12)",
-                  zIndex: 20,
-                  overflow: "hidden",
-                }}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setManageMenuOpen(false);
-                    onOpenCategoryManage?.();
-                  }}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "10px 12px",
-                    fontSize: 14,
-                    border: "none",
-                    background: "transparent",
-                    cursor: "pointer",
-                  }}
-                >
-                  Category 관리
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setManageMenuOpen(false);
-                    onOpenLessonOrderManage?.();
-                  }}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "10px 12px",
-                    fontSize: 14,
-                    border: "none",
-                    background: "transparent",
-                    cursor: "pointer",
-                    borderTop: "1px solid #e2e8f0",
-                  }}
-                >
-                  Lesson 순서 관리
-                </button>
-              </div>
-            ) : null}
-          </div>
         </div>
-        <select
-          value={onePointSelectedId}
-          onChange={(e) => {
-            const id = e.target.value;
-            onSelectOnePoint(id);
-          }}
-          style={{
-            width: '100%',
-            padding: '10px 12px',
-            fontSize: '14px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '6px',
-            marginBottom: 8,
-            backgroundColor: '#fff',
-          }}
-        >
-          <option value="">문장 입력...</option>
-          {(sortedOnePointLibrary || onePointLibrary || []).map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.text}
-            </option>
-          ))}
-        </select>
+
         <textarea
-          value={onePointDraft}
-          onChange={(e) => setOnePointDraft?.(e.target.value)}
+          value={libraryDraft ?? ""}
+          onChange={(e) => {
+            markLibraryEdit();
+            setLibraryDraft?.(e.target.value);
+          }}
+          onFocus={markLibraryEdit}
           readOnly={proofreadBusy}
-          placeholder={
-            onePointSelectedId
-              ? "레슨 문장을 수정하세요."
-              : "새 레슨 문장을 입력하세요."
-          }
-          rows={3}
+          placeholder="새로운 PRO ONE POINT를 입력하세요."
+          rows={5}
+          aria-label="새로운 PRO ONE POINT 입력"
           style={{
-            width: '100%',
-            padding: '10px 12px',
-            fontSize: '14px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '6px',
+            ...editorStyle,
             marginBottom: 10,
-            fontFamily: 'inherit',
-            resize: 'vertical',
-            backgroundColor: proofreadBusy ? '#f8fafc' : '#fff',
+            backgroundColor: proofreadBusy ? "#f8fafc" : "#fff",
           }}
         />
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <button
+            type="button"
+            onClick={() => updateSelectedOnePointLibraryItem?.()}
+            disabled={!canUpdateLibrary || proofreadBusy}
+            onKeyDown={redirectEnterToApply}
+            style={{
+              ...btnBase,
+              color: "#1e3a8a",
+              backgroundColor: "#dbeafe",
+              opacity: !canUpdateLibrary || proofreadBusy ? 0.55 : 1,
+              cursor: !canUpdateLibrary || proofreadBusy ? "not-allowed" : "pointer",
+            }}
+          >
+            문장 수정
+          </button>
+          <button
+            type="button"
+            onClick={() => registerOnePointLibraryItemFromDraft?.()}
+            disabled={!canRegisterLibrary || proofreadBusy}
+            onKeyDown={redirectEnterToApply}
+            style={{
+              ...btnBase,
+              color: "#fff",
+              backgroundColor: "#3b82f6",
+              opacity: !canRegisterLibrary || proofreadBusy ? 0.55 : 1,
+              cursor: !canRegisterLibrary || proofreadBusy ? "not-allowed" : "pointer",
+            }}
+          >
+            문장 등록
+          </button>
           <button
             type="button"
             onClick={handleProofreadRequest}
-            disabled={proofreadBusy || !String(onePointDraft || "").trim()}
+            disabled={proofreadBusy || !canProofread}
             style={{
-              padding: '10px 16px',
-              fontSize: '14px',
-              fontWeight: 600,
-              color: '#0f766e',
-              backgroundColor: '#ccfbf1',
-              border: '1px solid #5eead4',
-              borderRadius: '6px',
-              cursor:
-                proofreadBusy || !String(onePointDraft || "").trim()
-                  ? 'not-allowed'
-                  : 'pointer',
-              opacity:
-                proofreadBusy || !String(onePointDraft || "").trim() ? 0.6 : 1,
+              ...btnBase,
+              color: "#0f766e",
+              backgroundColor: "#ccfbf1",
+              border: "1px solid #5eead4",
+              opacity: proofreadBusy || !canProofread ? 0.6 : 1,
+              cursor: proofreadBusy || !canProofread ? "not-allowed" : "pointer",
             }}
           >
             {proofreadBusy ? "교정 중…" : "AI 교정"}
           </button>
-          <button
-            type="button"
-            onClick={() => applyOnePointToShot?.()}
-            onKeyDown={redirectEnterToGlobalApply}
-            style={{
-              padding: '10px 16px',
-              fontSize: '14px',
-              fontWeight: 600,
-              color: '#334155',
-              backgroundColor: '#e2e8f0',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-            }}
-          >
-            적용
-          </button>
-          <button
-            type="button"
-            onClick={() => saveDraftAsNewLesson?.()}
-            onKeyDown={redirectEnterToGlobalApply}
-            style={{
-              padding: '10px 16px',
-              fontSize: '14px',
-              fontWeight: 600,
-              color: '#fff',
-              backgroundColor: '#3b82f6',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-            }}
-          >
-            저장
-          </button>
-          {onePointSelectedId ? (
-            <button
-              type="button"
-              onClick={() => deleteSelectedOnePointLibraryItem?.()}
-              onKeyDown={redirectEnterToGlobalApply}
-              style={{
-                padding: "10px 16px",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#fff",
-                backgroundColor: "#ef4444",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-              }}
-            >
-              삭제
-            </button>
-          ) : null}
         </div>
+
         {proofreadPhase === "error" && proofreadError ? (
           <div
             role="alert"
@@ -595,7 +494,7 @@ export function AiOverlay({
                 fontSize: 13,
                 border: "none",
                 background: "transparent",
-                color: "#2563eb",
+                color: "#64748b",
                 cursor: "pointer",
                 textDecoration: "underline",
               }}
@@ -607,15 +506,18 @@ export function AiOverlay({
         {proofreadPhase === "preview" ? (
           <div
             style={{
-              marginBottom: 12,
-              padding: 12,
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              background: "#ffffff",
+              marginBottom: 10,
+              padding: "12px",
+              background: "#f0fdfa",
+              border: "1px solid #99f6e4",
+              borderRadius: 6,
             }}
           >
             <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>
               원문
+              {proofreadRequestTarget
+                ? ` (${proofreadRequestTarget === "shot" ? "현재 샷" : "신규 입력"})`
+                : ""}
             </div>
             <div
               style={{
@@ -651,14 +553,10 @@ export function AiOverlay({
                 type="button"
                 onClick={handleProofreadApply}
                 style={{
+                  ...btnBase,
                   padding: "8px 12px",
-                  fontSize: 14,
-                  fontWeight: 600,
                   color: "#fff",
                   backgroundColor: "#0f766e",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
                 }}
               >
                 교정안 적용
@@ -667,14 +565,10 @@ export function AiOverlay({
                 type="button"
                 onClick={handleProofreadCancel}
                 style={{
+                  ...btnBase,
                   padding: "8px 12px",
-                  fontSize: 14,
-                  fontWeight: 600,
                   color: "#334155",
                   backgroundColor: "#e2e8f0",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
                 }}
               >
                 취소
@@ -684,38 +578,37 @@ export function AiOverlay({
         ) : null}
       </div>
 
-      {/* 전체 적용 / 취소 */}
-      <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+      <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
         <button
           type="submit"
           disabled={applyDisabled}
           style={{
             flex: 1,
-            padding: '10px 16px',
-            backgroundColor: applyDisabled ? '#94a3b8' : '#2563eb',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            fontWeight: '600',
-            fontSize: '14px',
-            cursor: applyDisabled ? 'not-allowed' : 'pointer'
+            padding: "10px 16px",
+            backgroundColor: applyDisabled ? "#94a3b8" : "#2563eb",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            fontWeight: "600",
+            fontSize: "14px",
+            cursor: applyDisabled ? "not-allowed" : "pointer",
           }}
         >
-          전체 적용
+          적용
         </button>
         <button
           type="button"
           onClick={onCancel}
           style={{
             flex: 1,
-            padding: '10px 16px',
-            backgroundColor: '#e2e8f0',
-            color: '#334155',
-            border: 'none',
-            borderRadius: '6px',
-            fontWeight: '600',
-            fontSize: '14px',
-            cursor: 'pointer'
+            padding: "10px 16px",
+            backgroundColor: "#e2e8f0",
+            color: "#334155",
+            border: "none",
+            borderRadius: "6px",
+            fontWeight: "600",
+            fontSize: "14px",
+            cursor: "pointer",
           }}
         >
           취소

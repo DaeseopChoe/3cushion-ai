@@ -6,6 +6,405 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-11 — Phase 1→3C Cumulative Finalization (Commit / Push)
+
+## Mode
+
+**Agent** · documentation sync + full test/build gate · **Commit + Push to origin/main**
+
+## Cumulative scope (implemented)
+
+- ADMIN AI Comment editor: 공략 요약 / PRO ONE POINT / library / 수정·등록 / AI 교정 / Apply·Cancel
+- Strategy Summary SSOT template + override/fingerprint persistence + numeric guard
+- Correction presentation: 밀림·끌림 → start · 기울기 → C3 · Sn/C4 → final · signed `+N`/`-N`
+- USER Shared AI Presentation (committed-only · 공략 요약 + PRO ONE POINT · no admin chrome)
+- USER AI Reading OFF widthRatio **0.63** · HPT **0.42** isolated · Reading Mode clamp/font scale kept
+- OpenAI proofreading remains server-only · calculation engine untouched
+
+## Verification
+
+- PC manual review: **PASS** (USER AI content + responsive width)
+- Mobile device validation: **after Push / deploy**
+- Protected untracked: `frontend/src/domain/trajectory/incidenceAngle.ts` — **not staged**
+- Dataset `positions.json` dirty (unrelated) — **not staged**
+
+## Remaining deferred
+
+- Modal Undo → Phase 3B.2/3B.3
+- AI latency / cost UX → Phase 3D
+- Korean numeric particle automation
+
+---
+
+# 2026-09-11 — Phase 3C USER AI Overlay Responsive 1.5× Width
+
+## Mode
+
+**Agent** · AI-only width ratio · PC manual review **PASS** · then included in cumulative Commit/Push
+
+## Contract
+
+- USER AI Reading OFF: `tableW × 0.63` (was 0.42 ≈ ×1.5)
+- HPT: `HPT_OVERLAY_WIDTH_RATIO = 0.42` (unchanged silhouette)
+- CALC: `0.62` unchanged
+- Reading Mode: existing aspect + table inset clamp + `READING_FONT_SCALE 1.45` **unchanged**
+- Text: keep `pre-line` + auto wrap · no horizontal scroll · vertical scroll OK
+- Phase 3C data / calc / OpenAI: **no change**
+
+## Files
+
+- `overlay/layout/overlayLayoutTokens.ts` (+ contract tests)
+- Overlay Layout SSOT / MASTER / Architecture notes
+
+## Verification
+
+- targeted layout contracts · full `npm test` / `npm run build`
+- PC manual: **PASS** · Mobile: pending after Push
+
+---
+
+# 2026-09-10 — AI Comment Phase 3C: USER Shared AI Presentation
+
+## Mode
+
+**Agent** · presentation-only · committed Strategy Summary + PRO ONE POINT · included in cumulative Commit/Push
+
+## Contract
+
+- USER AI = read-only 「공략 요약」 + 「PRO ONE POINT」 only
+- Shared SSOT: `committedAiPresentation.ts` + existing `strategySummaryTemplate` / `resolveEffectiveStrategySummary`
+- effective summary = committed `strategySummaryOverride` ?: generated template (same as ADMIN)
+- USER source: `selectCommittedSlotAiForUser` (applied-first) · no `aiLessonSources` dual merge
+- ADMIN session drafts / library / proofread / stale / fingerprint UI **미노출**
+- no OpenAI · no calc · no Modal Undo · no `incidenceAngle.ts` touch
+- Modal Undo → 3B.2/3B.3 · latency → 3D
+
+## Files
+
+- `domain/lesson/committedAiPresentation.ts` (+ contract tests)
+- `domain/userInfoPanelModel.ts` · `App.jsx` · `UserAiPanel.jsx` · `index.css`
+
+## Verification
+
+- Phase 3C targeted + prior AI contracts
+- full `npm test` / `npm run build`
+- PC manual: **PASS**
+
+---
+
+# 2026-09-10 — AI Comment Phase 3B.1.1 Hotfix: Signed Slide/Draw Display
+
+## Mode
+
+**Agent** · `밀림값 +N` / `끌림값 -N` · presentation-only · included in cumulative Commit/Push
+
+## Fix
+
+- Root cause: `Math.abs(unifiedSlide)` stripped sign in Strategy Summary start sentence
+- Now: `fmtSignedDeparture(unifiedSlide)` — resolved signed scalar only
+- Inclination / Sn / Numeric Guard / calc / OpenAI unchanged
+
+## Verification
+
+- targeted template contracts · full test/build
+- PC manual: **PASS**
+
+---
+
+# 2026-09-10 — AI Comment Phase 3B.1.1: Correction Explanation Refinement
+
+## Mode
+
+**Agent** · inclination in C3 sentence · **No Commit/Push** · particle automation deferred
+
+## Contract
+
+- Strategy Summary = presentation layer · resolved scalars only · no recalculation
+- 밀림/끌림 → 출발값 보정 문장
+- 기울기(`corrections.curve_ratio`) → C3 문장에 `기울기 N가 보정되어` 포함
+- Sn → `출발값 보정` + 최종 도착값 (기존 제품 라벨 유지)
+- correction 0/missing → 해당 설명 생략
+- Summary → SYS reverse editing 없음 · Numeric Guard 유지
+- Korean numeric particle automation **not implemented**
+- calc / OpenAI untouched · Undo/USER layout deferred
+
+## Verification
+
+- targeted template contracts · full `npm test` / `npm run build`
+- Commit/Push — NONE
+
+---
+
+# 2026-09-10 — AI Comment Phase 3B.1: Final Strategy Summary Template
+
+## Mode
+
+**Agent** · final template + generated refresh + numeric submultiset · **No Commit/Push** · Undo deferred
+
+## Contract
+
+- Strategy Summary = presentation layer · resolved calculation scalars only · no recalculation
+- Final template: intro / start(밀림|축약) / 1C·3C / 출발값 보정(Sn)·최종 도착(C4) · **no STR advice paragraph**
+- generated-only CLEAN → refresh on AI re-entry after SYS/STR-relevant change
+- committed override → KEEP + stale warning + 「원본 요약으로 되돌리기」
+- fingerprint v2 = template inputs (CO/slide/C1/C3/Sn/C4…)
+- numeric guard = edited tokens ⊆ baseline tokens (sentence delete OK; mutation/insert reject)
+- Modal Undo → Phase 3B.2/3B.3 · USER layout → 3C · OpenAI latency → 3D
+
+## Files
+
+- `domain/lesson/strategySummaryTemplate.ts` (+ contract tests)
+- `strategySummaryPersistence.ts` · `App.jsx` · `AiOverlay.jsx`
+
+## Verification
+
+- targeted 3B.1 + prior AI contracts
+- full `npm test` / `npm run build`
+- Commit/Push — NONE
+
+---
+
+# 2026-09-10 — AI Comment Phase 3B: Strategy Summary Override Persistence
+
+## Mode
+
+**Agent** · override + fingerprint + numeric guard · **No Commit/Push**
+
+## Contract
+
+- `strategySummaryOverride` / `strategySummaryFingerprint` additive optional on `slot.ai`
+- effective = override ?: generated · Apply identical → clear/omit override
+- numeric multiset guard (reuse `extractNumericTokens`) · reject keeps draft/overlay/slot
+- stale = fingerprint mismatch · preserve override · ADMIN warning · Apply restamps
+- dirty ≠ stale · Apply/Cancel keep-open · PRO ONE POINT contract unchanged
+- SAVE/History/derived: existing `ai` cloneJson pass-through · no OpenAI · no calc change
+- USER UI deferred to Phase 3C · latency to Phase 3D
+
+## Files
+
+- `domain/lesson/strategySummaryPersistence.ts` (+ contract tests)
+- `domain/lesson/aiCommentEditorSession.ts` · `App.jsx` · `AiOverlay.jsx`
+
+## Verification
+
+- Phase 3B targeted + prior AI contracts
+- full `npm test` / `npm run build` — see finalize
+- Commit/Push — NONE
+
+---
+
+# 2026-09-10 — AI Comment WYSIWYG Phase 3A.1: Editor UX Refinement
+
+## Mode
+
+**Agent** · Summary real-value edit · select→upper only · proofread shot|library · **No Commit/Push**
+
+## Fixes
+
+- Strategy Summary: controlled value hydrate (not placeholder); openOverlay AI path hydrates
+- Library select → `shotOnePointDraft` only (no lower duplicate)
+- Lower textarea = new-entry workspace
+- 문장 수정 from upper shot draft; 문장 등록 from lower
+- Apply promotes lower when last-edited target is library
+- AI 교정 routes to shot or library with stale/target guard
+
+## Verification
+
+- targeted 3A.1 + prior AI contracts — PASS
+- full test/build — see finalize
+- Commit/Push — NONE
+
+---
+
+# 2026-09-10 — AI Comment WYSIWYG Phase 3A: Session Editor Dual Draft
+
+## Mode
+
+**Agent** · Strategy Summary session draft · shot/library dual draft · Apply immediate refresh · **No Commit/Push**
+
+## Layout
+
+```text
+[공략 요약] editable strategySummaryDraft
+────────────────
+[PRO ONE POINT] editable shotOnePointDraft
+[등록 문장 ▼] libraryDraft workspace
+[문장 수정] [문장 등록] [AI 교정]
+[적용] [취소]
+```
+
+## Contracts
+
+- Apply SSOT = shotOnePointDraft · libraryDraft ≠ Apply
+- Apply/Cancel keep-open · dirty = summary + shot text
+- library-only edit ≠ shot dirty
+- proofreading = libraryDraft only
+- strategySummaryOverride persistence → Phase 3B
+
+## Verification
+
+- targeted Phase 3A + 2B.1/2B/2A/1 — PASS
+- full test/build — see finalize
+- Commit/Push — NONE
+
+---
+
+# 2026-09-10 — AI Comment WYSIWYG Phase 2B.1: PRO ONE POINT Shell UX
+
+## Mode
+
+**Agent** · Apply/Cancel keep-open · dirty close guard · dropdown preview · Tests/Build · **No Commit/Push**
+
+## State machine
+
+```text
+DIRTY  → X / backdrop / ESC blocked
+DIRTY  → SYS/STR/other admin modal switch ALLOWED + draft preserved
+Apply  → commit + CLEAN + KEEP OPEN
+Cancel → rollback + CLEAN + KEEP OPEN (library LS not rolled back)
+CLEAN  → X / backdrop / ESC allowed
+```
+
+## UI
+
+- Strategy Summary: existing read-only (Phase 3)
+- dropdown: newest preview label with value "" ≠ selected
+- placeholder: `PRO ONE POINT 편집`
+- delete via selected + empty + 문장 수정 + confirm
+- upper lesson DnD/Delete retired from overlay
+
+## Verification
+
+- targeted Phase 2B.1 / 2B / 2A / 1 — see finalize
+- Commit/Push — NONE
+
+## Deferred Phase 3
+
+Strategy Summary WYSIWYG · override · numeric guard · shared ViewModel · USER layout
+
+---
+
+# 2026-09-10 — AI Comment WYSIWYG Phase 2B: PRO ONE POINT Library UI
+
+## Mode
+
+**Agent** · UI wiring · Category/Order UI retired · Tests/Build · **No Commit/Push**
+
+## Layout
+
+```text
+[Strategy Summary read-only — existing auto comment]
+────────────────
+PRO ONE POINT
+[문장 선택 ▼] [삭제(선택 시)]
+[textarea]
+[문장 수정] [문장 등록] [AI 교정]
+[적용] [취소]
+```
+
+## Contracts preserved
+
+Phase 1 session · Phase 2A library FIFO/update/register/delete · Apply ≠ library · Close ≠ Cancel · USER committed-only · proofreading draft-only
+
+## Retirement
+
+Category / Lesson Order manage UI removed from AiOverlay · modal files + LS data preserved
+
+## Verification
+
+- targeted Phase 2B + 2A + 1 — PASS
+- full `npm test` / `npm run build` — see finalize report
+- Commit/Push — NONE
+
+## Deferred Phase 3
+
+Strategy Summary WYSIWYG · numeric protection · USER shared ViewModel layout
+
+---
+
+# 2026-09-10 — AI Comment WYSIWYG Phase 2A: Sentence Library Semantics
+
+## Mode
+
+**Agent** · Library register/update/delete + 30 FIFO · Tests/Build · **No Commit/Push**
+
+## Contracts
+
+```text
+Apply ≠ 문장 수정 ≠ 문장 등록 ≠ 문장 삭제
+SELECT → draft REPLACE (no append)
+문장 수정 = selected id update (createdAt preserved)
+문장 등록 = new or identical-text reuse + FIFO on register only
+FIFO age = createdAt (not array order; not updatedAt)
+legacy age = id timestamp prefix → else cohort 0 + id tie-break
+load >30 = non-destructive; register then normalize ≤30
+Cancel does NOT rollback library actions
+USER = committed slot only
+Category/Order data preserved (UI cleanup → Phase 2B)
+```
+
+## Implementation
+
+- `domain/lesson/onePointLibrary.ts` — MAX=30 · register/update/delete/sort/evict
+- `App.jsx` — explicit handlers · flat newest-first dropdown feed
+- `onePointLibrary.contract.test.ts`
+
+## Verification
+
+- targeted library + session — PASS
+- full `npm test` — 132 files / 1418 tests PASS
+- `npm run build` PASS
+- Commit/Push — NONE
+
+## Phase 2B pending
+
+버튼 라벨 분리(문장 수정/등록) · Category/Order UI 제거 · 삭제 아이콘 confirm
+
+---
+
+# 2026-09-09 — AI Comment WYSIWYG Phase 1: Editor Session Semantics
+
+## Mode
+
+**Agent** · Session Apply/Cancel · USER isolation · Tests/Build · **No Commit/Push**
+
+## Product contracts
+
+```text
+close (X / other modal) = preserve working draft
+Cancel = rollback to lastCommitted + close
+Apply  = commit current-shot AI (single PRO ONE POINT block replace) + update lastCommitted
+Apply ≠ Library Save ≠ canonical SAVE
+proofreading = onePointDraft only
+USER = slot draft/applied.ai only (no admin uncommitted merge)
+PRO ONE POINT block may contain multiple sentences/paragraphs
+calculation engine untouched
+```
+
+## Meaning notes (presentation mapping only · calc unchanged)
+
+- C3 = after slide-adjusted departure + C1 aim → 3-cushion arrival
+- C4 = C3 with 4-cushion correction → final arrival
+
+## Implementation
+
+- `domain/lesson/aiCommentEditorSession.ts` (+ contract tests)
+- `App.jsx` — session hydrate · commit/cancel · USER pickCommittedAiForUser
+- `AiOverlay.jsx` — footer Apply/Cancel · manage menu hidden · legacy 「전체 적용」 removed from UI
+
+## Non-goals (Phase 2+)
+
+Library 30 FIFO · 문장 선택/수정/등록 UX · Strategy Summary edit · USER WYSIWYG layout · schema migration
+
+## Verification
+
+- targeted session + proofreading + isolation — PASS
+- full `npm test` — 131 files / 1392 tests PASS
+- `npm run build` PASS
+- Commit/Push — NONE (await review)
+
+---
+
 # 2026-09-09 — Finalize: Display Ceiling + Active C2 Handle Ownership
 
 ## Mode
