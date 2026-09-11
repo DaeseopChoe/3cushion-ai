@@ -887,8 +887,8 @@ export default function App({
   /** USER: 마지막 Search 성공 record — rail label SSOT */
   const [userLastSearchRecord, setUserLastSearchRecord] = useState(null);
   /**
-   * USER Phase 2B calibration: ephemeral tipCount (0–4) for trajectory only.
-   * Does not mutate hydrated/persisted slot HPT or dataset.
+   * USER Phase 2B: ephemeral tipCount override for trajectory (null = hydrated tip).
+   * Product USER HPT has no tip editor; override stays null unless set by non-UI paths.
    */
   const [userRuntimeTipCountOverride, setUserRuntimeTipCountOverride] =
     useState(null);
@@ -6973,24 +6973,7 @@ function handlePointerCancel(e) {
         draggable
       >
         {overlayContent === "HPT" && (
-          <UserHptPanel
-            model={userHptModel}
-            tipCount={
-              userRuntimeTipCountOverride != null
-                ? userRuntimeTipCountOverride
-                : typeof adminState?.hpt?.tipCount === "number"
-                  ? Math.max(
-                      0,
-                      Math.min(4, Math.round(adminState.hpt.tipCount))
-                    )
-                  : 0
-            }
-            onTipCountChange={
-              userTableDisplaySlotId
-                ? (n) => setUserRuntimeTipCountOverride(n)
-                : null
-            }
-          />
+          <UserHptPanel model={userHptModel} />
         )}
         {overlayContent === "AI" && <UserAiPanel model={userInfoPanel} />}
         {overlayContent === "CALC" && (

@@ -91,19 +91,19 @@ describe("HptBallReadOnlyViz — actual SVG render (TEST G ~ TEST I)", () => {
     expect(rendered.metrics.overlapFraction).toBeCloseTo(5 / 8, 10);
   });
 
-  it("UserHptPanel tip controls appear when onTipCountChange is provided", () => {
+  it("UserHptPanel product mode never exposes rotation tip controls", () => {
     const model = buildUserHptViewModel({
-      hpt: { T: "8/8", hit_point: { x: 1, y: 0 }, mode: "TIP", tipCount: 0 },
+      hpt: { T: "8/8", hit_point: { x: 1, y: 0 }, mode: "TIP", tipCount: 2 },
     });
-    const panelHtml = renderToStaticMarkup(
-      createElement(UserHptPanel, {
-        model,
-        tipCount: 2,
-        onTipCountChange: () => {},
-      })
-    );
-    expect(panelHtml).toContain("회전 tip");
-    expect(panelHtml).toContain('aria-pressed="true"');
+    const panelHtml = renderToStaticMarkup(createElement(UserHptPanel, { model }));
+    expect(panelHtml).toContain("두께");
+    expect(panelHtml).toContain('data-testid="hpt-target-ball"');
+    expect(panelHtml).not.toContain("회전 tip");
+    expect(panelHtml).not.toMatch(/aria-label="궤적 검증용 회전 tip"/);
+    expect(panelHtml).not.toContain("user-hpt-tip-btn");
+    for (const n of [0, 1, 2, 3, 4]) {
+      expect(panelHtml).not.toContain(`>${n}<`);
+    }
   });
 });
 

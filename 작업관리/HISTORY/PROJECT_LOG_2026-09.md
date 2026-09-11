@@ -6,6 +6,31 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-11 — Remove Experimental USER HPT Rotation Tip Controls
+
+## Mode
+
+**Agent** · PRODUCT USER HPT UI only · **No Commit/Push**
+
+## Finding
+
+- Phase 2B calibration exposed 「회전 tip」 0–4 on USER [타점] when `onTipCountChange` was wired from App
+- Not a recent AI/calc regression; not CSS leak
+
+## Change
+
+- Removed product wiring of tip editor (`UserHptPanel` read-only; no tipCount / onTipCountChange props)
+- Removed tip-row JSX and `.user-hpt-tip-*` CSS
+- Kept hydrated tipCount → `userRuntimeTipCountOverride` (null) → `resolveCurrentTipWithUserOverride` → currentTip → trajectory/spin
+- Calculation semantics unchanged
+
+## Verification
+
+- targeted HPT / Phase 2B tip tests · full `npm test` / `npm run build`
+- Commit/Push — NONE (await PC manual review)
+
+---
+
 # 2026-09-11 — USER Calc Mode Entry vs Overlay Trigger Separation
 
 ## Mode
