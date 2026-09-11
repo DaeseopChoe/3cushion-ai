@@ -6,6 +6,32 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-11 — USER Calc Mode Entry vs Overlay Trigger Separation
+
+## Mode
+
+**Agent** · UX trigger only · **No Commit/Push**
+
+## Contract
+
+- Before: left [계산] entered calc mode and auto-opened formula overlay (`calcOverlayVisible=true`)
+- After: [계산] → calc mode + **base-value table** · overlay **CLOSED**
+- [계산 보기] / [계산 감추기] still toggles overlay only
+- Overlay close keeps calc mode (`userTableDisplayMode === "trajectory"`)
+- Re-entry always starts overlay closed
+- No SYS/STR/formula/value/AI/HPT changes
+
+## Files
+
+- `components/Stage.jsx` · `App.jsx` default · contract test
+
+## Verification
+
+- targeted contracts · full `npm test` / `npm run build`
+- Commit/Push — NONE (await PC manual review)
+
+---
+
 # 2026-09-11 — USER AI Readability + Section Gap Polish
 
 ## Mode

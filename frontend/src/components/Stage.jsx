@@ -323,14 +323,15 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   );
   const [trajectoryShowAxisValues, setTrajectoryShowAxisValues] = useState(false);
   const [trajectoryCardOffset, setTrajectoryCardOffset] = useState({ x: 0, y: 0 });
-  const [calcOverlayVisible, setCalcOverlayVisible] = useState(true);
+  const [calcOverlayVisible, setCalcOverlayVisible] = useState(false);
   const [userSearchHasResults, setUserSearchHasResults] = useState(false);
   const resetUserTableDisplayMode = useCallback(() => {
     setUserTableDisplayMode("default");
     setTrajectoryCardSource("baseline");
     setTrajectoryShowAxisValues(false);
     setTrajectoryCardOffset({ x: 0, y: 0 });
-    setCalcOverlayVisible(true);
+    // Calc mode exit: keep overlay closed so next [계산] entry starts with base table view.
+    setCalcOverlayVisible(false);
   }, []);
 
   const handleUserSearchReset = useCallback(() => {
@@ -634,7 +635,8 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
               )?.();
             } else {
               setUserTableDisplayMode("trajectory");
-              setCalcOverlayVisible(true);
+              // Enter calc mode with base-value table view; overlay opens only via [계산 보기].
+              setCalcOverlayVisible(false);
               setCurrentButtonId("TRAJECTORY");
             }
             return;

@@ -753,7 +753,7 @@ export default function App({
   trajectoryCardSource = "baseline",
   trajectoryShowAxisValues = false,
   trajectoryCardOffset = { x: 0, y: 0 },
-  calcOverlayVisible = true,
+  calcOverlayVisible = false,
   onCalcOverlayVisibleChange,
   onTrajectoryCardOffsetChange,
   onTrajectoryCardSourceChange,
