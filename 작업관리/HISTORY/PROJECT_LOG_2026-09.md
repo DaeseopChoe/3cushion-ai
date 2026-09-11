@@ -6,6 +6,26 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-11 — USER AI Readability + Section Gap Polish
+
+## Mode
+
+**Agent** · USER AI presentation CSS only · **No Commit/Push**
+
+## Fix
+
+- Cause: `.user-ai-block__title` stayed `#0f172a` on glassDark; hidden `<hr>` broke adjacent section gap; text-shadow looked floaty
+- Shell-scoped near-white title/body · remove content text-shadow · `.user-ai-block ~ .user-ai-block` section gap (~1.85em)
+- Internal paragraph spacing unchanged · AI width 0.63 / HPT 0.42 / Reading Mode untouched
+- **Section title label:** same compact translucent chip for 「공략 요약」/「PRO ONE POINT」 (`inline-flex`, soft white fill/border) · no JSX string change · section gap preserved
+
+## Verification
+
+- targeted USER AI / layout contracts · full `npm test` / `npm run build`
+- PC manual review: **PASS** · Commit/Push with this polish commit
+
+---
+
 # 2026-09-11 — Phase 1→3C Cumulative Finalization (Commit / Push)
 
 ## Mode

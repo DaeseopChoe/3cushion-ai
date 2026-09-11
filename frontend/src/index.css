@@ -538,19 +538,40 @@
 .user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel {
   color: rgba(255, 255, 255, 0.96);
   line-height: 1.4;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  /* Prefer clean contrast on glassDark — avoid muddy floaty shadow */
+  text-shadow: none;
 }
 
 .user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-para,
 .user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-lesson-heading,
 .user-overlay-shell--ai .modal-panel--user-ai .ai-comment-empty {
   color: rgba(255, 255, 255, 0.96);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  text-shadow: none;
 }
 
 .user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-para--formula .ai-comment-section-title,
 .user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .ai-comment-lesson-heading {
   color: rgba(255, 255, 255, 0.98);
+}
+
+/* Phase 3C blocks — compact translucent section labels (not full-width banners) */
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .user-ai-block__title {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 0.65em;
+  padding: 0.18em 0.55em;
+  border-radius: 0.35em;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.98);
+  font-size: 0.92em;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  text-shadow: none;
 }
 
 .user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel__body {
@@ -574,6 +595,15 @@
   word-break: keep-all;
 }
 
+/*
+ * Section gap: DOM inserts a hidden <hr> between blocks, so adjacent `+` never matches.
+ * Use general sibling so 공략 요약 → PRO ONE POINT separation is visible.
+ * Internal paragraph gaps stay smaller (see .user-ai-block__body rules below).
+ */
+.user-overlay-shell--ai .modal-panel--user-ai .user-ai-panel .user-ai-block ~ .user-ai-block {
+  margin-top: 1.85em;
+}
+
 .modal-panel--user-ai .user-ai-panel .user-ai-block__title {
   margin: 0 0 0.55em;
   padding: 0;
@@ -591,7 +621,6 @@
 .modal-panel--user-ai .user-ai-panel .user-ai-block__body .ai-comment-para + .ai-comment-para {
   margin-top: 0.55em;
 }
-
 /* Reading Mode chrome — reserve right gutter for magnifier on AI / CALC / HPT */
 .user-overlay-shell--ai .user-overlay-shell__body,
 .user-overlay-shell--calc .user-overlay-shell__body,
