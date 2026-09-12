@@ -6,6 +6,46 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-12 — Phase 3D AI Proofreading Latency (reasoning.effort none)
+
+## Mode
+
+**Agent** · local ADMIN authoring OpenAI request only · **Commit + Push**
+
+## Root cause (Ask)
+
+- Local path: Browser → Vite `POST /api/proofread` → OpenAI Responses API
+- Vercel **not** in proofreading runtime path
+- Latency ~99% OpenAI-bound (~2.5–3.6s on luna without explicit reasoning)
+
+## Decision (A/B)
+
+- Keep model **`gpt-5.6-luna`** (no terra / mini switch)
+- Add Responses payload `reasoning: { effort: "none" }`
+- A/B: T1 median ~2477 ms → ~1359 ms (~45%); quality / numeric / JSON PASS
+- Rejected: low+verbosity (no gain), gpt-5-mini (slower), prompt shrink (no gain)
+
+## Files
+
+- `frontend/api/_lib/providers/openai.js`
+- `frontend/src/domain/lesson/proofreading.contract.test.ts`
+- this log
+
+## Isolation
+
+- Numeric Guard / Style Contract / approval UX unchanged
+- USER AI / CALC / HPT / calculation SSOT untouched
+- API key remains server-only
+
+## Verification
+
+- targeted proofreading contracts · full `npm test` / `npm run build`
+- local latency sanity (3× T1) after implement
+- **PC manual review PASS** — 체감 약 **2.5~3초** (기존 ~5초 대비 개선) · 교정/Numeric Guard/승인·취소·적용 UX 정상
+- Commit/Push with this Phase 3D finalization
+
+---
+
 # 2026-09-11 — Remove Experimental USER HPT Rotation Tip Controls
 
 ## Mode

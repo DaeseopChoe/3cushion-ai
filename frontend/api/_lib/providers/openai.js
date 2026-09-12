@@ -178,6 +178,7 @@ export async function callOpenAiProofread(args) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  // Phase 3D: effort "none" keeps gpt-5.6-luna quality while cutting latency (~45% in A/B).
   const payload = {
     model,
     instructions: buildProofreadingSystemPrompt(),
@@ -187,6 +188,9 @@ export async function callOpenAiProofread(args) {
         content: buildProofreadingUserPrompt(args.text),
       },
     ],
+    reasoning: {
+      effort: "none",
+    },
     text: {
       format: {
         type: "json_schema",

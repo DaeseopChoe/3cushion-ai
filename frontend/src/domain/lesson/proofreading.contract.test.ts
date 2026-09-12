@@ -379,7 +379,7 @@ describe("OpenAI upstream safe diagnostics", () => {
     });
   }
 
-  it("omits unsupported temperature from Responses API payload", async () => {
+  it("omits unsupported temperature and sets reasoning.effort none", async () => {
     let requestBody = "";
     const fetchImpl = vi.fn(async (_url, init) => {
       requestBody = String(init?.body || "");
@@ -405,7 +405,119 @@ describe("OpenAI upstream safe diagnostics", () => {
     expect(result.corrected_text).toBe(SAMPLE_CORRECTED);
     const parsed = JSON.parse(requestBody);
     expect(parsed).not.toHaveProperty("temperature");
+    expect(parsed).not.toHaveProperty("stream");
+    expect(parsed).not.toHaveProperty("tools");
     expect(parsed.model).toBe("gpt-5.6-luna");
+    expect(parsed.reasoning).toEqual({ effort: "none" });
     expect(parsed.text?.format?.type).toBe("json_schema");
+    expect(parsed.text?.format?.strict).toBe(true);
+    expect(parsed.text?.format?.name).toBe(STYLE_CONTRACT_ID);
+    expect(parsed.text?.format?.schema).toEqual({
+      type: "object",
+      properties: {
+        corrected_text: { type: "string" },
+        changed: { type: "boolean" },
+      },
+      required: ["corrected_text", "changed"],
+      additionalProperties: false,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("Phase 3D: env model gpt-5.6-luna reaches Responses payload unchanged", async () => {
+    let requestBody = "";
+    const fetchImpl = vi.fn(async (_url, init) => {
+      requestBody = String(init?.body || "");
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            output_text: JSON.stringify({
+              corrected_text: SAMPLE_CORRECTED,
+              changed: true,
+            }),
+          }),
+      };
+    });
+    const result = await runProofread({
+      body: { text: SAMPLE_ORIGINAL },
+      env: {
+        OPENAI_API_KEY: "env-key",
+        OPENAI_PROOFREAD_MODEL: "gpt-5.6-luna",
+      },
+      callProvider: (args) => callOpenAiProofread({ ...args, fetchImpl }),
+    });
+    expect(result.ok).toBe(true);
+    const parsed = JSON.parse(requestBody);
+    expect(parsed.model).toBe("gpt-5.6-luna");
+    expect(parsed.reasoning).toEqual({ effort: "none" });
+    expect(JSON.stringify(result)).not.toContain("env-key");
+  });
+});
+
+describe("proofreading terminology / numeric regression fixtures", () => {
+  const TERM_SAMPLE =
+    "밀림이 발생하지 않도록 그림의 힘을 빼고 경쾌하게 스트로크해야 합니다.";
+  const NUMERIC_SAMPLE =
+    "출발값 30에서 밀림값 +4를 보정하면 출발값은 34가 됩니다.";
+
+  it("Style Contract still requires terminology and numeric preservation", () => {
+    const prompt = buildProofreadingSystemPrompt();
+    expect(prompt).toContain("전문용어");
+    expect(prompt).toContain("숫자");
+    expect(prompt).toContain("원문에 없는 기술적 사실");
+    expect(prompt).toContain("교정 편집자");
+  });
+
+  it("numeric guard preserves 출발값 / 밀림값 tokens (30, +4, 34)", () => {
+    const tokens = extractNumericTokens(NUMERIC_SAMPLE);
+    expect(tokens).toEqual(["+4", "30", "34"].sort());
+    expect(assertNumericPreserved(NUMERIC_SAMPLE, NUMERIC_SAMPLE).ok).toBe(true);
+    expect(
+      assertNumericPreserved(
+        NUMERIC_SAMPLE,
+        "출발값 30에서 밀림값 +4를 보정하면 출발값은 34가 됩니다."
+      ).ok
+    ).toBe(true);
+    expect(
+      assertNumericPreserved(
+        NUMERIC_SAMPLE,
+        "출발값 31에서 밀림값 +4를 보정하면 출발값은 34가 됩니다."
+      ).ok
+    ).toBe(false);
+  });
+
+  it("mocked provider path keeps term sample text through Numeric Guard", async () => {
+    const corrected = TERM_SAMPLE;
+    const result = await runProofread({
+      body: { text: TERM_SAMPLE },
+      apiKey: "test-key",
+      callProvider: async () => ({
+        corrected_text: corrected,
+        changed: false,
+      }),
+    });
+    expect(result.ok).toBe(true);
+    expect(result.data.corrected_text).toContain("그림");
+    expect(result.data.corrected_text).toContain("스트로크");
+    expect(result.data.corrected_text).toContain("밀림");
+    expect(assertNumericPreserved(TERM_SAMPLE, result.data.corrected_text).ok).toBe(
+      true
+    );
+  });
+
+  it("rejects mocked provider output that mutates 출발값 numerics", async () => {
+    const result = await runProofread({
+      body: { text: NUMERIC_SAMPLE },
+      apiKey: "test-key",
+      callProvider: async () => ({
+        corrected_text:
+          "출발값 31에서 밀림값 +4를 보정하면 출발값은 34가 됩니다.",
+        changed: true,
+      }),
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe("NUMERIC_GUARD");
   });
 });
