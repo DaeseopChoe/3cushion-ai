@@ -5,19 +5,7 @@ import {
 } from "../../domain/lesson/proofreadingClient";
 import { formatOnePointDropdownLabel } from "../../domain/lesson/onePointLibrary";
 
-export function ensureLessonItems(items) {
-  if (!items || !Array.isArray(items)) return [];
-  return items.map((item, idx) => {
-    if (typeof item === "string") {
-      return { id: `legacy-${idx}-${item.slice(0, 40).replace(/\s/g, "_")}`, text: item };
-    }
-    if (item && typeof item === "object" && item.id != null && item.text != null) {
-      return item;
-    }
-    const t = String(item?.text ?? item ?? "");
-    return { id: `fix-${idx}-${t.slice(0, 20)}`, text: t };
-  });
-}
+export { ensureLessonItems } from "../../domain/lesson/ensureLessonItems";
 
 const headingStyle = {
   fontSize: 13,

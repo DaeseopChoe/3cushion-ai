@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import Stage from "./components/Stage.jsx";
 import { LayoutProvider } from "./contexts/LayoutContext.jsx";
+import { scheduleAppShellRemoval } from "./boot/removeAppShell.js";
 import "./index.css";
 import "./styles/stage-layout.css";
 // import "./styles/mobile-layout.css";  // Phase 1: 임시 비활성화
@@ -53,3 +54,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <RootWrapper />
   </React.StrictMode>
 );
+
+// Phase 3E-2: keep #app-shell until real .table-svg is committed (not on createRoot).
+scheduleAppShellRemoval();

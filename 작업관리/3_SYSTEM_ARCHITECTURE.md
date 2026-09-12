@@ -483,7 +483,9 @@ dataset (App.jsx state) → localStorage "positions_dataset"
 - **Strategy Summary Correction Explanation (Phase 3B.1.1)** 는 밀림/끌림=출발값 · 기울기=3쿠션 도착 · Sn=최종 도착 설명 정밀화 · 없는 보정 생략 · Summary→SYS 역편집 금지 · 조사 자동화 deferred · **밀림/끌림 signed (`+N`/`-N`)** display hotfix. 계산/OpenAI 비대상.
 - **USER Shared AI Presentation (Phase 3C)** 는 committed-only read-only 투영이다. `buildCommittedAiPresentation` · override ?: generated (동일 Strategy Summary SSOT) · committed PRO ONE POINT · applied-first selector · dual `aiLessonSources` merge 제거(USER path) · ADMIN draft/library/proofread/stale/fingerprint UI 미노출 · OpenAI/calc/Undo 비대상 · latency는 Phase 3D.
 - **USER AI Overlay Responsive Width (Phase 3C follow-up)** 는 AI Reading OFF `widthRatio` 0.42→0.63 · HPT 0.42 분리 · Reading clamp/font scale/text reflow 유지 · CALC/ADMIN/calc/OpenAI 비대상 · **PC manual PASS** · mobile은 Push 후 검증.
-- **Phase 1→3C cumulative** 는 ADMIN AI editor + Strategy Summary template/persistence + USER presentation + AI width 0.63까지 main에 반영. Modal Undo(3B.2/3B.3)·latency(3D)·조사 자동화는 deferred.
+- **Phase 1→3C cumulative** 는 ADMIN AI editor + Strategy Summary template/persistence + USER presentation + AI width 0.63까지 main에 반영. Modal Undo(3B.2/3B.3)·조사 자동화는 deferred. Phase 3D/3E는 아래.
+- **AI Proofreading Latency (Phase 3D)** 는 OpenAI Responses `reasoning.effort: "none"` on `gpt-5.6-luna` only · Numeric Guard/Style/approval 유지 · calculation 비대상.
+- **USER Mobile Cold-Start (Phase 3E)** 는 startup presentation만이다. **3E-1** USER first-load에서 noncritical ADMIN overlays lazy-load · **3E-2** `index.html` `#app-shell`은 React 이전 visual placeholder(계산/geometry/data SSOT 아님) · 실 `.table-svg` ready 후 제거 · Fully Interactive≈0이 목표가 아님.
 
 7.6 App.jsx 현재 상태 요약 (계산 관점)
 

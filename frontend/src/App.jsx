@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
+﻿import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Suspense } from "react";
 import { flushSync } from "react-dom";
 import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
 import { useAdminEditHistory } from "./hooks/useAdminEditHistory";
@@ -86,9 +86,20 @@ import {
   composeFinalStrategySummary,
 } from "./domain/lesson/strategySummaryTemplate";
 import { hasRenderableOutputsResult } from "./domain/slotSysResolve";
-import CategoryManageModal from "./components/overlays/CategoryManageModal";
-import LessonOrderManageModal from "./components/overlays/LessonOrderManageModal";
-import { SysOverlay } from "./components/overlays/SysOverlay";
+import { ensureLessonItems } from "./domain/lesson/ensureLessonItems";
+import {
+  LazySysOverlay,
+  LazyHptOverlay,
+  LazyStrOverlay,
+  LazyAiOverlay,
+  LazyAnchorEditOverlay,
+  LazyCategoryManageModal,
+  LazyLessonOrderManageModal,
+  LazyWorkspaceHistoryModal,
+  LazyDerivedReviewOverlay,
+  LazyJoystickCoordinateEditor,
+  LazyRealInterpolationPanel,
+} from "./components/overlays/adminOverlays.lazy";
 import {
   getSystemContract,
   extractTrajectoryContractView,
@@ -112,9 +123,6 @@ import {
   pointerToRg,
 } from "./utils/geometry/coords";
 import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel";
-import { AnchorEditOverlay } from "./components/overlays/AnchorEditOverlay";
-import { HptOverlay, StrOverlay } from "./components/overlays/HptOverlay";
-import { AiOverlay, ensureLessonItems } from "./components/overlays/AiOverlay";
 import { useAdminOverlayRouter } from "./overlay/router/adminOverlayRouter";
 import { useAdminOverlayLifecycle } from "./overlay/state/overlayStateMachine";
 import { useUserOverlayRouter } from "./overlay/router/userOverlayRouter";
@@ -151,14 +159,12 @@ import {
 } from "./domain/admin/impactContactOwnership";
 import SystemValueLabels from "./components/table/SystemValueLabels";
 import BaselineFineNudgeLayer from "./components/table/BaselineFineNudgeLayer";
-import WorkspaceHistoryModal from "./components/WorkspaceHistoryModal";
 import ModalShell from "./components/common/ModalShell";
 import UserOverlayShell from "./components/common/UserOverlayShell.jsx";
 import UserAiPanel from "./components/user/UserAiPanel.jsx";
 import UserHptPanel from "./components/user/UserHptPanel.jsx";
 import UserCalculationPanel from "./components/user/UserCalculationPanel.jsx";
 import UserCalcToolbar from "./components/user/UserCalcToolbar.jsx";
-import RealInterpolationPanel from "./components/user/RealInterpolationPanel.jsx";
 import { resolveUserOverlayLayout } from "./overlay/layout/overlayLayoutTokens";
 import { buildSysCalcDisplayModel } from "./overlay/utils/sysCalcDisplayModel";
 import {
@@ -253,7 +259,6 @@ import {
   resolveBaselineImpactSnapTarget,
 } from "./interaction/baselineImpactSnapInteraction";
 import BallGuideLayer from "./components/table/BallGuideLayer";
-import JoystickCoordinateEditor from "./components/table/JoystickCoordinateEditor";
 import {
   computeJoystickCoordinateEditorAnchor,
   resolveJoystickCoordinateEditorLayout,
@@ -325,7 +330,6 @@ import {
   projectFamilySourceMemberToRuntimeView,
 } from "./domain/family/projectDerivedCandidateToRuntimeView";
 import DerivedCandidatePreviewLayer from "./components/table/DerivedCandidatePreviewLayer";
-import DerivedReviewOverlay from "./components/table/DerivedReviewOverlay";
 import { useCueImpactDerivedReviewUi } from "./hooks/useCueImpactDerivedReviewUi";
 import { runBallDrag } from "./application/flows/ballDragFlow";
 import { runTrajectoryHydrate } from "./application/flows/trajectoryHydrateFlow";
@@ -6496,57 +6500,65 @@ function handlePointerCancel(e) {
       <div className="table-area">
         <div className="table-area-inner" ref={tableAreaInnerRef} style={{ position: "relative" }}>
           {coordEditSession ? (
-            <JoystickCoordinateEditor
-              mode={coordEditSession.mode}
-              initialX={coordEditSession.initialX}
-              initialY={coordEditSession.initialY}
-              anchor={coordEditSession.anchor}
-              onApply={handleJoystickCoordinateApply}
-              onCancel={() => setCoordEditSession(null)}
-            />
+            <Suspense fallback={null}>
+              <LazyJoystickCoordinateEditor
+                mode={coordEditSession.mode}
+                initialX={coordEditSession.initialX}
+                initialY={coordEditSession.initialY}
+                anchor={coordEditSession.anchor}
+                onApply={handleJoystickCoordinateApply}
+                onCancel={() => setCoordEditSession(null)}
+              />
+            </Suspense>
           ) : null}
           {isDerivedReviewSessionPending && derivedReviewUi.reviewMode === "REVIEW" ? (
-            <DerivedReviewOverlay
-              visible={derivedReviewUi.overlayVisible}
-              viewingTrack={derivedReviewUi.viewingTrack}
-              authoredTrack={unifiedDerivedReview?.authoredTrack}
-              title="Derived Review"
-              reviewKind="UNIFIED"
-              onTrackChange={derivedReviewUi.setViewingTrack}
-              onApprove={handleApproveDerivedReview}
-              onCancel={handleCancelDerivedReview}
-              onHide={() => derivedReviewUi.setOverlayVisible(false)}
-              approveDisabled={derivedReviewApproveInFlightRef.current}
-            />
+            <Suspense fallback={null}>
+              <LazyDerivedReviewOverlay
+                visible={derivedReviewUi.overlayVisible}
+                viewingTrack={derivedReviewUi.viewingTrack}
+                authoredTrack={unifiedDerivedReview?.authoredTrack}
+                title="Derived Review"
+                reviewKind="UNIFIED"
+                onTrackChange={derivedReviewUi.setViewingTrack}
+                onApprove={handleApproveDerivedReview}
+                onCancel={handleCancelDerivedReview}
+                onHide={() => derivedReviewUi.setOverlayVisible(false)}
+                approveDisabled={derivedReviewApproveInFlightRef.current}
+              />
+            </Suspense>
           ) : null}
           {tableSVG}
         </div>
       {appMode === "USER" &&
       realInterpolationUiSurface.candidates.length > 0 ? (
-        <RealInterpolationPanel
-          surface={realInterpolationUiSurface}
-          selectedIndex={riUiSelectedIndex}
-          onSelect={handleRealInterpolationUiSelect}
-          formatMatchType={formatRiMatchTypeLabel}
-          formatConfidence={formatRiConfidenceLabel}
-        />
+        <Suspense fallback={null}>
+          <LazyRealInterpolationPanel
+            surface={realInterpolationUiSurface}
+            selectedIndex={riUiSelectedIndex}
+            onSelect={handleRealInterpolationUiSelect}
+            formatMatchType={formatRiMatchTypeLabel}
+            formatConfidence={formatRiConfidenceLabel}
+          />
+        </Suspense>
       ) : null}
       {showHistoryModal && (
-        <WorkspaceHistoryModal
-          history={workspaceHistory}
-          onClose={() => setShowHistoryModal(false)}
-          onLoad={(id) => {
-            // Success → Admin table layers ON + editable; capture Recall Origin S0.
-            if (handleLoadWorkspaceSnapshot(id)) {
-              setAdminTableLayersVisible(true);
-              setAdminRecallOriginNonce((n) => n + 1);
-            }
-            setShowHistoryModal(false);
-          }}
-          onDelete={handleDeleteWorkspaceSnapshot}
-          onDeleteOldest30={handleDeleteOldest30}
-          onExport={handleExportSnapshots}
-        />
+        <Suspense fallback={null}>
+          <LazyWorkspaceHistoryModal
+            history={workspaceHistory}
+            onClose={() => setShowHistoryModal(false)}
+            onLoad={(id) => {
+              // Success → Admin table layers ON + editable; capture Recall Origin S0.
+              if (handleLoadWorkspaceSnapshot(id)) {
+                setAdminTableLayersVisible(true);
+                setAdminRecallOriginNonce((n) => n + 1);
+              }
+              setShowHistoryModal(false);
+            }}
+            onDelete={handleDeleteWorkspaceSnapshot}
+            onDeleteOldest30={handleDeleteOldest30}
+            onExport={handleExportSnapshots}
+          />
+        </Suspense>
       )}
 
       {/* 관리자 모드 오버레이 */}
@@ -6574,8 +6586,9 @@ function handlePointerCancel(e) {
           overflowY: "auto",
         }}
       >
+        <Suspense fallback={null}>
             {overlayState.type === 'SYS' && (
-              <SysOverlay
+              <LazySysOverlay
                 key={`sys-${shotEditor.activeSlot}`}
                 data={adminState.sys}
                 applyDisabled={isDerivedReviewInspectLocked}
@@ -6739,7 +6752,7 @@ function handlePointerCancel(e) {
             )}
 
             {overlayState.type === 'HPT' && (
-              <HptOverlay
+              <LazyHptOverlay
                 data={adminState.hpt}
                 displayData={
                   shotEditor.slots[shotEditor.activeSlot]?.draft?.displayHpt ??
@@ -6828,7 +6841,7 @@ function handlePointerCancel(e) {
             )}
 
             {overlayState.type === 'STR' && (
-              <StrOverlay
+              <LazyStrOverlay
                 data={adminState.str}
                 applyDisabled={isDerivedReviewInspectLocked}
                 onSave={(newData) => {
@@ -6854,7 +6867,7 @@ function handlePointerCancel(e) {
               const key = overlayState.anchorKey;
               const coord = allAnchors[key]?.coord ?? { x: 0, y: 0 };
               return (
-                <AnchorEditOverlay
+                <LazyAnchorEditOverlay
                   anchorKey={key}
                   initialX={coord.x}
                   initialY={coord.y}
@@ -6882,7 +6895,7 @@ function handlePointerCancel(e) {
             })()}
 
             {overlayState.type === 'AI' && (
-              <AiOverlay
+              <LazyAiOverlay
                 key={`ai-${shotEditor.activeSlot}-${resolvedSlotSysValues?.CO_f ?? 0}-${adminState.str?.speed ?? 0}`}
                 data={adminState.ai}
                 sysData={adminState.sys}
@@ -6918,25 +6931,34 @@ function handlePointerCancel(e) {
                 proofreadClearNonce={aiProofreadClearNonce}
               />
             )}
+        </Suspense>
       </ModalShell>
 
       {/* Category / Lesson Order modals retained for data compatibility; AI Overlay no longer opens them (Phase 2B). */}
-      <CategoryManageModal
-        open={showCategoryManageModal}
-        categories={onePointCategories}
-        onClose={() => setShowCategoryManageModal(false)}
-        onCreate={handleCreateOnePointCategory}
-        onUpdate={handleUpdateOnePointCategory}
-        onDelete={handleDeleteOnePointCategory}
-      />
+      {showCategoryManageModal ? (
+        <Suspense fallback={null}>
+          <LazyCategoryManageModal
+            open={showCategoryManageModal}
+            categories={onePointCategories}
+            onClose={() => setShowCategoryManageModal(false)}
+            onCreate={handleCreateOnePointCategory}
+            onUpdate={handleUpdateOnePointCategory}
+            onDelete={handleDeleteOnePointCategory}
+          />
+        </Suspense>
+      ) : null}
 
-      <LessonOrderManageModal
-        open={showLessonOrderManageModal}
-        categoryNo={onePointCategoryNo}
-        lessons={filteredSortedOnePointLibrary}
-        onClose={() => setShowLessonOrderManageModal(false)}
-        onReorder={reorderOnePointLibraryByCategory}
-      />
+      {showLessonOrderManageModal ? (
+        <Suspense fallback={null}>
+          <LazyLessonOrderManageModal
+            open={showLessonOrderManageModal}
+            categoryNo={onePointCategoryNo}
+            lessons={filteredSortedOnePointLibrary}
+            onClose={() => setShowLessonOrderManageModal(false)}
+            onReorder={reorderOnePointLibraryByCategory}
+          />
+        </Suspense>
+      ) : null}
       
       {/* USER Calculation chrome — Overlay 밖 상단 버튼 (계산 모드에서 항상 표시) */}
       {appMode === "USER" && userTableDisplayMode === "trajectory" ? (

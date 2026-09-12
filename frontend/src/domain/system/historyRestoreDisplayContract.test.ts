@@ -158,7 +158,7 @@ describe("History restore → Admin table layers (view vs edit)", () => {
     const saveFlow = readSrc("application/flows/saveFlow.ts");
     expect(saveFlow).toMatch(/system:\s*systemId/);
     const app = readSrc("App.jsx");
-    const modalIdx = app.lastIndexOf("<WorkspaceHistoryModal");
+    const modalIdx = app.lastIndexOf("<LazyWorkspaceHistoryModal");
     expect(modalIdx).toBeGreaterThan(-1);
     const onLoad = app.slice(modalIdx, modalIdx + 500);
     expect(onLoad).toMatch(/handleLoadWorkspaceSnapshot\(id\)/);

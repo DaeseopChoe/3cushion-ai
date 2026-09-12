@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.15
-Last Updated: 2026-09-10
+Version: 2.16
+Last Updated: 2026-09-12
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -67,7 +67,9 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Sample datasets (user)** | ✅ 뒤돌리기 / 옆돌리기 / 뒤돌리기 대회전 **3 set 완성 보고** (4 tracks each) |
 | **BUG-A display-cap corner** | ✅ **IMPLEMENTED** (uncommitted) · nearest-rail identity |
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
-| **Working tree** | Impact CONTACT + HPT tipSideIntent **committed this checkpoint** · unrelated `incidenceAngle.ts` 등 **보존** |
+| **Phase 3D AI proofreading latency** | ✅ **COMPLETE** (`6ad91fb` · `gpt-5.6-luna` + `reasoning.effort: "none"`) |
+| **Phase 3E USER mobile cold-start / First Visual** | ✅ **COMPLETE · USER ACCEPTED** (3E-1 lazy overlays + 3E-2 `#app-shell`) |
+| **Working tree** | Phase 3E commit excludes unrelated `positions.json` · `incidenceAngle.ts` **보존** |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
 | **ADMIN History Overlay UX** | ✅ **COMPLETE** (2026-08-28 · Selection/Shift/Density/Delete/Sizing · 브라우저 검증 완료 · **Commit/Push 대기**) |
 | **Ball Fine Position Controller** | ✅ **COMPLETE** (`1eaf76c` · Desktop PASS · Mobile Production PASS · Admin/User PASS) |
@@ -1089,12 +1091,20 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - **PC manual review PASS** · mobile device validation **after Push/deploy**
 - **Phase 1→3C cumulative status (2026-09-11)**
   - ADMIN editor + Strategy Summary SSOT/persistence + USER committed presentation + AI width 0.63 **shipped to main**
-  - Deferred: Modal Undo **3B.2/3B.3** · latency **3D** · Korean particle automation
+  - Deferred: Modal Undo **3B.2/3B.3** · Korean particle automation
+- **AI Proofreading Latency (Phase 3D · 2026-09-12)** — ✅ **COMPLETE**
+  - Keep `gpt-5.6-luna` · Responses `reasoning: { effort: "none" }` · Numeric Guard / Style / approval UX unchanged
+  - Latency ~OpenAI-bound · PC manual ~2.5–3s (was ~5s) · detail → `HISTORY/PROJECT_LOG_2026-09.md`
+- **USER Mobile Cold-Start / First Visual (Phase 3E · 2026-09-12)** — ✅ **COMPLETE · USER ACCEPTED**
+  - **3E-1:** noncritical ADMIN/UI overlays `React.lazy` out of USER initial JS (~911 → ~849 KB raw · ~7% gzip cut) · ADMIN features kept via lazy load (not an ADMIN perf project)
+  - **3E-2:** inline `#app-shell` Table Shell in `index.html` (React-before-paint) · remove after `.table-svg` + 2 rAF · ~1.5 KB · 0 extra network · not table geometry SSOT
+  - Success criterion: user can tell the app started after icon tap · not Fully Interactive ≈ 0s
+  - Full cold-start elimination **not** claimed · accepted at current level
 - **AI Writing Assistant (Proofreading)** — **Implemented** (2026-09-08)
   - 대상: 관리자 One-Point Lesson 원문(`onePointDraft`)만.
   - 흐름: `[AI 교정]` → `POST /api/proofread` → Style Contract + OpenAI Responses API → before/after preview → 관리자 `[교정안 적용]` → `setOnePointDraft` → 기존 Apply/Save.
   - **자동 overwrite 금지** · numeric mutation reject · 의미/전문용어/숫자 보존.
-  - Provider: OpenAI Responses API · model env `OPENAI_PROOFREAD_MODEL` (local/ops: `gpt-5.6-luna`) · `temperature` **미사용**.
+  - Provider: OpenAI Responses API · model env `OPENAI_PROOFREAD_MODEL` (local/ops: `gpt-5.6-luna`) · `temperature` **미사용** · Phase 3D: `reasoning.effort: "none"`.
   - Security: API key **server-only** (`OPENAI_API_KEY`) · Vite `loadEnv`로 dev middleware에만 전달 · browser/VITE_* secret 없음 · non-2xx 시 server-only safe diagnostics.
   - 계산 엔진(SYS/Fg/Rg/Δ_sys/anchors/trajectory/Impact 등)과 **분리**된 UI/text/service 기능.
 - **USER AI 패널**: `components/user/UserAiPanel.jsx` + `domain/userInfoPanelModel.ts` (`buildUserInfoPanel`).

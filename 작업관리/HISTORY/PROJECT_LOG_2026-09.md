@@ -6,6 +6,120 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-12 — Phase 3E Finalize (USER Mobile Cold-Start · ACCEPTED)
+
+## Mode
+
+**Agent** · docs sync + selective Commit/Push · **no new optimization**
+
+## User manual review (PC + smartphone)
+
+- USER mobile cold-start felt faster than before
+- Phase 3E-1 initial-bundle split: real but **limited** perceived gain (~7% JS)
+- Phase 3E-2 inline Table Shell: **First Visual Feedback** clearly earlier
+- Not a full cold-start elimination — **ACCEPT** at current level
+- Phase 3E **COMPLETE**
+
+## UX success criterion (recorded)
+
+Not “Fully Interactive ≈ 0s”, but:
+**after tapping the app icon, the user can immediately tell the app has started.**
+
+## Axes shipped
+
+| Axis | What | Outcome |
+|------|------|---------|
+| **3E-1** | Lazy noncritical ADMIN/UI overlays out of USER initial JS | ~911 → ~849 KB raw · ~261 → ~243 KB gzip |
+| **3E-2** | Inline `#app-shell` before React; remove after `.table-svg` + 2 rAF | ~1.5 KB HTML/CSS · 0 extra network |
+
+## Isolation
+
+- Calculation / dataset / Phase 3D (`gpt-5.6-luna` + `reasoning.effort: "none"`) unchanged
+- `positions.json` / `incidenceAngle.ts` **excluded** from commit
+
+## Finalization
+
+- Docs: PROJECT_LOG · PROJECT_MASTER_INDEX · SYSTEM_ARCHITECTURE (startup presentation note)
+- CALCULATION_RULES: **unchanged**
+- Tests + production build PASS → selective commit/push to `main`
+
+---
+
+# 2026-09-12 — Phase 3E-2 USER Instant Table Shell (First Visual)
+
+## Mode
+
+**Agent** · startup presentation only · later finalized with Phase 3E Commit/Push
+
+## Goal
+
+Mobile cold-start First Visual: show a lightweight billiard table shell **before React**, so users immediately know the app launched. Fully Interactive time may stay similar.
+
+## Implementation
+
+- `frontend/index.html`: `#app-shell` sibling of `#root` + inline critical CSS (bg `#0f172a`, wood/cushion/cloth colors, ~2:1)
+- `frontend/src/boot/removeAppShell.js`: remove shell only after `.table-svg` is in DOM (+ 2 rAF)
+- `frontend/src/main.jsx`: call `scheduleAppShellRemoval()` after `createRoot().render`
+- No images/fonts/API/SW/cache-header/progressive balls
+
+## Isolation
+
+- Calculation / dataset / Phase 3D proofreading / Phase 3E-1 lazy overlays unchanged
+- positions.json / incidenceAngle.ts untouched
+
+## Verification
+
+- shell + boot contracts · full `npm test` / `npm run build` PASS
+- Shell added ~1.5 KB inline HTML+CSS · **0** extra network for shell
+- **User PC + smartphone review ACCEPTED** (see Phase 3E Finalize)
+
+---
+
+# 2026-09-12 — Phase 3E-1 USER Mobile Cold-Start (ADMIN overlay code-split)
+
+## Mode
+
+**Agent** · USER initial JS reduction · later finalized with Phase 3E Commit/Push
+
+## Goal
+
+Shorten smartphone cold-start by removing ADMIN-only UI from the USER initial JS graph.
+ADMIN performance is not the goal; ADMIN features remain via lazy load.
+
+## Baseline → After (production build)
+
+| | BEFORE | AFTER | Δ |
+|--|--:|--:|--:|
+| Initial JS raw | 911.39 KB | **~848–849 KB** | **≈ −7%** |
+| Initial JS gzip | 261.22 KB | **~243 KB** | **≈ −7%** |
+| Initial JS chunks | 1 | **1** (entry only in HTML) | |
+| Lazy ADMIN/UI chunks | 0 | **10** | |
+
+HTML entry still loads only `index-*.js` + CSS. ADMIN overlay chunks load on demand.
+
+## Boundaries (React.lazy)
+
+Sys / HPT / STR / AI / AnchorEdit overlays · Category/Lesson/WorkspaceHistory modals · DerivedReview · JoystickCoordinateEditor · RealInterpolationPanel
+
+`ensureLessonItems` extracted so App does not statically import AiOverlay.
+
+## Isolation
+
+- Calculation / dataset / Phase 3D proofreading payload unchanged
+- No Service Worker / cache-header changes
+- positions.json / incidenceAngle.ts untouched
+
+## Verification
+
+- targeted code-split + overlay contracts · full `npm test` / `npm run build` PASS
+- **User review:** perceived gain limited; accepted as one axis of Phase 3E (see Finalize)
+
+## Note
+
+Initial-bundle cut is real but modest; remaining weight is mainly App/domain monolith + platform WebView cold start. Further App decomposition / asset cache = later phases.
+
+---
+
 # 2026-09-12 — Phase 3D AI Proofreading Latency (reasoning.effort none)
 
 ## Mode
