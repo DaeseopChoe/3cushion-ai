@@ -69,7 +69,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **BUG-B Reset/History stale** | **UNCONFIRMED** · BUG-A 수정 후 재현 필요 · Family와 분리 |
 | **Phase 3D AI proofreading latency** | ✅ **COMPLETE** (`6ad91fb` · `gpt-5.6-luna` + `reasoning.effort: "none"`) |
 | **Phase 3E USER mobile cold-start / First Visual** | ✅ **COMPLETE · USER ACCEPTED** (3E-1 lazy overlays + 3E-2 `#app-shell`) |
-| **Working tree** | Phase 3E commit excludes unrelated `positions.json` · `incidenceAngle.ts` **보존** |
+| **USER Cushion Value Focus UI** | ✅ **COMPLETED** (`5c10387` · Production · smartphone manual PASS · FRAME/RAIL presentation SSOT) |
+| **Working tree** | Focus UI commit excludes unrelated `positions.json` · `incidenceAngle.ts` **보존** |
 | **USER Overlay Centering SSOT** | ✅ **COMPLETE** (2026-08-12 · 브라우저 검증 · build PASS · **Commit/Push 대기**) |
 | **ADMIN History Overlay UX** | ✅ **COMPLETE** (2026-08-28 · Selection/Shift/Density/Delete/Sizing · 브라우저 검증 완료 · **Commit/Push 대기**) |
 | **Ball Fine Position Controller** | ✅ **COMPLETE** (`1eaf76c` · Desktop PASS · Mobile Production PASS · Admin/User PASS) |
@@ -1100,6 +1101,12 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - **3E-2:** inline `#app-shell` Table Shell in `index.html` (React-before-paint) · remove after `.table-svg` + 2 rAF · ~1.5 KB · 0 extra network · not table geometry SSOT
   - Success criterion: user can tell the app started after icon tap · not Fully Interactive ≈ 0s
   - Full cold-start elimination **not** claimed · accepted at current level
+- **USER Cushion Value Focus UI (2026-09-14)** — ✅ **COMPLETED · PRODUCTION · SMARTPHONE MANUAL PASS**
+  - Central family selector (controller) · selection 0 hides system values · selected only · multi-toggle · no auto shrink/nudge
+  - Focus Display SSOT: CO/C1/C4/C5/C6 → **FRAME** · C3 → **RAIL** (presentation; calculation `_f`/`_r` unchanged)
+  - Focus legacy collision nudge bypass · along-axis preserved · shared Focus typography
+  - USER PC/Mobile/Tablet · ADMIN OFF · table-relative responsive KEEP AS-IS
+  - Feature `5c10387` · hook-order hotfix `498f581` · detail → `HISTORY/PROJECT_LOG_2026-09.md` · SSOT → `3_SYSTEM_ARCHITECTURE.md`
 - **AI Writing Assistant (Proofreading)** — **Implemented** (2026-09-08)
   - 대상: 관리자 One-Point Lesson 원문(`onePointDraft`)만.
   - 흐름: `[AI 교정]` → `POST /api/proofread` → Style Contract + OpenAI Responses API → before/after preview → 관리자 `[교정안 적용]` → `setOnePointDraft` → 기존 Apply/Save.

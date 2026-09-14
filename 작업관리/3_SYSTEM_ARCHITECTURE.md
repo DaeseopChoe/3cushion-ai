@@ -724,6 +724,20 @@ toPx
 
 핵심 문구: 시스템값의 계산 의미와 표시 위치를 일치시킨다. `_f` 계열의 Focus 표시값은 FRAME 위치, `_r` 계열의 Focus 표시값은 RAIL 위치에 표시한다.
 
+### Scope
+
+- **USER** PC / Mobile / Tablet — cushion/system-value display gate ON일 때
+- **ADMIN** — Focus selector OFF
+- Selector는 숫자 표시판이 아니라 **family 선택 controller** (중앙 translucent panel)
+
+### Selection / toggle
+
+- selection `0`: system value/caption **미표시** (selector만)
+- selection `≥1`: selected families만 Focus 표시
+- **Independent multi-toggle** (재탭 OFF · radio/auto-off 금지)
+- Cross-family overlap 시 자동 shrink / nudge / stagger / hide / auto-off **금지**
+- Trajectory mark labels (`CO_37.0` 등)는 별도 path — Focus filter 대상 아님
+
 ### Family → display layer
 
 | Family | Calculation token (의미) | Focus display layer |
@@ -737,7 +751,7 @@ toPx
 
 ### Position meaning
 
-- **FRAME:** 검은 diamond 기준선 (FG edge `±2.25` / `42.25`, `POINT_OFFSET_RG ≈ 2.25`와 정렬)
+- **FRAME:** 검은 diamond 기준선 (FG edge `±2.25` / `42.25` / `82.25`, `POINT_OFFSET_RG ≈ 2.25`와 정렬)
 - **RAIL:** rail과 cushion이 맞닿는 cloth 경계 (RG edge `0` / `40` / `80`)
 
 ### Resolver policy (Focus path only)
@@ -745,11 +759,21 @@ toPx
 - **축 방향(along):** existing anchor 좌표 보존
 - **법선(normal):** `getFocusDisplayLayer` → FRAME/RAIL edge로 snap
 - Focus 경로에서는 과거 multi-family `applyRawLabelFrameNudges` (C4/C5/C6 collision nudge) **미적용**
-- selection `0` (Focus feature ON): system value/caption **미표시** (selector만)
-- selection `≥1`: selected families만 Focus typography로 표시
-- trajectory mark labels (`CO_37.0` 등)는 이 SSOT 대상이 아님
+  - 과거 안쪽 이동은 collision presentation이지 semantic FRAME/RAIL SSOT가 아님
+- Focus typography: family caption + numeric value **동일** fill/size/readability (선택 개수로 shrink 금지)
 
-구현: `cushionValuePanelModel` (`getFocusDisplayLayer`, `resolveFocusLabelPosition`) + `SystemValueLabels` Focus path.
+### Responsive (policy)
+
+- Table-relative sizing (CSS container `cqw`/`cqh`) · Overlay height 성장률에 정렬
+- Small phone: touch floor 유지 (toolbar보다 덜 줄어들 수 있음 — 의도)
+- Large PC: soft ceiling 허용 (당구대 과다 가림 방지)
+- `transform: scale()` 금지 · 세부 clamp 수치는 CSS 구현 SSOT (`user-cushion-value-panel.css`)
+
+### Hook order
+
+Focus 관련 React hooks는 App early return(`loading`/`error`/`!view`) **위**에서 unconditional 호출. Conditional hook order 금지.
+
+구현: `cushionValuePanelModel` (`getFocusDisplayLayer`, `resolveFocusLabelPosition`) + `SystemValueLabels` Focus path + `CushionValuePanel`.
 
 ---
 

@@ -6,6 +6,93 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-14 — USER Cushion Value Focus UI — CLOSEOUT (COMPLETED)
+
+## Status
+
+**IMPLEMENTED · COMMITTED · PUSHED · PRODUCTION DEPLOYED · SMARTPHONE MANUAL REVIEW PASSED · DOCUMENTED · COMPLETED**
+
+## Production feature baseline
+
+| Item | Value |
+|------|--------|
+| Feature commit | **`5c10387`** `feat: finalize cushion value focus UI` |
+| Hook-order hotfix | **`498f581`** `fix: restore stable app hook order` |
+| Prior Focus commits | `8c4cc77` refine · `c769032` add panel |
+| Production | https://www.3cushionai.com/ · HTTP 200 |
+| Assets (at feature deploy) | `index-BR_HMf_2.js` · `index-LnRpeY4c.css` (~853.44 / 244.94 KB gzip JS · ~47.28 / 9.27 KB gzip CSS) |
+
+## Problem
+
+Smartphone landscape에서 cushion/frame 주변 시스템값 숫자가 작아 읽기 어려움. PC에서는 사용 가능했으나 모바일 가독성이 핵심 병목.
+
+## Approach history (brief)
+
+1. **Mobile label 1.5× + readability stroke/shadow** — 부분 개선, 선택적 확대 UX 부족
+2. **Circular magnifier** — 초기 화면 방해 · frame 바깥 확대 불리 · point–숫자 공간 관계 약함 → **폐기**
+3. **Central family selector (Focus UI)** — 의미 위치에서 선택한 family만 확대 표시 → **최종**
+
+## Final UX
+
+- USER cushion/system-value gate ON일 때 당구대 중앙 **selector controller** (숫자 lane / mini-table / magnifier 없음)
+- Families: CO · C1 · C3 · C4 · C5 · C6
+- **selection 0** → system value/caption **숨김** · selector만
+- **selection ≥1** → selected families only
+- **Independent multi-toggle** · no radio · no auto-off
+- Overlap 시 자동 shrink / nudge / stagger / hide **금지** — 사용자가 OFF로 정리
+- Trajectory marks (`CO_37.0` 등)는 별도 path · Focus filter 대상 아님
+
+## Final Display SSOT (presentation — not calculation)
+
+| Family | Meaning | Focus layer |
+|--------|---------|-------------|
+| CO / C1 / C4 / C5 / C6 | `_f` | **FRAME** (diamond · FG ±2.25 / 42.25 / 82.25) |
+| C3 | `_r` | **RAIL** (cloth · 0 / 40 / 80) |
+
+- **along-axis:** anchor 보존
+- **normal:** FRAME/RAIL presentation snap only
+- Focus: **legacy `applyRawLabelFrameNudges` bypass** (과거 C4/C5/C6 안쪽 이동은 collision presentation이지 semantic SSOT 아님)
+- Focus typography: caption + value 공유 (`#F8FAFC` · 동일 size/readability) · multi ON이어도 size 불변
+- Architecture SSOT: `3_SYSTEM_ARCHITECTURE.md` · Calculation rules **unchanged** (`4_CALCULATION_RULES.md`)
+
+## Scope
+
+PC / Mobile / Tablet **USER** ON · **ADMIN** OFF · mobile-only gate 제거 후 공통화
+
+## Responsive (KEEP AS-IS)
+
+- Table-relative CSS (`cqw` width · `cqh` type/chrome) · Overlay height growth rate 정렬
+- Small phone: **touch floor** (~40px) — toolbar보다 덜 줄어들 수 있음 (**의도**)
+- Large PC: **soft ceiling** — toolbar보다 상대적으로 작을 수 있음 (**허용**)
+- Ask: **RESPONSIVE RATIO VALIDATED — KEEP AS-IS** · no `transform: scale` · no App ResizeObserver for selector
+
+## Regression: hook-order
+
+- Symptom: `Rendered more hooks than during the previous render` (Production blank)
+- Cause: Focus `useState`/`useEffect` after `loading`/`error`/`view` early return
+- Fix: **`498f581`** — Focus hooks unconditional above early returns
+- Contract: `appCushionFocusHookOrder.contract.test.js`
+
+## Automated verification (pre-`5c10387`)
+
+- Targeted: **6 files / 45 tests PASS**
+- Full: **149 files / 1580 tests PASS**
+- Production build PASS · Phase 3E / calc·data·AI isolation preserved
+- Protected dirty excluded: `positions.json` · `incidenceAngle.ts`
+
+## Smartphone manual review (user)
+
+실기 모바일 앱 확인 완료 (2026-09-14):
+
+- selector · responsive touch · Focus display · CO FRAME · C3 RAIL · C6 FRAME · multi-toggle 정상
+- 사용자 판정: **“잘 되었어. 이 상태로 이 작업은 마무리하자.”**
+
+## Closeout note
+
+기능 runtime은 `5c10387`에서 종료. 본 CLOSEOUT 항목은 문서/이력 마감용이며, 이후 문서-only commit이 이어질 수 있다.
+
+---
+
 # 2026-09-14 — USER Cushion Value Focus UI FINALIZE (Commit / Push / Deploy)
 
 ## Mode
