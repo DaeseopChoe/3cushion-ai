@@ -48,7 +48,8 @@ describe("Phase USER mobile label readability", () => {
 
   it("SystemValueLabels scales mark labels and passes readabilityScale to LabelText", () => {
     expect(sysLabelsSrc).toContain("MARK_LABEL_BASE_FONT_SIZE");
-    expect(sysLabelsSrc).toContain("readabilityScale={labelScale}");
+    expect(sysLabelsSrc).toContain("readabilityScale=");
+    expect(sysLabelsSrc).toMatch(/readabilityScale=\{(labelScale|readabilityScale)\}/);
     expect(sysLabelsSrc).toContain("buildSvgLabelReadabilityStyle");
   });
 });

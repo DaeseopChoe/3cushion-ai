@@ -129,7 +129,6 @@ import { useUserOverlayRouter } from "./overlay/router/userOverlayRouter";
 import {
   shouldEnableCushionValuePanel,
   useSysLabelScale,
-  useUserMobileTableMatch,
 } from "./renderer/labels/labelScalePolicy";
 import CushionValuePanel from "./components/user/CushionValuePanel";
 import {
@@ -4186,8 +4185,8 @@ function handleJoyPadPointerCancel(e) {
   });
 
   // APP-013: useSysLabelScale (Batch 2 STEP 2-5)
+  // Mobile MQ stays inside useSysLabelScale for labelScale only — Focus panel is USER+feature, PC+Mobile.
   const sysLabelScale = useSysLabelScale();
-  const userMobileTable = useUserMobileTableMatch();
 
   // Cushion focus selection — MUST stay above loading/error/view early returns
   // (Rules of Hooks: same hook count on every render).
@@ -4201,7 +4200,6 @@ function handleJoyPadPointerCancel(e) {
     userTrajectoryAxisOverlayActive;
   const showCushionValuePanel = shouldEnableCushionValuePanel(
     appMode,
-    userMobileTable,
     userAxisGridLabelsActive
   );
   const [cushionFocusFamilies, setCushionFocusFamilies] = useState([]);

@@ -1,11 +1,35 @@
-/* USER mobile cushion-point — compact family selector (no mini table). */
+/* USER cushion Focus selector — centered; grows with rendered table (Overlay-aligned). */
+
+/*
+ * Overlay Layout SSOT (UserCalcToolbar reference, CSS-only approx):
+ *   fontBase ≈ H × 0.028
+ *   body     ≈ fontBase × 1.456 ≈ H × 0.040768 → 4.08cqh
+ *   note     ≈ body × 0.8
+ *   min-h    ≈ body × 1.48
+ * Width uses cqw; type/chrome use cqh so large PC keeps growing past old 360/16/48 ceilings.
+ */
+.table-area-inner:has(.ucvp-root) {
+  container-type: size;
+  container-name: table-surface;
+}
 
 .ucvp-root {
+  --ucvp-body: clamp(13px, 4.08cqh, 32px);
+  --ucvp-note: clamp(10px, 3.26cqh, 24px);
+  --ucvp-gap: clamp(4px, 2.65cqh, 14px);
+  --ucvp-pad-v: clamp(5px, 3.67cqh, 16px);
+  --ucvp-pad-h: clamp(6px, 4.28cqh, 18px);
+  --ucvp-radius: clamp(8px, 1.8cqh, 14px);
+
   position: absolute;
   z-index: 24;
-  left: max(8px, env(safe-area-inset-left, 0px));
-  top: max(8px, env(safe-area-inset-top, 0px));
-  max-width: min(320px, calc(100% - 16px));
+  /* Center on the table container (table-area-inner), not app chrome */
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* Width tracks table width; raised max so growth continues on tablet/PC */
+  width: clamp(200px, 52cqw, 560px);
+  max-width: min(560px, calc(100% - 24px));
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
@@ -13,33 +37,35 @@
 .ucvp-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px 8px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.88);
-  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.45);
-  backdrop-filter: blur(8px);
-  color: #e2e8f0;
+  gap: var(--ucvp-gap);
+  padding: var(--ucvp-pad-v) var(--ucvp-pad-h);
+  border-radius: var(--ucvp-radius);
+  /* alpha on background only — never opacity on the whole panel */
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(6px);
+  color: #1e293b;
 }
 
 .ucvp-btn-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--ucvp-gap);
 }
 
 .ucvp-btn {
   box-sizing: border-box;
-  min-height: 48px;
+  /* Touch floor 40px; grows with Overlay body × 1.48 (same ratio as UserCalcToolbar) */
+  min-height: max(40px, calc(var(--ucvp-body) * 1.48));
   min-width: 0;
   margin: 0;
-  padding: 0 6px;
-  border-radius: 10px;
-  border: 1.5px solid rgba(148, 163, 184, 0.45);
-  background: rgba(30, 41, 59, 0.95);
-  color: #e2e8f0;
-  font-size: 15px;
+  padding: 0 calc(var(--ucvp-pad-h) * 0.35);
+  border-radius: calc(var(--ucvp-radius) * 0.75);
+  border: 1.5px solid rgba(71, 85, 105, 0.45);
+  background: rgba(30, 41, 59, 0.92);
+  color: #f1f5f9;
+  font-size: var(--ucvp-body);
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -49,15 +75,16 @@
 }
 
 .ucvp-btn.is-off {
-  background: rgba(30, 41, 59, 0.95);
-  border-color: rgba(148, 163, 184, 0.45);
+  background: rgba(30, 41, 59, 0.92);
+  border-color: rgba(71, 85, 105, 0.45);
+  color: #f1f5f9;
   opacity: 1;
   font-weight: 700;
 }
 
 .ucvp-btn.is-on {
-  background: rgba(56, 189, 248, 0.28);
-  border-color: rgba(125, 211, 252, 0.95);
+  background: rgba(14, 165, 233, 0.85);
+  border-color: rgba(2, 132, 199, 0.95);
   color: #f8fafc;
   opacity: 1;
   font-weight: 800;
@@ -65,19 +92,19 @@
 
 .ucvp-btn.is-unavailable,
 .ucvp-btn:disabled {
-  background: rgba(15, 23, 42, 0.55);
-  border-color: rgba(71, 85, 105, 0.55);
-  color: rgba(148, 163, 184, 0.55);
-  opacity: 0.55;
+  background: rgba(226, 232, 240, 0.85);
+  border-color: rgba(148, 163, 184, 0.55);
+  color: rgba(100, 116, 139, 0.75);
+  opacity: 1;
   font-weight: 600;
   cursor: not-allowed;
 }
 
 .ucvp-hint {
-  margin: 2px 0 0;
-  font-size: 12px;
-  line-height: 1.35;
-  color: rgba(226, 232, 240, 0.92);
+  margin: 0;
+  font-size: var(--ucvp-note);
+  line-height: 1.3;
+  color: #334155;
   text-align: center;
 }
 
@@ -85,12 +112,12 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 4px 10px;
+  gap: 2px var(--ucvp-gap);
   margin: 0;
   padding: 0;
-  font-size: clamp(10px, 2.4vw, 11px);
-  line-height: 1.3;
-  color: rgba(148, 163, 184, 0.95);
+  font-size: max(9px, calc(var(--ucvp-note) * 0.9));
+  line-height: 1.25;
+  color: #475569;
   text-align: center;
 }
 
@@ -98,18 +125,32 @@
   white-space: nowrap;
 }
 
-@media (orientation: landscape) and (max-height: 420px) {
-  .ucvp-card {
-    gap: 6px;
-    padding: 8px 10px 6px;
+/* Fallback when container queries unavailable: still centered usable card */
+@supports not (width: 1cqw) {
+  .ucvp-root {
+    --ucvp-body: 15px;
+    --ucvp-note: 12px;
+    --ucvp-gap: 6px;
+    --ucvp-pad-v: 8px;
+    --ucvp-pad-h: 10px;
+    --ucvp-radius: 10px;
+    width: min(280px, calc(100% - 24px));
+    max-width: min(280px, calc(100% - 24px));
+  }
+}
+
+/* Height query missing: keep width growth; type uses slightly higher cqw ceilings */
+@supports (width: 1cqw) and (not (height: 1cqh)) {
+  .table-area-inner:has(.ucvp-root) {
+    container-type: inline-size;
   }
 
-  .ucvp-btn {
-    min-height: 44px;
-    font-size: 14px;
-  }
-
-  .ucvp-hint {
-    font-size: 11px;
+  .ucvp-root {
+    --ucvp-body: clamp(13px, 3.2cqw, 32px);
+    --ucvp-note: clamp(10px, 2.5cqw, 24px);
+    --ucvp-gap: clamp(4px, 1.8cqw, 14px);
+    --ucvp-pad-v: clamp(5px, 2.2cqw, 16px);
+    --ucvp-pad-h: clamp(6px, 2.6cqw, 18px);
+    --ucvp-radius: clamp(8px, 1.6cqw, 14px);
   }
 }

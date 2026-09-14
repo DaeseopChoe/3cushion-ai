@@ -16,7 +16,10 @@ import {
 } from "../../renderer/labels/labelReadabilityStyle";
 import {
   CUSHION_FOCUS_VALUE_COLOR,
+  getFocusedSystemLabelTypography,
+  getFocusDisplayLayer,
   resolveFocusedSystemLabelSize,
+  resolveFocusLabelPosition,
 } from "../../renderer/labels/cushionValuePanelModel";
 import AnchorPoint from "./AnchorPoint";
 import LabelText from "./LabelText";
@@ -366,7 +369,15 @@ function buildLabelTextProps(labelId, touchCtx) {
   };
 }
 
-function renderGroupLabels(captionBuckets, scale, tableH, padding, labelScale, touchCtx) {
+function renderGroupLabels(
+  captionBuckets,
+  scale,
+  tableH,
+  padding,
+  labelScale,
+  touchCtx,
+  focusTypography = null
+) {
   /** 시스템값 그룹 라벨 — (axis+mark) 버킷당 1회, 여유 공간 기반 배치 */
   const bucketInputs = [];
   for (const [bucketKey, bucket] of captionBuckets) {
@@ -427,6 +438,8 @@ function renderGroupLabels(captionBuckets, scale, tableH, padding, labelScale, t
     })
     .filter(Boolean);
 
+  const focusOn = !!focusTypography;
+
   return [...placements, ...fallbackPlacements].map((placement) => {
     const labelId = `CAP-${placement.side}-${placement.mark}`;
     const displayMark = cushionMarkToDisplayLabel(placement.mark);
@@ -437,6 +450,11 @@ function renderGroupLabels(captionBuckets, scale, tableH, padding, labelScale, t
       isFrameCaption && isCoC1Mark(placement.mark)
         ? CO_C1_SCALE_FILL
         : placement.fill;
+    const fontSize = focusOn ? focusTypography.fontSize : placement.fontSize;
+    const color = focusOn ? focusTypography.color : identifierFill;
+    const readabilityScale = focusOn
+      ? focusTypography.readabilityScale
+      : labelScale;
     const captionNode = (
       <g
         key={labelId}
@@ -450,18 +468,32 @@ function renderGroupLabels(captionBuckets, scale, tableH, padding, labelScale, t
           x={placement.x}
           y={placement.y}
           text={displayMark}
-          fontSize={placement.fontSize}
-          color={identifierFill}
-          readabilityScale={labelScale}
+          fontSize={fontSize}
+          color={color}
+          readabilityScale={readabilityScale}
           {...buildLabelTextProps(labelId, touchCtx)}
         />
       </g>
     );
     return {
       id: labelId,
+      family: placement.mark,
+      kind: "caption",
+      pxX: placement.x,
+      pxY: placement.y,
+      fontSize,
+      color,
+      layer: focusOn ? getFocusDisplayLayer(placement.mark) : null,
+      focused: focusOn,
       node: applyFrameScaleHalo(
-        captionNode,
-        frameCaptionKeys.has(`${placement.side}:${placement.mark}`)
+        focusOn ? (
+          <g className="sys-label-focus" style={{ overflow: "visible" }}>
+            {captionNode}
+          </g>
+        ) : (
+          captionNode
+        ),
+        !focusOn && frameCaptionKeys.has(`${placement.side}:${placement.mark}`)
       ),
     };
   });
@@ -480,13 +512,22 @@ function buildRawLabelEntries(
 ) {
   if (!labelAnchors) return [];
 
-  const applyCushionNudges = true;
+  /**
+   * focusOpts null → feature off (ADMIN / non-focus): legacy full labels + collision nudge.
+   * focusOpts.families [] → feature on, selection 0: draw NO system values (selector only).
+   * focusOpts.families non-empty → selected only, FRAME/RAIL snap, no collision nudge.
+   */
+  const focusFeatureOn = Array.isArray(focusOpts?.families);
+  const focusActive =
+    focusFeatureOn && focusOpts.families.length > 0;
+  if (focusFeatureOn && !focusActive) {
+    return [];
+  }
+
+  const applyCushionNudges = !focusActive;
   const entries = [];
   const captionBuckets = new Map();
   const rawFontSize = SYS_LABEL_BASE_FONT_SIZE * labelScale;
-  /** selection ≥1 → filter + focus size/color; selection 0 / null → all normal */
-  const focusActive =
-    Array.isArray(focusOpts?.families) && focusOpts.families.length > 0;
   const focusSet = focusActive ? new Set(focusOpts.families) : null;
   const focusFontSize =
     focusActive && Number.isFinite(focusOpts.fontSize) && focusOpts.fontSize > 0
@@ -496,23 +537,36 @@ function buildRawLabelEntries(
     typeof focusOpts?.color === "string" && focusOpts.color
       ? focusOpts.color
       : CUSHION_FOCUS_VALUE_COLOR;
-  const focusReadabilityScale = Math.max(labelScale, 2);
+  const focusTypography = focusActive
+    ? {
+        ...getFocusedSystemLabelTypography(focusFontSize, labelScale),
+        color: focusColor,
+      }
+    : null;
   const labelTouchCtx = focusActive ? null : touchCtx;
 
   const pushGroup = (label, coord, value, idx) => {
-    const frameScaleContrast = isFrameScaleCoord(coord);
     let { x, y } = coord;
-    ({ x, y } = applyRawLabelFrameNudges(label, x, y, applyCushionNudges));
+    let focusLayer = null;
+    if (focusActive) {
+      const resolved = resolveFocusLabelPosition({ x, y }, label);
+      x = resolved.x;
+      y = resolved.y;
+      focusLayer = resolved.layer;
+    } else {
+      ({ x, y } = applyRawLabelFrameNudges(label, x, y, applyCushionNudges));
+    }
 
+    const frameScaleContrast = isFrameScaleCoord({ x, y });
     const p = toPx({ x, y }, scale, tableH);
     const pxX = p.x + padding;
     const pxY = p.y + padding;
 
-    const fillColor = focusActive
-      ? focusColor
-      : rawLabelColor(label, frameScaleContrast);
-    const fontSize = focusActive ? focusFontSize : rawFontSize;
-    const readabilityScale = focusActive ? focusReadabilityScale : labelScale;
+    const fillColor = focusTypography ? focusTypography.color : rawLabelColor(label, frameScaleContrast);
+    const fontSize = focusTypography ? focusTypography.fontSize : rawFontSize;
+    const readabilityScale = focusTypography
+      ? focusTypography.readabilityScale
+      : labelScale;
     const labelId = `RAW-${label}-${idx}`;
     const labelNode = (
       <LabelText
@@ -530,8 +584,14 @@ function buildRawLabelEntries(
     entries.push({
       id: labelId,
       family: label,
+      kind: "value",
       pxX,
       pxY,
+      fgX: x,
+      fgY: y,
+      layer: focusLayer,
+      fontSize,
+      color: fillColor,
       value: value != null && Number.isFinite(Number(value)) ? Number(value) : null,
       focused: focusActive,
       node: applyFrameScaleHalo(
@@ -607,7 +667,8 @@ function buildRawLabelEntries(
         tableH,
         padding,
         labelScale,
-        labelTouchCtx
+        labelTouchCtx,
+        focusTypography
       )
     );
   }
@@ -651,16 +712,17 @@ export default function SystemValueLabels({
   /** Rail/frame number + axis caption scale (1 = PC/tablet). */
   labelScale = 1,
   /**
-   * USER mobile cushion focus: null = feature off;
-   * [] = show all normal; non-empty = selected families only at focus size.
+   * USER cushion focus: null = feature off (legacy full labels);
+   * [] = feature on, hide all system values; non-empty = selected only at Focus FRAME/RAIL.
    */
   focusFamilies = null,
   /** Optional SVG/table client height (CSS px) for viewport-safe focus clamp. */
   focusClientHeight = null,
 }) {
   const [activeLabelId, setActiveLabelId] = useState(null);
+  const focusFeatureOn = Array.isArray(focusFamilies);
   const focusSelectionActive =
-    Array.isArray(focusFamilies) && focusFamilies.length > 0;
+    focusFeatureOn && focusFamilies.length > 0;
   const touchExpandEnabled = labelScale > 1 && !focusSelectionActive;
 
   const handleLabelPointerDown = useCallback((labelId, e) => {

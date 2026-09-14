@@ -101,12 +101,13 @@ describe("loading→loaded hook-order runtime fixture", () => {
 });
 
 describe("PC / mobile gate smoke (pure)", () => {
-  it("panel gate stays USER+mobile+cushion-point only", async () => {
+  it("panel gate is USER + cushion-point on both PC and Mobile; ADMIN off", async () => {
     const { shouldEnableCushionValuePanel } = await import(
       "../../renderer/labels/cushionValuePanelModel"
     );
-    expect(shouldEnableCushionValuePanel("USER", false, true)).toBe(false); // PC
-    expect(shouldEnableCushionValuePanel("USER", true, true)).toBe(true); // mobile
-    expect(shouldEnableCushionValuePanel("ADMIN", true, true)).toBe(false);
+    // PC (mobile MQ false) no longer blocks Focus UI
+    expect(shouldEnableCushionValuePanel("USER", true)).toBe(true);
+    expect(shouldEnableCushionValuePanel("USER", false)).toBe(false);
+    expect(shouldEnableCushionValuePanel("ADMIN", true)).toBe(false);
   });
 });

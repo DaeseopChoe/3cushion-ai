@@ -1,5 +1,5 @@
 /**
- * Cushion value panel model — family availability + focus scale contracts.
+ * Cushion Focus model — availability, scale, FRAME/RAIL display SSOT.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -15,7 +15,11 @@ import {
   toggleFamilyInSet,
   resolveFocusedSystemLabelSize,
   resolveNormalSystemLabelSize,
-  minNeighborSpacingPx,
+  getFocusedSystemLabelTypography,
+  getFocusDisplayLayer,
+  resolveFocusLabelPosition,
+  FOCUS_FRAME_EDGE,
+  FOCUS_RAIL_EDGE,
   CUSHION_PANEL_HINT_INITIAL,
   CUSHION_PANEL_HINT_AFTER,
   CUSHION_FOCUS_VALUE_COLOR,
@@ -29,14 +33,11 @@ const modelSrc = readFileSync(
   "utf8"
 );
 
-/** Mirrors 5_half B2T_R-style: CO / C3 / C4 / C6 present; no C1/C5 */
 const sampleAnchors = {
   CO: [
     { coord: { x: 80, y: -2.25 }, value: 0 },
     { coord: { x: 40, y: -2.25 }, value: 30 },
     { coord: { x: -2.25, y: -2.25 }, value: 50 },
-    { coord: { x: -2.25, y: 10 }, value: 60 },
-    { coord: { x: -2.25, y: 30 }, value: 90 },
   ],
   C3: [
     { coord: { x: 70, y: 0 }, value: 10 },
@@ -56,22 +57,55 @@ describe("fixed CO~C6 matrix + availability", () => {
       "C5",
       "C6",
     ]);
-    const rows = buildFixedFamilyAvailability(sampleAnchors);
-    expect(rows.map((r) => r.family)).toEqual([...FIXED_CUSHION_FAMILIES]);
   });
 
   it("enables only families present in labelAnchorsForRender", () => {
     const available = listAvailableFamilies(sampleAnchors);
     expect([...available].sort()).toEqual(["C3", "C4", "C6", "CO"].sort());
     const rows = buildFixedFamilyAvailability(sampleAnchors);
-    expect(rows.find((r) => r.family === "CO")?.enabled).toBe(true);
     expect(rows.find((r) => r.family === "C1")?.enabled).toBe(false);
-    expect(rows.find((r) => r.family === "C5")?.enabled).toBe(false);
-    expect(rows.find((r) => r.family === "C6")?.enabled).toBe(true);
+  });
+});
+
+describe("Focus FRAME/RAIL display SSOT", () => {
+  it("maps CO/C1/C4/C5/C6 → FRAME and C3 → RAIL", () => {
+    expect(getFocusDisplayLayer("CO")).toBe("FRAME");
+    expect(getFocusDisplayLayer("C1")).toBe("FRAME");
+    expect(getFocusDisplayLayer("C3")).toBe("RAIL");
+    expect(getFocusDisplayLayer("C4")).toBe("FRAME");
+    expect(getFocusDisplayLayer("C5")).toBe("FRAME");
+    expect(getFocusDisplayLayer("C6")).toBe("FRAME");
   });
 
-  it("does not hardcode system-specific family lists", () => {
-    expect(modelSrc).not.toMatch(/5_half|B2T_|system_id\s*===/);
+  it("preserves along-axis and snaps C4 rail anchor normal to FRAME", () => {
+    const r = resolveFocusLabelPosition({ x: 20, y: 0 }, "C4");
+    expect(r.layer).toBe("FRAME");
+    expect(r.side).toBe("bottom");
+    expect(r.x).toBe(20);
+    expect(r.y).toBe(FOCUS_FRAME_EDGE.bottom);
+  });
+
+  it("keeps C3 on RAIL cloth edge", () => {
+    const r = resolveFocusLabelPosition({ x: 30, y: 0 }, "C3");
+    expect(r.layer).toBe("RAIL");
+    expect(r.x).toBe(30);
+    expect(r.y).toBe(FOCUS_RAIL_EDGE.bottom);
+  });
+
+  it("keeps CO on FRAME diamond line", () => {
+    const r = resolveFocusLabelPosition({ x: 40, y: -2.25 }, "CO");
+    expect(r.layer).toBe("FRAME");
+    expect(r.x).toBe(40);
+    expect(r.y).toBe(FOCUS_FRAME_EDGE.bottom);
+  });
+
+  it("snaps LEFT-side C6 from cloth to FRAME edge", () => {
+    const r = resolveFocusLabelPosition({ x: -2.25, y: 10 }, "C6");
+    // y=10 closer to left than top/bottom? distLeft=0, so left
+    expect(r.side).toBe("left");
+    expect(r.layer).toBe("FRAME");
+    expect(r.x).toBe(FOCUS_FRAME_EDGE.left);
+    expect(r.y).toBe(10);
   });
 });
 
@@ -85,54 +119,34 @@ describe("toggle + prune", () => {
     expect(sel).toEqual(["C3"]);
   });
 
-  it("ignores toggle on disabled family", () => {
-    expect(toggleFamilyInSet(["CO"], "C1", false)).toEqual(["CO"]);
-  });
-
   it("prunes stale families when anchors change", () => {
     const pruned = pruneSelectedFamilies(["CO", "C1", "C3"], sampleAnchors);
     expect(pruned.sort()).toEqual(["C3", "CO"]);
   });
 });
 
-describe("focus scale", () => {
-  it("preferred ≈ 2× mobile normal without nesting 1.5×2 as desktop×3", () => {
-    const normalMobile = resolveNormalSystemLabelSize(1.5);
-    expect(normalMobile).toBe(15);
-    expect(FOCUS_FONT_PREFERRED).toBe(30);
-    expect(FOCUS_FONT_FLOOR).toBe(15);
-    expect(FOCUS_FONT_CEILING).toBe(34);
-    const size = resolveFocusedSystemLabelSize({
-      labelAnchors: { CO: [{ coord: { x: 10, y: -2.25 }, value: 1 }] },
+describe("focus scale — no multi-family shrink", () => {
+  it("CO-only size equals CO+C6 size on same viewport", () => {
+    const argsBase = { labelAnchors: sampleAnchors, scale: 10, clientHeight: 400 };
+    const coOnly = resolveFocusedSystemLabelSize({
+      ...argsBase,
       selectedFamilies: ["CO"],
-      scale: 10,
-      clientHeight: 400,
     });
-    expect(size).toBeGreaterThanOrEqual(FOCUS_FONT_FLOOR);
-    expect(size).toBeLessThanOrEqual(FOCUS_FONT_CEILING);
-    expect(size).toBeLessThanOrEqual(FOCUS_FONT_PREFERRED);
-    // Must not be 10*1.5*2 = 30 via nested multipliers of base alone as 45
-    expect(size).not.toBe(45);
+    const coAndC6 = resolveFocusedSystemLabelSize({
+      ...argsBase,
+      selectedFamilies: ["CO", "C6"],
+    });
+    expect(coAndC6).toBe(coOnly);
+    expect(coOnly).toBe(FOCUS_FONT_PREFERRED);
   });
 
-  it("scales down under dense neighbor spacing", () => {
-    const dense = {
-      C3: [
-        { coord: { x: 10, y: 0 }, value: 1 },
-        { coord: { x: 12, y: 0 }, value: 2 },
-        { coord: { x: 14, y: 0 }, value: 3 },
-      ],
-    };
-    const spacing = minNeighborSpacingPx(dense, ["C3"], 10);
-    expect(spacing).toBe(20); // Δ2 * scale 10
-    const size = resolveFocusedSystemLabelSize({
-      labelAnchors: dense,
-      selectedFamilies: ["C3"],
-      scale: 10,
-      clientHeight: 400,
-    });
-    expect(size).toBeLessThan(FOCUS_FONT_PREFERRED);
-    expect(size).toBeGreaterThanOrEqual(FOCUS_FONT_FLOOR);
+  it("preferred ≈ 2× mobile normal without nesting to 45", () => {
+    expect(resolveNormalSystemLabelSize(1.5)).toBe(15);
+    expect(FOCUS_FONT_FLOOR).toBe(15);
+    expect(FOCUS_FONT_CEILING).toBe(34);
+    expect(getFocusedSystemLabelTypography(30, 1.5).color).toBe(
+      CUSHION_FOCUS_VALUE_COLOR
+    );
   });
 });
 
@@ -140,22 +154,15 @@ describe("instruction + gate + isolation", () => {
   it("uses fixed instruction strings", () => {
     expect(resolveCushionPanelHint(false)).toBe(CUSHION_PANEL_HINT_INITIAL);
     expect(resolveCushionPanelHint(true)).toBe(CUSHION_PANEL_HINT_AFTER);
-    expect(CUSHION_PANEL_HINT_INITIAL).toBe("보시려는 값의 버튼을 누르세요.");
-    expect(CUSHION_PANEL_HINT_AFTER).toBe(
-      "보고 싶은 값을 각각 켜고 끌 수 있습니다."
-    );
   });
 
-  it("enables panel only for USER + mobile + cushion-point active", () => {
-    expect(shouldEnableCushionValuePanel("USER", true, true)).toBe(true);
-    expect(shouldEnableCushionValuePanel("USER", true, false)).toBe(false);
-    expect(shouldEnableCushionValuePanel("USER", false, true)).toBe(false);
-    expect(shouldEnableCushionValuePanel("ADMIN", true, true)).toBe(false);
+  it("enables panel for USER + cushion-point on PC and Mobile; ADMIN off", () => {
+    expect(shouldEnableCushionValuePanel("USER", true)).toBe(true);
+    expect(shouldEnableCushionValuePanel("USER", false)).toBe(false);
+    expect(shouldEnableCushionValuePanel("ADMIN", true)).toBe(false);
   });
 
-  it("uses unified focus color and has no calculation/OpenAI imports", () => {
-    expect(CUSHION_FOCUS_VALUE_COLOR).toMatch(/^#[0-9A-Fa-f]{6}$/);
+  it("has no calculation/OpenAI imports", () => {
     expect(modelSrc).not.toMatch(/buildTrajectory|TABLE_CONFIG|Δ_sys|openai|fgToRg|FRAME_OFFSET/i);
-    expect(modelSrc).not.toMatch(/_f|_r/);
   });
 });

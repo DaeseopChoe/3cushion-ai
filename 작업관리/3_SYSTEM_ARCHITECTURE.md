@@ -718,6 +718,41 @@ toPx
 
 ---
 
+## USER Cushion Value Focus — Display SSOT (Presentation)
+
+> **계산 규칙을 변경하지 않는다.** `_f` / `_r` 계산 의미와 **표시 위치**를 일치시키는 presentation SSOT다.
+
+핵심 문구: 시스템값의 계산 의미와 표시 위치를 일치시킨다. `_f` 계열의 Focus 표시값은 FRAME 위치, `_r` 계열의 Focus 표시값은 RAIL 위치에 표시한다.
+
+### Family → display layer
+
+| Family | Calculation token (의미) | Focus display layer |
+|--------|--------------------------|---------------------|
+| CO | `CO_f` | **FRAME** |
+| C1 | `C1_f` | **FRAME** |
+| C3 | `C3_r` | **RAIL** |
+| C4 | `C4_f` | **FRAME** |
+| C5 | `C5_f` | **FRAME** |
+| C6 | `C6_f` | **FRAME** |
+
+### Position meaning
+
+- **FRAME:** 검은 diamond 기준선 (FG edge `±2.25` / `42.25`, `POINT_OFFSET_RG ≈ 2.25`와 정렬)
+- **RAIL:** rail과 cushion이 맞닿는 cloth 경계 (RG edge `0` / `40` / `80`)
+
+### Resolver policy (Focus path only)
+
+- **축 방향(along):** existing anchor 좌표 보존
+- **법선(normal):** `getFocusDisplayLayer` → FRAME/RAIL edge로 snap
+- Focus 경로에서는 과거 multi-family `applyRawLabelFrameNudges` (C4/C5/C6 collision nudge) **미적용**
+- selection `0` (Focus feature ON): system value/caption **미표시** (selector만)
+- selection `≥1`: selected families만 Focus typography로 표시
+- trajectory mark labels (`CO_37.0` 등)는 이 SSOT 대상이 아님
+
+구현: `cushionValuePanelModel` (`getFocusDisplayLayer`, `resolveFocusLabelPosition`) + `SystemValueLabels` Focus path.
+
+---
+
 ## SPS Standardization Flow (STEP4 Final 기준, 2026-07-14)
 
 계산 규칙과 별도로, System Package 표준화는 SPS 워크플로를 따른다.

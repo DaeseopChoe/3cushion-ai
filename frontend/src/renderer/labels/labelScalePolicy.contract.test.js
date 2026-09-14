@@ -27,18 +27,23 @@ describe("labelScalePolicy", () => {
     expect(resolveSysLabelScale(false)).toBe(1);
   });
 
-  it("cushion panel gate is USER + mobile + cushion-point", () => {
-    expect(shouldEnableCushionValuePanel("USER", true, true)).toBe(true);
-    expect(shouldEnableCushionValuePanel("ADMIN", true, true)).toBe(false);
+  it("cushion panel gate is USER + cushion-point (PC and Mobile; not mobile-only)", () => {
+    expect(shouldEnableCushionValuePanel("USER", true)).toBe(true);
+    expect(shouldEnableCushionValuePanel("USER", false)).toBe(false);
+    expect(shouldEnableCushionValuePanel("ADMIN", true)).toBe(false);
   });
 
-  it("App wires CushionValuePanel; magnifier fully removed", () => {
+  it("App wires CushionValuePanel; magnifier fully removed; panel not gated on userMobileTable", () => {
     expect(appSrc).toContain("CushionValuePanel");
     expect(appSrc).toContain("shouldEnableCushionValuePanel");
     expect(appSrc).toContain("cushionFocusFamilies");
     expect(appSrc).toContain("focusFamilies=");
     expect(appSrc).not.toContain("UserTableMagnifier");
     expect(appSrc).not.toContain("shouldEnableUserTableMagnifier");
+    // Focus availability must not require mobile MQ match
+    expect(appSrc).not.toMatch(
+      /shouldEnableCushionValuePanel\(\s*appMode\s*,\s*userMobileTable/
+    );
     expect(configSrc).not.toContain("USER_TABLE_MAGNIFIER");
     expect(configSrc).not.toContain("USER_TABLE_VISUAL_ID");
   });

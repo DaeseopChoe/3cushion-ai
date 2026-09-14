@@ -6,6 +6,184 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-14 — USER Cushion Value Focus UI FINALIZE (Commit / Push / Deploy)
+
+## Mode
+
+**Agent** · finalize cumulative Focus UI · **COMMIT / PUSH / PRODUCTION DEPLOY**
+
+## Status
+
+**FINALIZED — Production deploy via push to main**
+
+## Final product (presentation-only)
+
+- USER PC / Mobile / Tablet common Focus selector; ADMIN OFF
+- selection 0 → system value labels hidden; selector visible
+- selection ≥1 → selected families only; multi-toggle; no auto-off; no cross-family shrink
+- CO / C1 / C4 / C5 / C6 → **FRAME**; C3 → **RAIL**
+- Focus: along-axis anchor preserved; normal snap; legacy collision nudge bypass
+- Focus caption + value shared typography (`#F8FAFC`)
+- Responsive selector: **KEEP AS-IS** (Ask validated) — Overlay-height `cqh` + touch floor 40px + soft caps 32/560
+- Small-phone height floor intentional; Large-PC soft ceiling intentional
+- hook-order regression protected (hooks above early return)
+- calc / data / AI / Phase 3E untouched
+- protected dirty excluded: `positions.json`, `incidenceAngle.ts`
+
+## Docs
+
+- Display SSOT in `3_SYSTEM_ARCHITECTURE.md` (presentation section)
+- Calculation rules unchanged (`4_CALCULATION_RULES.md` not modified for this feature)
+
+---
+
+# 2026-09-14 — Cushion Value Selector Responsive Scale (Overlay Height Align)
+
+## Mode
+
+**Agent** · selector presentation CSS-only · **NO COMMIT / NO PUSH / NO DEPLOY**
+
+## Status
+
+**IMPLEMENTED — PC / TABLET / SMARTPHONE MANUAL REVIEW PENDING**
+
+## Root cause
+
+Prior selector ceilings (`360px` / `16px` / `48px` / hint `12` / abbr `11`) via width-only `cqw` stopped growing at medium table sizes while `UserCalcToolbar` kept scaling from Overlay Layout (`body ≈ tableH × 0.040768`).
+
+## Fix (CSS-first)
+
+- `container-type: size` → `cqw` (panel width) + `cqh` (type/chrome)
+- tokens: `--ucvp-body` ≈ `4.08cqh` (cap 32), note/gap/pad from body ratios
+- panel `clamp(200px, 52cqw, 560px)`; btn `font: var(--ucvp-body)`; `min-height: max(40px, body×1.48)`
+- no `transform: scale`; no App/SystemValueLabels/model changes; no ResizeObserver
+- FRAME/RAIL · selection · Focus typography · hook-order untouched
+
+## Manual review
+
+Compare 기준값 toolbar vs selector growth across small phone → tablet → large PC.
+
+## Verification (automated)
+
+- targeted: **41 / 41 PASS** (panel responsive + Focus/FRAME/RAIL/hook-order)
+- full suite: **149 files / 1580 tests PASS**
+- build PASS — JS entry **853.44 KB** / **244.94 KB** gzip (unchanged); CSS **47.28 KB** / **9.27 KB** gzip (+~0.7 KB tokens)
+
+---
+
+# 2026-09-14 — Cushion Focus FRAME/RAIL Display SSOT + Initial Hide + Table-Relative Selector
+
+## Mode
+
+**Agent** · USER presentation SSOT · **NO COMMIT / NO PUSH / NO DEPLOY**
+
+## Status
+
+**IMPLEMENTED — PC LOCAL MANUAL REVIEW PENDING**
+
+## Display SSOT (presentation = calculation meaning)
+
+- `CO_f` / `C1_f` / `C4_f` / `C5_f` / `C6_f` → **FRAME** (diamond line)
+- `C3_r` → **RAIL** (cloth/rail boundary)
+- along-axis from anchor; normal snapped via `resolveFocusLabelPosition`
+- Focus path skips `applyRawLabelFrameNudges` collision offsets
+- Documented in `3_SYSTEM_ARCHITECTURE.md` (presentation section); calculation rules unchanged
+
+## UX
+
+- selection 0 → no system value labels; selector visible
+- selection ≥1 → selected only; multi-toggle; no cross-family shrink
+- selector: table-container `cqw` clamp (~42cqw, 168–360px)
+
+## Isolation
+
+- hook-order hotfix preserved · ADMIN / Phase 3E / calc/data/AI untouched
+- protected dirty: positions.json / incidenceAngle.ts untouched
+
+## Verification (automated)
+
+- targeted Focus contracts: **36 / 36 PASS**
+- full suite: **149 files / 1575 tests PASS**
+- production build: PASS — entry `index-C17Lm4Oi.js` **853.44 KB** raw / **244.94 KB** gzip (≈ prior Focus ~853 class; +~0.4 KB presentation helpers/CSS)
+
+---
+
+# 2026-09-14 — USER Cushion Value Focus UI: PC + Mobile Common
+
+## Mode
+
+**Agent** · USER presentation availability · **NO COMMIT / NO PUSH / NO DEPLOY**
+
+## Status
+
+**IMPLEMENTED — PC LOCAL MANUAL REVIEW PENDING — SMARTPHONE MANUAL REVIEW PENDING**
+
+(Not DEPLOYED in this step.)
+
+## Decision
+
+Remove the **mobile-only** availability restriction from Cushion Value Focus UI.
+
+- **Before:** USER + mobile MQ + cushion-point/axis-labels → Focus ON
+- **After:** USER + cushion-point/axis-labels → Focus ON (PC and Mobile)
+
+ADMIN remains excluded. No DEV/localhost preview hack. Same selector / toggle / SystemValueLabels Focus path on PC and Mobile.
+
+Responsive presentation (labelScale 1.5 via `useSysLabelScale`, compact CSS, viewport focus clamp) stays separate from feature availability.
+
+## Preserved
+
+- 2ND PASS panel (center, white 70%, compact, typography unify, no multi-family shrink)
+- Hook-order hotfix (focus hooks above early returns)
+- Calculation / coordinates / AI unchanged
+
+## Code
+
+- `shouldEnableCushionValuePanel(appMode, cushionPointActive)` — dropped mobile arg
+- App: no longer passes `userMobileTable` into Focus gate; `useUserMobileTableMatch` remains via `useSysLabelScale` for mobile label scale only
+
+## Verification
+
+- targeted gate + focus + hook-order contracts · full suite · production build
+- see Agent report for PC local review steps
+
+---
+
+# 2026-09-14 — USER Mobile Cushion Focus UI 2nd Pass (Presentation)
+
+## Mode
+
+**Agent** · USER presentation only · **NO COMMIT / NO PUSH / NO DEPLOY**
+
+## Status
+
+**IMPLEMENTED — SMARTPHONE MANUAL REVIEW PENDING**
+
+(Not DEPLOYED in this step.)
+
+## Production smartphone findings (on 498f581)
+
+- Frame/Rail positions OK (CO/C1/C3/C4/C5/C6 stay on existing SystemValueLabels points)
+- Multi-family ON (e.g. CO+C6) incorrectly **shrunk** focus glyphs via neighbor-spacing clamp
+- Dark corner panel too large / occluded Frame·Rail values
+- Family captions (CO/C3/…) stayed small / family-colored while values enlarged
+
+## Implementation
+
+1. **Panel:** table-container center (`left/top 50%` + translate); ~75% compact via padding/gap/max-width (not `scale()`); `background: rgba(255,255,255,0.7)` (no whole-panel opacity); dark slate helper text; touch ~40–42px
+2. **Focus scale:** remove neighbor/cross-family spacing shrink; viewport + min/max only — CO-only size === CO+C6 size
+3. **Typography:** Focus captions + values share `getFocusedSystemLabelTypography` (same fontSize / `#F8FAFC` / stroke-shadow readability)
+4. **Position:** unchanged SSOT (no Fg↔Rg / `_f`/`_r` / Frame-Rail remap)
+5. **Hook-order hotfix preserved** (focus hooks remain above early returns)
+
+## Verification (auto)
+
+- targeted focus + hook-order contracts
+- full `npm test` · `npm run build`
+- see Agent report for counts / bundle
+
+---
+
 # 2026-09-14 — Hotfix: Production React Hook-Order Crash (Focus UI)
 
 ## Mode
