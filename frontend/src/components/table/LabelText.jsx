@@ -1,4 +1,8 @@
 import React from "react";
+import {
+  buildSvgLabelReadabilityStyle,
+  isLabelReadabilityEnhanced,
+} from "../../renderer/labels/labelReadabilityStyle";
 
 const DEFAULT_ACTIVE_SCALE = 1.8;
 const HIT_PAD_MIN = 12;
@@ -15,7 +19,10 @@ export default function LabelText({
   onPointerDown,
   hitDataAttr,
   activeScale = DEFAULT_ACTIVE_SCALE,
+  readabilityScale = 1,
 }) {
+  const readabilityEnhanced = isLabelReadabilityEnhanced(readabilityScale);
+  const readabilityStyle = buildSvgLabelReadabilityStyle(readabilityEnhanced);
   const hitPad = Math.min(
     HIT_PAD_MAX,
     Math.max(HIT_PAD_MIN, fontSize * 0.85 + 4)
@@ -34,9 +41,10 @@ export default function LabelText({
       dominantBaseline="middle"
       fontWeight={active ? "700" : undefined}
       style={{
-        pointerEvents: "none",
-        userSelect: "none",
-        filter: active ? "drop-shadow(0 0 2px rgba(0,0,0,0.9))" : undefined,
+        ...readabilityStyle,
+        filter: active
+          ? "drop-shadow(0 0 2px rgba(0,0,0,0.9))"
+          : readabilityStyle.filter,
       }}
     >
       {text}

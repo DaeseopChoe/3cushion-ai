@@ -126,7 +126,13 @@ import { cushionMarkToDisplayLabel } from "./utils/cushionDisplayLabel";
 import { useAdminOverlayRouter } from "./overlay/router/adminOverlayRouter";
 import { useAdminOverlayLifecycle } from "./overlay/state/overlayStateMachine";
 import { useUserOverlayRouter } from "./overlay/router/userOverlayRouter";
-import { useSysLabelScale } from "./renderer/labels/labelScalePolicy";
+import {
+  shouldEnableUserTableMagnifier,
+  useSysLabelScale,
+  useUserMobileTableMatch,
+} from "./renderer/labels/labelScalePolicy";
+import UserTableMagnifier from "./components/user/UserTableMagnifier";
+import { USER_TABLE_VISUAL_ID } from "./config/tableConfig";
 import {
   BALL_POSITION_JOYSTICK_PAD_VISIBLE,
   JOYSTICK_BASE_R_PX,
@@ -4182,6 +4188,11 @@ function handleJoyPadPointerCancel(e) {
 
   // APP-013: useSysLabelScale (Batch 2 STEP 2-5)
   const sysLabelScale = useSysLabelScale();
+  const userMobileTable = useUserMobileTableMatch();
+  const showUserTableMagnifier = shouldEnableUserTableMagnifier(
+    appMode,
+    userMobileTable
+  );
 
   if (loading) {
     return (
@@ -6214,6 +6225,7 @@ function handlePointerCancel(e) {
       onPointerCancel={handlePointerCancel}
       onDoubleClick={handleBaselineImpactDoubleClick}
     >
+      <g id={USER_TABLE_VISUAL_ID}>
       <RailFrame />
       <TableGrid />
       {guideState.active &&
@@ -6423,6 +6435,7 @@ function handlePointerCancel(e) {
         }
       />
       )}
+      </g>
       {/* Ball coordinate label (+ optional joystick pad when BALL_POSITION_JOYSTICK_PAD_VISIBLE).
           Pad hidden: label only — direct ball drag + guide positioning experiment. */}
       {dragState.joystickVisible &&
@@ -6528,6 +6541,14 @@ function handlePointerCancel(e) {
             </Suspense>
           ) : null}
           {tableSVG}
+          {showUserTableMagnifier ? (
+            <UserTableMagnifier
+              hostRef={tableAreaInnerRef}
+              svgRef={svgRef}
+              viewBoxWidth={TABLE_W + 2 * PADDING}
+              viewBoxHeight={TABLE_H + 2 * PADDING}
+            />
+          ) : null}
         </div>
       {appMode === "USER" &&
       realInterpolationUiSurface.candidates.length > 0 ? (

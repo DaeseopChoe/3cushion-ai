@@ -19,8 +19,19 @@ export const SYS_LABEL_BASE_FONT_SIZE = 10;
 /** Phone landscape label scale — same MQ as Overlay Framework. */
 export const SYS_LABEL_PHONE_LANDSCAPE_SCALE = 1.5;
 
-export const MEDIA_PHONE_LANDSCAPE =
-  "(orientation: landscape) and (max-height: 520px)";
+/** USER mobile table: phone landscape + coarse pointer (excludes desktop mouse). */
+export const MEDIA_USER_MOBILE_TABLE =
+  "(orientation: landscape) and (max-height: 520px) and (pointer: coarse)";
+
+/** @deprecated alias — use MEDIA_USER_MOBILE_TABLE */
+export const MEDIA_PHONE_LANDSCAPE = MEDIA_USER_MOBILE_TABLE;
+
+/** SVG <g> id for magnifier <use href> — presentation only, not calc SSOT. */
+export const USER_TABLE_VISUAL_ID = "user-table-visual";
+
+/** USER mobile circular magnifier defaults (CSS px). */
+export const USER_TABLE_MAGNIFIER_ZOOM = 2.25;
+export const USER_TABLE_MAGNIFIER_DIAMETER = 96;
 
 export type TableLayout = {
   cushionW: number;

@@ -6,6 +6,44 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-14 — USER Mobile Readability + Circular Magnifier (Deploy)
+
+## Mode
+
+**Agent** · USER presentation/accessibility only · **Commit + Push**
+
+## Status
+
+**IMPLEMENTED / DEPLOYED — SMARTPHONE MANUAL REVIEW PENDING**
+
+(PC USER unchanged is expected. Final ACCEPT only after smartphone home-screen app review.)
+
+## USER MOBILE READABILITY + MAGNIFIER
+
+- USER mobile labels **≈1.5×** (`SYS_LABEL_PHONE_LANDSCAPE_SCALE` + `MEDIA_USER_MOBILE_TABLE`)
+- **stroke/shadow** readability on scaled labels
+- **draggable circular magnifier** — no handle; `<use href="#user-table-visual">` (presentation-only)
+- Zoom **~2.25×** · lens **~96px** · pointer drag + rAF · boundary clamp
+
+## Isolation
+
+- **PC USER:** label scale 1 · no magnifier
+- **ADMIN:** unchanged · lazy overlay boundaries preserved
+- Calculation / dataset / Phase 3D (`gpt-5.6-luna` + `reasoning.effort: "none"`) / Phase 3E cold-start preserved
+- `positions.json` / `incidenceAngle.ts` **excluded** from commit
+
+## Verification (pre-deploy)
+
+- targeted contracts (label scale/readability/magnifier + Phase 3E lazy/shell) · full `npm test` · `npm run build`
+- entry JS ~852 KB raw (~+3.5 KB vs Phase 3E) · lazy chunks 10
+
+## Post-deploy
+
+- Vercel Production auto-deploy on push to `main`
+- Smartphone manual review checklist → user (see final report)
+
+---
+
 # 2026-09-12 — Phase 3E Finalize (USER Mobile Cold-Start · ACCEPTED)
 
 ## Mode

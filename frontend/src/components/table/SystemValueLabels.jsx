@@ -10,8 +10,14 @@ import {
   getMarkLabelColor,
 } from "../../domain/systemAxisCaption";
 import { SYS_LABEL_BASE_FONT_SIZE } from "../../config/tableConfig";
+import {
+  buildSvgLabelReadabilityStyle,
+  isLabelReadabilityEnhanced,
+} from "../../renderer/labels/labelReadabilityStyle";
 import AnchorPoint from "./AnchorPoint";
 import LabelText from "./LabelText";
+
+const MARK_LABEL_BASE_FONT_SIZE = 20;
 
 /** 라벨 표시 전용 — 내부 계산·저장값은 변경하지 않음 */
 function formatSysLabelValue(value) {
@@ -132,8 +138,13 @@ function renderNode(
     labelValueOverrides,
     onAnchorDoubleClick,
     onBaselineDraftApplyClick,
+    labelScale = 1,
   }
 ) {
+  const markFontSize = MARK_LABEL_BASE_FONT_SIZE * labelScale;
+  const readabilityStyle = buildSvgLabelReadabilityStyle(
+    isLabelReadabilityEnhanced(labelScale)
+  );
   const p = toPx(node.coord, scale, tableH);
   const cx = p.x + padding;
   const cy = p.y + padding;
@@ -186,7 +197,7 @@ function renderNode(
         dx={0}
         dy={0}
         textAnchor="middle"
-        fontSize={20}
+        fontSize={markFontSize}
         label={node.label}
         displayLabel={displayMark}
         systemValue={systemValue}
@@ -198,11 +209,11 @@ function renderNode(
             x={textX}
             y={textY}
             fill={labelFill}
-            fontSize={20}
+            fontSize={markFontSize}
             fontWeight="bold"
             textAnchor={textAnchor}
             dominantBaseline="middle"
-            style={{ pointerEvents: "none" }}
+            style={readabilityStyle}
           >
             {textContent}
           </text>
@@ -227,7 +238,7 @@ function renderNode(
                 x={8}
                 y={0}
                 fill="#67e8f9"
-                fontSize={20}
+                fontSize={markFontSize}
                 fontWeight="bold"
                 textAnchor="middle"
                 dominantBaseline="middle"
@@ -260,7 +271,7 @@ function renderNode(
               x={8}
               y={0}
               fill="#67e8f9"
-              fontSize={20}
+              fontSize={markFontSize}
               fontWeight="bold"
               textAnchor="middle"
               dominantBaseline="middle"
@@ -273,11 +284,11 @@ function renderNode(
             x={checkHitW + applyGap}
             y={0}
             fill={labelFill}
-            fontSize={20}
+            fontSize={markFontSize}
             fontWeight="bold"
             textAnchor="start"
             dominantBaseline="middle"
-            style={{ pointerEvents: "none" }}
+            style={readabilityStyle}
           >
             {textContent}
           </text>
@@ -287,11 +298,11 @@ function renderNode(
           x={textX}
           y={textY}
           fill={labelFill}
-          fontSize={20}
+          fontSize={markFontSize}
           fontWeight="bold"
           textAnchor={textAnchor}
           dominantBaseline="middle"
-          style={{ pointerEvents: "none" }}
+          style={readabilityStyle}
         >
           {textContent}
         </text>
@@ -437,6 +448,7 @@ function renderGroupLabels(captionBuckets, scale, tableH, padding, labelScale, t
           text={displayMark}
           fontSize={placement.fontSize}
           color={identifierFill}
+          readabilityScale={labelScale}
           {...buildLabelTextProps(labelId, touchCtx)}
         />
       </g>
@@ -487,6 +499,7 @@ function buildRawLabelEntries(
         text={value != null ? String(value) : ""}
         fontSize={rawFontSize}
         color={fillColor}
+        readabilityScale={labelScale}
         {...buildLabelTextProps(labelId, touchCtx)}
       />
     );
@@ -637,6 +650,7 @@ export default function SystemValueLabels({
     labelValueOverrides,
     onAnchorDoubleClick,
     onBaselineDraftApplyClick,
+    labelScale,
   };
 
   const nodes = showSystemValuesOnly ? [] : collectBaseNodes(anchors);
