@@ -26,13 +26,6 @@ export const MEDIA_USER_MOBILE_TABLE =
 /** @deprecated alias — use MEDIA_USER_MOBILE_TABLE */
 export const MEDIA_PHONE_LANDSCAPE = MEDIA_USER_MOBILE_TABLE;
 
-/** SVG <g> id for magnifier <use href> — presentation only, not calc SSOT. */
-export const USER_TABLE_VISUAL_ID = "user-table-visual";
-
-/** USER mobile circular magnifier defaults (CSS px). */
-export const USER_TABLE_MAGNIFIER_ZOOM = 2.25;
-export const USER_TABLE_MAGNIFIER_DIAMETER = 96;
-
 export type TableLayout = {
   cushionW: number;
   frameW: number;

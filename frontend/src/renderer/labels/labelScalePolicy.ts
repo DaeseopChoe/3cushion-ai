@@ -3,16 +3,12 @@ import {
   MEDIA_USER_MOBILE_TABLE,
   SYS_LABEL_PHONE_LANDSCAPE_SCALE,
 } from "../../config/tableConfig";
+import { shouldEnableCushionValuePanel } from "./cushionValuePanelModel";
+
+export { shouldEnableCushionValuePanel };
 
 export function resolveSysLabelScale(matchesUserMobileTable: boolean): number {
   return matchesUserMobileTable ? SYS_LABEL_PHONE_LANDSCAPE_SCALE : 1;
-}
-
-export function shouldEnableUserTableMagnifier(
-  appMode: string | undefined,
-  matchesUserMobileTable: boolean
-): boolean {
-  return appMode === "USER" && matchesUserMobileTable;
 }
 
 export function useUserMobileTableMatch(): boolean {

@@ -6,6 +6,48 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-14 — USER Mobile Toggle-Based Cushion Value Panel
+
+## Mode
+
+**Agent** · USER presentation only · **Commit + Push**
+
+## Status
+
+**IMPLEMENTED / DEPLOYED — SMARTPHONE MANUAL REVIEW PENDING**
+
+(Not USER ACCEPTED / not Phase COMPLETE until smartphone review.)
+
+## Motivation
+
+Circular draggable magnifier magnified a local patch of the table, but users need
+**rail + family system-value series** (e.g. BOTTOM CO, LEFT CO, BOTTOM C3) as a whole.
+
+## Implementation
+
+- **Removed** UserTableMagnifier (+ layout/CSS/contracts/constants/`#user-table-visual` wrap)
+- **Added** `cushionValuePanelModel` — groups `labelAnchorsForRender` via `detectAxisSideFromFg` (+ CO corner dual-bucket); no SYS/Fg/Rg recalc
+- **Added** `CushionValuePanel` — mini table selector + independent multi-toggle chips + enlarged value lanes
+- Instruction (fixed):
+  - before first ON: 「확대하려는 값을 터치하세요.」
+  - after: 「보고 싶은 값을 각각 켜고 끌 수 있습니다.」
+- Gate: USER + `MEDIA_USER_MOBILE_TABLE` + cushion-point / axis-labels active
+- system/track sync: prune stale toggle keys; keep overlapping keys
+- **Preserved:** mobile labelScale 1.5× + stroke/shadow readability · Phase 3E shell/lazy
+- PC USER / ADMIN: panel not shown
+
+## Isolation
+
+- Calculation / dataset / Phase 3D / ADMIN / PC USER unchanged
+- positions.json / incidenceAngle.ts untouched
+
+## Verification
+
+- targeted contracts · full `npm test` · `npm run build`
+- Commit/Push/Deploy → Production · smartphone manual review **pending**
+
+---
+
 # 2026-09-14 — USER Mobile Readability + Circular Magnifier (Deploy)
 
 ## Mode
