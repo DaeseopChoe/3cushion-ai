@@ -4189,6 +4189,26 @@ function handleJoyPadPointerCancel(e) {
   const sysLabelScale = useSysLabelScale();
   const userMobileTable = useUserMobileTableMatch();
 
+  // Cushion focus selection — MUST stay above loading/error/view early returns
+  // (Rules of Hooks: same hook count on every render).
+  const userTrajectoryAxisOverlayActive =
+    appMode === "USER" &&
+    userTableDisplayMode === "trajectory" &&
+    trajectoryShowAxisValues &&
+    !!userTableDisplaySlotId;
+  const userAxisGridLabelsActive =
+    (appMode === "USER" && userTableDisplayMode === "systemValues") ||
+    userTrajectoryAxisOverlayActive;
+  const showCushionValuePanel = shouldEnableCushionValuePanel(
+    appMode,
+    userMobileTable,
+    userAxisGridLabelsActive
+  );
+  const [cushionFocusFamilies, setCushionFocusFamilies] = useState([]);
+  useEffect(() => {
+    if (!showCushionValuePanel) setCushionFocusFamilies([]);
+  }, [showCushionValuePanel]);
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#334155' }}>
@@ -4237,27 +4257,6 @@ function handleJoyPadPointerCancel(e) {
     appMode === "USER" &&
     userTableDisplayMode === "systemValues" &&
     !!userTableDisplaySlotId;
-
-  const userTrajectoryAxisOverlayActive =
-    appMode === "USER" &&
-    userTableDisplayMode === "trajectory" &&
-    trajectoryShowAxisValues &&
-    !!userTableDisplaySlotId;
-
-  const userAxisGridLabelsActive =
-    (appMode === "USER" && userTableDisplayMode === "systemValues") ||
-    userTrajectoryAxisOverlayActive;
-
-  const showCushionValuePanel = shouldEnableCushionValuePanel(
-    appMode,
-    userMobileTable,
-    userAxisGridLabelsActive
-  );
-
-  const [cushionFocusFamilies, setCushionFocusFamilies] = useState([]);
-  useEffect(() => {
-    if (!showCushionValuePanel) setCushionFocusFamilies([]);
-  }, [showCushionValuePanel]);
 
   const cushionFocusClientHeight =
     typeof tableAreaInnerRef.current?.clientHeight === "number"

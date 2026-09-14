@@ -6,6 +6,51 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-14 — Hotfix: Production React Hook-Order Crash (Focus UI)
+
+## Mode
+
+**Agent** · Presentation runtime hotfix · **Commit + Push + Production Deploy**
+
+## Status
+
+**IMPLEMENTED / DEPLOYED — PC / MOBILE MANUAL VERIFICATION PENDING**
+
+## Incident
+
+After `8c4cc77` (Focus UI), Production showed only `#app-shell` on PC and mobile.
+
+Browser error:
+
+`Uncaught Error: Rendered more hooks than during the previous render.`
+
+## Root Cause
+
+`cushionFocusFamilies` `useState` + reset `useEffect` were placed **after**
+`if (loading) / if (error) / if (!view)` early returns in `App.jsx`.
+
+- First render (`loading === true`): early return → focus hooks not called
+- Later render (`loading === false`): early return skipped → focus hooks called
+- React Rules of Hooks invariant broken (independent of mobile gate)
+
+## Fix
+
+Moved `showCushionValuePanel` derivation + focus `useState`/`useEffect` to the
+unconditional hook section **above** early returns (next to `useSysLabelScale`).
+
+No Focus UX / scale / color / Frame-Rail / calculation changes.
+
+## Regression
+
+- `appCushionFocusHookOrder.contract.test.js` — source order + fixture + PC/mobile gate smoke
+
+## Isolation
+
+- positions.json / incidenceAngle.ts untouched
+- SYS / Fg-Rg / dataset / trajectory / AI unchanged
+
+---
+
 # 2026-09-14 — USER Mobile Cushion Value Focus UI (Selector + Table Focus)
 
 ## Mode
