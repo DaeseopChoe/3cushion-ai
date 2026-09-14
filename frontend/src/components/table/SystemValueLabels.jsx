@@ -14,6 +14,10 @@ import {
   buildSvgLabelReadabilityStyle,
   isLabelReadabilityEnhanced,
 } from "../../renderer/labels/labelReadabilityStyle";
+import {
+  CUSHION_FOCUS_VALUE_COLOR,
+  resolveFocusedSystemLabelSize,
+} from "../../renderer/labels/cushionValuePanelModel";
 import AnchorPoint from "./AnchorPoint";
 import LabelText from "./LabelText";
 
@@ -471,7 +475,8 @@ function buildRawLabelEntries(
   labelStrategy,
   showAxisCaptions = false,
   labelScale = 1,
-  touchCtx = null
+  touchCtx = null,
+  focusOpts = null
 ) {
   if (!labelAnchors) return [];
 
@@ -479,6 +484,20 @@ function buildRawLabelEntries(
   const entries = [];
   const captionBuckets = new Map();
   const rawFontSize = SYS_LABEL_BASE_FONT_SIZE * labelScale;
+  /** selection ≥1 → filter + focus size/color; selection 0 / null → all normal */
+  const focusActive =
+    Array.isArray(focusOpts?.families) && focusOpts.families.length > 0;
+  const focusSet = focusActive ? new Set(focusOpts.families) : null;
+  const focusFontSize =
+    focusActive && Number.isFinite(focusOpts.fontSize) && focusOpts.fontSize > 0
+      ? focusOpts.fontSize
+      : rawFontSize;
+  const focusColor =
+    typeof focusOpts?.color === "string" && focusOpts.color
+      ? focusOpts.color
+      : CUSHION_FOCUS_VALUE_COLOR;
+  const focusReadabilityScale = Math.max(labelScale, 2);
+  const labelTouchCtx = focusActive ? null : touchCtx;
 
   const pushGroup = (label, coord, value, idx) => {
     const frameScaleContrast = isFrameScaleCoord(coord);
@@ -489,7 +508,11 @@ function buildRawLabelEntries(
     const pxX = p.x + padding;
     const pxY = p.y + padding;
 
-    const fillColor = rawLabelColor(label, frameScaleContrast);
+    const fillColor = focusActive
+      ? focusColor
+      : rawLabelColor(label, frameScaleContrast);
+    const fontSize = focusActive ? focusFontSize : rawFontSize;
+    const readabilityScale = focusActive ? focusReadabilityScale : labelScale;
     const labelId = `RAW-${label}-${idx}`;
     const labelNode = (
       <LabelText
@@ -497,16 +520,30 @@ function buildRawLabelEntries(
         x={pxX}
         y={pxY}
         text={value != null ? String(value) : ""}
-        fontSize={rawFontSize}
+        fontSize={fontSize}
         color={fillColor}
-        readabilityScale={labelScale}
-        {...buildLabelTextProps(labelId, touchCtx)}
+        readabilityScale={readabilityScale}
+        {...buildLabelTextProps(labelId, labelTouchCtx)}
       />
     );
 
     entries.push({
       id: labelId,
-      node: applyFrameScaleHalo(labelNode, frameScaleContrast),
+      family: label,
+      pxX,
+      pxY,
+      value: value != null && Number.isFinite(Number(value)) ? Number(value) : null,
+      focused: focusActive,
+      node: applyFrameScaleHalo(
+        focusActive ? (
+          <g className="sys-label-focus" style={{ overflow: "visible" }}>
+            {labelNode}
+          </g>
+        ) : (
+          labelNode
+        ),
+        !focusActive && frameScaleContrast
+      ),
     });
 
     if (showAxisCaptions) {
@@ -545,6 +582,7 @@ function buildRawLabelEntries(
   };
 
   Object.entries(labelAnchors).forEach(([label, item]) => {
+    if (focusSet && !focusSet.has(label)) return;
     if (Array.isArray(item)) {
       item.forEach((nodeItem, idx) => {
         const coord = nodeItem?.coord;
@@ -569,12 +607,27 @@ function buildRawLabelEntries(
         tableH,
         padding,
         labelScale,
-        touchCtx
+        labelTouchCtx
       )
     );
   }
 
   return entries;
+}
+
+/** Exported for contract tests — same presentation pipeline as render. */
+export function buildSystemValueLabelPresentationEntries(args) {
+  return buildRawLabelEntries(
+    args.labelAnchors,
+    args.scale,
+    args.tableH,
+    args.padding,
+    args.labelStrategy ?? "anchor_ssot",
+    args.showAxisCaptions ?? false,
+    args.labelScale ?? 1,
+    null,
+    args.focusOpts ?? null
+  );
 }
 
 export default function SystemValueLabels({
@@ -597,9 +650,18 @@ export default function SystemValueLabels({
   showSystemValuesOnly = false,
   /** Rail/frame number + axis caption scale (1 = PC/tablet). */
   labelScale = 1,
+  /**
+   * USER mobile cushion focus: null = feature off;
+   * [] = show all normal; non-empty = selected families only at focus size.
+   */
+  focusFamilies = null,
+  /** Optional SVG/table client height (CSS px) for viewport-safe focus clamp. */
+  focusClientHeight = null,
 }) {
   const [activeLabelId, setActiveLabelId] = useState(null);
-  const touchExpandEnabled = labelScale > 1;
+  const focusSelectionActive =
+    Array.isArray(focusFamilies) && focusFamilies.length > 0;
+  const touchExpandEnabled = labelScale > 1 && !focusSelectionActive;
 
   const handleLabelPointerDown = useCallback((labelId, e) => {
     e.stopPropagation();
@@ -654,6 +716,25 @@ export default function SystemValueLabels({
   };
 
   const nodes = showSystemValuesOnly ? [] : collectBaseNodes(anchors);
+  const focusFontSize = focusSelectionActive
+    ? resolveFocusedSystemLabelSize({
+        labelAnchors,
+        selectedFamilies: focusFamilies,
+        scale,
+        clientHeight:
+          Number.isFinite(focusClientHeight) && focusClientHeight > 0
+            ? focusClientHeight
+            : undefined,
+      })
+    : null;
+  const focusOpts =
+    focusFamilies == null
+      ? null
+      : {
+          families: focusFamilies,
+          fontSize: focusFontSize,
+          color: CUSHION_FOCUS_VALUE_COLOR,
+        };
   const labelEntries = buildRawLabelEntries(
     labelAnchors,
     scale,
@@ -662,7 +743,8 @@ export default function SystemValueLabels({
     labelStrategy,
     showAxisCaptions,
     labelScale,
-    touchCtx
+    touchCtx,
+    focusOpts
   );
   const inactiveLabelEntries = labelEntries.filter(
     (entry) => entry.id !== activeLabelId

@@ -1,174 +1,106 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  buildCushionToggleCatalog,
-  pruneSelectedToggleKeys,
+  buildFixedFamilyAvailability,
+  FIXED_CUSHION_FAMILIES,
+  pruneSelectedFamilies,
   resolveCushionPanelHint,
-  toggleKeyInSet,
+  toggleFamilyInSet,
 } from "../../renderer/labels/cushionValuePanelModel";
 import "../../styles/user-cushion-value-panel.css";
 
 /**
- * USER mobile cushion-point panel — selector + enlarged value lanes.
- * Presentation-only; consumes labelAnchorsForRender SSOT.
+ * Compact family selector for USER mobile cushion-point mode.
+ * Numbers stay on the real table (SystemValueLabels); this panel only toggles focus.
  */
-export default function CushionValuePanel({ labelAnchors }) {
-  const catalog = useMemo(
-    () => buildCushionToggleCatalog(labelAnchors),
+export default function CushionValuePanel({
+  labelAnchors,
+  selectedFamilies = [],
+  onSelectedFamiliesChange,
+}) {
+  const [hasEverSelected, setHasEverSelected] = useState(false);
+
+  const availability = useMemo(
+    () => buildFixedFamilyAvailability(labelAnchors),
     [labelAnchors]
   );
 
-  const [selected, setSelected] = useState([]);
-  const [hasEverSelected, setHasEverSelected] = useState(false);
+  const enabledMap = useMemo(() => {
+    const map = new Map();
+    for (const row of availability) map.set(row.family, row.enabled);
+    return map;
+  }, [availability]);
 
   useEffect(() => {
-    setSelected((prev) => pruneSelectedToggleKeys(prev, catalog));
-  }, [catalog]);
+    const pruned = pruneSelectedFamilies(selectedFamilies, labelAnchors);
+    const same =
+      pruned.length === selectedFamilies.length &&
+      pruned.every((f) => selectedFamilies.includes(f));
+    if (!same) onSelectedFamiliesChange?.(pruned);
+  }, [labelAnchors, selectedFamilies, onSelectedFamiliesChange]);
 
   const hint = resolveCushionPanelHint(hasEverSelected);
-  const selectedSet = useMemo(() => new Set(selected), [selected]);
 
-  const onChipToggle = (key) => {
-    const turningOn = !selectedSet.has(key);
-    setSelected((prev) => toggleKeyInSet(prev, key));
-    if (turningOn) setHasEverSelected(true);
+  const handleToggle = (family, enabled) => {
+    if (!enabled) return;
+    const next = toggleFamilyInSet(selectedFamilies, family, enabled);
+    if (next.length > selectedFamilies.length) {
+      setHasEverSelected(true);
+    }
+    onSelectedFamiliesChange?.(next);
   };
 
-  return (
-    <div
-      className="cushion-value-panel"
-      role="region"
-      aria-label="쿠션 값 확대"
-    >
-      <div className="cushion-value-panel__shell">
-        <RailChipRow
-          rail="top"
-          groups={catalog.byRail.top}
-          selectedSet={selectedSet}
-          onToggle={onChipToggle}
-        />
-        <LaneStack
-          rail="top"
-          groups={catalog.byRail.top}
-          selectedSet={selectedSet}
-        />
-
-        <div className="cushion-value-panel__mid">
-          <div className="cushion-value-panel__side">
-            <RailChipRow
-              rail="left"
-              groups={catalog.byRail.left}
-              selectedSet={selectedSet}
-              onToggle={onChipToggle}
-            />
-            <LaneStack
-              rail="left"
-              groups={catalog.byRail.left}
-              selectedSet={selectedSet}
-            />
-          </div>
-
-          <div className="cushion-value-panel__mini" aria-hidden="true">
-            <div className="cushion-value-panel__wood">
-              <div className="cushion-value-panel__cushion">
-                <div className="cushion-value-panel__cloth">
-                  <p className="cushion-value-panel__hint">{hint}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="cushion-value-panel__side">
-            <LaneStack
-              rail="right"
-              groups={catalog.byRail.right}
-              selectedSet={selectedSet}
-            />
-            <RailChipRow
-              rail="right"
-              groups={catalog.byRail.right}
-              selectedSet={selectedSet}
-              onToggle={onChipToggle}
-            />
-          </div>
-        </div>
-
-        <LaneStack
-          rail="bottom"
-          groups={catalog.byRail.bottom}
-          selectedSet={selectedSet}
-        />
-        <RailChipRow
-          rail="bottom"
-          groups={catalog.byRail.bottom}
-          selectedSet={selectedSet}
-          onToggle={onChipToggle}
-        />
-      </div>
-    </div>
+  const selectedSet = useMemo(
+    () => new Set(selectedFamilies),
+    [selectedFamilies]
   );
-}
 
-function RailChipRow({ rail, groups, selectedSet, onToggle }) {
-  if (!groups?.length) return null;
-  return (
-    <div
-      className={`cushion-value-panel__chips cushion-value-panel__chips--${rail}`}
-    >
-      {groups.map((group) => {
-        const on = selectedSet.has(group.key);
+  const row1 = FIXED_CUSHION_FAMILIES.slice(0, 3);
+  const row2 = FIXED_CUSHION_FAMILIES.slice(3);
+
+  const renderRow = (families) => (
+    <div className="ucvp-btn-row" role="group">
+      {families.map((family) => {
+        const enabled = enabledMap.get(family) === true;
+        const on = enabled && selectedSet.has(family);
+        const stateClass = !enabled
+          ? "is-unavailable"
+          : on
+            ? "is-on"
+            : "is-off";
         return (
           <button
-            key={group.key}
+            key={family}
             type="button"
-            className={
-              on
-                ? "cushion-value-panel__chip cushion-value-panel__chip--on"
-                : "cushion-value-panel__chip"
-            }
-            style={{ ["--chip-accent"]: group.color }}
+            className={`ucvp-btn ${stateClass}`}
+            disabled={!enabled}
             aria-pressed={on}
-            onClick={() => onToggle(group.key)}
+            aria-label={`${family}${enabled ? "" : " (없음)"}`}
+            onClick={() => handleToggle(family, enabled)}
           >
-            {group.family}
+            {family}
           </button>
         );
       })}
     </div>
   );
-}
 
-function LaneStack({ rail, groups, selectedSet }) {
-  const active = groups.filter((g) => selectedSet.has(g.key));
-  if (active.length === 0) return null;
   return (
     <div
-      className={`cushion-value-panel__lanes cushion-value-panel__lanes--${rail}`}
+      className="ucvp-root"
+      role="region"
+      aria-label="쿠션 시스템 값 선택"
     >
-      {active.map((group) => (
-        <div
-          key={group.key}
-          className="cushion-value-panel__lane"
-          style={{ ["--lane-accent"]: group.color }}
-        >
-          <span className="cushion-value-panel__lane-tag">{group.family}</span>
-          <div className="cushion-value-panel__lane-values">
-            {group.points.map((p, idx) => (
-              <span
-                key={`${group.key}-${idx}-${p.value}-${p.fgX}-${p.fgY}`}
-                className="cushion-value-panel__value"
-              >
-                {formatPanelValue(p.value)}
-              </span>
-            ))}
-          </div>
-        </div>
-      ))}
+      <div className="ucvp-card">
+        {renderRow(row1)}
+        {renderRow(row2)}
+        <p className="ucvp-hint">{hint}</p>
+        <p className="ucvp-abbr">
+          <span>CO : 내공 출발값</span>
+          <span>C1 : 1쿠션 값</span>
+          <span>C3 : 3쿠션 값</span>
+          <span>C4 : 4쿠션 값</span>
+        </p>
+      </div>
     </div>
   );
-}
-
-function formatPanelValue(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "";
-  return String(n);
 }

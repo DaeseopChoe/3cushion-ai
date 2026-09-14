@@ -1,19 +1,27 @@
 /**
- * Cushion value panel model — pure SSOT grouping contracts (no jsdom).
+ * Cushion value panel model — family availability + focus scale contracts.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  buildCushionToggleCatalog,
-  pruneSelectedToggleKeys,
+  FIXED_CUSHION_FAMILIES,
+  buildFixedFamilyAvailability,
+  listAvailableFamilies,
+  pruneSelectedFamilies,
   resolveCushionPanelHint,
   shouldEnableCushionValuePanel,
-  toggleKeyInSet,
+  toggleFamilyInSet,
+  resolveFocusedSystemLabelSize,
+  resolveNormalSystemLabelSize,
+  minNeighborSpacingPx,
   CUSHION_PANEL_HINT_INITIAL,
   CUSHION_PANEL_HINT_AFTER,
-  railsForLabelPoint,
+  CUSHION_FOCUS_VALUE_COLOR,
+  FOCUS_FONT_FLOOR,
+  FOCUS_FONT_PREFERRED,
+  FOCUS_FONT_CEILING,
 } from "./cushionValuePanelModel";
 
 const modelSrc = readFileSync(
@@ -21,7 +29,7 @@ const modelSrc = readFileSync(
   "utf8"
 );
 
-/** Mirrors 5_half B2T_R-style BOTTOM CO + LEFT CO + BOTTOM C3 */
+/** Mirrors 5_half B2T_R-style: CO / C3 / C4 / C6 present; no C1/C5 */
 const sampleAnchors = {
   CO: [
     { coord: { x: 80, y: -2.25 }, value: 0 },
@@ -34,78 +42,105 @@ const sampleAnchors = {
     { coord: { x: 70, y: 0 }, value: 10 },
     { coord: { x: 30, y: 0 }, value: 60 },
   ],
+  C4: [{ coord: { x: 20, y: 0 }, value: 40 }],
   C6: [{ coord: { x: -2.25, y: 0 }, value: 60 }],
 };
 
-describe("buildCushionToggleCatalog", () => {
-  it("groups by rail+family from labelAnchors without inventing families", () => {
-    const catalog = buildCushionToggleCatalog(sampleAnchors);
-    expect(catalog.byKey["bottom:CO"]).toBeTruthy();
-    expect(catalog.byKey["left:CO"]).toBeTruthy();
-    expect(catalog.byKey["bottom:C3"]).toBeTruthy();
-    expect(catalog.byKey["left:C6"]).toBeTruthy();
-    expect(catalog.byKey["top:C1"]).toBeUndefined();
-  });
-
-  it("keeps physical order on BOTTOM (fgX ascending)", () => {
-    const catalog = buildCushionToggleCatalog(sampleAnchors);
-    const vals = catalog.byKey["bottom:CO"].points.map((p) => p.value);
-    expect(vals).toEqual([50, 30, 0]); // x: -2.25, 40, 80 → wait ascending x: -2.25(50), 40(30), 80(0)
-  });
-
-  it("keeps physical order on LEFT (fgY descending = top→bottom)", () => {
-    const catalog = buildCushionToggleCatalog(sampleAnchors);
-    const vals = catalog.byKey["left:CO"].points.map((p) => p.value);
-    expect(vals).toEqual([90, 60, 50]); // y 30, 10, -2.25
-  });
-
-  it("shares corner CO across bottom + left (dual-bucket)", () => {
-    expect(railsForLabelPoint("CO", -2.25, -2.25).sort()).toEqual([
-      "bottom",
-      "left",
+describe("fixed CO~C6 matrix + availability", () => {
+  it("always exposes CO C1 C3 C4 C5 C6 in fixed order", () => {
+    expect([...FIXED_CUSHION_FAMILIES]).toEqual([
+      "CO",
+      "C1",
+      "C3",
+      "C4",
+      "C5",
+      "C6",
     ]);
-    const catalog = buildCushionToggleCatalog(sampleAnchors);
-    const bottomHas50 = catalog.byKey["bottom:CO"].points.some(
-      (p) => p.value === 50
-    );
-    const leftHas50 = catalog.byKey["left:CO"].points.some((p) => p.value === 50);
-    expect(bottomHas50 && leftHas50).toBe(true);
+    const rows = buildFixedFamilyAvailability(sampleAnchors);
+    expect(rows.map((r) => r.family)).toEqual([...FIXED_CUSHION_FAMILIES]);
   });
 
-  it("selected values equal SSOT values", () => {
-    const catalog = buildCushionToggleCatalog(sampleAnchors);
-    expect(catalog.byKey["bottom:C3"].points.map((p) => p.value)).toEqual([
-      60, 10,
-    ]);
+  it("enables only families present in labelAnchorsForRender", () => {
+    const available = listAvailableFamilies(sampleAnchors);
+    expect([...available].sort()).toEqual(["C3", "C4", "C6", "CO"].sort());
+    const rows = buildFixedFamilyAvailability(sampleAnchors);
+    expect(rows.find((r) => r.family === "CO")?.enabled).toBe(true);
+    expect(rows.find((r) => r.family === "C1")?.enabled).toBe(false);
+    expect(rows.find((r) => r.family === "C5")?.enabled).toBe(false);
+    expect(rows.find((r) => r.family === "C6")?.enabled).toBe(true);
+  });
+
+  it("does not hardcode system-specific family lists", () => {
+    expect(modelSrc).not.toMatch(/5_half|B2T_|system_id\s*===/);
   });
 });
 
-describe("toggle state helpers", () => {
-  it("supports multi-toggle and re-tap off without auto-clearing others", () => {
+describe("toggle + prune", () => {
+  it("supports independent multi-toggle and re-tap OFF", () => {
     let sel = [];
-    sel = toggleKeyInSet(sel, "bottom:CO");
-    sel = toggleKeyInSet(sel, "left:CO");
-    sel = toggleKeyInSet(sel, "bottom:C3");
-    expect(sel.sort()).toEqual(["bottom:C3", "bottom:CO", "left:CO"]);
-    sel = toggleKeyInSet(sel, "bottom:CO");
-    expect(sel.sort()).toEqual(["bottom:C3", "left:CO"]);
+    sel = toggleFamilyInSet(sel, "CO", true);
+    sel = toggleFamilyInSet(sel, "C3", true);
+    expect(sel.sort()).toEqual(["C3", "CO"]);
+    sel = toggleFamilyInSet(sel, "CO", true);
+    expect(sel).toEqual(["C3"]);
   });
 
-  it("prunes stale keys on catalog change and keeps overlapping", () => {
-    const catalog = buildCushionToggleCatalog(sampleAnchors);
-    const pruned = pruneSelectedToggleKeys(
-      ["bottom:CO", "top:C1", "left:CO"],
-      catalog
-    );
-    expect(pruned.sort()).toEqual(["bottom:CO", "left:CO"]);
+  it("ignores toggle on disabled family", () => {
+    expect(toggleFamilyInSet(["CO"], "C1", false)).toEqual(["CO"]);
+  });
+
+  it("prunes stale families when anchors change", () => {
+    const pruned = pruneSelectedFamilies(["CO", "C1", "C3"], sampleAnchors);
+    expect(pruned.sort()).toEqual(["C3", "CO"]);
   });
 });
 
-describe("instruction + gate", () => {
+describe("focus scale", () => {
+  it("preferred ≈ 2× mobile normal without nesting 1.5×2 as desktop×3", () => {
+    const normalMobile = resolveNormalSystemLabelSize(1.5);
+    expect(normalMobile).toBe(15);
+    expect(FOCUS_FONT_PREFERRED).toBe(30);
+    expect(FOCUS_FONT_FLOOR).toBe(15);
+    expect(FOCUS_FONT_CEILING).toBe(34);
+    const size = resolveFocusedSystemLabelSize({
+      labelAnchors: { CO: [{ coord: { x: 10, y: -2.25 }, value: 1 }] },
+      selectedFamilies: ["CO"],
+      scale: 10,
+      clientHeight: 400,
+    });
+    expect(size).toBeGreaterThanOrEqual(FOCUS_FONT_FLOOR);
+    expect(size).toBeLessThanOrEqual(FOCUS_FONT_CEILING);
+    expect(size).toBeLessThanOrEqual(FOCUS_FONT_PREFERRED);
+    // Must not be 10*1.5*2 = 30 via nested multipliers of base alone as 45
+    expect(size).not.toBe(45);
+  });
+
+  it("scales down under dense neighbor spacing", () => {
+    const dense = {
+      C3: [
+        { coord: { x: 10, y: 0 }, value: 1 },
+        { coord: { x: 12, y: 0 }, value: 2 },
+        { coord: { x: 14, y: 0 }, value: 3 },
+      ],
+    };
+    const spacing = minNeighborSpacingPx(dense, ["C3"], 10);
+    expect(spacing).toBe(20); // Δ2 * scale 10
+    const size = resolveFocusedSystemLabelSize({
+      labelAnchors: dense,
+      selectedFamilies: ["C3"],
+      scale: 10,
+      clientHeight: 400,
+    });
+    expect(size).toBeLessThan(FOCUS_FONT_PREFERRED);
+    expect(size).toBeGreaterThanOrEqual(FOCUS_FONT_FLOOR);
+  });
+});
+
+describe("instruction + gate + isolation", () => {
   it("uses fixed instruction strings", () => {
     expect(resolveCushionPanelHint(false)).toBe(CUSHION_PANEL_HINT_INITIAL);
     expect(resolveCushionPanelHint(true)).toBe(CUSHION_PANEL_HINT_AFTER);
-    expect(CUSHION_PANEL_HINT_INITIAL).toBe("확대하려는 값을 터치하세요.");
+    expect(CUSHION_PANEL_HINT_INITIAL).toBe("보시려는 값의 버튼을 누르세요.");
     expect(CUSHION_PANEL_HINT_AFTER).toBe(
       "보고 싶은 값을 각각 켜고 끌 수 있습니다."
     );
@@ -118,8 +153,9 @@ describe("instruction + gate", () => {
     expect(shouldEnableCushionValuePanel("ADMIN", true, true)).toBe(false);
   });
 
-  it("model has no calculation imports", () => {
-    expect(modelSrc).not.toMatch(/buildTrajectory|TABLE_CONFIG|Δ_sys|openai/i);
-    expect(modelSrc).toContain("detectAxisSideFromFg");
+  it("uses unified focus color and has no calculation/OpenAI imports", () => {
+    expect(CUSHION_FOCUS_VALUE_COLOR).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(modelSrc).not.toMatch(/buildTrajectory|TABLE_CONFIG|Δ_sys|openai|fgToRg|FRAME_OFFSET/i);
+    expect(modelSrc).not.toMatch(/_f|_r/);
   });
 });

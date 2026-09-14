@@ -4254,6 +4254,16 @@ function handleJoyPadPointerCancel(e) {
     userAxisGridLabelsActive
   );
 
+  const [cushionFocusFamilies, setCushionFocusFamilies] = useState([]);
+  useEffect(() => {
+    if (!showCushionValuePanel) setCushionFocusFamilies([]);
+  }, [showCushionValuePanel]);
+
+  const cushionFocusClientHeight =
+    typeof tableAreaInnerRef.current?.clientHeight === "number"
+      ? tableAreaInnerRef.current.clientHeight
+      : null;
+
   const systemLabelsOutputsForRender =
     appMode === "USER" &&
     !userDisplayModeActive &&
@@ -6433,6 +6443,12 @@ function handlePointerCancel(e) {
             ? onBaselineDraftApplyClick
             : undefined
         }
+        focusFamilies={
+          showCushionValuePanel ? cushionFocusFamilies : null
+        }
+        focusClientHeight={
+          showCushionValuePanel ? cushionFocusClientHeight : null
+        }
       />
       )}
       {/* Ball coordinate label (+ optional joystick pad when BALL_POSITION_JOYSTICK_PAD_VISIBLE).
@@ -6541,7 +6557,11 @@ function handlePointerCancel(e) {
           ) : null}
           {tableSVG}
           {showCushionValuePanel ? (
-            <CushionValuePanel labelAnchors={labelAnchorsForRender} />
+            <CushionValuePanel
+              labelAnchors={labelAnchorsForRender}
+              selectedFamilies={cushionFocusFamilies}
+              onSelectedFamiliesChange={setCushionFocusFamilies}
+            />
           ) : null}
         </div>
       {appMode === "USER" &&

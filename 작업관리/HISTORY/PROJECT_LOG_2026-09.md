@@ -6,6 +6,58 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-14 — USER Mobile Cushion Value Focus UI (Selector + Table Focus)
+
+## Mode
+
+**Agent** · USER presentation only · **Commit + Push + Production Deploy**
+
+## Status
+
+**IMPLEMENTED / DEPLOYED — SMARTPHONE MANUAL REVIEW PENDING**
+
+(Not USER ACCEPTED until smartphone review.)
+
+## Motivation
+
+Mini table + in-panel value lanes duplicated the real table and hid the
+“where is this value on the actual cushion?” question. Policy split:
+
+- Panel = compact CO~C6 selector only
+- Real table SVG = SystemValueLabels SSOT positions; focus enlarge selected families
+
+## Implementation
+
+- **Removed** mini wood/cushion/cloth table, value lanes, rail-chip-around-mini layout
+- **Panel:** fixed 2×3 buttons CO / C1 / C3 / C4 / C5 / C6; missing family → disabled
+- Availability SSOT: `family ∈ labelAnchorsForRender` (no system hardcode)
+- Independent multi-toggle (family Set); re-tap OFF; no auto-clear others
+- Selection **0** → all system numbers normal; **≥1** → selected only at focus size
+- Focus uses same SystemValueLabels presentation x/y (no Fg↔Rg / `_f`/`_r` restore / FRAME_OFFSET)
+- Responsive focus font via `resolveFocusedSystemLabelSize` (preferred 30, floor 15, ceiling 34; neighbor spacing + viewport clamp)
+- Unified focus color `#F8FAFC` (family color on table numbers dropped)
+- Hints: 「보시려는 값의 버튼을 누르세요.」 → after first ON 「보고 싶은 값을 각각 켜고 끌 수 있습니다.」
+- Gate unchanged: USER + mobile landscape coarse + cushion-point
+- **Preserved:** mobile labelScale 1.5× · Phase 3E shell/lazy · PC USER / ADMIN unchanged
+
+## Isolation
+
+- Calculation / dataset / Phase 3D / trajectory / OpenAI untouched
+- positions.json / incidenceAngle.ts **not modified / not staged**
+
+## Verification (auto)
+
+- targeted contracts (panel model / panel source / SystemValueLabels focus / labelScalePolicy)
+- full `npm test` — 148 files / 1563 tests passed
+- `npm run build` OK — entry `index-*.js` **853.01 KB** raw / **244.89 KB** gzip (≈ prior ~852 KB class)
+- lazy ADMIN overlay chunks still separate (10)
+
+## Next
+
+Smartphone manual review checklist (see Agent report AE) before any commit/push/deploy.
+
+---
+
 # 2026-09-14 — USER Mobile Toggle-Based Cushion Value Panel
 
 ## Mode

@@ -35,6 +35,8 @@ describe("labelScalePolicy", () => {
   it("App wires CushionValuePanel; magnifier fully removed", () => {
     expect(appSrc).toContain("CushionValuePanel");
     expect(appSrc).toContain("shouldEnableCushionValuePanel");
+    expect(appSrc).toContain("cushionFocusFamilies");
+    expect(appSrc).toContain("focusFamilies=");
     expect(appSrc).not.toContain("UserTableMagnifier");
     expect(appSrc).not.toContain("shouldEnableUserTableMagnifier");
     expect(configSrc).not.toContain("USER_TABLE_MAGNIFIER");
