@@ -110,6 +110,7 @@ function buildStartAdjustLine(
 }
 
 function buildC3AdjustLine(
+  coBase: number,
   coEff: number,
   c1: number,
   c3Eff: number,
@@ -121,7 +122,9 @@ function buildC3AdjustLine(
   if (Math.abs(tilt) <= CORRECTION_EPS && Math.abs(spin) <= CORRECTION_EPS) {
     return null;
   }
-  const parts = [`출발값 ${fmt(coEff)}`];
+  const coLabel =
+    Math.abs(coEff - coBase) > CORRECTION_EPS ? "보정한 출발값" : "출발값";
+  const parts = [`${coLabel} ${fmt(coEff)}`];
   if (Math.abs(tilt) > CORRECTION_EPS) {
     parts.push(tilt > 0 ? `+ 기울기 ${fmt(tilt)}` : `- 기울기 ${fmt(Math.abs(tilt))}`);
   }
@@ -211,7 +214,7 @@ export function buildUserTrajectoryCardModel(
         pickNum(corrected, [c3Key, "C3_r", "C3_f"]) != null && co !== coBase
           ? co - c1
           : c3Base;
-      const c3Line = buildC3AdjustLine(co, c1, c3, c3Mid, corrections);
+      const c3Line = buildC3AdjustLine(coBase, co, c1, c3, c3Mid, corrections);
       if (c3Line) correctionDetailLines.push(c3Line);
     }
   }

@@ -219,6 +219,7 @@ function buildStartAdjustLine(
 }
 
 function buildC3AdjustLine(
+  coBase: number,
   coEff: number,
   c1: number,
   c3Eff: number,
@@ -226,7 +227,9 @@ function buildC3AdjustLine(
 ): string {
   const tilt = Number(corrections.curve_ratio) || 0;
   const spin = Number(corrections.spin) || 0;
-  const parts = [`출발값(${fmt(coEff)})`];
+  const coLabel =
+    Math.abs(coEff - coBase) > CORRECTION_EPS ? "보정한 출발값" : "출발값";
+  const parts = [`${coLabel}(${fmt(coEff)})`];
   if (Math.abs(tilt) > CORRECTION_EPS) {
     parts.push(tilt > 0 ? `+기울기(${fmt(tilt)})` : `-기울기(${fmt(Math.abs(tilt))})`);
   }
@@ -380,7 +383,7 @@ export function buildUserSystemLessonViewModel(
     correctionSection = {
       correctionsLine: formatCorrectionsLine(corrections, shotType),
       startAdjustLine: buildStartAdjustLine(coBase, coEff, corrections, shotType),
-      c3AdjustLine: buildC3AdjustLine(coEff, c1Eff, c3Eff, corrections),
+      c3AdjustLine: buildC3AdjustLine(coBase, coEff, c1Eff, c3Eff, corrections),
       c4: buildC4Block(c3Eff, snEff, c4Eff),
       footnotes: CORRECTION_FOOTNOTES,
     };

@@ -58,6 +58,25 @@ export type SysCalcDisplayInput = {
 
 const CORRECTION_EPS = 1e-9;
 
+/** True when corrected CO differs from baseline CO (slide/draw effect). */
+export function isCoValueCorrected(
+  baseCo: number | null | undefined,
+  effCo: number | null | undefined
+): boolean {
+  const b = Number(baseCo);
+  const e = Number(effCo);
+  if (!Number.isFinite(b) || !Number.isFinite(e)) return false;
+  return Math.abs(e - b) > CORRECTION_EPS;
+}
+
+/** Display label for CO in corrected formulas. */
+export function coDisplayLabel(
+  baseCo: number | null | undefined,
+  effCo: number | null | undefined
+): "출발값" | "보정한 출발값" {
+  return isCoValueCorrected(baseCo, effCo) ? "보정한 출발값" : "출발값";
+}
+
 /** 표시용 숫자 포맷 — sysOverlayUtils.fmtFiveHalfDisplayNum 과 동일 규칙 */
 export function fmtSysDisplayNum(n: number): string {
   const x = Number(n);
@@ -282,10 +301,11 @@ export function buildCorrectedBlock(input: SysCalcDisplayInput): SysDisplayBlock
     });
   }
 
-  // 3쿠션 보정: 보정한 출발값 [±기울기] [±스핀] - 1쿠션 = 보정한 3쿠션
+  // 3쿠션 보정: 출발값|보정한 출발값 [±기울기] [±스핀] - 1쿠션 = 보정한 3쿠션
   {
+    const coLabel = coDisplayLabel(coBase, coE);
     const c3Parts: SysDisplayPart[] = [
-      valuePart("보정한 출발값", fmtSysDisplayNum(coE)),
+      valuePart(coLabel, fmtSysDisplayNum(coE)),
     ];
     if (Math.abs(tilt) > CORRECTION_EPS) {
       c3Parts.push(
@@ -308,7 +328,7 @@ export function buildCorrectedBlock(input: SysCalcDisplayInput): SysDisplayBlock
     sections.push({
       id: "corrected-c3",
       title: "3쿠션 보정",
-      description: "보정한 출발값과 기울기·스핀으로 3쿠션을 계산합니다.",
+      description: `${coLabel}과 기울기·스핀으로 3쿠션을 계산합니다.`,
       lines: [inlineLine("corrected-c3-eq", c3Parts)],
     });
   }

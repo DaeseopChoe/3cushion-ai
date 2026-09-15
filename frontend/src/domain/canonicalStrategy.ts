@@ -190,18 +190,23 @@ export function mergeCorrections(raw: unknown): StrategySysCorrections {
   }
   const c = raw as Record<string, unknown>;
   const out: StrategySysCorrections = {
-    slide: Number(c.slide) || 0,
-    curve_ratio: Number(c.curve_ratio) || 0,
-    draw: Number(c.draw) || 0,
-    departure: Number(c.departure) || 0,
-    spin: Number(c.spin) || 0,
+    slide: 0,
+    curve_ratio: 0,
+    draw: 0,
+    departure: 0,
+    spin: 0,
   };
-  // Preserve authored negatives: Number(-2)||0 is fine; Number(0)||0 → 0.
-  // Re-read with finite check so slide=-2 is not lost (|| treats 0 only).
+  // Preserve authored signed numerics (including negatives).
   const s = Number(c.slide);
   const d = Number(c.draw);
+  const cr = Number(c.curve_ratio);
+  const sp = Number(c.spin);
+  const dep = Number(c.departure);
   if (Number.isFinite(s)) out.slide = s;
   if (Number.isFinite(d)) out.draw = d;
+  if (Number.isFinite(cr)) out.curve_ratio = cr;
+  if (Number.isFinite(sp)) out.spin = sp;
+  if (Number.isFinite(dep)) out.departure = dep;
   if (c.signMode === "authored") out.signMode = "authored";
   else if (c.signMode === "legacy") out.signMode = "legacy";
   return out;

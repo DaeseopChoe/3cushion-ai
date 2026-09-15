@@ -6,6 +6,29 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-15 — Signed Authoring 2차 · spin/기울기 [-] + CO 문구
+
+## Mode
+
+**Agent** · SYS correction UX · Commit/Push
+
+## Change
+
+1. 기울기(`curve_ratio`) / 스핀에 밀림·끌림과 동일한 **필드별 [-]** authored UX.
+2. SYS 표시 「보정한 출발값」은 **actual CO_base ≠ CO_eff** 일 때만 (spin/기울기만 있으면 「출발값」).
+3. merge/SAVE/Recall: spin·curve_ratio 음수 보존 (`Number.isFinite`).
+4. Curve geometry **미변경**.
+
+## Domain unchanged
+
+밀림/끌림 → CO · 스핀/기울기 → C3 · slide/draw 상호배타 유지.
+
+## Non-goals
+
+curve Δ SSOT · AI template rewrite · 5&Half formula · q/K · C2 · display ceiling · incidenceAngle.ts / dataset dirty
+
+---
+
 # 2026-09-15 — SYS Signed Authoring 1차 (slide/draw)
 
 ## Mode

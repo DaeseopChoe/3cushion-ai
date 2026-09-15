@@ -96,11 +96,15 @@ export function adminSysFromRecallEntry(
     outputs: snap.outputs,
     formulaHash,
     corrections: {
-      slide: Number(corr?.slide) || 0,
-      curve_ratio: Number(corr?.curve_ratio) || 0,
-      draw: Number(corr?.draw) || 0,
-      departure: Number(corr?.departure) || 0,
-      spin: Number(corr?.spin) || 0,
+      slide: Number.isFinite(Number(corr?.slide)) ? Number(corr.slide) : 0,
+      curve_ratio: Number.isFinite(Number(corr?.curve_ratio))
+        ? Number(corr.curve_ratio)
+        : 0,
+      draw: Number.isFinite(Number(corr?.draw)) ? Number(corr.draw) : 0,
+      departure: Number.isFinite(Number(corr?.departure))
+        ? Number(corr.departure)
+        : 0,
+      spin: Number.isFinite(Number(corr?.spin)) ? Number(corr.spin) : 0,
       ...(corr?.signMode === "authored" || corr?.signMode === "legacy"
         ? { signMode: corr.signMode }
         : {}),

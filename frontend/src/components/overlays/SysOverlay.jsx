@@ -227,9 +227,15 @@ export function SysOverlay({
       track: data?.track || "B2T_L",
       inputs: buildSysOverlayInitialInputs(data),
       corrections: {
-        curve_ratio: data?.corrections?.curve_ratio || 0,
-        departure: data?.corrections?.departure || 0,
-        spin: data?.corrections?.spin || 0,
+        curve_ratio: Number.isFinite(Number(data?.corrections?.curve_ratio))
+          ? Number(data.corrections.curve_ratio)
+          : 0,
+        departure: Number.isFinite(Number(data?.corrections?.departure))
+          ? Number(data.corrections.departure)
+          : 0,
+        spin: Number.isFinite(Number(data?.corrections?.spin))
+          ? Number(data.corrections.spin)
+          : 0,
         ...slideDraw,
         ...(initialMode === CORRECTION_SIGN_MODE_AUTHORED
           ? { signMode: CORRECTION_SIGN_MODE_AUTHORED }
@@ -938,17 +944,22 @@ export function SysOverlay({
         ].map(({ key, label }) => {
           const isDeparture = key === 'departure';
           const isSlideDraw = key === 'slide' || key === 'draw';
+          const isSignedCorr =
+            key === 'slide' ||
+            key === 'draw' ||
+            key === 'curve_ratio' ||
+            key === 'spin';
           const rawCorrVal = formData.corrections[key];
           const displayValue = isDeparture && snFor5HalfEffective
             ? snFor5HalfEffective.Sn
-            : isSlideDraw
+            : isSignedCorr
               ? correctionMagnitude(rawCorrVal)
               : rawCorrVal;
-          const minusOn = isSlideDraw && correctionIsNegative(rawCorrVal);
+          const minusOn = isSignedCorr && correctionIsNegative(rawCorrVal);
           return (
           <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <label style={{ fontSize: '12px', minWidth: isDeparture ? '70px' : '32px' }}>{label}</label>
-            {isSlideDraw ? (
+            {isSignedCorr ? (
               <button
                 type="button"
                 title={minusOn ? "음수 (클릭 시 +)" : "양수 (클릭 시 −)"}
@@ -957,16 +968,19 @@ export function SysOverlay({
                   setIsRestored(false);
                   const mag = correctionMagnitude(formData.corrections[key]);
                   const nextNeg = !minusOn;
-                  const nextCorr = {
-                    ...formData.corrections,
-                    signMode: CORRECTION_SIGN_MODE_AUTHORED,
-                  };
+                  const nextCorr = { ...formData.corrections };
                   if (key === "slide") {
                     nextCorr.slide = applyCorrectionSign(mag, nextNeg);
                     nextCorr.draw = 0;
-                  } else {
+                    nextCorr.signMode = CORRECTION_SIGN_MODE_AUTHORED;
+                  } else if (key === "draw") {
                     nextCorr.draw = applyCorrectionSign(mag, nextNeg);
                     nextCorr.slide = 0;
+                    nextCorr.signMode = CORRECTION_SIGN_MODE_AUTHORED;
+                  } else if (key === "curve_ratio") {
+                    nextCorr.curve_ratio = applyCorrectionSign(mag, nextNeg);
+                  } else if (key === "spin") {
+                    nextCorr.spin = applyCorrectionSign(mag, nextNeg);
                   }
                   setFormData({ ...formData, corrections: nextCorr });
                 }}
@@ -990,7 +1004,7 @@ export function SysOverlay({
             <input
               type="number"
               step="0.5"
-              min={isSlideDraw ? "0" : undefined}
+              min={isSignedCorr ? "0" : undefined}
               value={fmtSysOverlayInputDisplay(displayValue)}
               readOnly={isDeparture && !!snFor5HalfEffective}
               onChange={(e) => {
@@ -1009,6 +1023,12 @@ export function SysOverlay({
                   nextCorr.draw = applyCorrectionSign(fin, neg);
                   nextCorr.slide = 0;
                   nextCorr.signMode = CORRECTION_SIGN_MODE_AUTHORED;
+                } else if (key === "curve_ratio") {
+                  const neg = correctionIsNegative(formData.corrections.curve_ratio);
+                  nextCorr.curve_ratio = applyCorrectionSign(fin, neg);
+                } else if (key === "spin") {
+                  const neg = correctionIsNegative(formData.corrections.spin);
+                  nextCorr.spin = applyCorrectionSign(fin, neg);
                 } else {
                   nextCorr[key] = fin;
                 }

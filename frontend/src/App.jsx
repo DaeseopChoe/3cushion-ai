@@ -6738,13 +6738,16 @@ function handlePointerCancel(e) {
                     const corr = newData.corrections ?? {};
                     const slideN = Number(corr.slide);
                     const drawN = Number(corr.draw);
+                    const curveN = Number(corr.curve_ratio);
+                    const spinN = Number(corr.spin);
+                    const depN = Number(corr.departure);
                     const metaPatch = {
                       corrections: {
                         slide: Number.isFinite(slideN) ? slideN : 0,
-                        curve_ratio: Number(corr.curve_ratio) || 0,
+                        curve_ratio: Number.isFinite(curveN) ? curveN : 0,
                         draw: Number.isFinite(drawN) ? drawN : 0,
-                        departure: Number(corr.departure) || 0,
-                        spin: Number(corr.spin) || 0,
+                        departure: Number.isFinite(depN) ? depN : 0,
+                        spin: Number.isFinite(spinN) ? spinN : 0,
                         ...(corr.signMode === "authored" || corr.signMode === "legacy"
                           ? { signMode: corr.signMode }
                           : {}),
