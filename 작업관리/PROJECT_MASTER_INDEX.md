@@ -2135,6 +2135,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
 | `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` | **Family Data Architecture** — CONFIRMED DESIGN · CURRENT vs TARGET · Derived Data **3A-359 COMPLETE** · production WRITE SSOT still `positions_dataset` · gated READ default ON |
 | `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.5** — 5&Half Baseline Display Ceiling · same-rail nearest-rail identity (BUG-A) · Reading Mode · C2 Handle |
+| `작업관리/SIGNED_CORRECTION_AUTHORING_SSOT.md` | **Signed Correction Authoring SSOT** — authored ± · CO/C3 domains · slide/draw mutex · CO label · legacy · curve KEEP · manual PASS 2026-09-15 |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |
 | `작업관리/WG-AI-001_Architecture_Impact_Working_Guideline.md` | **Architecture Impact Working Guideline** — PASS · Consume · Freeze Candidate |
