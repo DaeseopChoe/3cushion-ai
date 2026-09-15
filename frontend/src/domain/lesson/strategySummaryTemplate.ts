@@ -21,11 +21,22 @@ export type StrategySummarySegmentId =
   | "cushion"
   | "arrival";
 
+/** Presentation-only: label+value semantic unit vs surrounding prose. */
+export type StrategySummaryEmphasisPart = {
+  text: string;
+  emphasize: boolean;
+};
+
 export type StrategySummarySegment = {
   id: StrategySummarySegmentId;
   text: string;
   /** Protected numeric tokens for this segment (presentation integrity). */
   protectedTokens: string[];
+  /**
+   * Display-only semantic parts. `text` === join of part.text.
+   * Never persisted; Bold is applied at render time only.
+   */
+  parts: StrategySummaryEmphasisPart[];
 };
 
 export type StrategySummaryTemplateInputs = {
@@ -86,9 +97,26 @@ function tokensOf(text: string): string[] {
   return extractNumericTokens(text);
 }
 
+function emph(text: string): StrategySummaryEmphasisPart {
+  return { text, emphasize: true };
+}
+
+function plain(text: string): StrategySummaryEmphasisPart {
+  return { text, emphasize: false };
+}
+
+function segmentFromParts(
+  id: StrategySummarySegmentId,
+  parts: StrategySummaryEmphasisPart[]
+): StrategySummarySegment {
+  const text = parts.map((p) => p.text).join("");
+  return { id, text, protectedTokens: tokensOf(text), parts };
+}
+
 function buildIntro(systemName: string, shotType: string): StrategySummarySegment {
-  const text = `${systemName}을 응용한 ${shotType} 공략입니다.`;
-  return { id: "intro", text, protectedTokens: tokensOf(text) };
+  return segmentFromParts("intro", [
+    plain(`${systemName}을 응용한 ${shotType} 공략입니다.`),
+  ]);
 }
 
 function buildStartSegment(args: {
@@ -109,12 +137,20 @@ function buildStartSegment(args: {
     // Signed display of resolved unifiedSlide (no abs, no recomputation).
     const signed = fmtSignedDeparture(slide);
     const effLabel = fmtSysDisplayNum(effCo);
-    const text = `출발값 ${coLabel}에서 ${kind}값 ${signed}을 보정하면 출발값은 ${effLabel}이 됩니다.`;
-    return { id: "start", text, protectedTokens: tokensOf(text) };
+    return segmentFromParts("start", [
+      emph(`출발값 ${coLabel}`),
+      plain("에서 "),
+      emph(`${kind}값 ${signed}`),
+      plain("을 보정하면 "),
+      emph(`출발값은 ${effLabel}`),
+      plain("이 됩니다."),
+    ]);
   }
 
-  const text = `출발값은 ${coLabel}입니다.`;
-  return { id: "start", text, protectedTokens: tokensOf(text) };
+  return segmentFromParts("start", [
+    emph(`출발값은 ${coLabel}`),
+    plain("입니다."),
+  ]);
 }
 
 function buildCushionSegment(args: {
@@ -129,10 +165,22 @@ function buildCushionSegment(args: {
   const tilt =
     inclination != null && Number.isFinite(inclination) ? inclination : 0;
   const hasTilt = Math.abs(tilt) > EPS;
-  const text = hasTilt
-    ? `1쿠션 ${c1Label}를 겨냥하여 진행하면 기울기 ${fmtSysDisplayNum(Math.abs(tilt))}가 보정되어 3쿠션은 ${c3Label}에 도착합니다.`
-    : `1쿠션 ${c1Label}를 겨냥하여 진행하면 3쿠션은 ${c3Label}에 도착합니다.`;
-  return { id: "cushion", text, protectedTokens: tokensOf(text) };
+  if (hasTilt) {
+    return segmentFromParts("cushion", [
+      emph(`1쿠션 ${c1Label}`),
+      plain("를 겨냥하여 진행하면 "),
+      emph(`기울기 ${fmtSysDisplayNum(Math.abs(tilt))}`),
+      plain("가 보정되어 "),
+      emph(`3쿠션은 ${c3Label}`),
+      plain("에 도착합니다."),
+    ]);
+  }
+  return segmentFromParts("cushion", [
+    emph(`1쿠션 ${c1Label}`),
+    plain("를 겨냥하여 진행하면 "),
+    emph(`3쿠션은 ${c3Label}`),
+    plain("에 도착합니다."),
+  ]);
 }
 
 function buildArrivalSegment(args: {
@@ -142,8 +190,13 @@ function buildArrivalSegment(args: {
   const { sn, c4 } = args;
   if (sn == null || c4 == null) return null;
   if (Math.abs(sn) <= EPS) return null;
-  const text = `이어서 출발값 보정 ${fmtSignedDeparture(sn)}를 적용하면 최종 도착값은 ${fmtSysDisplayNum(c4)}가 됩니다.`;
-  return { id: "arrival", text, protectedTokens: tokensOf(text) };
+  return segmentFromParts("arrival", [
+    plain("이어서 "),
+    emph(`출발값 보정 ${fmtSignedDeparture(sn)}`),
+    plain("를 적용하면 "),
+    emph(`최종 도착값은 ${fmtSysDisplayNum(c4)}`),
+    plain("가 됩니다."),
+  ]);
 }
 
 /** Resolve presentation inputs from already-computed slot values (no engine calls). */

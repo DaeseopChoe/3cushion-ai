@@ -3,6 +3,8 @@
  * Phase 3C: committed Strategy Summary + PRO ONE POINT only.
  */
 
+import { StrategySummaryEmphasisView } from "../../domain/lesson/StrategySummaryEmphasisView";
+
 /** Legacy lesson heading — strip if present in stored text; not shown in UI. */
 const LESSON_SECTION_TITLE = "[원 포인트 레슨]";
 
@@ -67,7 +69,7 @@ export function AiOnePointLessonsBlock({ lessons }) {
   );
 }
 
-function PresentationBlock({ title, paragraphs, text }) {
+function PresentationBlock({ title, paragraphs, text, emphasisSegments }) {
   const lines =
     Array.isArray(paragraphs) && paragraphs.length > 0
       ? paragraphs
@@ -75,17 +77,21 @@ function PresentationBlock({ title, paragraphs, text }) {
           .split(/\n/)
           .map((l) => l.trimEnd())
           .filter((l) => l.trim().length > 0);
-  if (lines.length === 0) return null;
+  if (lines.length === 0 && !(emphasisSegments?.length > 0)) return null;
 
   return (
     <section className="user-ai-block">
       <h3 className="user-ai-block__title">{title}</h3>
       <div className="user-ai-block__body" style={{ whiteSpace: "pre-line" }}>
-        {lines.map((line, i) => (
-          <p key={`${title}-${i}`} className="ai-comment-para">
-            {line}
-          </p>
-        ))}
+        {Array.isArray(emphasisSegments) && emphasisSegments.length > 0 ? (
+          <StrategySummaryEmphasisView segments={emphasisSegments} />
+        ) : (
+          lines.map((line, i) => (
+            <p key={`${title}-${i}`} className="ai-comment-para">
+              {line}
+            </p>
+          ))
+        )}
       </div>
     </section>
   );
@@ -121,6 +127,7 @@ export default function UserAiPanel({ model }) {
             title="공략 요약"
             paragraphs={model.strategySummaryParagraphs}
             text={summaryText}
+            emphasisSegments={model.strategySummaryEmphasisSegments}
           />
         ) : null}
         {hasSummary && hasOnePoint ? (

@@ -220,7 +220,8 @@ describe("Phase 3C USER wiring (source)", () => {
     expect(helper).not.toContain("shotOnePointDraft");
     expect(helper).not.toContain("libraryDraft");
     expect(helper).toContain("resolveEffectiveStrategySummary");
-    expect(helper).toContain("composeFinalStrategySummary");
+    expect(helper).toContain("buildStrategySummaryTemplateModel");
+    expect(helper).toContain("canRenderStrategySummaryEmphasis");
   });
 
   it("userInfoPanelModel builds presentation from committed ai + template SSOT", () => {

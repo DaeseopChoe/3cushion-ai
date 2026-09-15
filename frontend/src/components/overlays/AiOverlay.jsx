@@ -4,6 +4,10 @@ import {
   fetchProofreading,
 } from "../../domain/lesson/proofreadingClient";
 import { formatOnePointDropdownLabel } from "../../domain/lesson/onePointLibrary";
+import {
+  StrategySummaryEmphasisView,
+  canRenderStrategySummaryEmphasis,
+} from "../../domain/lesson/StrategySummaryEmphasisView";
 
 export { ensureLessonItems } from "../../domain/lesson/ensureLessonItems";
 
@@ -39,6 +43,9 @@ export function AiOverlay({
   strategySummaryApplyError = "",
   strategySummaryStale = false,
   onRestoreStrategySummaryToGenerated,
+  /** Generated template segments for Bold display (presentation only). */
+  strategySummaryEmphasisSegments = null,
+  strategySummaryGeneratedText = "",
   shotOnePointDraft,
   setShotOnePointDraft,
   libraryDraft,
@@ -51,6 +58,30 @@ export function AiOverlay({
   registerOnePointLibraryItemFromDraft,
   proofreadClearNonce = 0,
 }) {
+  const [summaryEditing, setSummaryEditing] = useState(false);
+  const summaryTextareaRef = useRef(null);
+
+  const canShowSummaryEmphasis =
+    Array.isArray(strategySummaryEmphasisSegments) &&
+    strategySummaryEmphasisSegments.length > 0 &&
+    canRenderStrategySummaryEmphasis({
+      draftText: strategySummaryDraft,
+      generatedText: strategySummaryGeneratedText,
+    });
+
+  const showSummaryRich = canShowSummaryEmphasis && !summaryEditing;
+
+  useEffect(() => {
+    if (!canShowSummaryEmphasis) setSummaryEditing(true);
+    else setSummaryEditing(false);
+  }, [canShowSummaryEmphasis]);
+
+  useEffect(() => {
+    if (summaryEditing && summaryTextareaRef.current) {
+      summaryTextareaRef.current.focus();
+    }
+  }, [summaryEditing]);
+
   const [proofreadPhase, setProofreadPhase] = useState("idle");
   const [proofreadOriginal, setProofreadOriginal] = useState("");
   const [proofreadCorrected, setProofreadCorrected] = useState("");
@@ -294,14 +325,47 @@ export function AiOverlay({
             ) : null}
           </div>
         ) : null}
-        <textarea
-          value={strategySummaryDraft ?? ""}
-          onChange={(e) => setStrategySummaryDraft?.(e.target.value)}
-          placeholder="공략 요약을 입력하세요."
-          rows={4}
-          aria-label="공략 요약"
-          style={{ ...editorStyle, marginBottom: strategySummaryApplyError ? 8 : 14 }}
-        />
+        {showSummaryRich ? (
+          <div
+            role="textbox"
+            tabIndex={0}
+            aria-label="공략 요약"
+            aria-readonly="true"
+            title="클릭하여 수정"
+            onClick={() => setSummaryEditing(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setSummaryEditing(true);
+              }
+            }}
+            style={{
+              ...editorStyle,
+              cursor: "text",
+              marginBottom: strategySummaryApplyError ? 8 : 14,
+            }}
+          >
+            <StrategySummaryEmphasisView
+              segments={strategySummaryEmphasisSegments}
+            />
+          </div>
+        ) : (
+          <textarea
+            ref={summaryTextareaRef}
+            value={strategySummaryDraft ?? ""}
+            onChange={(e) => setStrategySummaryDraft?.(e.target.value)}
+            onBlur={() => {
+              if (canShowSummaryEmphasis) setSummaryEditing(false);
+            }}
+            placeholder="공략 요약을 입력하세요."
+            rows={4}
+            aria-label="공략 요약"
+            style={{
+              ...editorStyle,
+              marginBottom: strategySummaryApplyError ? 8 : 14,
+            }}
+          />
+        )}
         {strategySummaryApplyError ? (
           <div
             role="alert"

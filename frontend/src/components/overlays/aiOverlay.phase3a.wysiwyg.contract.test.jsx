@@ -101,6 +101,9 @@ describe("AiOverlay / App Phase 3A source contracts", () => {
     expect(overlay).toContain(
       'placeholder="새로운 PRO ONE POINT를 입력하세요."'
     );
+    expect(overlay).toContain("StrategySummaryEmphasisView");
+    expect(overlay).toContain("showSummaryRich");
+    expect(overlay).toContain("<textarea");
     expect(overlay).not.toContain("AiAutoCommentDisplay");
     expect(overlay).not.toMatch(/>\s*삭제\s*</);
   });

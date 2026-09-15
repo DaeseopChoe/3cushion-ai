@@ -14,9 +14,11 @@ import {
 } from "./strategySummaryPersistence";
 import {
   buildStrategySummaryTemplateInputs,
-  composeFinalStrategySummary,
+  buildStrategySummaryTemplateModel,
+  type StrategySummarySegment,
   type StrategySummaryTemplateInputs,
 } from "./strategySummaryTemplate";
+import { canRenderStrategySummaryEmphasis } from "./strategySummaryEmphasis";
 
 export type CommittedAiSlice = {
   text?: unknown;
@@ -30,6 +32,11 @@ export type CommittedAiPresentation = {
   strategySummaryText: string;
   /** Non-empty lines for read-only paragraph rendering. */
   strategySummaryParagraphs: string[];
+  /**
+   * When effective text === generated template, segments for Bold display.
+   * Null when override/custom text — fall back to plain paragraphs.
+   */
+  strategySummaryEmphasisSegments: StrategySummarySegment[] | null;
   /** Committed current-shot PRO ONE POINT (may be multi-paragraph). */
   onePointText: string;
   /** Non-empty lines for one-point rendering. */
@@ -90,7 +97,8 @@ export function buildCommittedAiPresentation(args: {
       corrections: args.corrections,
     });
 
-  const generated = composeFinalStrategySummary(inputs);
+  const generatedModel = buildStrategySummaryTemplateModel(inputs);
+  const generated = generatedModel.text;
   const override = args.committedAi?.strategySummaryOverride;
   const strategySummaryText = resolveEffectiveStrategySummary({
     generatedSummary: generated,
@@ -108,9 +116,18 @@ export function buildCommittedAiPresentation(args: {
   const hasStrategySummary = strategySummaryText.length > 0;
   const hasOnePoint = onePointText.length > 0;
 
+  const strategySummaryEmphasisSegments =
+    canRenderStrategySummaryEmphasis({
+      draftText: strategySummaryText,
+      generatedText: generated,
+    })
+      ? generatedModel.segments
+      : null;
+
   return {
     strategySummaryText,
     strategySummaryParagraphs,
+    strategySummaryEmphasisSegments,
     onePointText,
     onePointParagraphs,
     hasStrategySummary,

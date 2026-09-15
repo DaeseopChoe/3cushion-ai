@@ -83,6 +83,7 @@ import {
 } from "./domain/lesson/strategySummaryPersistence";
 import {
   buildStrategySummaryTemplateInputs,
+  buildStrategySummaryTemplateModel,
   composeFinalStrategySummary,
 } from "./domain/lesson/strategySummaryTemplate";
 import { hasRenderableOutputsResult } from "./domain/slotSysResolve";
@@ -6963,6 +6964,14 @@ function handlePointerCancel(e) {
                 setStrategySummaryDraft={onStrategySummaryDraftChange}
                 strategySummaryApplyError={strategySummaryApplyError}
                 strategySummaryStale={isStrategySummaryStale}
+                strategySummaryGeneratedText={resolveGeneratedStrategySummaryText()}
+                strategySummaryEmphasisSegments={
+                  hasRenderableOutputsResult(slotRenderSys ?? adminState.sys)
+                    ? buildStrategySummaryTemplateModel(
+                        resolveStrategySummaryTemplateInputs()
+                      ).segments
+                    : null
+                }
                 onRestoreStrategySummaryToGenerated={
                   restoreStrategySummaryToGenerated
                 }
