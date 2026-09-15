@@ -256,11 +256,11 @@
   overflow: hidden;
 }
 
-/* SYS 관리자 — 기준/보정 2열 계산식이 한 줄로 보이도록 폭 확대 */
+/* SYS 관리자 — 출발값 보정 행이 우측 경계에 근접하도록 폭 축소 (테이블 가시성) */
 .modal-panel--sys {
-  min-width: min(1040px, 96vw);
-  width: min(1180px, 96vw);
-  max-width: min(1280px, 96vw);
+  min-width: min(740px, 92vw);
+  width: min(840px, 94vw);
+  max-width: min(880px, 96vw);
 }
 
 .modal-panel--compact {
