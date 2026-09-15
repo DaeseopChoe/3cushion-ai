@@ -57,7 +57,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
 | **ADMIN Impact CONTACT ownership** | ✅ **COMPLETE** (2026-09-07 · practical PASS) — runtime Impact = CONTACT · temporary `balls.impact` only while dragging · dblclick = nearest-trajectory snap → T/HPT → CONTACT · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
 | **ADMIN HP/T zero-tip tipSideIntent** | ✅ **COMPLETE** (2026-09-07 · practical PASS) — UI `tipSideIntent` survives tipCount=0 · left 0 calc == right 0 calc · no fake ε · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
-| **SYS slide/draw Signed Authoring** | ✅ **COMPLETE** (2026-09-15) — `signMode: authored` · per-field `[-]` on 밀림/끌림/**기울기/스핀** · CO += authored signed · CO label uses actual COΔ · legacy unmarked keeps shotType flip for slide/draw · curve geometry unchanged · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
+| **SYS Signed Correction Authoring** | ✅ **FINALIZED** (2026-09-15 · manual PASS) — SSOT `SIGNED_CORRECTION_AUTHORING_SSOT.md` · commits `82f8296` + `84b753b` · log: `HISTORY/PROJECT_LOG_2026-09.md` |
 | **History / Search Corpus Separation** | ✅ **COMPLETE** — History snapshot load no longer overwrites searchable corpus · independent search pool preserved |
 | **USER Search Normalization & Role Permutation** | ✅ **COMPLETE** — 2-way Target/Second permutation · winning matchedBalls preserved · Trajectory Target alignment |
 | **ADMIN Target Selection Contract** | ✅ **COMPLETE** — Target defaults to NONE · explicit double-click reassign · non-target search supported |
@@ -945,11 +945,12 @@ App.jsx를 Application Runtime Orchestrator로 전환하기 위한 Architecture 
 ### SYS
 
 - **시스템 엔진**: `data/systems/*` (profile / anchors / logic), `systemCalculator`, `useSysCalculation`(admin).
-- **보정 구조**: `slide`, `draw`, `curve_ratio`, `spin`, `departure` + optional `signMode`.
-  - **Authored** (`signMode: "authored"`): 밀림/끌림 = label · ± = 관리자 authored signed value · `CO +=` 그대로 · **shotType 부호 반전 없음**. 기울기/스핀도 필드별 `[-]` authored signed → **C3** domain.
-  - **Legacy** (marker 없음): 기존 `abs`/`-abs` + `getShotTypeCorrectionSign(shotType)` 의미 보존 (slide/draw).
-  - 밀림↔끌림 **상호배타**(non-zero, sign-agnostic). 표시: CO 불변 시 「출발값」, CO 변경 시 「보정한 출발값」. Curve geometry는 signed-authoring에서 **미변경**.
-- **SYS Overlay**: `components/overlays/SysOverlay.jsx` — 밀림/끌림 필드별 `[-]` · AD-B2-01 Pure Presentation. Batch 4: `computeSysOverlayValues` Domain 주입. `admin/sys/SysOverlay.tsx`는 메인 트리 미사용.
+- **보정 구조 (Signed Authoring FINALIZED):** 상세 원칙·domain·상호배타·CO label·legacy·curve KEEP → **`SIGNED_CORRECTION_AUTHORING_SSOT.md`**.
+  - Fields: `slide` / `draw` / `curve_ratio` / `spin` / `departure` + optional `signMode`.
+  - Authored: per-field `[-]` · signed value SSOT · slide/draw→**CO** · spin/기울기→**C3** · shotType는 authored sign 비반전.
+  - Legacy (no marker): 기존 slide/draw shotType flip path 보존 · corpus rewrite 없음.
+  - Curve geometry: **LOCK / KEEP** (1·2차 미변경).
+- **SYS Overlay**: `components/overlays/SysOverlay.jsx` — 필드별 `[-]` · Domain `computeSysOverlayValues`. `admin/sys/SysOverlay.tsx` 메인 트리 미사용.
 - **Render SSOT**: `slotRenderSys`, `resolvedSlotSysValues` / `resolvedSlotBaseSysValues`.
 - **USER 기준값**: 3-Level 토글(보정 / 기준 / 비교), `ImpactLines` dual path.
 
@@ -1045,7 +1046,7 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - Helpers: `domain/lesson/aiCommentEditorSession.ts`
   - close ≠ cancel · Apply ≠ Library Save ≠ canonical SAVE
   - proofreading = working draft only · calculation engine **완전 분리**
-  - C3/C4 의미(표시 매핑용): C3=밀림 반영 후 3쿠션 도착 · C4=4쿠션 보정 반영 최종 도착 — **계산 미변경**
+  - C3/C4 의미(표시 매핑용): C3 = 기울기·스핀 반영 3쿠션 도착 · C4 = 4쿠션/출발값보정(Sn) 반영 최종 도착 — **계산 미변경** · correction domain SSOT → `SIGNED_CORRECTION_AUTHORING_SSOT.md`
 - **Sentence Library (Phase 2A · 2026-09-10)**
   - SSOT: `domain/lesson/onePointLibrary.ts` · key `ONE_POINT_LESSON_LIBRARY_V1` · **MAX 30 FIFO (`createdAt` age)**
   - Explicit: select / update / register / delete · Apply와 library mutation **완전 분리**
@@ -1081,9 +1082,10 @@ USER UI 단순화 정책에 따라 현재 USER 메뉴에서는 노출하지 않�
   - fingerprint v2 aligned to template inputs · numeric **submultiset** guard (optional sentence delete OK)
   - Modal Undo → **Phase 3B.2/3B.3** · USER layout → **Phase 3C (done)** · latency → **Phase 3D**
 - **Strategy Summary Correction Explanation (Phase 3B.1.1 · 2026-09-10)**
-  - 밀림/끌림 = 출발값 보정 설명 · 기울기(`curve_ratio`) = 3쿠션 도착 설명 · Sn = 최종 도착(`출발값 보정`) 설명
+  - 밀림/끌림 = 출발값(CO) 보정 설명 · 기울기(`curve_ratio`)/스핀 = 3쿠션(C3) 도착 설명 · Sn = 최종 도착(`출발값 보정`) 설명
+  - CO 문구: 실제 COΔ 기준 「출발값」/「보정한 출발값」 — **`SIGNED_CORRECTION_AUTHORING_SSOT.md`**
   - correction 없으면 해당 문구 생략 · Summary→SYS reverse edit 없음 · 한국어 조사 자동화 **deferred**
-  - **hotfix:** 밀림/끌림은 signed display (`밀림값 +N` / `끌림값 -N`, `fmtSignedDeparture`) · calc/OpenAI untouched
+  - signed display tokens (`밀림값 +N` / `끌림값 -N` 등) · authored sign SSOT와 정렬
 - **USER Shared AI Presentation (Phase 3C · 2026-09-10)**
   - USER AI read-only: 「공략 요약」 + 「PRO ONE POINT」 · shared `committedAiPresentation.ts`
   - effective = committed `strategySummaryOverride` ?: Strategy Summary template SSOT (ADMIN과 동일)

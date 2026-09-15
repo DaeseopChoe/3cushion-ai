@@ -6,6 +6,55 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-15 — Signed Authoring FINALIZE · Manual Validation PASS · Docs SSOT
+
+## Mode
+
+**Agent** · Documentation only · Commit/Push
+
+## Status
+
+**IMPLEMENTED · COMMITTED · PUSHED · USER MANUAL VALIDATION PASSED · DOCUMENTED · COMPLETED**
+
+| Phase | Commit | Message |
+|-------|--------|---------|
+| 1차 | `82f8296` | `fix(sys): add authored signed correction ownership` |
+| 2차 | `84b753b` | `fix(sys): extend signed authoring to spin/tilt and CO labels` |
+
+`HEAD` / `origin/main` = `84b753b` at finalize.
+
+## SSOT
+
+**Authority:** `작업관리/SIGNED_CORRECTION_AUTHORING_SSOT.md`
+
+Principles recorded there:
+
+- Authored signed value = sign SSOT (not label / not shotType)
+- Per-field `[-]`: slide · draw · curve_ratio · spin
+- Domains: slide/draw → **CO** · spin/기울기 → **C3**
+- slide↔draw mutual exclusion (non-zero, sign-agnostic)
+- CO label: actual `CO_eff` vs `CO_base` only
+- Legacy unmarked compatibility preserved
+- **CURVE GEOMETRY = LOCK / KEEP** (unchanged in 1·2차)
+
+## User manual validation (SYS screen) — all PASS
+
+1. 밀림/끌림 독립 `[-]`  
+2. 기울기 독립 `[-]`  
+3. 스핀 독립 `[-]`  
+4. CO 무보정 시 「출발값」 표시  
+5. CO 무보정 시 불필요 curve 없음  
+6. spin → C3  
+7. CO 변경 시 기존 curve 정상  
+8. 밀림|끌림 + spin 동시 domain 분리 반영  
+9. 보정 계산식 표시 일치  
+
+## Non-goals (this docs pass)
+
+Code · formula · curve · dataset · unrelated WT (`incidenceAngle.ts`, user dataset dirty)
+
+---
+
 # 2026-09-15 — Signed Authoring 2차 · spin/기울기 [-] + CO 문구
 
 ## Mode
