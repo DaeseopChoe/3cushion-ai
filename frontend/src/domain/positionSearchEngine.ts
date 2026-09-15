@@ -30,6 +30,11 @@ export type StrategySysCorrections = {
   draw?: number;
   departure?: number;
   spin?: number;
+  /**
+   * "authored" = admin signed value SSOT (no shotType flip).
+   * Missing / other = legacy (abs + shotType sign inversion).
+   */
+  signMode?: "authored" | "legacy";
 };
 
 export type StrategyEntry = {

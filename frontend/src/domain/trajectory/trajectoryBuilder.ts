@@ -59,7 +59,12 @@ export type TrajectoryBuildInput = {
   };
   targetColor?: string | null;
   slotRenderSys?: {
-    corrections?: { slide?: number; draw?: number; curve_ratio?: number };
+    corrections?: {
+      slide?: number;
+      draw?: number;
+      curve_ratio?: number;
+      signMode?: "authored" | "legacy";
+    };
     shotType?: string;
   } | null;
   adminState?: {
@@ -688,6 +693,9 @@ export function buildTrajectory(
   const corrBundleForCurve = {
     slide: corrections.slide ?? 0,
     draw: corrections.draw ?? 0,
+    ...(corrections.signMode === "authored" || corrections.signMode === "legacy"
+      ? { signMode: corrections.signMode }
+      : {}),
   };
   const shotTypeForCurve = slotRenderSys?.shotType || "뒤돌리기";
   const unifiedSlideForCurve = unifiedSlideFromCorrections(

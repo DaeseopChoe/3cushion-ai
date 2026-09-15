@@ -101,6 +101,9 @@ export function adminSysFromRecallEntry(
       draw: Number(corr?.draw) || 0,
       departure: Number(corr?.departure) || 0,
       spin: Number(corr?.spin) || 0,
+      ...(corr?.signMode === "authored" || corr?.signMode === "legacy"
+        ? { signMode: corr.signMode }
+        : {}),
     },
     ...(prevSys?.spaceSel ? { spaceSel: prevSys.spaceSel } : {}),
   };

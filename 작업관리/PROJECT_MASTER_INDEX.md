@@ -57,6 +57,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
 | **ADMIN Impact CONTACT ownership** | ✅ **COMPLETE** (2026-09-07 · practical PASS) — runtime Impact = CONTACT · temporary `balls.impact` only while dragging · dblclick = nearest-trajectory snap → T/HPT → CONTACT · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
 | **ADMIN HP/T zero-tip tipSideIntent** | ✅ **COMPLETE** (2026-09-07 · practical PASS) — UI `tipSideIntent` survives tipCount=0 · left 0 calc == right 0 calc · no fake ε · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
+| **SYS slide/draw Signed Authoring** | ✅ **COMPLETE** (2026-09-15) — `signMode: authored` · per-field `[-]` · CO += authored signed · legacy unmarked keeps shotType flip · curve geometry unchanged · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
 | **History / Search Corpus Separation** | ✅ **COMPLETE** — History snapshot load no longer overwrites searchable corpus · independent search pool preserved |
 | **USER Search Normalization & Role Permutation** | ✅ **COMPLETE** — 2-way Target/Second permutation · winning matchedBalls preserved · Trajectory Target alignment |
 | **ADMIN Target Selection Contract** | ✅ **COMPLETE** — Target defaults to NONE · explicit double-click reassign · non-target search supported |
@@ -944,8 +945,11 @@ App.jsx를 Application Runtime Orchestrator로 전환하기 위한 Architecture 
 ### SYS
 
 - **시스템 엔진**: `data/systems/*` (profile / anchors / logic), `systemCalculator`, `useSysCalculation`(admin).
-- **보정 구조**: `slide`, `draw`, `curve_ratio`, `spin`, `departure` — shotType 부호 연동(5&Half).
-- **SYS Overlay**: `components/overlays/SysOverlay.jsx` (AD-B2-01 Pure Presentation, Batch 2 완료). Batch 4: inline calc 제거 — `computeSysOverlayValues` Domain prop 주입 (CAL-005). `admin/sys/SysOverlay.tsx`는 메인 트리 미사용.
+- **보정 구조**: `slide`, `draw`, `curve_ratio`, `spin`, `departure` + optional `signMode`.
+  - **Authored** (`signMode: "authored"`): 밀림/끌림 = label · ± = 관리자 authored signed value · `CO +=` 그대로 · **shotType 부호 반전 없음**.
+  - **Legacy** (marker 없음): 기존 `abs`/`-abs` + `getShotTypeCorrectionSign(shotType)` 의미 보존.
+  - 밀림↔끌림 **상호배타**(non-zero, sign-agnostic). Curve geometry는 signed-authoring 1차에서 **미변경**.
+- **SYS Overlay**: `components/overlays/SysOverlay.jsx` — 밀림/끌림 필드별 `[-]` · AD-B2-01 Pure Presentation. Batch 4: `computeSysOverlayValues` Domain 주입. `admin/sys/SysOverlay.tsx`는 메인 트리 미사용.
 - **Render SSOT**: `slotRenderSys`, `resolvedSlotSysValues` / `resolvedSlotBaseSysValues`.
 - **USER 기준값**: 3-Level 토글(보정 / 기준 / 비교), `ImpactLines` dual path.
 

@@ -23,7 +23,14 @@ import {
   formatFormulaDisplay,
   renderMixedFormulaLine,
   renderSysFormulaContent,
+  resolveInitialCorrectionSignMode,
+  CORRECTION_SIGN_MODE_AUTHORED,
 } from "../../overlay/utils/sysOverlayUtils";
+import {
+  applyCorrectionSign,
+  correctionIsNegative,
+  correctionMagnitude,
+} from "../../domain/calculator/correctionSignMode";
 import {
   buildSysCalcDisplayModel,
 } from "../../overlay/utils/sysCalcDisplayModel";
@@ -206,17 +213,31 @@ export function SysOverlay({
   // ==========================================
   // 상태 관리 (완성 키 방식)
   // ==========================================
-  const [formData, setFormData] = useState({
-    shotType: data?.shotType || "뒤돌리기",
-    system: data?.system || data?.system_id || SYSTEM_OPTIONS[0]?.id || "5_half_system",
-    track: data?.track || "B2T_L",
-    inputs: buildSysOverlayInitialInputs(data),
-    corrections: {
-      curve_ratio: data?.corrections?.curve_ratio || 0,
-      departure: data?.corrections?.departure || 0,
-      spin: data?.corrections?.spin || 0,
-      ...normalizeSlideDrawCorrections(data?.corrections),
-    },
+  const [formData, setFormData] = useState(() => {
+    const initialMode = resolveInitialCorrectionSignMode(data?.corrections);
+    const slideDraw = normalizeSlideDrawCorrections({
+      ...(data?.corrections || {}),
+      ...(initialMode === CORRECTION_SIGN_MODE_AUTHORED
+        ? { signMode: CORRECTION_SIGN_MODE_AUTHORED }
+        : {}),
+    });
+    return {
+      shotType: data?.shotType || "뒤돌리기",
+      system: data?.system || data?.system_id || SYSTEM_OPTIONS[0]?.id || "5_half_system",
+      track: data?.track || "B2T_L",
+      inputs: buildSysOverlayInitialInputs(data),
+      corrections: {
+        curve_ratio: data?.corrections?.curve_ratio || 0,
+        departure: data?.corrections?.departure || 0,
+        spin: data?.corrections?.spin || 0,
+        ...slideDraw,
+        ...(initialMode === CORRECTION_SIGN_MODE_AUTHORED
+          ? { signMode: CORRECTION_SIGN_MODE_AUTHORED }
+          : slideDraw.signMode
+            ? { signMode: slideDraw.signMode }
+            : {}),
+      },
+    };
   });
 
   useEffect(() => {
@@ -244,12 +265,22 @@ export function SysOverlay({
     if (!saved || typeof saved !== "object" || Object.keys(saved).length === 0) return;
     setFormData((prev) => {
       const mergedCorr = { ...prev.corrections, ...(data.corrections || {}) };
+      const mode = resolveInitialCorrectionSignMode(mergedCorr);
+      const slideDraw = normalizeSlideDrawCorrections({
+        ...mergedCorr,
+        ...(mode === CORRECTION_SIGN_MODE_AUTHORED
+          ? { signMode: CORRECTION_SIGN_MODE_AUTHORED }
+          : {}),
+      });
       return {
         ...prev,
         inputs: buildSysOverlayInitialInputs(data),
         corrections: {
           ...mergedCorr,
-          ...normalizeSlideDrawCorrections(mergedCorr),
+          ...slideDraw,
+          ...(mode === CORRECTION_SIGN_MODE_AUTHORED
+            ? { signMode: CORRECTION_SIGN_MODE_AUTHORED }
+            : {}),
         },
       };
     });
@@ -906,15 +937,60 @@ export function SysOverlay({
           { key: 'departure', label: '출발값 보정' },
         ].map(({ key, label }) => {
           const isDeparture = key === 'departure';
+          const isSlideDraw = key === 'slide' || key === 'draw';
+          const rawCorrVal = formData.corrections[key];
           const displayValue = isDeparture && snFor5HalfEffective
             ? snFor5HalfEffective.Sn
-            : formData.corrections[key];
+            : isSlideDraw
+              ? correctionMagnitude(rawCorrVal)
+              : rawCorrVal;
+          const minusOn = isSlideDraw && correctionIsNegative(rawCorrVal);
           return (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <label style={{ fontSize: '12px', minWidth: isDeparture ? '70px' : '32px' }}>{label}</label>
+            {isSlideDraw ? (
+              <button
+                type="button"
+                title={minusOn ? "음수 (클릭 시 +)" : "양수 (클릭 시 −)"}
+                aria-pressed={minusOn}
+                onClick={() => {
+                  setIsRestored(false);
+                  const mag = correctionMagnitude(formData.corrections[key]);
+                  const nextNeg = !minusOn;
+                  const nextCorr = {
+                    ...formData.corrections,
+                    signMode: CORRECTION_SIGN_MODE_AUTHORED,
+                  };
+                  if (key === "slide") {
+                    nextCorr.slide = applyCorrectionSign(mag, nextNeg);
+                    nextCorr.draw = 0;
+                  } else {
+                    nextCorr.draw = applyCorrectionSign(mag, nextNeg);
+                    nextCorr.slide = 0;
+                  }
+                  setFormData({ ...formData, corrections: nextCorr });
+                }}
+                style={{
+                  width: '28px',
+                  height: '32px',
+                  padding: 0,
+                  border: minusOn ? '1px solid #64748b' : '1px solid #cbd5e1',
+                  borderRadius: '4px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  backgroundColor: minusOn ? '#e2e8f0' : '#fff',
+                  color: minusOn ? '#0f172a' : '#94a3b8',
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
+                }}
+              >
+                −
+              </button>
+            ) : null}
             <input
               type="number"
               step="0.5"
+              min={isSlideDraw ? "0" : undefined}
               value={fmtSysOverlayInputDisplay(displayValue)}
               readOnly={isDeparture && !!snFor5HalfEffective}
               onChange={(e) => {
@@ -924,11 +1000,15 @@ export function SysOverlay({
                 const fin = Number.isFinite(raw) ? raw : 0;
                 const nextCorr = { ...formData.corrections };
                 if (key === "slide") {
-                  nextCorr.slide = Math.abs(fin);
+                  const neg = correctionIsNegative(formData.corrections.slide);
+                  nextCorr.slide = applyCorrectionSign(fin, neg);
                   nextCorr.draw = 0;
+                  nextCorr.signMode = CORRECTION_SIGN_MODE_AUTHORED;
                 } else if (key === "draw") {
-                  nextCorr.draw = fin === 0 ? 0 : -Math.abs(fin);
+                  const neg = correctionIsNegative(formData.corrections.draw);
+                  nextCorr.draw = applyCorrectionSign(fin, neg);
                   nextCorr.slide = 0;
+                  nextCorr.signMode = CORRECTION_SIGN_MODE_AUTHORED;
                 } else {
                   nextCorr[key] = fin;
                 }

@@ -6,6 +6,13 @@ export {
   unifiedSlideFromCorrections,
 } from "../../domain/calculator/sysOverlayCalcHelpers";
 
+export {
+  CORRECTION_SIGN_MODE_AUTHORED,
+  resolveCorrectionSignMode,
+  resolveInitialCorrectionSignMode,
+  normalizeSlideDrawCorrections,
+} from "../../domain/calculator/correctionSignMode";
+
 /** 5&Half SYS 표시용 숫자 포맷 (계산 로직과 무관) */
 export function fmtFiveHalfDisplayNum(n) {
   const x = Number(n);
@@ -65,20 +72,6 @@ export function buildSysOverlayInitialInputs(data) {
     }
   }
   return ins;
-}
-
-/** 저장·복원 시 slide≥0, draw≤0, 상호 배타(draw 우선 시 slide=0) */
-export function normalizeSlideDrawCorrections(corrections) {
-  if (!corrections || typeof corrections !== "object") {
-    return { slide: 0, draw: 0 };
-  }
-  const s = Number(corrections.slide);
-  const d = Number(corrections.draw);
-  let slide = Math.abs(Number.isFinite(s) ? s : 0);
-  let draw = Number.isFinite(d) ? d : 0;
-  if (draw !== 0) draw = -Math.abs(draw);
-  if (draw !== 0) slide = 0;
-  return { slide, draw };
 }
 
 /** SysOverlay 표시 전용 — admin/sys SysOverlay.tsx와 동일 규약 */

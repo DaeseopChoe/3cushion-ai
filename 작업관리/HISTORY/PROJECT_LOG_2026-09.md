@@ -6,6 +6,35 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-15 — SYS Signed Authoring 1차 (slide/draw)
+
+## Mode
+
+**Agent** · SYS correction sign ownership · Commit/Push
+
+## Problem
+
+밀림/끌림 부호가 `abs(slide)` / `-abs(draw)` + `getShotTypeCorrectionSign(shotType)`로 실행 시점에 재구성되어, 관리자가 authored ±를 직접 결정할 수 없었음.
+
+## Fix
+
+- `corrections.signMode: "authored"` — 신규 작성; marker 없음 = **legacy**
+- authored: 활성 필드 raw signed value → `CO +=` (shotType 반전 금지)
+- legacy: 기존 abs + shotType flip 의미 보존
+- SYS Overlay: 밀림/끌림 필드별 `[-]` toggle · magnitude 입력 · 상호배타(non-zero)
+- Curve geometry **미변경** (후속: result Δ)
+- AI Comment template rewrite **미포함** (동일 unify SSOT 소비만 정렬)
+
+## Contract
+
+밀림/끌림 = label/domain · ± = authored signed value SSOT · shotType는 authored sign을 뒤집지 않음 · mutual exclusion은 sign 무관 non-zero.
+
+## Non-goals
+
+curve geometry · spin/curve_ratio/departure domain · 5&Half formula · q/K · C2 · display ceiling · Impact · HPT · corpus rewrite · `incidenceAngle.ts`
+
+---
+
 # 2026-09-14 — USER Cushion Value Focus UI — CLOSEOUT (COMPLETED)
 
 ## Status

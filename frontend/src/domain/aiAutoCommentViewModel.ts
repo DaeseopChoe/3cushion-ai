@@ -3,7 +3,7 @@
  * Pure ViewModel — Recall/궤적/SYS 엔진 미변경.
  */
 
-import { getShotTypeCorrectionSign } from "./englishCorrectionSign";
+import { unifiedSlideFromCorrections as unifiedSlideFromCorrectionsDomain } from "./calculator/sysOverlayCalcHelpers";
 import { getSystemNameKo } from "../utils/aiPlayStrategyBuilder";
 
 export type SysCorrectionsInput = {
@@ -12,6 +12,7 @@ export type SysCorrectionsInput = {
   curve_ratio?: number;
   spin?: number;
   departure?: number;
+  signMode?: "authored" | "legacy";
 };
 
 export type AiAutoCommentStrInput = {
@@ -58,18 +59,15 @@ function isFiveHalfSystemId(systemId: string | null | undefined): boolean {
   return s === "5_half_system" || s === "5_HALF" || s === "five_half";
 }
 
-/** App.jsx unifiedSlideFromCorrections와 동일 규약 */
+/** Domain SSOT — authored vs legacy sign ownership. */
 export function unifiedSlideFromCorrections(
   corrections: SysCorrectionsInput | null | undefined,
   shotType?: string | null
 ): number {
-  if (!corrections || typeof corrections !== "object") return 0;
-  const s = Number(corrections.slide);
-  const d = Number(corrections.draw);
-  const slideVal = Math.abs(Number.isFinite(s) ? s : 0);
-  const drawVal = -Math.abs(Number.isFinite(d) ? d : 0);
-  const raw = drawVal !== 0 ? drawVal : slideVal;
-  return raw * getShotTypeCorrectionSign(shotType);
+  return unifiedSlideFromCorrectionsDomain(
+    corrections as Record<string, unknown> | null | undefined,
+    shotType
+  );
 }
 
 function pickNum(values: Record<string, number> | null | undefined, keys: string[]): number | null {

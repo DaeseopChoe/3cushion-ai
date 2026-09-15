@@ -189,13 +189,22 @@ export function mergeCorrections(raw: unknown): StrategySysCorrections {
     return { ...z };
   }
   const c = raw as Record<string, unknown>;
-  return {
+  const out: StrategySysCorrections = {
     slide: Number(c.slide) || 0,
     curve_ratio: Number(c.curve_ratio) || 0,
     draw: Number(c.draw) || 0,
     departure: Number(c.departure) || 0,
     spin: Number(c.spin) || 0,
   };
+  // Preserve authored negatives: Number(-2)||0 is fine; Number(0)||0 → 0.
+  // Re-read with finite check so slide=-2 is not lost (|| treats 0 only).
+  const s = Number(c.slide);
+  const d = Number(c.draw);
+  if (Number.isFinite(s)) out.slide = s;
+  if (Number.isFinite(d)) out.draw = d;
+  if (c.signMode === "authored") out.signMode = "authored";
+  else if (c.signMode === "legacy") out.signMode = "legacy";
+  return out;
 }
 
 /** Strip runtime / derived keys from a numeric input map */

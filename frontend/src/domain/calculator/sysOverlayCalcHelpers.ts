@@ -7,6 +7,7 @@
  */
 
 import { getShotTypeCorrectionSign } from "../englishCorrectionSign";
+import { isAuthoredCorrectionSignMode } from "./correctionSignMode";
 
 export function resolveCoC1C3Keys(
   forced: { CO?: string; C1?: string; C3?: string } | null | undefined,
@@ -80,7 +81,12 @@ export function buildSysOverlayNumericPayload(
   return payload;
 }
 
-/** slide(양수 밀림)와 draw(음수 끌림 저장) 상호 배타 → 단일 signed 스칼라 (물리·곡선 공통). */
+/**
+ * slide/draw → 단일 signed CO correction scalar.
+ *
+ * authored: raw signed active field (no abs, no shotType flip).
+ * legacy: abs(slide) / -abs(draw) × getShotTypeCorrectionSign(shotType).
+ */
 export function unifiedSlideFromCorrections(
   corrections: Record<string, unknown> | null | undefined,
   shotType: string | null | undefined
@@ -88,8 +94,17 @@ export function unifiedSlideFromCorrections(
   if (!corrections || typeof corrections !== "object") return 0;
   const s = Number(corrections.slide);
   const d = Number(corrections.draw);
-  const slideVal = Math.abs(Number.isFinite(s) ? s : 0);
-  const drawVal = -Math.abs(Number.isFinite(d) ? d : 0);
+  const slide = Number.isFinite(s) ? s : 0;
+  const draw = Number.isFinite(d) ? d : 0;
+
+  if (isAuthoredCorrectionSignMode(corrections)) {
+    if (slide !== 0) return slide;
+    if (draw !== 0) return draw;
+    return 0;
+  }
+
+  const slideVal = Math.abs(slide);
+  const drawVal = draw !== 0 ? -Math.abs(draw) : 0;
   const raw = drawVal !== 0 ? drawVal : slideVal;
   return raw * getShotTypeCorrectionSign(shotType);
 }

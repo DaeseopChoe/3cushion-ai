@@ -6037,8 +6037,16 @@ function handlePointerCancel(e) {
               "5_half_system"
           );
           const corrections = slotRenderSys?.corrections ?? {};
-          const { slide, draw } = normalizeSlideDrawCorrections(corrections);
-          const unifiedSlide = unifiedSlideFromCorrections({ ...corrections, slide, draw });
+          const { slide, draw, signMode } = normalizeSlideDrawCorrections(corrections);
+          const unifiedSlide = unifiedSlideFromCorrections(
+            {
+              ...corrections,
+              slide,
+              draw,
+              ...(signMode ? { signMode } : {}),
+            },
+            slotRenderSys?.shotType
+          );
           const angleTilt = Number(corrections.curve_ratio) || 0;
           const spin = Number(corrections.spin) || 0;
           const departure = Number(corrections.departure) || 0;
@@ -6728,13 +6736,18 @@ function handlePointerCancel(e) {
                       Sn: sysOut?.Sn,
                     });
                     const corr = newData.corrections ?? {};
+                    const slideN = Number(corr.slide);
+                    const drawN = Number(corr.draw);
                     const metaPatch = {
                       corrections: {
-                        slide: Number(corr.slide) || 0,
+                        slide: Number.isFinite(slideN) ? slideN : 0,
                         curve_ratio: Number(corr.curve_ratio) || 0,
-                        draw: Number(corr.draw) || 0,
+                        draw: Number.isFinite(drawN) ? drawN : 0,
                         departure: Number(corr.departure) || 0,
                         spin: Number(corr.spin) || 0,
+                        ...(corr.signMode === "authored" || corr.signMode === "legacy"
+                          ? { signMode: corr.signMode }
+                          : {}),
                       },
                       shotType: newData.shotType,
                       system_values:
