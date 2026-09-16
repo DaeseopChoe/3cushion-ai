@@ -25,6 +25,7 @@ import {
   normalizeDatasetExport,
 } from "../domain/datasetExport";
 import { buildPublishedFamilyExportCandidate } from "../domain/publishedFamilyPublish";
+import { writeVerifiedPublishedFile } from "../domain/publishedWrite";
 import {
   DATASET_EXPORT_FILENAME,
   DATASET_ROOT_DIR,
@@ -159,7 +160,9 @@ export function useSettings({
   }, [exportDirHandle]);
 
   const saveDatasetExportToFile = useCallback(async (snapshot, rootDir) => {
-      if (!rootDir) return false;
+      if (!rootDir) {
+        return { ok: false, reason: "missing-root-dir" };
+      }
       try {
         const payload = normalizeDatasetExport(buildDatasetExport(snapshot));
         const segments = buildDatasetExportPathSegments(
@@ -183,13 +186,15 @@ export function useSettings({
         const fileName = segments.fileName || DATASET_EXPORT_FILENAME;
         /** @type {import("../domain/datasetExport").DatasetExportPayload | null} */
         let existingPayload = null;
+        /** @type {string | null} */
+        let originalText = null;
 
         try {
           const existingHandle = await systemDir.getFileHandle(fileName);
           const existingFile = await existingHandle.getFile();
           if (existingFile.size > 0) {
-            const existingText = await existingFile.text();
-            existingPayload = normalizeDatasetExport(JSON.parse(existingText));
+            originalText = await existingFile.text();
+            existingPayload = normalizeDatasetExport(JSON.parse(originalText));
           }
         } catch (readErr) {
           if (readErr?.name !== "NotFoundError") {
@@ -200,8 +205,7 @@ export function useSettings({
           }
         }
 
-        // Phase 3-B1: family-aware candidate (purge by incoming fm_* ids) + pre-write gate.
-        // Write method unchanged (createWritable) — failure-safe I/O is Phase 3-B2.
+        // Phase 3-B1: family-aware candidate + pre-write validation gate.
         const publishResult = buildPublishedFamilyExportCandidate(
           existingPayload,
           payload
@@ -211,23 +215,37 @@ export function useSettings({
             reason: publishResult.reason,
             issues: publishResult.issues,
           });
-          alert(
-            `Export 실패: ${publishResult.reason}\n${(publishResult.issues || [])
-              .slice(0, 5)
-              .join("\n")}`
-          );
-          return false;
+          return {
+            ok: false,
+            reason: publishResult.reason,
+            issues: publishResult.issues,
+          };
         }
         const mergedPayload = publishResult.payload;
 
         const fileHandle = await systemDir.getFileHandle(fileName, {
           create: true,
         });
-        const writable = await fileHandle.createWritable();
-        await writable.write(JSON.stringify(mergedPayload, null, 2));
-        await writable.close();
 
-        console.log("📤 Dataset Export:", {
+        // Phase 3-B2: verified write (serialize → write/close → read-back → restore on fail).
+        const writeResult = await writeVerifiedPublishedFile({
+          fileHandle,
+          candidate: mergedPayload,
+          originalText,
+          revalidate: false, // already gated by buildPublishedFamilyExportCandidate
+        });
+        if (!writeResult.ok) {
+          console.error("Verified published write failed", writeResult);
+          return {
+            ok: false,
+            reason: writeResult.reason,
+            issues: writeResult.issues,
+            restored: writeResult.restored,
+            restoreFailed: writeResult.restoreFailed,
+          };
+        }
+
+        console.log("📤 Dataset Export (verified):", {
           path: `${segments.datasetRoot}/${segments.shotTypeDir}/${segments.systemDir}/${fileName}`,
           incomingRecordCount: payload.records.length,
           mergedRecordCount: mergedPayload.records.length,
@@ -236,12 +254,19 @@ export function useSettings({
           purgedFamilyIds: publishResult.purgedFamilyIds,
           replaceFamilyIds: publishResult.replaceFamilyIds,
           familyAwarePublish: true,
+          verifiedWrite: true,
         });
-        return true;
+        return {
+          ok: true,
+          shotType: mergedPayload.shotType,
+          systemId: mergedPayload.systemId,
+        };
       } catch (e) {
         console.error("saveDatasetExportToFile failed", e);
-        alert(`Export 실패: ${e.message}`);
-        return false;
+        return {
+          ok: false,
+          reason: e?.message ? String(e.message) : "export-failed",
+        };
       }
     },
     []
@@ -437,22 +462,67 @@ export function useSettings({
         .filter(Boolean);
       if (toExport.length === 0) return;
 
+      /** @type {string[]} */
+      const successfulExportIds = [];
+      /** @type {{ id: string, reason: string }[]} */
+      const failures = [];
+
       for (const snap of toExport) {
-        const ok = await saveDatasetExportToFile(snap, rootDir);
-        if (!ok) return;
-        const shotType = snap.pattern ?? "뒤돌리기";
-        const systemId = snap.systemId ?? "5_half_system";
+        // Stop-on-first-failure: later snapshots remain not-attempted / unexported.
+        const result = await saveDatasetExportToFile(snap, rootDir);
+        if (!result?.ok) {
+          const reason = result?.reason ?? "export-failed";
+          const issues = Array.isArray(result?.issues)
+            ? result.issues.slice(0, 5).join("\n")
+            : "";
+          failures.push({ id: snap.id, reason });
+          console.error("Dataset Export snapshot failed", {
+            snapshotId: snap.id,
+            reason,
+            issues: result?.issues,
+            restored: result?.restored,
+            restoreFailed: result?.restoreFailed,
+          });
+          alert(
+            `Export 실패: ${reason}${issues ? `\n${issues}` : ""}${
+              result?.restored
+                ? "\n(원본 파일 복원 시도 완료)"
+                : result?.restoreFailed
+                  ? "\n(원본 복원 실패 — 파일 상태를 확인하세요)"
+                  : ""
+            }`
+          );
+          break;
+        }
+        successfulExportIds.push(snap.id);
+        const shotType = result.shotType ?? snap.pattern ?? "뒤돌리기";
+        const systemId = result.systemId ?? snap.systemId ?? "5_half_system";
+        // Cache refresh only after verified write success.
         refreshPublishedDataset(shotType, systemId);
       }
-      refreshPublishedDataset();
-      // Product Export Pipeline: write Authoring Adapter input for Product Host → Generator.
-      await saveProductExportRequestToFile(toExport, rootDir);
-      updateSnapshotsExported(ids);
-      setWorkspaceHistoryVersion((v) => v + 1);
-      alert(
-        `${toExport.length}개 Dataset Export 완료\n(dataset/공략명/시스템명/positions.json)\n` +
-          `Product Export Request → ${PRODUCT_EXPORT_ROOT_DIR}/${PRODUCT_EXPORT_REQUEST_FILENAME}`
-      );
+
+      if (successfulExportIds.length > 0) {
+        refreshPublishedDataset();
+        const successSnaps = toExport.filter((s) =>
+          successfulExportIds.includes(s.id)
+        );
+        // Product side-channel: best-effort for successful snaps only; does not gate Dataset success.
+        await saveProductExportRequestToFile(successSnaps, rootDir);
+        updateSnapshotsExported(successfulExportIds);
+        setWorkspaceHistoryVersion((v) => v + 1);
+      }
+
+      if (failures.length === 0 && successfulExportIds.length === toExport.length) {
+        alert(
+          `${successfulExportIds.length}개 Dataset Export 완료 (verified)\n(dataset/공략명/시스템명/positions.json)\n` +
+            `Product Export Request → ${PRODUCT_EXPORT_ROOT_DIR}/${PRODUCT_EXPORT_REQUEST_FILENAME}`
+        );
+      } else if (successfulExportIds.length > 0) {
+        alert(
+          `부분 Export 완료 (verified ${successfulExportIds.length}/${toExport.length})\n` +
+            `실패: ${failures.map((f) => f.reason).join(", ") || "unknown"}`
+        );
+      }
     },
     [resolveExportRootDir, saveDatasetExportToFile, saveProductExportRequestToFile]
   );

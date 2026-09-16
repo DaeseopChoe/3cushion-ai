@@ -6,6 +6,44 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-16 — Phase 3-B2 Failure-Safe Verified Published Write
+
+## Mode
+
+**Agent** · Verified write + read-back + Export success sequencing · Commit/Push
+
+## Status
+
+**IMPLEMENTED · TESTED · BUILD PASS**
+
+## Scope (Phase 3-B2)
+
+1. `publishedWrite.ts` — serialize → write/close → read-back parse/validate → semantic equivalence.
+2. Memory backup of original leaf text + best-effort restore on post-close verify failure (OPTION 2).
+3. `useSettings` — cache refresh + `updateSnapshotsExported(successfulExportIds)` only after verified success; stop-on-first-failure for multi-snapshot.
+4. Does **not** claim true OS atomic rename — **failure-safe / verified write** only.
+
+## Explicitly NOT done
+
+- Phase 4 git/push/Vercel automation
+- Picker removal / fixed repo path
+- History schema / publish-intent serialization
+
+## Remaining limitation
+
+History/Export still does not preserve explicit CREATE/UPDATE / sourcePublishedFamilyId.
+
+## Tests
+
+- publishedWrite 26 PASS · B1 publish 15 · B1/A replace 11 · full 1675 PASS · build PASS
+
+## Dirty WT preserved (not committed)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+---
+
 # 2026-09-16 — Phase 3-B1 Published Family Replacement Export Integration
 
 ## Mode
