@@ -1,13 +1,12 @@
 /**
- * Phase 3-B1 — Published Family Export candidate orchestrator.
+ * Phase 3-B1 / 3-C1 — Published Family Export candidate orchestrator.
  *
  * SSOT owner for: normalize → family-aware replace → pre-write validation.
- * Does NOT write disk, redesign History, or implement failure-safe/atomic I/O (Phase 3-B2).
+ * Phase 3-C1: optional immutable PublishOperation from History takes priority
+ * over incoming-familyId inference. Command metadata is NOT written to disk.
  *
- * Publish trigger (current limitation — no History saveIntent):
- *   incoming valid fm_* familyId present in existing → REPLACE (purge+merge)
- *   otherwise → CREATE/APPEND via merge after no-op purge
- * Never invents familyId from positionId / coordinates.
+ * C1 limitation: family payload still scoped from working corpus by
+ * destinationFamilyId (snapshot-bound records = Phase 3-C2).
  */
 
 import type { DatasetExportPayload } from "./datasetExport";
@@ -23,6 +22,10 @@ import {
   countFamilyMembersInRecords,
   replaceFamiliesInPublishedRecords,
 } from "./publishedFamilyReplace";
+import {
+  validatePublishOperation,
+  type PublishOperation,
+} from "./publishOperation";
 import type { PositionRecord, StrategyEntry } from "./positionSearchEngine";
 
 const SLOT_IDS = ["S1", "S2", "S3"] as const;
@@ -174,14 +177,20 @@ export function validatePublishedExportCandidate(
 
 /**
  * Build validated Published export candidate:
- * normalize → family replace (incoming fm_* ids) → validate → envelope.
+ * normalize → (optional explicit PublishOperation) → family replace → validate.
  *
  * @param existing Published leaf payload, or null/undefined when leaf is new.
  * @param incoming Export payload from buildDatasetExport (may be pre-normalized).
+ * @param publishOperation Optional History SSOT. When present, takes priority over
+ *   incoming-familyId inference. Command metadata is NOT written to positions.json.
+ *
+ * C1 limitation: without snapshot-bound family records, incoming is still filtered
+ * from current working corpus by destinationFamilyId when operation is present.
  */
 export function buildPublishedFamilyExportCandidate(
   existing: DatasetExportPayload | null | undefined,
-  incoming: DatasetExportPayload
+  incoming: DatasetExportPayload,
+  publishOperation?: PublishOperation | null
 ): PublishedFamilyPublishResult {
   if (incoming == null || typeof incoming !== "object") {
     return {
@@ -221,65 +230,116 @@ export function buildPublishedFamilyExportCandidate(
     };
   }
 
-  // Empty existing → CREATE path (incoming only), still validate before write.
-  if (existing == null) {
-    const validatedEmpty = validatePublishedExportCandidate(incomingNorm, {
-      incomingRecords: incomingNorm.records,
-      replaceFamilyIds: collectFamilyIdsFromRecords(incomingNorm.records),
-    });
-    if (!validatedEmpty.ok) {
+  let existingNorm: DatasetExportPayload | null = null;
+  if (existing != null) {
+    if (
+      Object.prototype.hasOwnProperty.call(existing, "records") &&
+      existing.records != null &&
+      !Array.isArray(existing.records)
+    ) {
       return {
         ok: false,
-        reason: "candidate-validation-failed",
-        issues: validatedEmpty.issues,
+        reason: "existing-malformed-records",
+        issues: ["existing.records:not-array"],
       };
     }
-    return {
-      ok: true,
-      payload: incomingNorm,
-      purgedFamilyIds: [],
-      replaceFamilyIds: collectFamilyIdsFromRecords(incomingNorm.records),
-    };
+    try {
+      existingNorm = normalizeDatasetExport(existing);
+    } catch (e) {
+      return {
+        ok: false,
+        reason: "existing-normalize-failed",
+        issues: [e instanceof Error ? e.message : String(e)],
+      };
+    }
   }
 
-  if (
-    Object.prototype.hasOwnProperty.call(existing, "records") &&
-    existing.records != null &&
-    !Array.isArray(existing.records)
-  ) {
-    return {
-      ok: false,
-      reason: "existing-malformed-records",
-      issues: ["existing.records:not-array"],
-    };
+  const existingRecords = existingNorm?.records ?? [];
+  const existingFamilyIds = new Set(
+    collectFamilyIdsFromRecords(existingRecords)
+  );
+
+  let scopedIncoming = incomingNorm;
+  let replaceFamilyIds: string[];
+
+  if (publishOperation != null) {
+    const opResult = validatePublishOperation(publishOperation);
+    if (!opResult.ok) {
+      return {
+        ok: false,
+        reason: opResult.reason,
+        issues: opResult.issues,
+      };
+    }
+    const op = opResult.operation;
+    const dest = op.destinationFamilyId;
+
+    // Scope incoming to destination family only (C1 bridge; C2 embeds records).
+    const filteredRecords = filterRecordsToFamilyId(
+      incomingNorm.records,
+      dest
+    );
+    if (countFamilyMembersInRecords(filteredRecords, dest) === 0) {
+      return {
+        ok: false,
+        reason: "incoming-destination-family-missing",
+        issues: [`destinationFamilyId-not-in-incoming:${dest}`],
+      };
+    }
+    const foreign = collectFamilyIdsFromRecords(filteredRecords).filter(
+      (id) => id !== dest
+    );
+    if (foreign.length > 0) {
+      return {
+        ok: false,
+        reason: "incoming-destination-mismatch",
+        issues: foreign.map((id) => `foreign-family:${id}`),
+      };
+    }
+
+    scopedIncoming = { ...incomingNorm, records: filteredRecords };
+
+    if (op.intent === "UPDATE") {
+      const source = op.sourceFamilyId!;
+      if (!existingFamilyIds.has(source)) {
+        return {
+          ok: false,
+          reason: "update-source-missing",
+          issues: [`sourceFamilyId-not-in-published:${source}`],
+        };
+      }
+      replaceFamilyIds = [source];
+    } else {
+      // CREATE: append, or idempotent retry replace when destination already published.
+      replaceFamilyIds = existingFamilyIds.has(dest) ? [dest] : [];
+      if (existingFamilyIds.has(dest)) {
+        console.warn(
+          "[PUBLISH] CREATE retry — idempotent replace of destination family"
+        );
+      }
+    }
+  } else {
+    // Legacy History: Phase 3-B1 inference (incoming fm_* presence).
+    console.warn(
+      "[PUBLISH] legacy History — inferring replace targets from incoming familyIds"
+    );
+    replaceFamilyIds = collectFamilyIdsFromRecords(incomingNorm.records);
   }
 
-  let existingNorm: DatasetExportPayload;
-  try {
-    existingNorm = normalizeDatasetExport(existing);
-  } catch (e) {
-    return {
-      ok: false,
-      reason: "existing-normalize-failed",
-      issues: [e instanceof Error ? e.message : String(e)],
-    };
-  }
-
-  const replaceFamilyIds = collectFamilyIdsFromRecords(incomingNorm.records);
   const replaced = replaceFamiliesInPublishedRecords(
-    existingNorm.records,
-    incomingNorm.records,
+    existingRecords,
+    scopedIncoming.records,
     replaceFamilyIds
   );
 
-  // Envelope: same policy as mergePublishedExport — incoming metadata + merged records.
+  // Envelope: incoming metadata + merged records. Never attach publishOperation.
   const candidate: DatasetExportPayload = {
-    ...incomingNorm,
+    ...scopedIncoming,
     records: replaced.records,
   };
 
   const validated = validatePublishedExportCandidate(candidate, {
-    incomingRecords: incomingNorm.records,
+    incomingRecords: scopedIncoming.records,
     replaceFamilyIds: replaced.replaceFamilyIds,
   });
   if (!validated.ok) {
@@ -290,10 +350,51 @@ export function buildPublishedFamilyExportCandidate(
     };
   }
 
+  // Guard: command metadata must not leak into persisted envelope keys.
+  if (
+    Object.prototype.hasOwnProperty.call(candidate as object, "publishOperation") ||
+    Object.prototype.hasOwnProperty.call(candidate as object, "sourceFamilyId") ||
+    Object.prototype.hasOwnProperty.call(candidate as object, "publishIntent")
+  ) {
+    return {
+      ok: false,
+      reason: "command-metadata-leak",
+      issues: ["positions-envelope-must-not-include-publishOperation"],
+    };
+  }
+
   return {
     ok: true,
     payload: candidate,
     purgedFamilyIds: replaced.purgedFamilyIds,
     replaceFamilyIds: replaced.replaceFamilyIds,
   };
+}
+
+/** Keep PositionRecords/slots that belong to target familyId (exact field match). */
+export function filterRecordsToFamilyId(
+  records: PositionRecord[],
+  familyId: string
+): PositionRecord[] {
+  const target = typeof familyId === "string" ? familyId.trim() : "";
+  if (!target) return [];
+  const out: PositionRecord[] = [];
+  for (const rec of records) {
+    const strategies: PositionRecord["strategies"] = {};
+    let n = 0;
+    for (const slot of SLOT_IDS) {
+      const entry = rec.strategies?.[slot];
+      if (!entry) continue;
+      const fid =
+        typeof entry.familyId === "string" ? entry.familyId.trim() : "";
+      if (fid === target) {
+        strategies[slot] = entry;
+        n += 1;
+      }
+    }
+    if (n > 0) {
+      out.push({ ...rec, strategies });
+    }
+  }
+  return out;
 }

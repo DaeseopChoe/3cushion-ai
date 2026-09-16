@@ -25,6 +25,7 @@ import {
   normalizeDatasetExport,
 } from "../domain/datasetExport";
 import { buildPublishedFamilyExportCandidate } from "../domain/publishedFamilyPublish";
+import { readPublishOperationFromSnapshot } from "../domain/publishOperation";
 import { writeVerifiedPublishedFile } from "../domain/publishedWrite";
 import {
   DATASET_EXPORT_FILENAME,
@@ -205,10 +206,12 @@ export function useSettings({
           }
         }
 
-        // Phase 3-B1: family-aware candidate + pre-write validation gate.
+        // Phase 3-B1 + C1: family-aware candidate; History publishOperation when present.
+        const publishOperation = readPublishOperationFromSnapshot(snapshot);
         const publishResult = buildPublishedFamilyExportCandidate(
           existingPayload,
-          payload
+          payload,
+          publishOperation
         );
         if (!publishResult.ok) {
           console.error("Published export candidate validation failed", {
@@ -314,7 +317,7 @@ export function useSettings({
    * Caller is responsible for guards (Position LOCK / systemId) and strategy ok.
    */
   const commitWorkspaceHistoryWithStrategyDataset = useCallback(
-    (strategyUpdatedDataset, runtimeOverride) => {
+    (strategyUpdatedDataset, runtimeOverride, publishOperation) => {
       canonicalDebugLog("[H_SAVE_ENTRY]", { ts: Date.now() });
       const snapshotAdminState = runtimeOverride?.adminState ?? adminState;
       const rawBallsState = runtimeOverride?.ballsState ?? ballsState;
@@ -344,6 +347,10 @@ export function useSettings({
         version,
         timestamp,
         exported: false,
+        // Phase 3-C1: immutable publish command (not UI state; not positions.json).
+        ...(publishOperation
+          ? { publishOperation: JSON.parse(JSON.stringify(publishOperation)) }
+          : {}),
         state: {
           adminState: JSON.parse(JSON.stringify(snapshotAdminState)),
           ballsState: JSON.parse(JSON.stringify(snapshotBallsState)),
@@ -360,7 +367,11 @@ export function useSettings({
       }
       setWorkspaceHistoryVersion((v) => v + 1);
       setIsSaved(true);
-      console.log("💾 Workspace snapshot saved:", name);
+      console.log("💾 Workspace snapshot saved:", name, {
+        publishOperation: publishOperation ?? null,
+        // C1: family payload still working-corpus-bound at Export (C2 pending).
+        datasetEmbedded: false,
+      });
       // Phase 1: no success alert — Derived Review follows immediately.
       return { ok: true, name };
     },

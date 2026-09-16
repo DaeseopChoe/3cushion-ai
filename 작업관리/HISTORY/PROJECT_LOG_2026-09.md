@@ -6,6 +6,42 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-17 — Phase 3-C1 Immutable PublishOperation History SSOT
+
+## Mode
+
+**Agent** · History publish metadata + explicit Export operation · Commit/Push
+
+## Status
+
+**IMPLEMENTED · TESTED · BUILD PASS**
+
+## Scope (Phase 3-C1)
+
+1. `publishOperation.ts` — CREATE/UPDATE schema + validate + buildFromSave
+2. History snapshot top-level `publishOperation` (immutable; not UI state)
+3. saveFlow → historyFlow → commitWorkspaceHistory stores operation
+4. Export reads `snapshot.publishOperation` → `buildPublishedFamilyExportCandidate(..., op)`
+5. Explicit UPDATE: purge source; CREATE: append / idempotent retry replace destination
+6. Legacy History without operation: keep incoming-familyId inference
+7. Command metadata **not** written to positions.json
+
+## Explicitly NOT done (Phase 3-C2)
+
+- Snapshot-bound family records embed
+- Export still filters destination family from working corpus when operation present
+
+## Tests
+
+- publishOperation 16 PASS · Phase 3-A/B1/B2 regressions · full 1691 PASS · build PASS
+
+## Dirty WT preserved (not committed)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+---
+
 # 2026-09-16 — Phase 3-B2 Failure-Safe Verified Published Write
 
 ## Mode

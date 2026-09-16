@@ -3,6 +3,8 @@
  * Position Recall 및 Export의 기반
  */
 
+import type { PublishOperation } from "./publishOperation";
+
 export const WORKSPACE_CURRENT_KEY = "workspace_current";
 export const WORKSPACE_HISTORY_KEY = "workspace_history";
 
@@ -29,6 +31,12 @@ export interface WorkspaceSnapshot {
   timestamp: string;
   state: AppState;
   exported?: boolean;
+  /**
+   * Phase 3-C1 — Immutable Published CREATE/UPDATE command metadata.
+   * Not UI state. Not written into positions.json.
+   * Optional for legacy History snapshots.
+   */
+  publishOperation?: PublishOperation;
 }
 
 /** UUID v4 생성 */

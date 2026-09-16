@@ -9,6 +9,7 @@
 
 import { runSaveStrategy, type SaveFlowContext, type SaveFlowResult } from "./saveFlow";
 import { type PositionRecord } from "../../domain/positionSearchEngine";
+import type { PublishOperation } from "../../domain/publishOperation";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,7 +27,8 @@ export type HistoryFlowContext = SaveFlowContext & {
       ballsState: unknown;
       shotEditor: unknown;
       targetBall: string | null;
-    }
+    },
+    publishOperation?: PublishOperation | null
   ) => void;
 };
 
@@ -79,7 +81,11 @@ export function runCanonicalSave(ctx: HistoryFlowContext): SaveFlowResult {
 
   // DS-003: workspace_history snapshot 기록
   if (r.updated) {
-    ctx.commitWorkspaceHistoryWithStrategyDataset(r.updated);
+    ctx.commitWorkspaceHistoryWithStrategyDataset(
+      r.updated,
+      undefined,
+      r.publishOperation ?? null
+    );
   }
   return r;
 }

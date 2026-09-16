@@ -29,6 +29,10 @@ import {
   shouldWriteFourTrackFamilyOnSave,
 } from "../../domain/family/familySavePolicy";
 import { resolvePublishedEditSaveIntent } from "../../domain/family/publishedEditSession";
+import {
+  buildPublishOperationFromSave,
+  type PublishOperation,
+} from "../../domain/publishOperation";
 import { writeFourTrackFamilyMembers } from "../../domain/family/familyAwareWriter";
 import {
   syncPositionDatasetToNormalizedFamilyStore,
@@ -111,6 +115,12 @@ export type SaveFlowResult = {
   /** Present when this SAVE wrote a 4-track Family. Derived is not persisted here. */
   familyId?: string;
   fourTrackWritten?: boolean;
+  /** Phase 3-C1 — resolved SAVE intent used for History PublishOperation. */
+  saveIntent?: "LEGACY" | FamilySaveIntent;
+  /** Phase 3-C1 — destination familyId (CREATE mint or UPDATE preserve). */
+  destinationFamilyId?: string;
+  /** Phase 3-C1 — immutable publish command for History (null = LEGACY / omit). */
+  publishOperation?: PublishOperation | null;
   /**
    * Phase 3A-326 shadow dual-write result. Failure never rolls back positions_dataset.
    * Production READ still uses legacy corpus.
@@ -594,6 +604,21 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     ok: true,
     updated,
     normalizedDualWrite,
+    saveIntent,
+    destinationFamilyId:
+      (typeof savedStrategy.familyId === "string" &&
+      savedStrategy.familyId.trim()
+        ? savedStrategy.familyId.trim()
+        : familyIdentity?.familyId) ?? undefined,
+    publishOperation: buildPublishOperationFromSave({
+      saveIntent,
+      editingPublishedFamilyId: ctx.editingPublishedFamilyId,
+      destinationFamilyId:
+        (typeof savedStrategy.familyId === "string" &&
+        savedStrategy.familyId.trim()
+          ? savedStrategy.familyId.trim()
+          : familyIdentity?.familyId) ?? null,
+    }),
     ...(useFourTrackFamily && savedStrategy.familyId
       ? { familyId: savedStrategy.familyId, fourTrackWritten: true }
       : {}),
