@@ -28,6 +28,7 @@ import {
   resolveFamilySaveIntent,
   shouldWriteFourTrackFamilyOnSave,
 } from "../../domain/family/familySavePolicy";
+import { resolvePublishedEditSaveIntent } from "../../domain/family/publishedEditSession";
 import { writeFourTrackFamilyMembers } from "../../domain/family/familyAwareWriter";
 import {
   syncPositionDatasetToNormalizedFamilyStore,
@@ -141,6 +142,11 @@ export type SaveFlowContext = {
    */
   editSource?: EditSourceContext | null;
   saveIntent?: FamilySaveIntent | null;
+  /**
+   * Phase 2 — Published Search edit session familyId.
+   * When set and matching slot identity → UPDATE. Null → defer to FamilySavePolicy.
+   */
+  editingPublishedFamilyId?: string | null;
 
   // READ (Infrastructure)
   saveWorkingDataset: (updated: PositionRecord[]) => void;
@@ -327,12 +333,22 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   const existingExactSlotEntry =
     existingExactRecord?.strategies?.[slotId as "S1" | "S2" | "S3"] ?? null;
   const explicitSlotFamilyIdentity = explicitFamilyIdentityFromSlot(slotRaw);
+  const publishedEditIntent = resolvePublishedEditSaveIntent({
+    editingPublishedFamilyId: ctx.editingPublishedFamilyId,
+    slotIdentity: explicitSlotFamilyIdentity,
+    authoringStrategyId,
+    positionId: positionIdForIdentity,
+  });
   const saveIntent = resolveFamilySaveIntent({
     explicitIdentity: explicitSlotFamilyIdentity,
     existingSlotEntry: existingExactSlotEntry,
     authoringStrategyId,
     positionId: positionIdForIdentity,
-    requestedIntent: ctx.saveIntent ?? null,
+    requestedIntent: publishedEditIntent ?? ctx.saveIntent ?? null,
+  });
+  console.log("[SAVE] saveIntent:", saveIntent, {
+    publishedEditIntent,
+    editingPublishedFamilyId: ctx.editingPublishedFamilyId ?? null,
   });
   const familyIdentity = resolveFamilyIdentityForSave({
     saveIntent: saveIntent === "LEGACY" ? "CREATE" : saveIntent,

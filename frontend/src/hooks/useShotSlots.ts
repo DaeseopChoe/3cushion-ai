@@ -628,11 +628,25 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     setShotEditor((s) => {
       const currentSlot = s.slots[slotId];
       const prevApplied = currentSlot.applied;
+      const draft = currentSlot.draft;
+      // Phase 2: preserve Family identity when Apply only copies sys.
+      const identityFromDraft = draft
+        ? {
+            ...(draft.familyId != null ? { familyId: draft.familyId } : {}),
+            ...(draft.memberId != null ? { memberId: draft.memberId } : {}),
+            ...(draft.memberOrigin != null
+              ? { memberOrigin: draft.memberOrigin }
+              : {}),
+            ...(draft.generatedFromMemberId != null
+              ? { generatedFromMemberId: draft.generatedFromMemberId }
+              : {}),
+            ...(draft.symmetryOp != null ? { symmetryOp: draft.symmetryOp } : {}),
+          }
+        : {};
 
-      // applied 가 null 이면 새 객체 생성, 존재하면 sys 만 교체
       const nextApplied: DraftState = prevApplied
-        ? { ...prevApplied, sys: clonedSys }
-        : { sys: clonedSys };
+        ? { ...prevApplied, ...identityFromDraft, sys: clonedSys }
+        : { ...identityFromDraft, sys: clonedSys };
 
       return {
         ...s,

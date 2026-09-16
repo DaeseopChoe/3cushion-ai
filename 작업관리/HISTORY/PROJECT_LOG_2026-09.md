@@ -6,6 +6,50 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-16 — Phase 2 Published Family Identity Session Contract
+
+## Mode
+
+**Agent** · Session / SAVE intent only · Commit/Push
+
+## Status
+
+**IMPLEMENTED · TESTED · BUILD PASS**
+
+## Scope (Phase 2 only)
+
+1. `editingPublishedFamilyId` session owner (App) — set on Published Search match; cleared on LocalDB / reset / mismatch / ball move.
+2. `resolvePublishedEditSaveIntent` — session + matching slot identity → UPDATE; else defer to FamilySavePolicy (no coord/positionId UPDATE).
+3. `applyDraftSys` preserves familyId/memberId/lineage from draft onto applied.
+4. Local SAVE UPDATE reuses familyId via existing four-track writer.
+
+## Explicitly NOT done
+
+- Published positions.json family-atomic replacement (Phase 3)
+- Export / git / Vercel automation (Phase 4)
+- New UPDATE UI button
+
+## Owners
+
+- `domain/family/publishedEditSession.ts`
+- `application/flows/saveFlow.ts` · `adminSearchFlow.ts` · `adminLocalDbFlow.ts`
+- `hooks/useShotSlots.ts` · `App.jsx`
+
+## Phase 1 regression
+
+SAVE success alert still removed · Local Delete semantics unchanged.
+
+## Unrelated WT protected
+
+- `dataset/.../positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+## NEXT
+
+Phase 3 — Published Family Replacement (leaf purge by familyId + write A')
+
+---
+
 # 2026-09-16 — Phase 1 SAVE UX + Local Delete semantics
 
 ## Mode

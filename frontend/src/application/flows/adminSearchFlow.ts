@@ -14,6 +14,7 @@ import { runSpatialRecall } from "../../domain/recall/recallEngine";
 import { type PositionRecord } from "../../domain/positionSearchEngine";
 import { getOrLoadPublishedLeaf } from "../../domain/publishedDatasetStore";
 import { resolvePublishedLeafKey } from "../../domain/publishedLeafResolve";
+import { readFamilyIdFromRecordSlot } from "../../domain/family/publishedEditSession";
 import {
   normalizePublishedShotTypeHint,
   resolvePublishedLeafHints,
@@ -45,6 +46,8 @@ export type AdminSearchFlowContext = {
   // WRITE
   setAdminState: (updater: (prev: AdminState) => AdminState) => void;
   setIsAdminPublishedSearchMatched: (value: boolean) => void;
+  /** Phase 2: set when Published Search matches a family-native record; clear otherwise. */
+  setEditingPublishedFamilyId: (familyId: string | null) => void;
   setAdminTableLayersVisible: (value: boolean) => void;
   setShowCoaching: (value: boolean) => void;
   setBallsState?: (balls: Record<string, { x: number; y: number } | undefined> | ((prev: any) => any)) => void;
@@ -89,6 +92,7 @@ export async function runAdminSearch(
   ctx: AdminSearchFlowContext
 ): Promise<boolean> {
   ctx.clearAdminSearchDisplayRuntime();
+  ctx.setEditingPublishedFamilyId(null);
 
   console.log(
     "[RECALL_READ]",
@@ -295,6 +299,9 @@ export async function runAdminSearch(
   }
 
   ctx.setIsAdminPublishedSearchMatched(true);
+  ctx.setEditingPublishedFamilyId(
+    readFamilyIdFromRecordSlot(spatialResult.record, ctx.activeSlot)
+  );
 
   if (spatialResult.distance > HARD_THRESHOLD_L1) {
     alert("유사도 낮음");

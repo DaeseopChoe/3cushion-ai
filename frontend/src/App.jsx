@@ -1235,6 +1235,12 @@ export default function App({
   const [isAdminInputSessionActive, setIsAdminInputSessionActive] = useState(false);
   const [isTargetSelected, setIsTargetSelected] = useState(false);
   const [isAdminPublishedSearchMatched, setIsAdminPublishedSearchMatched] = useState(false);
+  /** Phase 2 — Published Search family being edited (null = not a published UPDATE session). */
+  const [editingPublishedFamilyId, setEditingPublishedFamilyId] = useState(null);
+  const clearPublishedEditSession = useCallback(() => {
+    setIsAdminPublishedSearchMatched(false);
+    setEditingPublishedFamilyId(null);
+  }, []);
   const [isSaved, setIsSaved] = useState(false);
   const [targetColor, setTargetColor] = useState(null);
 
@@ -1282,7 +1288,7 @@ export default function App({
     trajectory.resetTrajectory();
     setAdminTableLayersVisible(false);
     setShowCoaching(false);
-    setIsAdminPublishedSearchMatched(false);
+    clearPublishedEditSession();
     alert("해당 데이터 없음");
     return true;
   }
@@ -1345,7 +1351,10 @@ export default function App({
     setBallsState,
     setDataset,
     setIsSaved,
-    setIsAdminPublishedSearchMatched,
+    setIsAdminPublishedSearchMatched: (matched) => {
+      if (matched) setIsAdminPublishedSearchMatched(true);
+      else clearPublishedEditSession();
+    },
     setIsAdminInputSessionActive,
     setTargetColor,
     setIsTargetSelected,
@@ -2484,6 +2493,7 @@ export default function App({
         : null,
       reflectionOverridePayload: c2ReflectionOverride ?? null,
       editSource: editSourceContext,
+      editingPublishedFamilyId,
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
@@ -2520,6 +2530,7 @@ export default function App({
         : null,
       reflectionOverridePayload: c2ReflectionOverride ?? null,
       editSource: editSourceContext,
+      editingPublishedFamilyId,
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
@@ -2555,6 +2566,7 @@ export default function App({
       setBallsState,
       setAdminState,
       setIsAdminPublishedSearchMatched,
+      setEditingPublishedFamilyId,
       setAdminTableLayersVisible,
       setShowCoaching,
       applyPositionRecall: actions.applyPositionRecall,
@@ -2606,9 +2618,9 @@ export default function App({
       sys: createEmptyAdminSysSnapshot(),
     }));
     setAdminTableLayersVisible(false);
-    setIsAdminPublishedSearchMatched(false);
+    clearPublishedEditSession();
     setShowCoaching(false);
-  }, [actions, trajectory]);
+  }, [actions, trajectory, clearPublishedEditSession]);
 
   /**
    * ADMIN Undo / Recall — replace Reset.
@@ -2717,6 +2729,7 @@ export default function App({
       setBallsState,
       setAdminState,
       setIsAdminPublishedSearchMatched,
+      setEditingPublishedFamilyId,
       setAdminTableLayersVisible,
       setShowCoaching,
       setIsAdminInputSessionActive,
@@ -2830,7 +2843,7 @@ export default function App({
     setTargetColor(null);
     setIsTargetSelected(false);
     setIsAdminInputSessionActive(false);
-    setIsAdminPublishedSearchMatched(false);
+    clearPublishedEditSession();
     setIsSaved(false);
     setAdminTableLayersVisible(false);
     setShowCoaching(false);
@@ -3092,7 +3105,7 @@ export default function App({
     if (!ballId) return;
     if (["cue", "target", "target_center", "second", "impact"].includes(ballId)) {
       setIsSaved(false);
-      setIsAdminPublishedSearchMatched(false);
+      clearPublishedEditSession();
     }
   }
 
@@ -4013,7 +4026,7 @@ function handleJoyPadPointerCancel(e) {
       clearBallPointerInteractionState();
       setBallsState(hydrateBallsStateForUi(view.ui.balls));
       setIsSaved(false);
-      setIsAdminPublishedSearchMatched(false);
+      clearPublishedEditSession();
       setIsAdminInputSessionActive(false);
       setIsTargetSelected(false);
       setTargetColor(null);
@@ -5181,7 +5194,7 @@ function handlePointerUp(e) {
   if (dragState.ballId === "impact") {
     setBallsState((prev) => stripAuthoredImpactBall(prev) ?? prev);
     setIsSaved(false);
-    setIsAdminPublishedSearchMatched(false);
+    clearPublishedEditSession();
     if (appMode === "ADMIN") {
       adminEditHistory.commitTransaction(
         {
@@ -5268,7 +5281,7 @@ function handlePointerUp(e) {
     )
   ) {
     setIsSaved(false);
-    setIsAdminPublishedSearchMatched(false);
+    clearPublishedEditSession();
     // targetColor / isTargetSelected: pointerUp에서 건드리지 않음 (조이스틱=후보, Target으로만 확정/무효화는 뷰/복원 등에서)
   }
 

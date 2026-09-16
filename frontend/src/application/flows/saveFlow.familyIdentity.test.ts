@@ -228,6 +228,66 @@ describe("runSaveStrategy Family identity", () => {
     expect(authoredMembers[0]?.memberId).toBe(authored?.memberId);
   });
 
+  it("editingPublishedFamilyId forces UPDATE and preserves familyId", () => {
+    const first = buildCtx();
+    let dataset: PositionRecord[] = [];
+    first.ctx.saveWorkingDataset = (updated) => {
+      dataset = updated;
+    };
+    first.ctx.setDataset = (updated) => {
+      dataset = updated;
+    };
+    expect(runSaveStrategy(first.ctx).ok).toBe(true);
+    const authored = dataset
+      .flatMap((r) => Object.values(r.strategies))
+      .find((e) => e?.memberOrigin === "AUTHORED");
+    expect(authored?.familyId).toBeTruthy();
+    const slotSys = {
+      systemId: "5_half_system",
+      track: "B2T_L",
+      inputs: { CO_f: 31, C1_f: 10, C3_r: 20 },
+      outputs: { result: { CO_f: 31, C1_f: 10, C3_r: 20 } },
+    };
+    const second = buildCtx({
+      dataset,
+      editingPublishedFamilyId: authored!.familyId!,
+      slots: {
+        S1: {
+          draft: {
+            sys: slotSys,
+            hpt: { T: "8/8" },
+            familyId: authored!.familyId,
+            memberId: authored!.memberId,
+            memberOrigin: "AUTHORED",
+          },
+          applied: {
+            sys: slotSys,
+            hpt: { T: "8/8" },
+            str: { speed: 1 },
+            ai: {},
+            familyId: authored!.familyId,
+            memberId: authored!.memberId,
+            memberOrigin: "AUTHORED",
+          },
+        },
+      },
+    });
+    second.ctx.saveWorkingDataset = (updated) => {
+      dataset = updated;
+    };
+    second.ctx.setDataset = (updated) => {
+      dataset = updated;
+    };
+    const result = runSaveStrategy(second.ctx);
+    expect(result.ok).toBe(true);
+    expect(result.familyId).toBe(authored!.familyId);
+    const authoredMembers = dataset
+      .flatMap((r) => Object.values(r.strategies))
+      .filter((e) => e?.memberOrigin === "AUTHORED");
+    expect(new Set(authoredMembers.map((e) => e?.familyId)).size).toBe(1);
+    expect(authoredMembers[0]?.familyId).toBe(authored?.familyId);
+  });
+
   it("S2 on the same Exact balls gets a different Family", () => {
     const first = buildCtx();
     let dataset: PositionRecord[] = [];

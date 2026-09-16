@@ -41,6 +41,8 @@ export type AdminLocalDbFlowContext = {
   // WRITE
   setAdminState: (updater: (prev: AdminState) => AdminState) => void;
   setIsAdminPublishedSearchMatched: (value: boolean) => void;
+  /** Phase 2: LocalDB must not claim published UPDATE ownership. */
+  setEditingPublishedFamilyId?: (familyId: string | null) => void;
   setAdminTableLayersVisible: (value: boolean) => void;
   setShowCoaching: (value: boolean) => void;
   /** Load success → editable session (Undo/Recall model; no Reset gate). */
@@ -279,6 +281,8 @@ export async function runAdminLocalDbRecall(
     });
   }
   ctx.setIsAdminPublishedSearchMatched(true);
+  // LocalDB is not Published UPDATE ownership (Phase 2).
+  ctx.setEditingPublishedFamilyId?.(null);
 
   if (result.distance > SOFT_DISTANCE_WARN) {
     alert("유사도 낮음");
