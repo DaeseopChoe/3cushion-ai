@@ -56,6 +56,7 @@ import {
   ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
   runWorkspaceLocalStorageCleanup,
   WORKSPACE_CLEANUP_CLEAR_ALL,
+  WORKSPACE_CLEANUP_LOCAL_DELETE,
   WORKSPACE_CLEANUP_PRESERVE_DATASET,
 } from "./useSettings.js";
 
@@ -354,16 +355,35 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
     expect(isNormalizedCorpusFresh()).toBe(true);
   });
 
-  it("T10: clear_all wipes positions + meta + family", () => {
+  it("T10: clear_all aliases local_delete — corpus + AI library preserved (no clear)", () => {
     seedAtGeneration(17);
-    localStorage.setItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY, "[]");
+    localStorage.setItem(
+      ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
+      JSON.stringify([{ id: "L1" }])
+    );
+    localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify([{ id: "h1" }]));
     runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_CLEAR_ALL);
-    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
-    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBeNull();
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeTruthy();
+    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBeTruthy();
+    expect(localStorage.getItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY)).toBeTruthy();
+    expect(localStorage.getItem(WORKSPACE_HISTORY_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeNull();
-    expect(localStorage.getItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY)).toBeNull();
-    expect(isNormalizedCorpusFresh()).toBe(false);
+  });
+
+  it("T10b: local_delete preserves category library and never calls clear", () => {
+    seedAtGeneration(17);
+    const clearSpy = vi.spyOn(localStorage, "clear");
+    localStorage.setItem(
+      "ONE_POINT_CATEGORY_LIBRARY_V1",
+      JSON.stringify([{ categoryNo: 1 }])
+    );
+    localStorage.setItem("ANCHORS_OVERRIDE_V1", "{}");
+    runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_LOCAL_DELETE);
+    expect(clearSpy).not.toHaveBeenCalled();
+    expect(localStorage.getItem("ONE_POINT_CATEGORY_LIBRARY_V1")).toBeTruthy();
+    expect(localStorage.getItem("ANCHORS_OVERRIDE_V1")).toBe("{}");
+    clearSpy.mockRestore();
   });
 
   it("T11: History delete leaves corpus/meta/family untouched", () => {

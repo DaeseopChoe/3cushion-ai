@@ -354,8 +354,7 @@ import { listStrategiesInRecord } from "./domain/positionSearchEngine";
 import { initFileHandle, saveToFile } from "./domain/fileService";
 import {
   useSettings,
-  WORKSPACE_CLEANUP_CLEAR_ALL,
-  WORKSPACE_CLEANUP_PRESERVE_DATASET,
+  WORKSPACE_CLEANUP_LOCAL_DELETE,
   runWorkspaceLocalStorageCleanup,
 } from "./hooks/useSettings";
 
@@ -799,9 +798,6 @@ export default function App({
   // 관리자 모드 상태 (v0)
   // ============================================
   const [appMode, setAppMode] = useState(() => readUiModePreference()); // "USER" | "ADMIN"
-  const [workspaceCleanupMode, setWorkspaceCleanupMode] = useState(
-    WORKSPACE_CLEANUP_PRESERVE_DATASET
-  );
   const [workspaceCleanupOpen, setWorkspaceCleanupOpen] = useState(false);
 
   const ANCHORS_OVERRIDE_KEY = "ANCHORS_OVERRIDE_V1";
@@ -2122,13 +2118,15 @@ export default function App({
     applyTargetFromBallId(roleId);
   }
   function handleWorkspaceLocalStorageCleanup() {
-    if (workspaceCleanupMode === WORKSPACE_CLEANUP_CLEAR_ALL) {
-      const ok = window.confirm(
-        "Export하지 않은 작업 데이터는 복구할 수 없습니다.\n정말 localStorage 전체를 삭제하시겠습니까?"
-      );
-      if (!ok) return;
-    }
-    const removedKeys = runWorkspaceLocalStorageCleanup(workspaceCleanupMode);
+    const ok = window.confirm(
+      "로컬 작업 History/세션 데이터를 정리합니다.\n" +
+        "Local DB(positions_dataset)와 AI 등록 문장 Library는 보존됩니다.\n" +
+        "계속하시겠습니까?"
+    );
+    if (!ok) return;
+    const removedKeys = runWorkspaceLocalStorageCleanup(
+      WORKSPACE_CLEANUP_LOCAL_DELETE
+    );
     if (import.meta.env.DEV) {
       console.log("[WorkspaceCleanup]", removedKeys);
     }
@@ -7219,8 +7217,9 @@ function handlePointerCancel(e) {
                 fontSize: 15,
               }}
               aria-expanded={workspaceCleanupOpen}
+              aria-label="로컬 삭제"
             >
-              Data 정리
+              로컬 삭제
             </button>
             {workspaceCleanupOpen && (
               <div
@@ -7235,50 +7234,10 @@ function handlePointerCancel(e) {
                   color: "#cbd5e1",
                 }}
               >
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 8,
-                    marginBottom: 8,
-                    cursor: "pointer",
-                    lineHeight: 1.4,
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="workspaceCleanupMode"
-                    checked={
-                      workspaceCleanupMode === WORKSPACE_CLEANUP_PRESERVE_DATASET
-                    }
-                    onChange={() =>
-                      setWorkspaceCleanupMode(WORKSPACE_CLEANUP_PRESERVE_DATASET)
-                    }
-                    style={{ marginTop: 2, flexShrink: 0 }}
-                  />
-                  <span>positions_dataset 제외 삭제</span>
-                </label>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 8,
-                    marginBottom: 12,
-                    cursor: "pointer",
-                    lineHeight: 1.4,
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="workspaceCleanupMode"
-                    checked={workspaceCleanupMode === WORKSPACE_CLEANUP_CLEAR_ALL}
-                    onChange={() =>
-                      setWorkspaceCleanupMode(WORKSPACE_CLEANUP_CLEAR_ALL)
-                    }
-                    style={{ marginTop: 2, flexShrink: 0 }}
-                  />
-                  <span>전체 삭제</span>
-                </label>
+                <p style={{ margin: "0 0 12px", lineHeight: 1.45 }}>
+                  History·작업 세션만 정리합니다. Local DB와 AI 등록 문장은
+                  유지됩니다. Published/Production 데이터는 삭제하지 않습니다.
+                </p>
                 <button
                   type="button"
                   className="control-button"
@@ -7291,7 +7250,7 @@ function handlePointerCancel(e) {
                     color: "white",
                   }}
                 >
-                  실행
+                  로컬 삭제 실행
                 </button>
               </div>
             )}

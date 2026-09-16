@@ -459,7 +459,7 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
       }
       versionState += 1;
       isSavedState = true;
-      alert(`스냅샷 저장: ${name}`);
+      // Phase 1: success alert removed (mirrors useSettings).
       return { ok: true, name };
     };
 

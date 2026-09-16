@@ -6,6 +6,44 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-16 — Phase 1 SAVE UX + Local Delete semantics
+
+## Mode
+
+**Agent** · ADMIN UX only · Commit/Push
+
+## Status
+
+**IMPLEMENTED · TESTED · BUILD PASS**
+
+## Scope (Phase 1 only)
+
+1. SAVE success alert (`스냅샷 저장: …`) removed — Derived Review unchanged; failure alerts kept.
+2. `[Data 정리]` → `[로컬 삭제]` — History/workspace cleanup only.
+3. `localStorage.clear()` removed from cleanup path.
+4. Preserved: `positions_dataset`, `positions_dataset_meta`, `ONE_POINT_LESSON_LIBRARY_V1`, `ONE_POINT_CATEGORY_LIBRARY_V1`, `ANCHORS_OVERRIDE_V1`.
+5. AI one-point library individual edit/delete/FIFO unchanged.
+
+## Explicitly NOT done (later phases)
+
+- Published family identity / UPDATE
+- Family replace publish
+- Export automation / git commit-push
+- `[데이터 삭제]` / `[업데이트]` buttons
+
+## Owners
+
+- `frontend/src/hooks/useSettings.js`
+- `frontend/src/App.jsx`
+- contracts: `workspaceCleanup.preserveDataset.contract.test.ts`, `workspaceCleanup.phase1.ux.contract.test.ts`
+
+## Unrelated WT protected
+
+- `dataset/.../positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+---
+
 # 2026-09-15 — Signed Authoring FINALIZE · Manual Validation PASS · Docs SSOT
 
 ## Mode

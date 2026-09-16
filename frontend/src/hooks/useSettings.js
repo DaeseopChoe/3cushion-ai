@@ -44,17 +44,40 @@ async function getOrCreateDir(parent, name) {
   return parent.getDirectoryHandle(name, { create: true });
 }
 
-/** Recall SSOT dataset key — preserved by default cleanup mode */
+/** Recall SSOT dataset key — preserved by local cleanup */
 export const POSITIONS_DATASET_STORAGE_KEY = "positions_dataset";
 /** Re-export SSOT generation authority key for cleanup preserve list. */
 export { POSITIONS_DATASET_META_KEY as POSITIONS_DATASET_META_STORAGE_KEY };
 export const ONE_POINT_LESSON_LIBRARY_STORAGE_KEY =
   "ONE_POINT_LESSON_LIBRARY_V1";
+/** PRO ONE POINT category library — preserved (not Local workspace cleanup). */
+export const ONE_POINT_CATEGORY_LIBRARY_STORAGE_KEY =
+  "ONE_POINT_CATEGORY_LIBRARY_V1";
+/** ADMIN anchors override preference — preserved across local cleanup. */
+export const ANCHORS_OVERRIDE_STORAGE_KEY = "ANCHORS_OVERRIDE_V1";
 
+/** Phase 1 [로컬 삭제] — History/workspace cleanup; corpus + AI library kept. */
+export const WORKSPACE_CLEANUP_LOCAL_DELETE = "local_delete";
+/** @deprecated Alias of local_delete (Phase 3A-339 name retained for callers/tests). */
 export const WORKSPACE_CLEANUP_PRESERVE_DATASET = "preserve_dataset";
+/**
+ * @deprecated Phase 1: no longer wipes corpus/AI library via blanket clear.
+ * Maps to the same safe local_delete preserve list.
+ */
 export const WORKSPACE_CLEANUP_CLEAR_ALL = "clear_all";
 
-/** All localStorage keys except `exceptKeys` (for preserve-dataset cleanup). */
+/** Keys that Local Delete must never remove. */
+export function listWorkspaceCleanupPreservedKeys() {
+  return [
+    POSITIONS_DATASET_STORAGE_KEY,
+    POSITIONS_DATASET_META_KEY,
+    ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
+    ONE_POINT_CATEGORY_LIBRARY_STORAGE_KEY,
+    ANCHORS_OVERRIDE_STORAGE_KEY,
+  ];
+}
+
+/** All localStorage keys except `exceptKeys` (for local-delete cleanup). */
 export function listLocalStorageKeysExcept(exceptKeys) {
   const preserved = new Set(
     Array.isArray(exceptKeys) ? exceptKeys.filter(Boolean) : [exceptKeys]
@@ -68,30 +91,18 @@ export function listLocalStorageKeysExcept(exceptKeys) {
 }
 
 /**
- * Workspace LocalStorage cleanup.
- * - preserve_dataset: keep production corpus + generation meta + lesson library;
- *   delete family_* shadow, workspace_history, and other keys (Phase 3A-339)
- * - clear_all: localStorage.clear()
- * @returns {string[]} keys removed (or all keys before clear)
+ * Local workspace cleanup ([로컬 삭제]).
+ * KEEP: positions_dataset + meta + AI one-point libraries + anchors override.
+ * DELETE: workspace_history, family_* shadow, and other non-preserved keys.
+ * Never bulk-clears storage; never touches repo published dataset files.
+ * @returns {string[]} keys removed
  */
 export function runWorkspaceLocalStorageCleanup(mode) {
-  if (mode === WORKSPACE_CLEANUP_CLEAR_ALL) {
-    const removedKeys = [];
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
-      if (key) removedKeys.push(key);
-    }
-    localStorage.clear();
-    return removedKeys;
-  }
-
-  // Phase 3A-339: positions_dataset + positions_dataset_meta = authoritative pair.
-  // family_* remains DELETE (normalized shadow; rebuild on next SAVE/Approval/Import).
-  const removedKeys = listLocalStorageKeysExcept([
-    POSITIONS_DATASET_STORAGE_KEY,
-    POSITIONS_DATASET_META_KEY,
-    ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
-  ]);
+  // Phase 1: clear_all / preserve_dataset / local_delete share the same safe path.
+  void mode;
+  const removedKeys = listLocalStorageKeysExcept(
+    listWorkspaceCleanupPreservedKeys()
+  );
   for (const key of removedKeys) {
     localStorage.removeItem(key);
   }
@@ -305,7 +316,7 @@ export function useSettings({
       setWorkspaceHistoryVersion((v) => v + 1);
       setIsSaved(true);
       console.log("💾 Workspace snapshot saved:", name);
-      alert(`스냅샷 저장: ${name}`);
+      // Phase 1: no success alert — Derived Review follows immediately.
       return { ok: true, name };
     },
     [adminState, ballsState, shotEditor, targetColor, setIsSaved]
