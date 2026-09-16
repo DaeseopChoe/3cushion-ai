@@ -6,6 +6,48 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-16 — Phase 3-B1 Published Family Replacement Export Integration
+
+## Mode
+
+**Agent** · Export candidate path + pre-write validation · Commit/Push
+
+## Status
+
+**IMPLEMENTED · TESTED · BUILD PASS**
+
+## Scope (Phase 3-B1)
+
+1. Phase 3-A core: `publishedFamilyReplace.ts` → `replaceFamiliesInPublishedRecords` (familyId slot purge → merge).
+2. New publish SSOT: `publishedFamilyPublish.ts` → `buildPublishedFamilyExportCandidate` (normalize → replace → validate).
+3. `useSettings.saveDatasetExportToFile` wires family-aware candidate instead of `mergePublishedExport` for Published leaf write.
+4. Pre-write validation gate: canonical dataset + provenance + duplicate memberId + stale member check; failure blocks write / refresh / exported.
+
+## Known limitation
+
+- History does **not** preserve explicit publish intent (`saveIntent` / `editingPublishedFamilyId` / `sourcePublishedFamilyId`).
+- B1 trigger = incoming valid `fm_*` familyId presence (UPDATE when also in existing; else CREATE/APPEND). Relies on Phase 2 UPDATE preserving familyId into working corpus.
+
+## Explicitly NOT done (Phase 3-B2 / later)
+
+- Failure-safe / atomic write · sibling temp · read-back verify
+- History exported/cache sequencing redesign
+- History schema / publish-intent serialization
+- Phase 4 git / push / Vercel automation
+
+## Tests
+
+- Phase 3-A replace contracts 11 PASS
+- Phase 3-B1 publish contracts 15 PASS
+- Full frontend 1649 PASS · build PASS
+
+## Dirty WT preserved (not committed)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+---
+
 # 2026-09-16 — Phase 2 Published Family Identity Session Contract
 
 ## Mode

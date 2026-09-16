@@ -24,7 +24,7 @@ import {
   buildDatasetExport,
   normalizeDatasetExport,
 } from "../domain/datasetExport";
-import { mergePublishedExport } from "../domain/datasetExportMerge";
+import { buildPublishedFamilyExportCandidate } from "../domain/publishedFamilyPublish";
 import {
   DATASET_EXPORT_FILENAME,
   DATASET_ROOT_DIR,
@@ -181,26 +181,44 @@ export function useSettings({
         );
 
         const fileName = segments.fileName || DATASET_EXPORT_FILENAME;
-        let mergedPayload = payload;
+        /** @type {import("../domain/datasetExport").DatasetExportPayload | null} */
+        let existingPayload = null;
 
         try {
           const existingHandle = await systemDir.getFileHandle(fileName);
           const existingFile = await existingHandle.getFile();
           if (existingFile.size > 0) {
             const existingText = await existingFile.text();
-            const existingPayload = normalizeDatasetExport(
-              JSON.parse(existingText)
-            );
-            mergedPayload = mergePublishedExport(existingPayload, payload);
+            existingPayload = normalizeDatasetExport(JSON.parse(existingText));
           }
         } catch (readErr) {
           if (readErr?.name !== "NotFoundError") {
             console.warn(
-              "Existing published dataset read skipped; writing incoming only",
+              "Existing published dataset read skipped; treating as new leaf",
               readErr
             );
           }
         }
+
+        // Phase 3-B1: family-aware candidate (purge by incoming fm_* ids) + pre-write gate.
+        // Write method unchanged (createWritable) — failure-safe I/O is Phase 3-B2.
+        const publishResult = buildPublishedFamilyExportCandidate(
+          existingPayload,
+          payload
+        );
+        if (!publishResult.ok) {
+          console.error("Published export candidate validation failed", {
+            reason: publishResult.reason,
+            issues: publishResult.issues,
+          });
+          alert(
+            `Export 실패: ${publishResult.reason}\n${(publishResult.issues || [])
+              .slice(0, 5)
+              .join("\n")}`
+          );
+          return false;
+        }
+        const mergedPayload = publishResult.payload;
 
         const fileHandle = await systemDir.getFileHandle(fileName, {
           create: true,
@@ -215,7 +233,9 @@ export function useSettings({
           mergedRecordCount: mergedPayload.records.length,
           systemId: mergedPayload.systemId,
           shotType: mergedPayload.shotType,
-          mergeApplied: mergedPayload !== payload,
+          purgedFamilyIds: publishResult.purgedFamilyIds,
+          replaceFamilyIds: publishResult.replaceFamilyIds,
+          familyAwarePublish: true,
         });
         return true;
       } catch (e) {
