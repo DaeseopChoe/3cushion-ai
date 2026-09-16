@@ -4,6 +4,7 @@
  */
 
 import type { PublishOperation } from "./publishOperation";
+import type { PublishFamilyPayload } from "./publishFamilyPayload";
 
 export const WORKSPACE_CURRENT_KEY = "workspace_current";
 export const WORKSPACE_HISTORY_KEY = "workspace_history";
@@ -37,6 +38,11 @@ export interface WorkspaceSnapshot {
    * Optional for legacy History snapshots.
    */
   publishOperation?: PublishOperation;
+  /**
+   * Phase 3-C2 — SAVE-time destination-family PositionRecords (slot-scoped).
+   * Immutable. Optional for C1/legacy snapshots.
+   */
+  publishFamilyPayload?: PublishFamilyPayload;
 }
 
 /** UUID v4 생성 */

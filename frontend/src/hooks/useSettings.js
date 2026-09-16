@@ -26,6 +26,10 @@ import {
 } from "../domain/datasetExport";
 import { buildPublishedFamilyExportCandidate } from "../domain/publishedFamilyPublish";
 import { readPublishOperationFromSnapshot } from "../domain/publishOperation";
+import {
+  buildPublishFamilyPayload,
+  crossValidateOperationAndPayload,
+} from "../domain/publishFamilyPayload";
 import { writeVerifiedPublishedFile } from "../domain/publishedWrite";
 import {
   DATASET_EXPORT_FILENAME,
@@ -165,7 +169,16 @@ export function useSettings({
         return { ok: false, reason: "missing-root-dir" };
       }
       try {
-        const payload = normalizeDatasetExport(buildDatasetExport(snapshot));
+        const builtExport = buildDatasetExport(snapshot);
+        if (!builtExport.ok) {
+          console.error("Dataset export build failed", builtExport);
+          return {
+            ok: false,
+            reason: builtExport.reason,
+            issues: builtExport.issues,
+          };
+        }
+        const payload = normalizeDatasetExport(builtExport.payload);
         const segments = buildDatasetExportPathSegments(
           payload.shotType,
           payload.systemId
@@ -250,6 +263,7 @@ export function useSettings({
 
         console.log("📤 Dataset Export (verified):", {
           path: `${segments.datasetRoot}/${segments.shotTypeDir}/${segments.systemDir}/${fileName}`,
+          exportSource: builtExport.source,
           incomingRecordCount: payload.records.length,
           mergedRecordCount: mergedPayload.records.length,
           systemId: mergedPayload.systemId,
@@ -335,6 +349,35 @@ export function useSettings({
         snapshotAdminState?.sys?.system ??
         "5_half_system";
       const pattern = snapshotAdminState?.sys?.shotType ?? "뒤돌리기";
+
+      // Phase 3-C2: SAVE-time destination-family payload (required when operation present).
+      let publishFamilyPayload = null;
+      if (publishOperation) {
+        const built = buildPublishFamilyPayload(
+          strategyUpdatedDataset,
+          publishOperation.destinationFamilyId
+        );
+        if (!built.ok) {
+          console.error("Publish family payload build failed", built);
+          alert(
+            `스냅샷 저장 실패: ${built.reason}\n${(built.issues || [])
+              .slice(0, 5)
+              .join("\n")}`
+          );
+          return { ok: false, reason: built.reason, issues: built.issues };
+        }
+        const cross = crossValidateOperationAndPayload(
+          publishOperation,
+          built.payload
+        );
+        if (!cross.ok) {
+          console.error("Publish operation/payload cross-validation failed", cross);
+          alert(`스냅샷 저장 실패: ${cross.reason}`);
+          return { ok: false, reason: cross.reason, issues: cross.issues };
+        }
+        publishFamilyPayload = built.payload;
+      }
+
       const history = loadWorkspaceHistory();
       const version = getNextVersion(history, systemId, pattern);
       const timestamp = new Date().toISOString();
@@ -347,9 +390,16 @@ export function useSettings({
         version,
         timestamp,
         exported: false,
-        // Phase 3-C1: immutable publish command (not UI state; not positions.json).
+        // Phase 3-C1/C2: immutable publish artifacts (not UI state; not positions.json).
         ...(publishOperation
           ? { publishOperation: JSON.parse(JSON.stringify(publishOperation)) }
+          : {}),
+        ...(publishFamilyPayload
+          ? {
+              publishFamilyPayload: JSON.parse(
+                JSON.stringify(publishFamilyPayload)
+              ),
+            }
           : {}),
         state: {
           adminState: JSON.parse(JSON.stringify(snapshotAdminState)),
@@ -369,7 +419,7 @@ export function useSettings({
       setIsSaved(true);
       console.log("💾 Workspace snapshot saved:", name, {
         publishOperation: publishOperation ?? null,
-        // C1: family payload still working-corpus-bound at Export (C2 pending).
+        publishFamilyPayloadRecords: publishFamilyPayload?.records?.length ?? 0,
         datasetEmbedded: false,
       });
       // Phase 1: no success alert — Derived Review follows immediately.

@@ -29,7 +29,7 @@ export type HistoryFlowContext = SaveFlowContext & {
       targetBall: string | null;
     },
     publishOperation?: PublishOperation | null
-  ) => void;
+  ) => { ok: boolean; reason?: string } | void;
 };
 
 // ---------------------------------------------------------------------------
@@ -80,12 +80,19 @@ export function runCanonicalSave(ctx: HistoryFlowContext): SaveFlowResult {
   }
 
   // DS-003: workspace_history snapshot 기록
+  // Phase 3-C2: payload build/validation failure must not create a publish-ready snapshot.
   if (r.updated) {
-    ctx.commitWorkspaceHistoryWithStrategyDataset(
+    const commitResult = ctx.commitWorkspaceHistoryWithStrategyDataset(
       r.updated,
       undefined,
       r.publishOperation ?? null
     );
+    if (commitResult && commitResult.ok === false) {
+      return {
+        ok: false,
+        reason: commitResult.reason ?? "history-commit-failed",
+      };
+    }
   }
   return r;
 }

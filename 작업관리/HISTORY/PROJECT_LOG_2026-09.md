@@ -6,6 +6,49 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-17 — Phase 3-C2 Snapshot-Bound Family Payload SSOT
+
+## Mode
+
+**Agent** · SAVE-time family-scoped History payload + Export SSOT · Commit/Push
+
+## Status
+
+**Phase 3-C2 COMPLETE**
+
+## Scope (Phase 3-C2)
+
+1. `publishFamilyPayload.ts` — extract/build/validate/crossValidate/read
+2. History snapshot top-level `publishFamilyPayload` (immutable; family-scoped; not UI state)
+3. SAVE commit uses `strategyUpdatedDataset` → destination family subset → deep copy onto snapshot
+4. Export priority: SNAPSHOT_PAYLOAD → STATE_DATASET → C1_WORKING_FALLBACK → LEGACY_INFERENCE
+5. Malformed/present-but-invalid payload: **fail-closed** (no `loadWorkingDataset` fallback)
+6. Operation ↔ payload `destinationFamilyId === familyId` cross-validation
+7. Multi-snapshot payload independence; command metadata not in positions.json
+8. Legacy C1 (operation, no payload) and old History (no operation) fallbacks preserved
+
+## Explicitly NOT done (Phase 4)
+
+- Folder picker removal / automatic repo path
+- Node publish server / localhost API
+- git status/commit/push/Vercel automation
+- CI/CD changes
+
+## Tests
+
+- publishFamilyPayload contracts PASS · datasetExport / publishOperation / B1/B2/A regressions · full **1715 PASS** · build PASS
+
+## Dirty WT preserved (not committed)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+## History size impact
+
+- Representative 8-member family-scoped fixture payload: well under 200KB (normal; no storage redesign)
+
+---
+
 # 2026-09-17 — Phase 3-C1 Immutable PublishOperation History SSOT
 
 ## Mode

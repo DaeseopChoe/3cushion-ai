@@ -201,7 +201,10 @@ describe("Full Lifecycle End-to-End Headless Integration Contract", () => {
       },
     };
 
-    const exportPayload = buildDatasetExport(snapshot as any);
+    const exportResult = buildDatasetExport(snapshot as any);
+    expect(exportResult.ok).toBe(true);
+    if (!exportResult.ok) return;
+    const exportPayload = exportResult.payload;
     expect(exportPayload.schemaVersion).toBe(DATASET_EXPORT_SCHEMA_VERSION);
     expect(exportPayload.schemaVersion).toBe(2);
     expect(exportPayload.shotType).toBe("옆돌리기");
