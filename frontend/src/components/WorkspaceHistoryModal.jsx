@@ -2,7 +2,7 @@
  * Workspace History Modal
  * - 상단: [ 전체선택 ] [ 로컬데이터 ] [ Unexported ]
  * - 개별 행: 체크박스 (선택/해제, Shift 범위선택) + 행 클릭 시 Workspace Load
- * - 하단: Delete (n), Export (Unexported 탭), 닫기
+ * - 하단 LEFT: Delete / Publish · RIGHT: 수동 Export / 닫기 (공간 분리)
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ModalShell from "./common/ModalShell";
@@ -383,41 +383,52 @@ export default function WorkspaceHistoryModal({
         )}
       </div>
 
-      {/* Footer */}
+      {/* Footer: primary LEFT (Delete/Publish) · secondary RIGHT (수동 Export/닫기) */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
           gap: 10,
+          rowGap: 10,
           padding: "14px 24px",
           borderTop: "1px solid #e2e8f0",
           backgroundColor: "#f8fafc",
           flexShrink: 0,
         }}
       >
-        {/* Delete (n) */}
-        <button
-          type="button"
-          onClick={handleDeleteSelected}
-          disabled={selectedIds.length === 0}
+        <div
+          className="workspace-history-actions-left"
           style={{
-            padding: "10px 20px",
-            fontSize: 15,
-            fontWeight: 600,
-            color: "#ffffff",
-            backgroundColor: selectedIds.length === 0 ? "#cbd5e1" : "#ef4444",
-            border: "none",
-            borderRadius: 8,
-            cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
-            transition: "background-color 0.15s ease",
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 10,
           }}
         >
-          Delete ({selectedIds.length})
-        </button>
+          {/* Delete (n) */}
+          <button
+            type="button"
+            onClick={handleDeleteSelected}
+            disabled={selectedIds.length === 0}
+            style={{
+              padding: "10px 20px",
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#ffffff",
+              backgroundColor: selectedIds.length === 0 ? "#cbd5e1" : "#ef4444",
+              border: "none",
+              borderRadius: 8,
+              cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
+              transition: "background-color 0.15s ease",
+            }}
+          >
+            Delete ({selectedIds.length})
+          </button>
 
-        {/* Publish (repo-relative local) + Export (folder picker) on Unexported tab */}
-        {tab === "unexported" && (
-          <>
+          {/* Publish — primary normal workflow (Unexported tab) */}
+          {tab === "unexported" && (
             <button
               type="button"
               onClick={handlePublish}
@@ -441,47 +452,64 @@ export default function WorkspaceHistoryModal({
             >
               Publish
             </button>
+          )}
+        </div>
+
+        <div
+          className="workspace-history-actions-right"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 10,
+            marginLeft: "auto",
+          }}
+        >
+          {/* 수동 Export — legacy/manual folder-picker fallback (not primary Publish) */}
+          {tab === "unexported" && (
             <button
               type="button"
               onClick={handleExport}
               disabled={selectedIds.length === 0}
-              title="폴더 선택 Export (기존 방식)"
+              title="수동 Export — 폴더 선택 (legacy/manual fallback)"
               style={{
-                padding: "10px 20px",
-                fontSize: 15,
-                fontWeight: 600,
-                color: "#ffffff",
-                backgroundColor: selectedIds.length === 0 ? "#94a3b8" : "#10b981",
-                border: "none",
+                padding: "10px 16px",
+                fontSize: 14,
+                fontWeight: 500,
+                color: selectedIds.length === 0 ? "#94a3b8" : "#475569",
+                backgroundColor: selectedIds.length === 0 ? "#e2e8f0" : "#ffffff",
+                border:
+                  selectedIds.length === 0
+                    ? "1px solid #cbd5e1"
+                    : "1px solid #94a3b8",
                 borderRadius: 8,
                 cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
-                transition: "background-color 0.15s ease",
+                transition: "background-color 0.15s ease, border-color 0.15s ease",
               }}
             >
-              Export
+              수동 Export
             </button>
-          </>
-        )}
+          )}
 
-        {/* 닫기 */}
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            marginLeft: "auto",
-            padding: "10px 20px",
-            fontSize: 15,
-            fontWeight: 600,
-            color: "#ffffff",
-            backgroundColor: "#64748b",
-            border: "none",
-            borderRadius: 8,
-            cursor: "pointer",
-            transition: "background-color 0.15s ease",
-          }}
-        >
-          닫기
-        </button>
+          {/* 닫기 */}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "10px 20px",
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#ffffff",
+              backgroundColor: "#64748b",
+              border: "none",
+              borderRadius: 8,
+              cursor: "pointer",
+              transition: "background-color 0.15s ease",
+            }}
+          >
+            닫기
+          </button>
+        </div>
       </div>
     </ModalShell>
   );

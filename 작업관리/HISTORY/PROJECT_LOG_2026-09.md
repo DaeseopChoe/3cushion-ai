@@ -6,6 +6,37 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-17 — Workspace History Publish UX 개선
+
+## Mode
+
+**Agent** · UI label/layout only · Commit/Push
+
+## Status
+
+**COMPLETE**
+
+## Changes
+
+- Publish = primary normal workflow (left action group)
+- Export → **수동 Export** (secondary/manual)
+- Publish / manual Export spatial separation (`actions-left` / `actions-right`)
+- manual Export moved next to Close
+- Legacy/C1 behavior unchanged (C2-only Publish BLOCK retained)
+- no automatic Export fallback
+- no data/domain/Phase 4 semantics changes
+
+## Protected WT (untouched)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+## Commit
+
+`fix(admin): separate publish and manual export actions`
+
+---
+
 # 2026-09-17 — Phase 4-C Deployment Verification & Production Published Dataset Read-Back
 
 ## Mode

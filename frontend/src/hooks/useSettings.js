@@ -651,7 +651,7 @@ export function useSettings({
       alert(
         `Git Publish 불가 (C2 snapshot 필요)\n` +
           blocked.map((b) => `${b.reason}`).join("\n") +
-          `\n\nLegacy/C1은 Export(폴더 선택)를 사용하세요.`
+          `\n\nLegacy/C1은 수동 Export(폴더 선택)를 사용하세요.`
       );
       return;
     }
@@ -661,7 +661,7 @@ export function useSettings({
       alert(
         `LOCAL_PUBLISH_HOST_UNAVAILABLE\n${
           result.message ?? ""
-        }\n\n로컬 Vite 개발 서버에서 Publish하거나, Export(폴더 선택)를 사용하세요.`
+        }\n\n로컬 Vite 개발 서버에서 Publish하거나, 수동 Export(폴더 선택)를 사용하세요.`
       );
       return;
     }
