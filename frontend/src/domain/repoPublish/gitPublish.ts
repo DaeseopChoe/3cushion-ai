@@ -724,3 +724,89 @@ export function buildGitCommitMessage(args: {
   }
   return "data(admin): publish dataset updates";
 }
+
+/** Full or abbreviated commit SHA (host-resolved only; never client-supplied). */
+const COMMIT_SHA_RE = /^[0-9a-f]{7,40}$/i;
+
+/**
+ * Phase 4-C — Read a committed blob via fixed `git show <sha>:<path>`.
+ * Path must already be validateGitTargetPaths-approved.
+ * Does not read working tree.
+ */
+export async function readCommittedBlobText(args: {
+  repoRoot: string;
+  commitSha: string;
+  repoRelativePath: string;
+}): Promise<{ ok: true; text: string } | GitFail> {
+  const sha = String(args.commitSha ?? "").trim();
+  if (!COMMIT_SHA_RE.test(sha)) {
+    return {
+      ok: false,
+      reason: "commit-sha-invalid",
+      issues: ["commitSha:format"],
+      status: "FATAL_COMMIT_SHA",
+    };
+  }
+  const posix = toPosix(String(args.repoRelativePath ?? "").trim());
+  if (
+    !posix ||
+    posix.includes("..") ||
+    posix.includes(":") ||
+    posix.startsWith("/") ||
+    /^[a-zA-Z]:/.test(posix)
+  ) {
+    return {
+      ok: false,
+      reason: "commit-blob-path-invalid",
+      issues: [`path:unsafe:${posix}`],
+      status: "FATAL_BLOB_PATH",
+    };
+  }
+  if (!posix.startsWith(`${DATASET_ROOT_DIR}/`)) {
+    return {
+      ok: false,
+      reason: "commit-blob-path-invalid",
+      issues: [`path:not-under-dataset:${posix}`],
+      status: "FATAL_BLOB_PATH",
+    };
+  }
+  const show = await gitExec(args.repoRoot, ["show", `${sha}:${posix}`], {
+    timeoutMs: 30_000,
+  });
+  if (!show.ok) {
+    return {
+      ok: false,
+      reason: "commit-blob-read-failed",
+      issues: [`show:${sha}:${posix}`, ...show.issues],
+      status: "BLOB_READ_FAILED",
+    };
+  }
+  return { ok: true, text: show.stdout };
+}
+
+/**
+ * Resolve current HEAD to a full SHA (host-side only).
+ */
+export async function resolveHeadCommitSha(
+  repoRoot: string
+): Promise<{ ok: true; commitSha: string } | GitFail> {
+  const head = await gitExec(repoRoot, ["rev-parse", "HEAD"]);
+  if (!head.ok) {
+    return {
+      ok: false,
+      reason: "head-resolve-failed",
+      issues: head.issues,
+      status: "HEAD_RESOLVE_FAILED",
+    };
+  }
+  const sha = head.stdout.trim();
+  if (!COMMIT_SHA_RE.test(sha)) {
+    return {
+      ok: false,
+      reason: "head-sha-invalid",
+      issues: ["HEAD:format"],
+      status: "HEAD_RESOLVE_FAILED",
+    };
+  }
+  return { ok: true, commitSha: sha };
+}

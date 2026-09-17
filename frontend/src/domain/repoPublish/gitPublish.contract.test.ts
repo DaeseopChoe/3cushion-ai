@@ -227,6 +227,7 @@ describe("gitPublish temp-repo integration", () => {
     async () => {
     const env = makeTempGitEnv();
     const result = await publishDatasetBatchWithGit({
+      verifyProduction: false,
       repoRoot: env.work,
       datasetRoot: env.datasetRoot,
       fetchRemote: true,
@@ -269,6 +270,7 @@ describe("gitPublish temp-repo integration", () => {
     const env = makeTempGitEnv();
     fs.writeFileSync(path.join(env.work, "unrelated.txt"), "x", "utf8");
     const result = await publishDatasetBatchWithGit({
+      verifyProduction: false,
       repoRoot: env.work,
       datasetRoot: env.datasetRoot,
       items: [
@@ -302,6 +304,7 @@ describe("gitPublish temp-repo integration", () => {
     fs.writeFileSync(path.join(env.work, "staged.txt"), "s", "utf8");
     git(env.work, ["add", "--", "staged.txt"]);
     const result = await publishDatasetBatchWithGit({
+      verifyProduction: false,
       repoRoot: env.work,
       datasetRoot: env.datasetRoot,
       items: [
@@ -337,6 +340,7 @@ describe("gitPublish temp-repo integration", () => {
     );
     fs.writeFileSync(leaf, fs.readFileSync(leaf, "utf8") + "\n", "utf8");
     const result = await publishDatasetBatchWithGit({
+      verifyProduction: false,
       repoRoot: env.work,
       datasetRoot: env.datasetRoot,
       items: [
@@ -426,6 +430,7 @@ describe("gitPublish temp-repo integration", () => {
       ]),
     };
     const first = await publishDatasetBatchWithGit({
+      verifyProduction: false,
       repoRoot: env.work,
       datasetRoot: env.datasetRoot,
       items: [item],
@@ -434,6 +439,7 @@ describe("gitPublish temp-repo integration", () => {
     const head1 = git(env.work, ["rev-parse", "HEAD"]).trim();
 
     const second = await publishDatasetBatchWithGit({
+      verifyProduction: false,
       repoRoot: env.work,
       datasetRoot: env.datasetRoot,
       items: [item],
@@ -484,6 +490,7 @@ describe("gitPublish temp-repo integration", () => {
       }),
     ]);
     await publishDatasetBatchWithGit({
+      verifyProduction: false,
       repoRoot: env.work,
       datasetRoot: env.datasetRoot,
       items: [
@@ -498,6 +505,7 @@ describe("gitPublish temp-repo integration", () => {
     });
 
     const mixed = await publishDatasetBatchWithGit({
+      verifyProduction: false,
       repoRoot: env.work,
       datasetRoot: env.datasetRoot,
       items: [
@@ -618,15 +626,20 @@ describe("security + wiring", () => {
     expect(handled.body.reason).toBe("forbidden-client-fields");
   });
 
-  it("S5/S6 — vite registers git endpoint as configureServer only; no api/ serverless", () => {
+  it("S5/S6/S7 — vite registers git + verify endpoints as configureServer only; no api/ serverless", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const vite = readFileSync(join(here, "../../../vite.config.js"), "utf8");
     expect(vite).toContain("/api/publish-dataset-git");
     expect(vite).toContain("publishDatasetGitApiDevMiddleware");
+    expect(vite).toContain("/api/verify-production-dataset");
+    expect(vite).toContain("verifyProductionDatasetApiDevMiddleware");
     expect(vite).toContain("configureServer");
     expect(fs.existsSync(join(here, "../../../api/publish-dataset-git.js"))).toBe(
       false
     );
+    expect(
+      fs.existsSync(join(here, "../../../api/verify-production-dataset.js"))
+    ).toBe(false);
   });
 
   it("useSettings wires Git Publish primary; keeps repo-only helper", () => {

@@ -6,6 +6,53 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-17 — Phase 4-C Deployment Verification & Production Published Dataset Read-Back
+
+## Mode
+
+**Agent** · Production observation + semantic read-back · Commit/Push
+
+## Status
+
+**Phase 4-C COMPLETE** · **Phase 4 COMPLETE** (A + B + C)
+
+## Scope (Phase 4-C)
+
+1. `productionOrigin.ts` — canonical Production origin SSOT (`https://www.3cushionai.com`)
+2. `productionVerify.ts` — Production Published leaf fetch / poll / normalize / semantic compare
+3. Expected state = **pushed commit blob** (`git show <sha>:dataset/.../positions.json`), not working tree
+4. After Git `PUSHED` or `VERIFIED_NO_CHANGE` → Production verify; push failure → verify forbidden
+5. Dev-only `POST /api/verify-production-dataset` (Vite configureServer; retry / explicit verify)
+6. Git Publish orchestration attaches Production result; UI separates Push complete vs Production verified
+7. No Vercel CLI / Deployment API / token; no automatic Git rollback on verify timeout
+
+## Explicitly NOT done
+
+- Vercel Deployment API (LEVEL 2)
+- Full app UI automatic verification (LEVEL 4)
+- History schema migration / `exported` meaning change
+- Product Export / calculation / curve / Signed Authoring changes
+
+## Protected WT (untouched)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+## Results
+
+- Production verify contracts PASS (mock HTTP + temp Git)
+- Phase 4-B / 4-A / Phase 3 regression PASS
+- Full frontend tests **1777 PASS**
+- Build PASS
+- Privileged endpoints absent from production serverless (`frontend/api/*` not present)
+- Client may contain local endpoint path strings; server privileged middleware is configureServer-only
+
+## Commit
+
+`feat(admin): verify production dataset deployment`
+
+---
+
 # 2026-09-17 — Phase 4-B Safe Git Commit + Push Automation
 
 ## Mode

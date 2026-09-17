@@ -592,8 +592,8 @@ export function useSettings({
   );
 
   /**
-   * Phase 4-B: Git-enabled Publish (local Vite host only).
-   * C2 snapshots only. Preflight → repo write → commit → push.
+   * Phase 4-B/C: Git-enabled Publish + Production read-back (local Vite host only).
+   * C2 snapshots only. Preflight → repo write → commit → push → Production verify.
    * Does not open picker. Does not auto-fallback to Export or repo-only.
    * Phase 4-A repo-only endpoint remains available separately.
    */
@@ -666,7 +666,7 @@ export function useSettings({
       return;
     }
 
-    if (result.ok) {
+    const markExported = () => {
       /** @type {string[]} */
       const successfulIds = items.map((it) => it.snapshotId);
       for (const it of items) {
@@ -675,18 +675,70 @@ export function useSettings({
       refreshPublishedDataset();
       updateSnapshotsExported(successfulIds);
       setWorkspaceHistoryVersion((v) => v + 1);
+      return successfulIds;
+    };
 
-      if (result.status === "VERIFIED_NO_CHANGE") {
+    if (result.ok) {
+      const successfulIds = markExported();
+      const sha = result.commit ? `HEAD: ${result.commit.slice(0, 7)}\n` : "";
+      if (result.status === "PRODUCTION_VERIFIED") {
+        if (result.gitStatus === "VERIFIED_NO_CHANGE") {
+          alert(
+            `${successfulIds.length}개 Git Publish\n` +
+              `No repository changes\n` +
+              `Production verified\n` +
+              sha
+          );
+        } else {
+          alert(
+            `${successfulIds.length}개 Git Publish\n` +
+              `Repository updated\n` +
+              `Git committed\n` +
+              `Push complete\n` +
+              `Production verified\n` +
+              sha
+          );
+        }
+      } else if (result.status === "VERIFIED_NO_CHANGE") {
         alert(
           `${successfulIds.length}개 Git Publish 완료 (NO_CHANGE)\n` +
             `변경 없음 — commit/push 생략`
         );
       } else {
         alert(
-          `${successfulIds.length}개 Git Publish 완료 (PUSHED)\n` +
-            `commit → push origin/main\n` +
-            (result.commit ? `HEAD: ${result.commit.slice(0, 7)}\n` : "") +
-            `(배포 반영은 Vercel Git integration — Phase 4-C)`
+          `${successfulIds.length}개 Git Publish\n` +
+            `Push complete\n` +
+            sha
+        );
+      }
+      return;
+    }
+
+    // Git succeeded; Production observation incomplete (not a Git rollback).
+    if (
+      result.gitStatus === "PUSHED" ||
+      result.gitStatus === "VERIFIED_NO_CHANGE"
+    ) {
+      const successfulIds = markExported();
+      const sha = result.commit ? `HEAD: ${result.commit.slice(0, 7)}\n` : "";
+      const prodStatus = result.production?.status ?? result.status ?? "";
+      if (result.gitStatus === "VERIFIED_NO_CHANGE") {
+        alert(
+          `${successfulIds.length}개 Git Publish\n` +
+            `No repository changes\n` +
+            `Production verification timed out\n` +
+            `(${prodStatus})\n` +
+            sha +
+            `Production did not reach expected dataset within verification window.`
+        );
+      } else {
+        alert(
+          `${successfulIds.length}개 Git Publish\n` +
+            `Push complete\n` +
+            `Production verification timed out\n` +
+            `(${prodStatus})\n` +
+            sha +
+            `Production did not reach expected dataset within verification window.`
         );
       }
       return;

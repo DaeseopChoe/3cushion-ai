@@ -279,6 +279,106 @@ function publishDatasetGitApiDevMiddleware(datasetRoot, repoRoot) {
   };
 }
 
+/**
+ * Dev-only: POST /api/verify-production-dataset — Phase 4-C Production read-back.
+ * No write / Git / Vercel. Not registered for production / Vercel.
+ * @param {string} datasetRoot
+ * @param {string} repoRoot
+ */
+function verifyProductionDatasetApiDevMiddleware(datasetRoot, repoRoot) {
+  const MAX_BODY = 100_000;
+  return {
+    name: "verify-production-dataset-api-dev",
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = req.url?.split("?")[0] || "";
+        if (url !== "/api/verify-production-dataset") return next();
+
+        const sendJson = (status, body) => {
+          res.statusCode = status;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.setHeader("Cache-Control", "no-store");
+          res.end(JSON.stringify(body));
+        };
+
+        if (req.method !== "POST") {
+          sendJson(405, {
+            ok: false,
+            reason: "METHOD",
+            issues: ["POST만 지원합니다."],
+          });
+          return;
+        }
+
+        const origin = String(req.headers.origin || "").trim();
+        if (
+          origin &&
+          !origin.startsWith("http://localhost:") &&
+          !origin.startsWith("http://127.0.0.1:") &&
+          !origin.startsWith("http://[::1]:")
+        ) {
+          sendJson(403, {
+            ok: false,
+            reason: "ORIGIN_FORBIDDEN",
+            issues: ["local-dev-origins-only"],
+          });
+          return;
+        }
+
+        try {
+          const chunks = [];
+          let total = 0;
+          for await (const chunk of req) {
+            total += chunk.length;
+            if (total > MAX_BODY) {
+              sendJson(413, {
+                ok: false,
+                reason: "BODY_TOO_LARGE",
+                issues: [`max:${MAX_BODY}`],
+              });
+              return;
+            }
+            chunks.push(chunk);
+          }
+          const rawText = Buffer.concat(chunks).toString("utf8");
+          let body = {};
+          try {
+            body = rawText ? JSON.parse(rawText) : {};
+          } catch {
+            sendJson(400, {
+              ok: false,
+              reason: "body-json-invalid",
+              issues: ["JSON parse failed"],
+            });
+            return;
+          }
+
+          const mod = await server.ssrLoadModule(
+            "/src/domain/repoPublish/productionVerify.ts"
+          );
+          const handled = await mod.handleProductionVerifyHttpBody({
+            repoRoot,
+            datasetRoot,
+            body,
+          });
+          sendJson(handled.statusCode, handled.body);
+        } catch (err) {
+          console.error("[verify-production-dataset-api-dev]", err);
+          sendJson(500, {
+            ok: false,
+            reason: "INTERNAL",
+            issues: [
+              err instanceof Error
+                ? err.message
+                : "production verify middleware failed",
+            ],
+          });
+        }
+      });
+    },
+  };
+}
+
 /** Serve repo-root dataset/ at /dataset (dev) and copy into dist on build. */
 function publishedDatasetStatic() {
   const mimeFor = (filePath) => {
@@ -330,6 +430,7 @@ export default defineConfig(({ mode }) => {
       proofreadApiDevMiddleware(serverEnv),
       publishDatasetApiDevMiddleware(REPO_DATASET_DIR),
       publishDatasetGitApiDevMiddleware(REPO_DATASET_DIR, REPO_ROOT),
+      verifyProductionDatasetApiDevMiddleware(REPO_DATASET_DIR, REPO_ROOT),
     ],
 
     resolve: {

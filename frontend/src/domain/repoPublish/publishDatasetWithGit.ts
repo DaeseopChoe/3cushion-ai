@@ -23,6 +23,12 @@ import {
   validateGitTargetPaths,
   verifyPostWriteWorkingTree,
 } from "./gitPublish";
+import {
+  verifyProductionDatasetLeaves,
+  type ProductionVerifyPollConfig,
+  type ProductionVerifyResult,
+} from "./productionVerify";
+import { CANONICAL_PRODUCTION_ORIGIN } from "./productionOrigin";
 
 export type GitPublishItem = {
   snapshotId: string;
@@ -34,10 +40,14 @@ export type GitPublishItem = {
 
 export type GitPublishOrchestrationOk = {
   ok: true;
-  status: "PUSHED" | "VERIFIED_NO_CHANGE";
+  /** Git outcome; PRODUCTION_VERIFIED when Production read-back also passes. */
+  status: "PUSHED" | "VERIFIED_NO_CHANGE" | "PRODUCTION_VERIFIED";
+  /** Underlying Git status before Production verify (unchanged 4-B semantics). */
+  gitStatus: "PUSHED" | "VERIFIED_NO_CHANGE";
   results: LocalPublishBatchItemResult[];
   changedTargets: string[];
   commit?: string;
+  production?: ProductionVerifyResult;
 };
 
 export type GitPublishOrchestrationFail = {
@@ -49,6 +59,10 @@ export type GitPublishOrchestrationFail = {
   localCommit?: string;
   /** Disk may have been written when Git failed after write. */
   repoWritten?: boolean;
+  /** Present when Git succeeded but Production verify did not. */
+  gitStatus?: "PUSHED" | "VERIFIED_NO_CHANGE";
+  commit?: string;
+  production?: ProductionVerifyResult;
 };
 
 export type GitPublishOrchestrationResult =
@@ -90,14 +104,94 @@ function resolveExpectedGitTargets(
   return { ok: true, targets: validated.targets };
 }
 
+function uniqueLeafInputs(items: GitPublishItem[]): {
+  shotType: string;
+  systemId: string;
+}[] {
+  const map = new Map<string, { shotType: string; systemId: string }>();
+  for (const it of items) {
+    const shotType = String(it.shotType ?? "").trim();
+    const systemId = String(it.systemId ?? "").trim();
+    if (!shotType || !systemId) continue;
+    map.set(`${shotType}\0${systemId}`, { shotType, systemId });
+  }
+  return [...map.values()];
+}
+
+async function attachProductionVerification(args: {
+  repoRoot: string;
+  datasetRoot: string;
+  items: GitPublishItem[];
+  gitStatus: "PUSHED" | "VERIFIED_NO_CHANGE";
+  commitSha: string;
+  results: LocalPublishBatchItemResult[];
+  changedTargets: string[];
+  verifyProduction?: boolean;
+  productionOrigin?: string;
+  productionPoll?: Partial<ProductionVerifyPollConfig>;
+  productionFetchFn?: typeof fetch;
+}): Promise<GitPublishOrchestrationResult> {
+  if (args.verifyProduction === false) {
+    return {
+      ok: true,
+      status: args.gitStatus,
+      gitStatus: args.gitStatus,
+      results: args.results,
+      changedTargets: args.changedTargets,
+      commit: args.commitSha,
+    };
+  }
+
+  const production = await verifyProductionDatasetLeaves({
+    repoRoot: args.repoRoot,
+    datasetRoot: args.datasetRoot,
+    commitSha: args.commitSha,
+    leaves: uniqueLeafInputs(args.items),
+    productionOrigin: args.productionOrigin ?? CANONICAL_PRODUCTION_ORIGIN,
+    poll: args.productionPoll,
+    fetchFn: args.productionFetchFn,
+  });
+
+  if (production.ok) {
+    return {
+      ok: true,
+      status: "PRODUCTION_VERIFIED",
+      gitStatus: args.gitStatus,
+      results: args.results,
+      changedTargets: args.changedTargets,
+      commit: args.commitSha,
+      production,
+    };
+  }
+
+  // Git succeeded; Production observation incomplete — not a Git rollback.
+  return {
+    ok: false,
+    reason: production.reason,
+    issues: production.issues,
+    status: production.status,
+    results: args.results,
+    gitStatus: args.gitStatus,
+    commit: args.commitSha,
+    production,
+    repoWritten: args.changedTargets.length > 0,
+  };
+}
+
 /**
  * Full Git-enabled Publish (fail-closed for commit: all writes must succeed).
+ * Phase 4-C: after PUSHED or VERIFIED_NO_CHANGE, Production read-back verify.
  */
 export async function publishDatasetBatchWithGit(args: {
   repoRoot: string;
   datasetRoot: string;
   items: GitPublishItem[];
   fetchRemote?: boolean;
+  /** Default true. Set false in Git-only unit tests. */
+  verifyProduction?: boolean;
+  productionOrigin?: string;
+  productionPoll?: Partial<ProductionVerifyPollConfig>;
+  productionFetchFn?: typeof fetch;
 }): Promise<GitPublishOrchestrationResult> {
   const { repoRoot, datasetRoot, items } = args;
   const fetchRemote = args.fetchRemote !== false;
@@ -169,12 +263,20 @@ export async function publishDatasetBatchWithGit(args: {
   ].sort();
 
   if (uniqueChanged.length === 0) {
-    return {
-      ok: true,
-      status: "VERIFIED_NO_CHANGE",
+    // NO_CHANGE: still verify Production vs current HEAD blob (recommended).
+    return attachProductionVerification({
+      repoRoot,
+      datasetRoot,
+      items,
+      gitStatus: "VERIFIED_NO_CHANGE",
+      commitSha: preflight.head,
       results,
       changedTargets: [],
-    };
+      verifyProduction: args.verifyProduction,
+      productionOrigin: args.productionOrigin,
+      productionPoll: args.productionPoll,
+      productionFetchFn: args.productionFetchFn,
+    });
   }
 
   const post = await verifyPostWriteWorkingTree({
@@ -213,13 +315,19 @@ export async function publishDatasetBatchWithGit(args: {
     };
   }
 
-  return {
-    ok: true,
-    status: "PUSHED",
+  return attachProductionVerification({
+    repoRoot,
+    datasetRoot,
+    items,
+    gitStatus: "PUSHED",
+    commitSha: gitResult.commit,
     results,
     changedTargets: uniqueChanged,
-    commit: gitResult.commit,
-  };
+    verifyProduction: args.verifyProduction,
+    productionOrigin: args.productionOrigin,
+    productionPoll: args.productionPoll,
+    productionFetchFn: args.productionFetchFn,
+  });
 }
 
 /** HTTP body handler for `/api/publish-dataset-git`. */
@@ -252,6 +360,13 @@ export async function handleGitPublishHttpBody(args: {
     "gitCommand",
     "commitMessage",
     "commitArgs",
+    "productionUrl",
+    "verificationUrl",
+    "host",
+    "origin",
+    "url",
+    "commitSha",
+    "path",
   ]) {
     if (Object.prototype.hasOwnProperty.call(raw, key)) {
       forbidden.push(`forbidden-field:${key}`);
