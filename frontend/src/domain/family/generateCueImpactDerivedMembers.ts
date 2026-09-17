@@ -52,6 +52,7 @@ import {
   pointsEqual,
   validateBall3Centers,
 } from "./trackSymmetry";
+import { withRebuiltCanonicalMeta } from "./rebuildCanonicalMemberMeta";
 
 export const CUE_IMPACT_VALID_FRACTION = 0.3;
 export const CUE_IMPACT_MAX_SAMPLE_SPACING = 3;
@@ -334,7 +335,7 @@ export function generateCueImpactDerivedMembers(
     if (!provenance.ok) {
       return { ok: false, code: "INVALID_SOURCE", reason: provenance.reason };
     }
-    members.push(candidate);
+    members.push(withRebuiltCanonicalMeta(candidate));
   }
 
   return { ok: true, members };

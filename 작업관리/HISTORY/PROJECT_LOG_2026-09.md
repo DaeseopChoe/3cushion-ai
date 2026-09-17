@@ -6,6 +6,62 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-17 — Product Meta Integrity (Diagnostics + Producer Recurrence Prevention)
+
+## Mode
+
+**Agent** · Diagnostic propagation + Product meta REBUILD · Commit/Push
+
+## Status
+
+**COMPLETE** (dataset migration intentionally deferred)
+
+## Legacy root cause (confirmed prior audit)
+
+- Canonical validator requires `StrategyEntry.meta`
+- Product/Cue/C3+ producers previously **omitted** meta → legacy Published Product records invalid
+- Correct Product meta is **not** source meta COPY / TRANSFORM / `{}`
+
+## Changes
+
+### A. Diagnostic propagation
+
+- `publishDatasetWithGit`: flatten per-leaf `issues` into batch `REPO_WRITE_FAILED` result (field paths e.g. `records[n].strategies.S1.meta:missing`)
+- `useSettings` Git Publish alert: show up to 12 issues (UI truncate only; domain keeps full list)
+- Error codes unchanged: `REPO_WRITE_FAILED` / `existing-leaf-validation-failed`
+
+### B. Product producer recurrence prevention
+
+- New `rebuildCanonicalMemberMeta` / `withRebuiltCanonicalMeta`
+- Path: Product balls + copied sysInputs → `evaluateStrategy` → `buildStrategyMeta` (SAVE SSOT reuse)
+- Wired into: `buildCueC3ProductMembers`, `generateCueImpactDerivedMembers`, `generateC3PlusScoringDerivedMembers`
+- Persist projection already retains `member.meta`
+- Forbidden: COPY / `transformStrategyMeta` / placeholder `{}` / fake defaults
+- Profile/anchors via `runtimeContractSupply` (no React globals)
+
+## Explicitly NOT done
+
+- Legacy dataset meta backfill / migration scripts
+- Validator relaxation / invalid leaf allow
+- Phase 4 Git/Production semantics changes
+- Symmetry `transformStrategyMeta` path changes
+- Actual `dataset/**/*.json` writes
+
+## Protected WT (untouched)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+## Next (manual)
+
+Legacy Product Meta Migration — dry-run only (do not start automatically)
+
+## Commit
+
+`fix(admin): rebuild canonical meta for product members`
+
+---
+
 # 2026-09-17 — Workspace History Publish UX 개선
 
 ## Mode

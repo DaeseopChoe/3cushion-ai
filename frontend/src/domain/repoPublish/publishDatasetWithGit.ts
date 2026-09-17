@@ -237,15 +237,21 @@ export async function publishDatasetBatchWithGit(args: {
 
   const anyFail = results.some((r) => !r.ok);
   if (anyFail) {
+    const issues: string[] = [];
+    for (const r of results) {
+      if (r.ok !== false) continue;
+      issues.push(`${r.snapshotId}:${r.reason}`);
+      if (Array.isArray(r.issues)) {
+        for (const detail of r.issues) {
+          const s = String(detail ?? "").trim();
+          if (s) issues.push(s);
+        }
+      }
+    }
     return {
       ok: false,
       reason: "repo-write-partial-or-failed",
-      issues: results
-        .filter((r) => !r.ok)
-        .map((r) =>
-          r.ok === false ? `${r.snapshotId}:${r.reason}` : ""
-        )
-        .filter(Boolean),
+      issues,
       status: "REPO_WRITE_FAILED",
       results,
       repoWritten: results.some((r) => r.ok && r.changed),

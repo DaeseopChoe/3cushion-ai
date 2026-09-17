@@ -305,6 +305,9 @@ describe("buildCueC3ProductMembers", () => {
     expect(product.memberOrigin).toBe(CUE_C3_PRODUCT_MEMBER_ORIGIN);
     expect(product.derivedRule).toBe(CUE_C3_PRODUCT_DERIVED_RULE);
     expect(product.generatedFromMemberId).toBe("mb_B2T_L");
+    // Product meta must be REBUILT (not source copy / omit)
+    expect(product.meta).toBeTruthy();
+    expect(product.meta!.impact).not.toEqual(sources.B2T_L!.entry.meta!.impact);
   });
 
   it("CASE A targetBall=red: P → balls.second; base Target preserved on balls.target", () => {

@@ -43,6 +43,7 @@ import {
 } from "./trackSymmetry";
 import { resolveC3PlusScoringLine, type C3PlusPoint } from "./c3PlusScoringPath";
 import { sampleC3PlusScoringLine } from "./sampleC3PlusScoringLine";
+import { withRebuiltCanonicalMeta } from "./rebuildCanonicalMemberMeta";
 
 export const C3_PLUS_MEMBER_ORIGIN = "DERIVED_C3_PLUS" as const;
 /** Scoring-line hybrid rule — not the withdrawn 2Rg placeholder. */
@@ -318,7 +319,7 @@ export function generateC3PlusScoringDerivedMembers(
     if (!provenance.ok) {
       return { ok: false, code: "INVALID_SOURCE", reason: provenance.reason };
     }
-    members.push(candidate);
+    members.push(withRebuiltCanonicalMeta(candidate));
   }
 
   if (members.length === 0) {

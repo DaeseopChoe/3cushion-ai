@@ -38,6 +38,7 @@ import {
   validateBall3Centers,
   type FamilyTrack,
 } from "./trackSymmetry";
+import { withRebuiltCanonicalMeta } from "./rebuildCanonicalMemberMeta";
 
 export const CUE_C3_PRODUCT_MEMBER_ORIGIN = "DERIVED_CUE_C3_PRODUCT" as const;
 export const CUE_C3_PRODUCT_DERIVED_RULE = "CUE_C3_CARTESIAN_PRODUCT_V1" as const;
@@ -383,7 +384,7 @@ export function buildCueC3ProductMembers(args: {
           cardinality: cardinalityBase,
         };
       }
-      members.push(candidate);
+      members.push(withRebuiltCanonicalMeta(candidate));
     }
 
     // 2. C3+ Marginal (C0 × Sj): Base Cue × C3+ Scoring
@@ -512,7 +513,7 @@ export function buildCueC3ProductMembers(args: {
           cardinality: cardinalityBase,
         };
       }
-      members.push(candidate);
+      members.push(withRebuiltCanonicalMeta(candidate));
     }
 
     // 3. Cross Product (Ci × Sj): Cue Derived × C3+ Scoring
@@ -668,7 +669,7 @@ export function buildCueC3ProductMembers(args: {
             cardinality: cardinalityBase,
           };
         }
-        members.push(candidate);
+        members.push(withRebuiltCanonicalMeta(candidate));
       }
     }
   }

@@ -747,7 +747,8 @@ export function useSettings({
     const failDetail = [
       result.status ? `status: ${result.status}` : "",
       result.reason,
-      ...(Array.isArray(result.issues) ? result.issues.slice(0, 6) : []),
+      // Field-level issues (e.g. records[n].strategies.S1.meta:missing); UI truncates display only.
+      ...(Array.isArray(result.issues) ? result.issues.slice(0, 12) : []),
       result.localCommit
         ? `LOCAL_COMMITTED (push 실패 — reset 금지, 수동 확인)`
         : "",
