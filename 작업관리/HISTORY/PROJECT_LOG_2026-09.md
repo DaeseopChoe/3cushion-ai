@@ -6,6 +6,60 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-17 — Legacy Product Meta Migration Tool (Dry-Run Only)
+
+## Mode
+
+**Agent** · Dry-run audit tooling · Commit/Push · **APPLY NOT EXECUTED**
+
+## Status
+
+**COMPLETE** (apply deferred)
+
+## Tool
+
+- Domain: `frontend/src/domain/family/legacyProductMetaMigration.ts`
+- CLI: `frontend/src/domain/family/legacyProductMetaMigration.cli.ts`
+- Command: `npm run migrate:product-meta:dry-run` (default dry-run; `--apply` rejected)
+
+## Meta rebuild owner
+
+`rebuildCanonicalMemberMeta` → `evaluateStrategy` → `buildStrategyMeta`  
+(repo registry via `getSystemContract` bound in CLI only)
+
+## Dry-run results (live scan SSOT)
+
+| Leaf | SOURCE STATE | Product | Meta missing | Repairable | Unrepairable | Before valid | After in-memory | After product meta-missing remaining | Other after issues |
+|------|--------------|---------|--------------|------------|--------------|--------------|-----------------|--------------------------------------|--------------------|
+| 옆돌리기/파이브앤하프 | HEAD_MATCH | 504 | 504 | 504 | 0 | FAIL | FAIL | 0 | 252 (duplicate-member-identity) |
+| 뒤돌리기/파이브앤하프 | DIRTY_WORKTREE | 3244 | 1900 | 1900 | 0 | FAIL | FAIL | 0 | 414 (pre-existing; validator sample) |
+
+- TOTAL LEAVES: 2 · AFFECTED: 2 · TOTAL REPAIRABLE: 2404 · UNREPAIRABLE: 0
+- Only `*.strategies.*.meta` paths change in memory
+- Identity / sysInputs / corrections / balls preserved
+- Dataset files **not written**
+- Dirty 뒤돌리기 leaf: apply requires separate user decision
+- Clean 옆돌리기: meta repair OK in memory, but leaf still BLOCKED for apply due to pre-existing `duplicate-member-identity` (not hidden)
+
+## Explicitly NOT done
+
+- Actual migration apply / dataset write
+- Validator relaxation
+- Identity / duplicate repair
+- Dirty WT overwrite
+
+## Protected WT (untouched)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json` (DIRTY — read-only dry-run)
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+- `dataset/옆돌리기/파이브앤하프/positions.json` (remained clean)
+
+## Commit
+
+`chore(admin): add dry-run product meta migration audit`
+
+---
+
 # 2026-09-17 — Product Meta Integrity (Diagnostics + Producer Recurrence Prevention)
 
 ## Mode
