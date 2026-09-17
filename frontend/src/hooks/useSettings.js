@@ -33,6 +33,7 @@ import {
 } from "../domain/publishFamilyPayload";
 import { writeVerifiedPublishedFile } from "../domain/publishedWrite";
 import { publishDatasetToLocalRepo } from "../domain/repoPublish/publishDatasetToLocalRepo";
+import { publishDatasetToLocalRepoWithGit } from "../domain/repoPublish/publishDatasetToLocalRepoGit";
 import {
   DATASET_EXPORT_FILENAME,
   DATASET_ROOT_DIR,
@@ -591,8 +592,10 @@ export function useSettings({
   );
 
   /**
-   * Phase 4-A: repo-relative Publish (local Vite host only).
-   * C2 snapshots only. Does not open picker. Does not auto-fallback to Export.
+   * Phase 4-B: Git-enabled Publish (local Vite host only).
+   * C2 snapshots only. Preflight → repo write → commit → push.
+   * Does not open picker. Does not auto-fallback to Export or repo-only.
+   * Phase 4-A repo-only endpoint remains available separately.
    */
   const handlePublishSnapshots = useCallback(async (ids) => {
     if (!ids?.length) return;
@@ -646,14 +649,14 @@ export function useSettings({
 
     if (items.length === 0) {
       alert(
-        `Repo Publish 불가 (C2 snapshot 필요)\n` +
+        `Git Publish 불가 (C2 snapshot 필요)\n` +
           blocked.map((b) => `${b.reason}`).join("\n") +
           `\n\nLegacy/C1은 Export(폴더 선택)를 사용하세요.`
       );
       return;
     }
 
-    const result = await publishDatasetToLocalRepo(items);
+    const result = await publishDatasetToLocalRepoWithGit(items);
     if (!result.hostAvailable) {
       alert(
         `LOCAL_PUBLISH_HOST_UNAVAILABLE\n${
@@ -663,55 +666,97 @@ export function useSettings({
       return;
     }
 
-    /** @type {string[]} */
-    const successfulIds = [];
-    /** @type {string[]} */
-    const failMsgs = [];
-
-    if (Array.isArray(result.results)) {
-      for (const r of result.results) {
-        if (r.ok) {
-          successfulIds.push(r.snapshotId);
-          const snap = toPublish.find((s) => s.id === r.snapshotId);
-          if (snap) {
-            refreshPublishedDataset(
-              snap.pattern ?? "뒤돌리기",
-              snap.systemId ?? "5_half_system"
-            );
-          }
-        } else {
-          failMsgs.push(`${r.reason}${r.issues?.length ? `: ${r.issues[0]}` : ""}`);
-        }
+    if (result.ok) {
+      /** @type {string[]} */
+      const successfulIds = items.map((it) => it.snapshotId);
+      for (const it of items) {
+        refreshPublishedDataset(it.shotType, it.systemId);
       }
-    }
-
-    for (const b of blocked) {
-      failMsgs.push(`${b.reason}`);
-    }
-
-    if (successfulIds.length > 0) {
       refreshPublishedDataset();
       updateSnapshotsExported(successfulIds);
       setWorkspaceHistoryVersion((v) => v + 1);
+
+      if (result.status === "VERIFIED_NO_CHANGE") {
+        alert(
+          `${successfulIds.length}개 Git Publish 완료 (NO_CHANGE)\n` +
+            `변경 없음 — commit/push 생략`
+        );
+      } else {
+        alert(
+          `${successfulIds.length}개 Git Publish 완료 (PUSHED)\n` +
+            `commit → push origin/main\n` +
+            (result.commit ? `HEAD: ${result.commit.slice(0, 7)}\n` : "") +
+            `(배포 반영은 Vercel Git integration — Phase 4-C)`
+        );
+      }
+      return;
     }
 
-    if (successfulIds.length === toPublish.length && blocked.length === 0) {
-      alert(
-        `${successfulIds.length}개 Repo Publish 완료 (verified)\n` +
-          `(dataset/{공략}/{시스템}/positions.json)`
-      );
-    } else if (successfulIds.length > 0) {
-      alert(
-        `부분 Repo Publish 완료 (${successfulIds.length}/${toPublish.length})\n` +
-          `실패/차단: ${failMsgs.slice(0, 5).join("; ") || result.reason || "unknown"}`
-      );
-    } else {
-      alert(
-        `Repo Publish 실패\n${
-          failMsgs.slice(0, 8).join("\n") || result.reason || "unknown"
-        }`
-      );
+    const failDetail = [
+      result.status ? `status: ${result.status}` : "",
+      result.reason,
+      ...(Array.isArray(result.issues) ? result.issues.slice(0, 6) : []),
+      result.localCommit
+        ? `LOCAL_COMMITTED (push 실패 — reset 금지, 수동 확인)`
+        : "",
+      result.repoWritten
+        ? `repo write는 되었을 수 있음 — Git commit 없음`
+        : "",
+      ...blocked.map((b) => b.reason),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    alert(`Git Publish 실패\n${failDetail}`);
+  }, []);
+
+  /**
+   * Phase 4-A repo-only Publish (no Git). Kept for recovery / advanced use.
+   * Not wired to primary Publish button.
+   */
+  const handleRepoOnlyPublishSnapshots = useCallback(async (ids) => {
+    if (!ids?.length) return;
+    const history = loadWorkspaceHistory();
+    const toPublish = ids
+      .map((id) => findSnapshotById(history, id))
+      .filter(Boolean);
+    if (toPublish.length === 0) return;
+    const items = [];
+    for (const snap of toPublish) {
+      const op = readPublishOperationFromSnapshot(snap);
+      const payloadRead = readPublishFamilyPayloadFromSnapshot(snap);
+      if (!op || !payloadRead.ok || !payloadRead.payload) continue;
+      if ("absent" in payloadRead && payloadRead.absent) continue;
+      items.push({
+        snapshotId: snap.id,
+        shotType: snap.pattern ?? "뒤돌리기",
+        systemId: snap.systemId ?? "5_half_system",
+        publishOperation: op,
+        publishFamilyPayload: payloadRead.payload,
+      });
     }
+    if (items.length === 0) {
+      alert("Repo-only Publish: C2 snapshot 필요");
+      return;
+    }
+    const result = await publishDatasetToLocalRepo(items);
+    if (!result.hostAvailable) {
+      alert(`LOCAL_PUBLISH_HOST_UNAVAILABLE\n${result.message ?? ""}`);
+      return;
+    }
+    const successfulIds = (result.results || [])
+      .filter((r) => r.ok)
+      .map((r) => r.snapshotId);
+    if (successfulIds.length > 0) {
+      updateSnapshotsExported(successfulIds);
+      setWorkspaceHistoryVersion((v) => v + 1);
+      refreshPublishedDataset();
+    }
+    alert(
+      result.ok
+        ? `Repo-only Publish 완료 (${successfulIds.length})`
+        : `Repo-only Publish 실패: ${result.reason}`
+    );
   }, []);
 
   return {
@@ -724,6 +769,7 @@ export function useSettings({
     handleDeleteOldest30,
     handleExportSnapshots,
     handlePublishSnapshots,
+    handleRepoOnlyPublishSnapshots,
     editSourceContext,
     clearEditSourceContext,
   };

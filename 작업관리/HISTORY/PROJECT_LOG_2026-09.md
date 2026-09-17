@@ -6,6 +6,41 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-17 — Phase 4-B Safe Git Commit + Push Automation
+
+## Mode
+
+**Agent** · Git preflight + target-only stage + commit + push · Commit/Push
+
+## Status
+
+**Phase 4-B COMPLETE**
+
+## Scope (Phase 4-B)
+
+1. `gitExec.ts` — execFile-only Git CLI (`core.quotepath=false`)
+2. `gitPublish.ts` — preflight / post-write / stage / commit / push
+3. `publishDatasetWithGit.ts` — orchestration: preflight → 4-A write → Git
+4. Dev-only `POST /api/publish-dataset-git` (Vite configureServer)
+5. UI Publish → Git-enabled; 4-A repo-only retained; Export picker retained
+6. Policies: staged block, target dirty before write, unrelated dirty allow, no pull/rebase/merge/force
+
+## Explicitly NOT done (Phase 4-C)
+
+- Vercel CLI / deployment status
+- Production dataset read-back
+
+## Tests
+
+- gitPublish temp-repo contracts PASS · Phase 4-A + Phase 3 regressions · full **1752 PASS** · build PASS
+
+## Dirty WT preserved (not committed)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+---
+
 # 2026-09-17 — Phase 4-A Repo-Relative Safe Local Publisher
 
 ## Mode

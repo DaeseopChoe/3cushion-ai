@@ -422,7 +422,7 @@ export default function WorkspaceHistoryModal({
               type="button"
               onClick={handlePublish}
               disabled={selectedIds.length === 0 || !onPublish}
-              title="로컬 Vite → repo dataset/ 직접 기록 (C2 snapshot)"
+              title="로컬 Vite → repo write → git commit → push origin/main (C2)"
               style={{
                 padding: "10px 20px",
                 fontSize: 15,
