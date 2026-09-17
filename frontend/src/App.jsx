@@ -1339,6 +1339,7 @@ export default function App({
     handleDeleteWorkspaceSnapshot,
     handleDeleteOldest30,
     handleExportSnapshots,
+    handlePublishSnapshots,
     editSourceContext,
     clearEditSourceContext,
   } = useSettings({
@@ -6609,6 +6610,7 @@ function handlePointerCancel(e) {
             onDelete={handleDeleteWorkspaceSnapshot}
             onDeleteOldest30={handleDeleteOldest30}
             onExport={handleExportSnapshots}
+            onPublish={handlePublishSnapshots}
           />
         </Suspense>
       )}

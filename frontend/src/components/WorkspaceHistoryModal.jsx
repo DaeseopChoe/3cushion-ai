@@ -13,6 +13,7 @@ export default function WorkspaceHistoryModal({
   onLoad,
   onDelete,
   onExport,
+  onPublish,
 }) {
   const [tab, setTab] = useState("all"); // "all": 로컬데이터, "unexported": Unexported
   const [selectedIds, setSelectedIds] = useState([]);
@@ -120,6 +121,21 @@ export default function WorkspaceHistoryModal({
       await onExport?.(ids);
     } catch (e) {
       console.warn("Export failed", e);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (selectedIds.length === 0) {
+      alert("Publish할 스냅샷을 선택하세요.");
+      return;
+    }
+    const ids = [...selectedIds];
+    setSelectedIds([]);
+    lastCheckedIndexRef.current = null;
+    try {
+      await onPublish?.(ids);
+    } catch (e) {
+      console.warn("Publish failed", e);
     }
   };
 
@@ -399,26 +415,52 @@ export default function WorkspaceHistoryModal({
           Delete ({selectedIds.length})
         </button>
 
-        {/* Export (Unexported tab) */}
+        {/* Publish (repo-relative local) + Export (folder picker) on Unexported tab */}
         {tab === "unexported" && (
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={selectedIds.length === 0}
-            style={{
-              padding: "10px 20px",
-              fontSize: 15,
-              fontWeight: 600,
-              color: "#ffffff",
-              backgroundColor: selectedIds.length === 0 ? "#94a3b8" : "#10b981",
-              border: "none",
-              borderRadius: 8,
-              cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
-              transition: "background-color 0.15s ease",
-            }}
-          >
-            Export
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={handlePublish}
+              disabled={selectedIds.length === 0 || !onPublish}
+              title="로컬 Vite → repo dataset/ 직접 기록 (C2 snapshot)"
+              style={{
+                padding: "10px 20px",
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#ffffff",
+                backgroundColor:
+                  selectedIds.length === 0 || !onPublish ? "#94a3b8" : "#2563eb",
+                border: "none",
+                borderRadius: 8,
+                cursor:
+                  selectedIds.length === 0 || !onPublish
+                    ? "not-allowed"
+                    : "pointer",
+                transition: "background-color 0.15s ease",
+              }}
+            >
+              Publish
+            </button>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={selectedIds.length === 0}
+              title="폴더 선택 Export (기존 방식)"
+              style={{
+                padding: "10px 20px",
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#ffffff",
+                backgroundColor: selectedIds.length === 0 ? "#94a3b8" : "#10b981",
+                border: "none",
+                borderRadius: 8,
+                cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
+                transition: "background-color 0.15s ease",
+              }}
+            >
+              Export
+            </button>
+          </>
         )}
 
         {/* 닫기 */}

@@ -6,6 +6,57 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-17 — Phase 4-A Repo-Relative Safe Local Publisher
+
+## Mode
+
+**Agent** · Local Vite host + Phase 3 domain reuse + Node verified FS write · Commit/Push
+
+## Status
+
+**Phase 4-A COMPLETE**
+
+## Scope (Phase 4-A)
+
+1. Dev-only Vite middleware `POST /api/publish-dataset` (localhost origins only)
+2. Host resolves `REPO_DATASET_DIR` → `dataset/{shotType}/{systemLabel}/positions.json`
+3. Client sends only shotType/systemId + PublishOperation + PublishFamilyPayload (no paths/commands)
+4. Phase 3 `buildPublishedFamilyExportCandidate` reused — no duplicated family logic
+5. Node `writeVerifiedPublishedLeafFs` — temp write → replace → read-back → semantic verify → restore
+6. History UI: **Publish** (repo) + **Export** (picker fallback) separated
+7. C2 snapshots only for Repo Publish; legacy/C1 blocked (use Export)
+8. **Git automation NOT included** (Phase 4-B)
+
+## Explicitly NOT done (Phase 4-B/C)
+
+- git add / commit / push automation
+- Vercel CLI / deployment verification
+- Production browser → localhost publish
+
+## Tests
+
+- repoPublish contracts PASS · Phase 3 regressions · full **1737 PASS** · build PASS
+- Production dist: no publish-dataset serverless endpoint (configureServer only)
+
+## Dirty WT preserved (not committed)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json`
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+
+---
+
+# 2026-09-17 — Phase 4 Pre-Implementation Audit
+
+## Mode
+
+**Ask** · READ-ONLY architecture audit (no code changes)
+
+## Verdict
+
+READY for Phase 4-A (local Vite/host publisher; Git deferred to 4-B)
+
+---
+
 # 2026-09-17 — Phase 3-C2 Snapshot-Bound Family Payload SSOT
 
 ## Mode
