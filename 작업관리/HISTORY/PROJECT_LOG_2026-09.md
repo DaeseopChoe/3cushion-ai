@@ -6,6 +6,70 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-19 — Product Twin Dedupe (Dry-Run Only)
+
+## Mode
+
+**Agent** · In-memory twin removal audit · Commit/Push · **APPLY NOT EXECUTED**
+
+## Status
+
+**COMPLETE** (actual dataset repair deferred — wait for user review)
+
+## Tool
+
+- Domain: `frontend/src/domain/family/legacyProductTwinDedupe.ts`
+- CLI: `frontend/src/domain/family/legacyProductTwinDedupe.cli.ts`
+- Command: `npm run migrate:product-twin:dry-run` (dry-run only; `--apply` rejected)
+- Contract tests: `legacyProductTwinDedupe.contract.test.ts` (D1–D28)
+
+## Canonical keep policy
+
+Keep the occurrence whose Exact balls match **current Product SSOT reconstruction**
+(`matchesCanonicalProductGeometry` → Cue Impact sample / C→I segment + base.target + Product second P + `createPositionId`).
+
+- Does **not** select by `targetBall` / color / record index
+- CORPUS A (Exact match) = keep · CORPUS B (legacy twin) = remove candidate
+- Meta migration remains a **separate** owner (`legacyProductMetaMigration`)
+
+## Dry-run results (옆돌리기/파이브앤하프 clean leaf)
+
+| Metric | Value |
+|--------|-------|
+| SOURCE STATE | HEAD_MATCH |
+| RESULT | SAFE_TO_APPLY |
+| Duplicate groups before | 252 |
+| Canonical keep | 252 |
+| Non-canonical remove | 252 |
+| Ambiguous | 0 |
+| Records | 508 → 256 (in memory) |
+| Product entries | 504 → 252 |
+| duplicate-member-identity | 252 → 0 |
+| Unique member identities | 256 → 256 (preserved) |
+| Remaining Product meta:missing | 252 (expected; next meta apply scope) |
+| After duplicate valid | PASS |
+| After full canonical valid | FAIL (meta:missing only) |
+| Dataset written | **NO** |
+
+## Explicitly NOT done
+
+- Actual positions.json overwrite / apply
+- ID regeneration / ball rewrite / sysInputs·corrections rewrite
+- Meta rebuild in dedupe phase
+- Validator / Product producer changes
+
+## Protected WT (untouched)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json` (DIRTY — not scanned/applied)
+- `frontend/src/domain/trajectory/incidenceAngle.ts`
+- `dataset/옆돌리기/파이브앤하프/positions.json` (READ only; unrepaired on disk)
+
+## Commit
+
+`chore(admin): add dry-run product twin dedupe audit`
+
+---
+
 # 2026-09-17 — Legacy Product Meta Migration Tool (Dry-Run Only)
 
 ## Mode
