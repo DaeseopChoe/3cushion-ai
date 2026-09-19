@@ -6,6 +6,64 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-19 — Product Twin Dedupe (Actual Apply)
+
+## Mode
+
+**Agent** · Dataset repair apply (single clean leaf) · Commit/Push · **Meta migration NOT executed**
+
+## Status
+
+**COMPLETE** — wait for user review before Product Meta Migration Apply
+
+## Target
+
+`dataset/옆돌리기/파이브앤하프/positions.json` **only**
+
+## Apply owner
+
+- Domain: `legacyProductTwinDedupe.ts` (`prepareProductTwinDedupeApply` / `writeProductTwinDedupeLeafFs`)
+- CLI: `npm run migrate:product-twin:apply`
+- Selection: **same** dry-run canonical Exact Product reconstruction owner (no new selection logic)
+
+## Results (live)
+
+| Metric | Before → After |
+|--------|----------------|
+| Records | 508 → 256 |
+| Product entries | 504 → 252 |
+| duplicate-member-identity | 252 → 0 |
+| Unique member identities | 256 → 256 (preserved) |
+| Canonical KEEP (Corpus A) | 252 |
+| Non-canonical REMOVE (Corpus B) | 252 |
+| Ambiguous | 0 |
+| ID regeneration | 0 |
+| Balls / sysInputs / corrections rewrite | 0 |
+| Remaining Product meta:missing | **252** (unchanged; next step) |
+
+- Duplicate validation: **PASS**
+- Full canonical validation: **FAIL** (expected — meta:missing × 252 only)
+- Unexpected validation issues: **0**
+- Post-write read-back: **PASS**
+- Post-apply idempotent: **YES**
+- Meta migration executed: **NO**
+
+## Protected WT (untouched)
+
+- `dataset/뒤돌리기/파이브앤하프/positions.json` (DIRTY preserved)
+- `frontend/src/domain/trajectory/incidenceAngle.ts` (DIRTY preserved)
+
+## Next
+
+Product Meta Migration Apply (separate Agent) for remaining meta:missing × 252  
+Do **not** retry app Publish until meta repair completes.
+
+## Commit
+
+`fix(dataset): remove legacy product twin duplicates`
+
+---
+
 # 2026-09-19 — Product Twin Dedupe (Dry-Run Only)
 
 ## Mode

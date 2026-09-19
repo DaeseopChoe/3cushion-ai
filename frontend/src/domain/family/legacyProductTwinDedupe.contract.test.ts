@@ -16,8 +16,13 @@ import {
 } from "./buildCueC3ProductMembers";
 import {
   dryRunProductTwinDedupe,
-  EXPECTED_TWIN_GROUP_COUNT,
+  EXPECTED_APPLY,
+  isSafeTwinDedupeApplyCandidate,
   matchesCanonicalProductGeometry,
+  prepareProductTwinDedupeApply,
+  PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+  verifyProductTwinDedupeReadBack,
+  writeProductTwinDedupeLeafFs,
 } from "./legacyProductTwinDedupe";
 
 const REPO_ROOT = path.resolve(
@@ -103,72 +108,41 @@ function baseRecord(): PositionRecord {
 }
 
 describe("legacyProductTwinDedupe — live clean leaf", () => {
-  it("D1–D15/D22–D28 — 252 twins: keep A, remove B, identity preserved", () => {
+  it("D1–D15/D22–D28 — post-apply: 0 twins, identity preserved, meta gaps remain", () => {
     const payload = loadSideLeaf();
     const before = JSON.stringify(payload);
     const r = dryRunProductTwinDedupe({
-      relativePosix: "dataset/옆돌리기/파이브앤하프/positions.json",
+      relativePosix: PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
       sourceState: "HEAD_MATCH",
       payload,
-      enforceExpectedBaseline: true,
+      enforceExpectedBaseline: false,
     });
 
-    expect(r.duplicateGroupsBefore).toBe(EXPECTED_TWIN_GROUP_COUNT);
-    expect(r.duplicateErrorsBefore).toBe(EXPECTED_TWIN_GROUP_COUNT);
-    expect(r.groups.every((g) => g.occurrences.length === 2 || g.status !== "REPAIRABLE")).toBe(
-      true
-    );
-    expect(r.groups.filter((g) => g.status === "REPAIRABLE").every((g) => {
-      const n = g.occurrences.filter((o) => o.matchesCanonical).length;
-      return n === 1;
-    })).toBe(true);
-
-    expect(r.canonicalKeep).toBe(252);
-    expect(r.nonCanonicalRemove).toBe(252);
+    // Post-apply leaf: twins already removed
+    expect(r.recordsBefore).toBe(EXPECTED_APPLY.recordsAfter);
+    expect(r.productEntriesBefore).toBe(EXPECTED_APPLY.productAfter);
+    expect(r.duplicateGroupsBefore).toBe(0);
+    expect(r.duplicateErrorsBefore).toBe(0);
+    expect(r.canonicalKeep).toBe(0);
+    expect(r.nonCanonicalRemove).toBe(0);
     expect(r.ambiguousGroups).toBe(0);
-    expect(r.duplicateErrorsAfter).toBe(0);
-    expect(r.recordsBefore).toBe(508);
-    expect(r.recordsAfter).toBe(256);
-    expect(r.productEntriesBefore).toBe(504);
-    expect(r.productEntriesAfter).toBe(252);
-    expect(r.uniqueIdentitiesBefore).toBe(r.uniqueIdentitiesAfter);
-    expect(r.identitySetPreserved).toBe(true);
+    expect(r.uniqueIdentitiesBefore).toBe(EXPECTED_APPLY.uniqueIdentities);
     expect(r.idRegeneration).toBe(false);
     expect(r.ballRewrite).toBe(false);
     expect(r.metaRebuildExecuted).toBe(false);
-    expect(r.nonTargetEntriesChanged).toBe(0);
-    expect(r.otherSlotDataLost).toBe(false);
-    expect(r.recordOrderPreserved).toBe(true);
     expect(r.sourceMutated).toBe(false);
     expect(JSON.stringify(payload)).toBe(before);
-    expect(r.deterministicCheck).toBe(true);
-    expect(r.idempotentCheck).toBe(true);
-    expect(r.scopeGuard).toBe("PASS");
-    expect(r.afterDuplicateValid).toBe(true);
-    expect(r.result).toBe("SAFE_TO_APPLY");
-    expect(r.remainingProductMetaMissing).toBe(252);
+    expect(r.result).toBe("UNAFFECTED");
 
-    // D25: keep decision is not targetBall-only — verify via geometry owner
-    for (const g of r.groups) {
-      if (g.status !== "REPAIRABLE") continue;
-      const keep = g.occurrences.find((o) => o.matchesCanonical)!;
-      const rem = g.occurrences.find((o) => !o.matchesCanonical)!;
-      // Live leaf: keep has no targetBall; remove has yellow — but decision is geometry
-      expect(keep.matchesCanonical).toBe(true);
-      expect(rem.matchesCanonical).toBe(false);
-      expect(keep.hasTargetBallField).toBe(false);
-      expect(rem.hasTargetBallField).toBe(true);
-    }
-
-    // Second run on repaired = idempotent
-    const r2 = dryRunProductTwinDedupe({
-      relativePosix: "dataset/옆돌리기/파이브앤하프/positions.json",
-      sourceState: "HEAD_MATCH",
-      payload: r.repairedPayload!,
-      enforceExpectedBaseline: false,
-    });
-    expect(r2.duplicateGroupsBefore).toBe(0);
-    expect(r2.canonicalKeep).toBe(0);
+    // Remaining meta gaps (separate from dedupe)
+    const metaMissing = (payload.records ?? []).reduce((n, rec) => {
+      const e = rec.strategies?.S1;
+      if (e?.memberOrigin === CUE_C3_PRODUCT_MEMBER_ORIGIN && e.meta == null) {
+        return n + 1;
+      }
+      return n;
+    }, 0);
+    expect(metaMissing).toBe(EXPECTED_APPLY.remainingMetaMissing);
   });
 });
 
@@ -386,5 +360,264 @@ describe("legacyProductTwinDedupe — synthetic guards", () => {
       true
     );
     expect(r.result).toBe("BLOCKED");
+  });
+});
+
+describe("legacyProductTwinDedupe — apply gates (A1–A17)", () => {
+  function envelope(records: PositionRecord[]): DatasetExportPayload {
+    return {
+      schemaVersion: 2,
+      shotType: "옆돌리기",
+      systemId: "5_half_system",
+      systemLabel: "파이브앤하프",
+      exportedAt: "2026-08-27T00:00:00.000Z",
+      records,
+    };
+  }
+
+  it("A1/A2/A3/A4/A5/A6/A7/A8/A9/A10/A17 — live baseline + prepare gate (pre-apply)", () => {
+    const payload = loadSideLeaf();
+    const beforeBalls = JSON.stringify(payload.records?.map((r) => r.balls));
+    const beforeSys = JSON.stringify(
+      payload.records?.map((r) => r.strategies?.S1?.sysInputs)
+    );
+    const beforeCorr = JSON.stringify(
+      payload.records?.map((r) => r.strategies?.S1?.corrections)
+    );
+    const beforeIds = JSON.stringify(
+      payload.records?.map((r) => ({
+        positionId: r.positionId,
+        familyId: r.strategies?.S1?.familyId,
+        memberId: r.strategies?.S1?.memberId,
+      }))
+    );
+
+    // Skip if already applied (post-dedupe leaf)
+    if ((payload.records ?? []).length === EXPECTED_APPLY.recordsAfter) {
+      const r = dryRunProductTwinDedupe({
+        relativePosix: PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+        sourceState: "HEAD_MATCH",
+        payload,
+        enforceExpectedBaseline: false,
+      });
+      expect(r.duplicateGroupsBefore).toBe(0);
+      expect(r.metaRebuildExecuted).toBe(false);
+      return;
+    }
+
+    const prepared = prepareProductTwinDedupeApply({
+      relativePosix: PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+      sourceState: "HEAD_MATCH",
+      payload,
+    });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+
+    expect(isSafeTwinDedupeApplyCandidate(prepared.dryRun)).toBe(true);
+    expect(prepared.dryRun.duplicateGroupsBefore).toBe(252);
+    expect(prepared.dryRun.duplicateErrorsAfter).toBe(0);
+    expect(prepared.dryRun.recordsBefore).toBe(508);
+    expect(prepared.dryRun.recordsAfter).toBe(256);
+    expect(prepared.dryRun.productEntriesBefore).toBe(504);
+    expect(prepared.dryRun.productEntriesAfter).toBe(252);
+    expect(prepared.dryRun.identitySetPreserved).toBe(true);
+    expect(prepared.dryRun.idRegeneration).toBe(false);
+    expect(prepared.dryRun.ballRewrite).toBe(false);
+    expect(prepared.dryRun.metaRebuildExecuted).toBe(false);
+    expect(prepared.dryRun.nonTargetEntriesChanged).toBe(0);
+
+    // Kept entries: balls/sys/corrections/ids unchanged vs source keep records
+    expect(JSON.stringify(payload.records?.map((r) => r.balls))).toBe(beforeBalls);
+    expect(
+      JSON.stringify(payload.records?.map((r) => r.strategies?.S1?.sysInputs))
+    ).toBe(beforeSys);
+    expect(
+      JSON.stringify(payload.records?.map((r) => r.strategies?.S1?.corrections))
+    ).toBe(beforeCorr);
+    expect(
+      JSON.stringify(
+        payload.records?.map((r) => ({
+          positionId: r.positionId,
+          familyId: r.strategies?.S1?.familyId,
+          memberId: r.strategies?.S1?.memberId,
+        }))
+      )
+    ).toBe(beforeIds);
+
+    for (const g of prepared.dryRun.groups) {
+      if (g.status !== "REPAIRABLE") continue;
+      const keep = g.occurrences.find((o) => o.matchesCanonical)!;
+      const src = payload.records![keep.recordIndex]!;
+      const cand = prepared.candidate.records!.find(
+        (r) => r.positionId === keep.positionId
+      )!;
+      expect(JSON.stringify(cand.balls)).toBe(JSON.stringify(src.balls));
+      expect(JSON.stringify(cand.strategies?.S1)).toBe(
+        JSON.stringify(src.strategies?.S1)
+      );
+    }
+  });
+
+  it("A11/A12 — other slot / ambiguous blocks write", () => {
+    const base = baseRecord();
+    const good: Ball3 = {
+      cue: { ...base.balls.cue },
+      target: { ...base.balls.target },
+      second: { x: 32, y: 0.5 },
+    };
+    const entry = productEntry();
+    const goodRec: PositionRecord = {
+      positionId: createPositionId(good),
+      balls: good,
+      strategies: { S1: entry },
+      schemaVersion: 1,
+    };
+    const badRec: PositionRecord = {
+      positionId: "999999999999999999",
+      balls: {
+        cue: { x: 1, y: 1 },
+        target: { ...base.balls.target },
+        second: { x: 32, y: 0.5 },
+      },
+      strategies: {
+        S1: { ...entry },
+        S2: { ...entry, slot: "S2", memberId: "mb_other" },
+      },
+      schemaVersion: 1,
+    };
+    const payload = envelope([base, goodRec, badRec]);
+    const prepared = prepareProductTwinDedupeApply({
+      relativePosix: PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+      sourceState: "HEAD_MATCH",
+      payload,
+    });
+    expect(prepared.ok).toBe(false);
+  });
+
+  it("A13 — source-state change blocks write", () => {
+    const payload = loadSideLeaf();
+    const prepared = prepareProductTwinDedupeApply({
+      relativePosix: PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+      sourceState: "DIRTY_WORKTREE",
+      payload,
+    });
+    expect(prepared.ok).toBe(false);
+    expect(prepared.reason).toBe("SOURCE_STATE_CHANGED");
+  });
+
+  it("A14 — wrong target path blocks write", () => {
+    const payload = loadSideLeaf();
+    const prepared = prepareProductTwinDedupeApply({
+      relativePosix: "dataset/뒤돌리기/파이브앤하프/positions.json",
+      sourceState: "HEAD_MATCH",
+      payload,
+    });
+    expect(prepared.ok).toBe(false);
+    expect(prepared.reason).toBe("APPLY_TARGET_NOT_ALLOWED");
+  });
+
+  it("A15/A16 — temp-file write + read-back + idempotence (never touches real leaf)", () => {
+    const payload = loadSideLeaf();
+    if ((payload.records ?? []).length !== EXPECTED_APPLY.recordsBefore) {
+      // Already applied on disk — verify idempotent dry-run only
+      const r = dryRunProductTwinDedupe({
+        relativePosix: PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+        sourceState: "HEAD_MATCH",
+        payload,
+        enforceExpectedBaseline: false,
+      });
+      expect(r.duplicateGroupsBefore).toBe(0);
+      expect(r.canonicalKeep).toBe(0);
+      return;
+    }
+
+    const tmpDir = fs.mkdtempSync(path.join(REPO_ROOT, "frontend", ".tmp-twin-"));
+    const tmpLeaf = path.join(tmpDir, "positions.json");
+    try {
+      const originalText = fs.readFileSync(SIDE_LEAF, "utf8");
+      fs.writeFileSync(tmpLeaf, originalText, "utf8");
+      const write = writeProductTwinDedupeLeafFs({
+        absoluteTargetPath: tmpLeaf,
+        relativePosix: PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+        sourceState: "HEAD_MATCH",
+        originalText,
+        payload: JSON.parse(originalText),
+      });
+      expect(write.ok).toBe(true);
+      if (!write.ok) return;
+      expect(write.readBack.ok).toBe(true);
+      expect(write.readBack.records).toBe(256);
+      expect(write.readBack.duplicateErrors).toBe(0);
+      expect(write.readBack.idempotent).toBe(true);
+      expect(write.dryRun.metaRebuildExecuted).toBe(false);
+
+      const again = dryRunProductTwinDedupe({
+        relativePosix: PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+        sourceState: "HEAD_MATCH",
+        payload: JSON.parse(fs.readFileSync(tmpLeaf, "utf8")),
+        enforceExpectedBaseline: false,
+      });
+      expect(again.duplicateGroupsBefore).toBe(0);
+      expect(again.nonCanonicalRemove).toBe(0);
+
+      // Real leaf must remain untouched
+      const live = JSON.parse(fs.readFileSync(SIDE_LEAF, "utf8"));
+      expect(live.records.length).toBe(508);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("A17 — verify read-back helper reports meta gaps without unexpected issues", () => {
+    const payload = loadSideLeaf();
+    const r = dryRunProductTwinDedupe({
+      relativePosix: PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+      sourceState: "HEAD_MATCH",
+      payload,
+      enforceExpectedBaseline: (payload.records ?? []).length === 508,
+    });
+    if (!r.repairedPayload) {
+      // post-apply leaf
+      const keys = new Set(
+        (payload.records ?? [])
+          .flatMap((rec) =>
+            (["S1", "S2", "S3"] as const).map((slot) => {
+              const e = rec.strategies?.[slot];
+              if (!e?.familyId || !e?.memberId) return null;
+              return `${e.familyId}::${e.memberId}`;
+            })
+          )
+          .filter(Boolean) as string[]
+      );
+      const rb = verifyProductTwinDedupeReadBack({
+        payload,
+        removedPositionIds: [],
+        keptIdentityKeys: keys,
+      });
+      expect(rb.duplicateErrors).toBe(0);
+      expect(rb.remainingMetaMissing).toBe(252);
+      expect(rb.unexpectedIssues).toEqual([]);
+      return;
+    }
+    const beforeKeys = new Set(
+      (payload.records ?? [])
+        .flatMap((rec) =>
+          (["S1", "S2", "S3"] as const).map((slot) => {
+            const e = rec.strategies?.[slot];
+            if (!e?.familyId || !e?.memberId) return null;
+            return `${e.familyId}::${e.memberId}`;
+          })
+        )
+        .filter(Boolean) as string[]
+    );
+    const rb = verifyProductTwinDedupeReadBack({
+      payload: r.repairedPayload,
+      removedPositionIds: r.removedPositionIds,
+      keptIdentityKeys: beforeKeys,
+    });
+    expect(rb.ok).toBe(true);
+    expect(rb.remainingMetaMissing).toBe(252);
+    expect(rb.unexpectedIssues).toEqual([]);
+    expect(r.metaRebuildExecuted).toBe(false);
   });
 });

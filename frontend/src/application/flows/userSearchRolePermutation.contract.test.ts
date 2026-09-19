@@ -4,7 +4,7 @@
  * Contract tests for USER Search:
  * 1. Root Cause A: Published Dataset Deployment & Artifact URL parity
  * 2. Root Cause B: USER Target/Second Role Permutation & Winning Role Mapping Preservation
- *    - Tracked Record (188080204306345016)
+ *    - Tracked Record (canonical Product 196128204306345016; legacy twin 18808… removed)
  *    - T1: Yellow Target (Physical: White=W, Yellow=T, Red=S -> logical target=Yellow, second=Red)
  *    - T2: Red Target (Physical: White=W, Red=T, Yellow=S -> logical target=Red, second=Yellow)
  *    - T3: Cue ball role is invariant (never permuted with object balls)
@@ -163,12 +163,13 @@ describe("USER Search Deployment & Role Permutation Contract Tests", () => {
     expect(Array.isArray(content.records)).toBe(true);
     expect(content.records.length).toBeGreaterThan(0);
 
-    // Tracked record existence check in published leaf
-    const found = content.records.find((r: any) => r.positionId === "188080204306345016");
+    // Tracked canonical Product record existence check in published leaf
+    // (Corpus B twin 188080204306345016 removed by Product Twin Dedupe apply)
+    const found = content.records.find((r: any) => r.positionId === "196128204306345016");
     expect(found).toBeDefined();
-    expect(found.positionId).toBe("188080204306345016");
-    expect(found.balls.cue.x).toBeCloseTo(18.788, 2);
-    expect(found.balls.target.x).toBeCloseTo(20.375, 2);
+    expect(found.positionId).toBe("196128204306345016");
+    expect(found.balls.cue.x).toBeCloseTo(19.582, 2);
+    expect(found.balls.target.x).toBeCloseTo(20.4, 2);
     expect(found.balls.second.x).toBeCloseTo(34.461, 2);
   });
 

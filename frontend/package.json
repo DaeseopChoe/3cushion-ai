@@ -14,7 +14,8 @@
     "test:full": "vitest run && npm run build",
     "test:regression": "npm run test:fast && npm run test:contract && npm test && npm run build",
     "migrate:product-meta:dry-run": "vite-node src/domain/family/legacyProductMetaMigration.cli.ts -- --dry-run",
-    "migrate:product-twin:dry-run": "vite-node src/domain/family/legacyProductTwinDedupe.cli.ts -- --dry-run"
+    "migrate:product-twin:dry-run": "vite-node src/domain/family/legacyProductTwinDedupe.cli.ts -- --dry-run",
+    "migrate:product-twin:apply": "vite-node src/domain/family/legacyProductTwinDedupe.cli.ts -- --apply"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

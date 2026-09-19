@@ -1,5 +1,5 @@
 /**
- * Legacy Product Twin Dedupe — DRY-RUN ONLY.
+ * Legacy Product Twin Dedupe — dry-run analysis + guarded single-leaf apply.
  *
  * Removes non-canonical Product twin PositionRecords that share
  * familyId::memberId with a canonical Product occurrence.
@@ -9,8 +9,13 @@
  *   cue on base Cue→Impact sample (Exact sampleCueImpactPoint or on-segment)
  *   second = Product scoring P (pair-shared Exact)
  *
- * Never writes dataset files. Never regenerates IDs. Never rewrites balls/sys/meta.
+ * Never regenerates IDs. Never rewrites balls/sys/meta.
+ * Apply writes ONLY the clean 옆돌리기 leaf when all guards PASS.
+ * Meta migration is intentionally out of scope.
  */
+
+import fs from "node:fs";
+import path from "node:path";
 
 import { calcImpactBall } from "../../data/system/calculator";
 import type { DatasetExportPayload } from "../datasetExport";
@@ -34,6 +39,24 @@ const SEGMENT_EPS = 1e-6;
 
 /** Known baseline for clean 옆돌리기 leaf (guard). */
 export const EXPECTED_TWIN_GROUP_COUNT = 252;
+
+/** Expected metrics for the clean 옆돌리기 apply (fail-closed). */
+export const EXPECTED_APPLY = {
+  recordsBefore: 508,
+  recordsAfter: 256,
+  productBefore: 504,
+  productAfter: 252,
+  duplicateGroups: 252,
+  duplicateErrors: 252,
+  canonicalKeep: 252,
+  nonCanonicalRemove: 252,
+  uniqueIdentities: 256,
+  remainingMetaMissing: 252,
+} as const;
+
+/** Sole dataset leaf allowed for twin-dedupe apply. */
+export const PRODUCT_TWIN_DEDUPE_APPLY_TARGET =
+  "dataset/옆돌리기/파이브앤하프/positions.json";
 
 export type SourceState =
   | "HEAD_MATCH"
@@ -897,5 +920,409 @@ export function formatTwinDedupeReport(r: TwinDedupeDryRunResult): string {
   lines.push(`SOURCE MUTATED: ${r.sourceMutated}`);
   lines.push(`DATASET WRITTEN: NO`);
   lines.push(`APPLY: NOT EXECUTED (dry-run only)`);
+  return lines.join("\n");
+}
+
+/**
+ * Fail-closed gate: dry-run must match the known clean-leaf apply contract.
+ * Reuses dry-run selection; does not invent a second keep algorithm.
+ */
+export function isSafeTwinDedupeApplyCandidate(
+  r: TwinDedupeDryRunResult
+): boolean {
+  return (
+    r.result === "SAFE_TO_APPLY" &&
+    r.sourceState === "HEAD_MATCH" &&
+    r.blockers.length === 0 &&
+    r.ambiguousGroups === 0 &&
+    r.scopeGuard === "PASS" &&
+    r.afterDuplicateValid === true &&
+    r.identitySetPreserved === true &&
+    r.nonTargetEntriesChanged === 0 &&
+    r.otherSlotDataLost === false &&
+    r.recordOrderPreserved === true &&
+    r.idRegeneration === false &&
+    r.ballRewrite === false &&
+    r.metaRebuildExecuted === false &&
+    r.sourceMutated === false &&
+    r.repairedPayload != null &&
+    r.canonicalKeep === EXPECTED_APPLY.canonicalKeep &&
+    r.nonCanonicalRemove === EXPECTED_APPLY.nonCanonicalRemove &&
+    r.duplicateGroupsBefore === EXPECTED_APPLY.duplicateGroups &&
+    r.duplicateErrorsBefore === EXPECTED_APPLY.duplicateErrors &&
+    r.duplicateErrorsAfter === 0 &&
+    r.recordsBefore === EXPECTED_APPLY.recordsBefore &&
+    r.recordsAfter === EXPECTED_APPLY.recordsAfter &&
+    r.productEntriesBefore === EXPECTED_APPLY.productBefore &&
+    r.productEntriesAfter === EXPECTED_APPLY.productAfter &&
+    r.uniqueIdentitiesBefore === EXPECTED_APPLY.uniqueIdentities &&
+    r.uniqueIdentitiesAfter === EXPECTED_APPLY.uniqueIdentities &&
+    r.remainingProductMetaMissing === EXPECTED_APPLY.remainingMetaMissing &&
+    r.removedPositionIds.length === EXPECTED_APPLY.nonCanonicalRemove &&
+    r.keptPositionIds.length === EXPECTED_APPLY.canonicalKeep
+  );
+}
+
+export type TwinDedupeApplyPrepareResult =
+  | {
+      ok: true;
+      dryRun: TwinDedupeDryRunResult;
+      candidate: DatasetExportPayload;
+    }
+  | {
+      ok: false;
+      reason: string;
+      blockers: string[];
+      dryRun: TwinDedupeDryRunResult;
+    };
+
+/**
+ * Build apply candidate from the same dry-run owner. No new selection logic.
+ */
+export function prepareProductTwinDedupeApply(args: {
+  relativePosix: string;
+  sourceState: SourceState;
+  payload: DatasetExportPayload;
+}): TwinDedupeApplyPrepareResult {
+  const dryRun = dryRunProductTwinDedupe({
+    relativePosix: args.relativePosix,
+    sourceState: args.sourceState,
+    payload: args.payload,
+    enforceExpectedBaseline: true,
+  });
+
+  if (args.relativePosix !== PRODUCT_TWIN_DEDUPE_APPLY_TARGET) {
+    return {
+      ok: false,
+      reason: "APPLY_TARGET_NOT_ALLOWED",
+      blockers: [`forbidden-target:${args.relativePosix}`],
+      dryRun,
+    };
+  }
+
+  if (args.sourceState !== "HEAD_MATCH") {
+    return {
+      ok: false,
+      reason: "SOURCE_STATE_CHANGED",
+      blockers: [`SOURCE_STATE_CHANGED:${args.sourceState}`],
+      dryRun,
+    };
+  }
+
+  if (!isSafeTwinDedupeApplyCandidate(dryRun) || !dryRun.repairedPayload) {
+    return {
+      ok: false,
+      reason: dryRun.blockers[0] ?? "APPLY_GATE_FAILED",
+      blockers: dryRun.blockers.length
+        ? dryRun.blockers
+        : ["APPLY_GATE_FAILED"],
+      dryRun,
+    };
+  }
+
+  return {
+    ok: true,
+    dryRun,
+    candidate: dryRun.repairedPayload,
+  };
+}
+
+export type TwinDedupePostWriteVerification = {
+  ok: boolean;
+  records: number;
+  productEntries: number;
+  duplicateErrors: number;
+  uniqueIdentities: number;
+  remainingMetaMissing: number;
+  unexpectedIssues: string[];
+  afterOtherIssues: string[];
+  idempotent: boolean;
+  removedStillPresent: number;
+  identitySetPreserved: boolean;
+};
+
+/**
+ * Read-back verification after write (duplicate PASS; meta:missing expected).
+ */
+export function verifyProductTwinDedupeReadBack(args: {
+  payload: DatasetExportPayload;
+  removedPositionIds: string[];
+  keptIdentityKeys: Set<string>;
+}): TwinDedupePostWriteVerification {
+  const records = args.payload.records ?? [];
+  const dup = countDuplicateErrors(records);
+  const productEntries = countProductEntries(records);
+  const remainingMetaMissing = countProductMetaMissing(records);
+  const full = validatePayload(args.payload);
+  const afterOtherIssues = full.issues.filter(
+    (i) => !i.includes("duplicate-member-identity")
+  );
+  const unexpectedIssues = afterOtherIssues.filter(
+    (i) => !i.includes("meta:missing")
+  );
+
+  const removedStillPresent = (args.payload.records ?? []).filter((r) =>
+    args.removedPositionIds.includes(r.positionId)
+  ).length;
+
+  const afterKeys = new Set(
+    collectMemberLocations(records)
+      .filter((l) => l.key)
+      .map((l) => l.key!)
+  );
+  const identitySetPreserved =
+    afterKeys.size === args.keptIdentityKeys.size &&
+    [...args.keptIdentityKeys].every((k) => afterKeys.has(k));
+
+  const second = analyzeTwinSelections(args.payload);
+  const idempotent =
+    second.canonicalKeep === 0 &&
+    second.nonCanonicalRemove === 0 &&
+    dup.groups.size === 0;
+
+  const ok =
+    records.length === EXPECTED_APPLY.recordsAfter &&
+    productEntries === EXPECTED_APPLY.productAfter &&
+    dup.errors === 0 &&
+    dup.uniqueIdentities === EXPECTED_APPLY.uniqueIdentities &&
+    remainingMetaMissing === EXPECTED_APPLY.remainingMetaMissing &&
+    unexpectedIssues.length === 0 &&
+    removedStillPresent === 0 &&
+    identitySetPreserved &&
+    idempotent;
+
+  return {
+    ok,
+    records: records.length,
+    productEntries,
+    duplicateErrors: dup.errors,
+    uniqueIdentities: dup.uniqueIdentities,
+    remainingMetaMissing,
+    unexpectedIssues,
+    afterOtherIssues,
+    idempotent,
+    removedStillPresent,
+    identitySetPreserved,
+  };
+}
+
+export type TwinDedupeWriteResult =
+  | {
+      ok: true;
+      absolutePath: string;
+      dryRun: TwinDedupeDryRunResult;
+      readBack: TwinDedupePostWriteVerification;
+      written: true;
+    }
+  | {
+      ok: false;
+      reason: string;
+      blockers: string[];
+      dryRun?: TwinDedupeDryRunResult;
+      written: false;
+      restored?: boolean;
+    };
+
+function semanticPayloadEqual(
+  a: DatasetExportPayload,
+  b: DatasetExportPayload
+): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * Guarded FS write for the sole allowed twin-dedupe leaf.
+ * Skips full canonical validator (meta:missing expected); uses semantic + twin guards.
+ */
+export function writeProductTwinDedupeLeafFs(args: {
+  absoluteTargetPath: string;
+  relativePosix: string;
+  sourceState: SourceState;
+  originalText: string;
+  payload: DatasetExportPayload;
+}): TwinDedupeWriteResult {
+  if (args.relativePosix !== PRODUCT_TWIN_DEDUPE_APPLY_TARGET) {
+    return {
+      ok: false,
+      reason: "APPLY_TARGET_NOT_ALLOWED",
+      blockers: [`forbidden-target:${args.relativePosix}`],
+      written: false,
+    };
+  }
+
+  const prepared = prepareProductTwinDedupeApply({
+    relativePosix: args.relativePosix,
+    sourceState: args.sourceState,
+    payload: args.payload,
+  });
+  if (!prepared.ok) {
+    return {
+      ok: false,
+      reason: prepared.reason,
+      blockers: prepared.blockers,
+      dryRun: prepared.dryRun,
+      written: false,
+    };
+  }
+
+  const { dryRun, candidate } = prepared;
+  const beforeKeys = new Set(
+    collectMemberLocations(args.payload.records ?? [])
+      .filter((l) => l.key)
+      .map((l) => l.key!)
+  );
+
+  const text = JSON.stringify(candidate, null, 2);
+  const dir = path.dirname(args.absoluteTargetPath);
+  const tempPath = path.join(
+    dir,
+    `.${path.basename(args.absoluteTargetPath)}.twin-dedupe.${process.pid}.${Date.now()}.tmp`
+  );
+
+  const restore = (): boolean => {
+    try {
+      fs.writeFileSync(args.absoluteTargetPath, args.originalText, "utf8");
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(tempPath, text, "utf8");
+    const tempParsed = JSON.parse(fs.readFileSync(tempPath, "utf8"));
+    if (!semanticPayloadEqual(candidate, tempParsed)) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch {
+        /* ignore */
+      }
+      return {
+        ok: false,
+        reason: "TEMP_SEMANTIC_MISMATCH",
+        blockers: ["temp-read-back-mismatch"],
+        dryRun,
+        written: false,
+      };
+    }
+
+    if (fs.existsSync(args.absoluteTargetPath)) {
+      fs.unlinkSync(args.absoluteTargetPath);
+    }
+    fs.renameSync(tempPath, args.absoluteTargetPath);
+  } catch (e) {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {
+      /* ignore */
+    }
+    const restored = restore();
+    return {
+      ok: false,
+      reason: "WRITE_FAILED",
+      blockers: [e instanceof Error ? e.message : String(e)],
+      dryRun,
+      written: false,
+      restored,
+    };
+  }
+
+  let readBackPayload: DatasetExportPayload;
+  try {
+    readBackPayload = JSON.parse(
+      fs.readFileSync(args.absoluteTargetPath, "utf8")
+    ) as DatasetExportPayload;
+  } catch (e) {
+    const restored = restore();
+    return {
+      ok: false,
+      reason: "READ_BACK_IO_FAILED",
+      blockers: [e instanceof Error ? e.message : String(e)],
+      dryRun,
+      written: false,
+      restored,
+    };
+  }
+
+  if (!semanticPayloadEqual(candidate, readBackPayload)) {
+    const restored = restore();
+    return {
+      ok: false,
+      reason: "READ_BACK_SEMANTIC_MISMATCH",
+      blockers: ["candidate-read-back-not-equivalent"],
+      dryRun,
+      written: false,
+      restored,
+    };
+  }
+
+  const readBack = verifyProductTwinDedupeReadBack({
+    payload: readBackPayload,
+    removedPositionIds: dryRun.removedPositionIds,
+    keptIdentityKeys: beforeKeys,
+  });
+
+  if (!readBack.ok) {
+    const restored = restore();
+    return {
+      ok: false,
+      reason: "POST_WRITE_VERIFICATION_FAILED",
+      blockers: [
+        ...readBack.unexpectedIssues,
+        `records=${readBack.records}`,
+        `dups=${readBack.duplicateErrors}`,
+        `removedStillPresent=${readBack.removedStillPresent}`,
+      ],
+      dryRun,
+      written: false,
+      restored,
+    };
+  }
+
+  return {
+    ok: true,
+    absolutePath: args.absoluteTargetPath,
+    dryRun,
+    readBack,
+    written: true,
+  };
+}
+
+export function formatTwinDedupeApplyReport(args: {
+  write: TwinDedupeWriteResult;
+}): string {
+  const lines: string[] = [];
+  lines.push("APPLY: EXECUTED");
+  if (!args.write.ok) {
+    lines.push(`RESULT: FAIL`);
+    lines.push(`REASON: ${args.write.reason}`);
+    lines.push(`BLOCKERS: ${args.write.blockers.join(", ")}`);
+    lines.push(`DATASET WRITTEN: ${args.write.written ? "YES" : "NO"}`);
+    return lines.join("\n");
+  }
+  const r = args.write.dryRun;
+  const rb = args.write.readBack;
+  lines.push(`LEAF: ${r.relativePosix}`);
+  lines.push(`SOURCE STATE: ${r.sourceState}`);
+  lines.push(`RESULT: OK`);
+  lines.push(`CANONICAL KEEP: ${r.canonicalKeep}`);
+  lines.push(`NON-CANONICAL REMOVE: ${r.nonCanonicalRemove}`);
+  lines.push(`RECORDS: ${r.recordsBefore} → ${rb.records}`);
+  lines.push(
+    `PRODUCT ENTRIES: ${r.productEntriesBefore} → ${rb.productEntries}`
+  );
+  lines.push(
+    `DUPLICATE-MEMBER-IDENTITY: ${r.duplicateErrorsBefore} → ${rb.duplicateErrors}`
+  );
+  lines.push(
+    `UNIQUE MEMBER IDENTITIES: ${r.uniqueIdentitiesBefore} → ${rb.uniqueIdentities}`
+  );
+  lines.push(`IDENTITY SET PRESERVED: ${rb.identitySetPreserved}`);
+  lines.push(`REMAINING PRODUCT META MISSING: ${rb.remainingMetaMissing}`);
+  lines.push(`UNEXPECTED ISSUES: ${rb.unexpectedIssues.length}`);
+  lines.push(`POST-APPLY IDEMPOTENT: ${rb.idempotent}`);
+  lines.push(`META MIGRATION EXECUTED: NO`);
+  lines.push(`DATASET WRITTEN: YES`);
   return lines.join("\n");
 }

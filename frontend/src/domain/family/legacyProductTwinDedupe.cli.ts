@@ -1,13 +1,15 @@
 /**
- * CLI — Product Twin Dedupe (DRY-RUN ONLY).
+ * CLI — Product Twin Dedupe (dry-run default; optional guarded --apply).
  *
  * Usage (from frontend/):
  *   npm run migrate:product-twin:dry-run
+ *   npm run migrate:product-twin:apply
  *
  * Targets ONLY clean leaf:
  *   dataset/옆돌리기/파이브앤하프/positions.json
  *
- * Refuses --apply/--write/--fix. Never writes dataset files.
+ * --apply writes that leaf only after fail-closed gates.
+ * Never touches 뒤돌리기. Never runs meta migration.
  */
 
 import { execFileSync } from "node:child_process";
@@ -16,12 +18,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   dryRunProductTwinDedupe,
+  formatTwinDedupeApplyReport,
   formatTwinDedupeReport,
+  PRODUCT_TWIN_DEDUPE_APPLY_TARGET,
+  writeProductTwinDedupeLeafFs,
   type SourceState,
 } from "./legacyProductTwinDedupe";
 
-const TARGET_REL =
-  "dataset/옆돌리기/파이브앤하프/positions.json";
+const TARGET_REL = PRODUCT_TWIN_DEDUPE_APPLY_TARGET;
 
 function resolveRepoRoot(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -48,13 +52,10 @@ function resolveSourceState(
 
 function main(): void {
   const argv = process.argv.slice(2);
-  if (
-    argv.includes("--apply") ||
-    argv.includes("--write") ||
-    argv.includes("--fix")
-  ) {
+  const doApply = argv.includes("--apply");
+  if (argv.includes("--write") || argv.includes("--fix")) {
     console.error(
-      "APPLY DEFERRED: this tool is dry-run only. Refusing --apply/--write/--fix."
+      "Refusing --write/--force. Use --apply only after dry-run gates."
     );
     process.exit(2);
   }
@@ -67,23 +68,56 @@ function main(): void {
   }
 
   const sourceState = resolveSourceState(repoRoot, TARGET_REL);
-  const raw = fs.readFileSync(absolutePath, "utf8");
-  const payload = JSON.parse(raw);
+  const originalText = fs.readFileSync(absolutePath, "utf8");
+  const payload = JSON.parse(originalText);
 
-  const report = dryRunProductTwinDedupe({
+  if (!doApply) {
+    const report = dryRunProductTwinDedupe({
+      relativePosix: TARGET_REL,
+      sourceState,
+      payload,
+      enforceExpectedBaseline: true,
+    });
+    console.log(formatTwinDedupeReport(report));
+    console.log("========== SUMMARY ==========");
+    console.log(
+      `SAFE TO APPLY PRODUCT TWIN DEDUPE: ${report.result === "SAFE_TO_APPLY" ? "YES" : "NO"}`
+    );
+    console.log(
+      `CORPUS diagnostics: keep=${report.canonicalKeep} remove=${report.nonCanonicalRemove} ambiguous=${report.ambiguousGroups}`
+    );
+    console.log("APPLY EXECUTED: NO");
+    return;
+  }
+
+  if (sourceState !== "HEAD_MATCH") {
+    console.error(`SOURCE_STATE_CHANGED: ${sourceState} — APPLY ABORTED`);
+    process.exit(1);
+  }
+
+  const write = writeProductTwinDedupeLeafFs({
+    absoluteTargetPath: absolutePath,
     relativePosix: TARGET_REL,
     sourceState,
+    originalText,
     payload,
-    enforceExpectedBaseline: true,
   });
 
-  console.log(formatTwinDedupeReport(report));
+  console.log(formatTwinDedupeApplyReport({ write }));
   console.log("========== SUMMARY ==========");
-  console.log(`SAFE TO APPLY PRODUCT TWIN DEDUPE: ${report.result === "SAFE_TO_APPLY" ? "YES" : "NO"}`);
+  if (!write.ok) {
+    console.error(`APPLY FAILED: ${write.reason}`);
+    console.error(`BLOCKERS: ${write.blockers.join(", ")}`);
+    process.exit(1);
+  }
+  console.log("SAFE TO APPLY PRODUCT TWIN DEDUPE: YES (applied)");
   console.log(
-    `CORPUS diagnostics: keep=${report.canonicalKeep} remove=${report.nonCanonicalRemove} ambiguous=${report.ambiguousGroups}`
+    `CORPUS: keep=${write.dryRun.canonicalKeep} remove=${write.dryRun.nonCanonicalRemove}`
   );
-  console.log("APPLY EXECUTED: NO");
+  console.log(`POST-WRITE READ-BACK: ${write.readBack.ok ? "PASS" : "FAIL"}`);
+  console.log(`POST-APPLY IDEMPOTENT: ${write.readBack.idempotent ? "YES" : "NO"}`);
+  console.log("META MIGRATION EXECUTED: NO");
+  console.log("APPLY EXECUTED: YES");
 }
 
 main();
