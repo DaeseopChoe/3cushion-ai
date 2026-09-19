@@ -6,6 +6,68 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-19 — Published Product Integrity (Recurrence Prevention)
+
+## Mode
+
+**Agent** · Code/contract recurrence locks · Commit/Push · **NO dataset migration**
+
+## Project data policy (clarified)
+
+| Item | Policy |
+|------|--------|
+| Current dataset | **System verification / test data** |
+| Legacy data perfection | **NOT the goal** — repair priority **STOPPED** |
+| After system verification | Remove legacy/test dataset; author real-use data fresh |
+| This phase cost | Spent only on **preventing recurrence** in current code |
+
+## Explicitly NOT done
+
+- 옆돌리기 meta:missing × 252 actual migration
+- 뒤돌리기 repair
+- Any `dataset/**/*.json` write
+- Fresh SAVE→Derived→History→Publish data creation
+- App Publish execution
+
+## ISSUE A — Product meta
+
+| Field | Result |
+|-------|--------|
+| Root cause | Legacy Product producers omitted `meta` (pre-554f066) |
+| Current producer | `withRebuiltCanonicalMeta` → `evaluateStrategy` → `buildStrategyMeta` |
+| Fresh Product meta | Present (impact/final/angles) |
+| Survives family write / snapshot / publish payload | YES |
+| meta:missing publish blocked | YES (`validatePublishedExportCandidate`) |
+| Recurrence | **PREVENTED** |
+| Production fix this step | **NO** (already fixed in 554f066) |
+
+## ISSUE B — Duplicate member identity
+
+| Field | Result |
+|-------|--------|
+| Root cause | Raw `mergePublishedRecords` is positionId-merge only (no familyId::memberId dedupe); historical Export could append twins |
+| Current Product writer creates twins | **NO** (identity replace/move) |
+| Current UI / History Publish | Uses `buildPublishedFamilyExportCandidate` → family purge + validate |
+| Raw merge can construct duplicate | **YES** (characterized; not UI owner) |
+| Invalid duplicate can reach disk | **NO** (pre-write validator fail-closed) |
+| Recurrence on current path | **PREVENTED** |
+| Merge hardening this step | **NO** (gate already sufficient; avoid duplicate SSOT layers) |
+
+## Regression lock
+
+`frontend/src/domain/family/publishedProductIntegrity.recurrence.contract.test.ts` (R1–R20)
+
+## Next
+
+Fresh verification data via app: **SAVE → Derived → History → Publish**  
+Do **not** repair remaining legacy meta:missing on test leaf first.
+
+## Commit
+
+`test(admin): lock published product integrity contracts`
+
+---
+
 # 2026-09-19 — Product Twin Dedupe (Actual Apply)
 
 ## Mode
@@ -55,8 +117,9 @@ Status : Active Project Log
 
 ## Next
 
-Product Meta Migration Apply (separate Agent) for remaining meta:missing × 252  
-Do **not** retry app Publish until meta repair completes.
+Product Meta Migration Apply was **cancelled** as a project priority.
+Remaining meta:missing on the test leaf is acceptable until legacy/test dataset retirement.
+Next verification track: **fresh** SAVE → Derived → History → Publish (not legacy repair).
 
 ## Commit
 
