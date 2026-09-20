@@ -776,6 +776,26 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | **Workspace History** | `workspace_history` (localStorage) | SAVE 스냅샷·작업 이력 | History UI (Load / Delete / Export) |
 | **Published Dataset** | `dataset/{공략}/{시스템}/positions.json` | 배포·사용자 검색 | **ADMIN Search**, **USER Search** (profile `adminStrict` / `userStrict`) |
 
+### Save Intent / Source Ownership SSOT (2026-09-20)
+
+| Command | Meaning |
+|---------|---------|
+| **SAVE** | Always **CREATE NEW Family** (source kind never switches SAVE → UPDATE) |
+| **덮어쓰기 (OVERWRITE)** | **UPDATE** the current **trusted** recall source Family |
+
+| Source kind | How set | OVERWRITE target |
+|-------------|---------|------------------|
+| **NONE** | New input / reset / cleared session | Blocked |
+| **LOCAL** | ADMIN 로컬DB recall (`editingLocalFamilyId`) | Local Family UPDATE in `positions_dataset` |
+| **PUBLISHED** | ADMIN Search recall (`editingPublishedFamilyId`) | Published Source Family UPDATE intent |
+
+Rules:
+
+- Recall source determines **OVERWRITE target**, not SAVE intent.
+- LOCAL and PUBLISHED ownership are **mutually exclusive**.
+- Draft `familyId` alone never grants overwrite permission.
+- **LOCAL UPDATE ≠ PUBLISHED UPDATE** — Local overwrite must not create a Published UPDATE `PublishOperation`.
+
 **Production SSOT (검증 완료, 2026-06):**
 
 - Published Dataset은 **Git 관리 대상**이다.

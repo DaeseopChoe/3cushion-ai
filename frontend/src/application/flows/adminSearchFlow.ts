@@ -48,6 +48,8 @@ export type AdminSearchFlowContext = {
   setIsAdminPublishedSearchMatched: (value: boolean) => void;
   /** Phase 2: set when Published Search matches a family-native record; clear otherwise. */
   setEditingPublishedFamilyId: (familyId: string | null) => void;
+  /** Clear Local UPDATE ownership when Published Search owns the session. */
+  setEditingLocalFamilyId?: (familyId: string | null) => void;
   setAdminTableLayersVisible: (value: boolean) => void;
   setShowCoaching: (value: boolean) => void;
   setBallsState?: (balls: Record<string, { x: number; y: number } | undefined> | ((prev: any) => any)) => void;
@@ -93,6 +95,7 @@ export async function runAdminSearch(
 ): Promise<boolean> {
   ctx.clearAdminSearchDisplayRuntime();
   ctx.setEditingPublishedFamilyId(null);
+  ctx.setEditingLocalFamilyId?.(null);
 
   console.log(
     "[RECALL_READ]",
@@ -299,6 +302,8 @@ export async function runAdminSearch(
   }
 
   ctx.setIsAdminPublishedSearchMatched(true);
+  // Published Search: PUBLISHED ownership only (clear Local).
+  ctx.setEditingLocalFamilyId?.(null);
   ctx.setEditingPublishedFamilyId(
     readFamilyIdFromRecordSlot(spatialResult.record, ctx.activeSlot)
   );

@@ -1,12 +1,15 @@
 /**
- * Phase 2 — published edit session identity contracts.
+ * Phase 2+ — edit-session source ownership (LOCAL | PUBLISHED | NONE).
  */
 import { describe, expect, it } from "vitest";
 import {
   canOverwritePublishedSourceFamily,
+  canOverwriteTrustedSourceFamily,
   readFamilyIdFromRecordSlot,
+  resolveEditSourceKind,
   resolveOverwriteSaveIntent,
   resolvePublishedEditSaveIntent,
+  resolveTrustedOverwriteSourceFamilyId,
 } from "./publishedEditSession";
 import type { PositionRecord } from "../positionSearchEngine";
 
@@ -46,7 +49,7 @@ function sampleRecord(familyId: string | undefined): PositionRecord {
   };
 }
 
-describe("publishedEditSession Phase 2", () => {
+describe("publishedEditSession Phase 2+", () => {
   it("reads familyId from record slot; null when missing (legacy)", () => {
     expect(readFamilyIdFromRecordSlot(sampleRecord("fm_abc"), "S1")).toBe(
       "fm_abc"
@@ -59,11 +62,53 @@ describe("publishedEditSession Phase 2", () => {
     );
   });
 
-  it("canOverwrite only when trusted published session family exists", () => {
+  it("resolveEditSourceKind is mutually exclusive (dual → NONE)", () => {
+    expect(
+      resolveEditSourceKind({
+        editingPublishedFamilyId: null,
+        editingLocalFamilyId: null,
+      })
+    ).toBe("NONE");
+    expect(
+      resolveEditSourceKind({
+        editingPublishedFamilyId: "fm_pub",
+        editingLocalFamilyId: null,
+      })
+    ).toBe("PUBLISHED");
+    expect(
+      resolveEditSourceKind({
+        editingPublishedFamilyId: null,
+        editingLocalFamilyId: "fm_loc",
+      })
+    ).toBe("LOCAL");
+    expect(
+      resolveEditSourceKind({
+        editingPublishedFamilyId: "fm_pub",
+        editingLocalFamilyId: "fm_loc",
+      })
+    ).toBe("NONE");
+  });
+
+  it("canOverwriteTrustedSourceFamily for LOCAL or PUBLISHED", () => {
+    expect(
+      canOverwriteTrustedSourceFamily({
+        editingPublishedFamilyId: null,
+        editingLocalFamilyId: null,
+      })
+    ).toBe(false);
+    expect(
+      canOverwriteTrustedSourceFamily({
+        editingPublishedFamilyId: "fm_abc",
+        editingLocalFamilyId: null,
+      })
+    ).toBe(true);
+    expect(
+      canOverwriteTrustedSourceFamily({
+        editingPublishedFamilyId: null,
+        editingLocalFamilyId: "fm_loc",
+      })
+    ).toBe(true);
     expect(canOverwritePublishedSourceFamily({ editingPublishedFamilyId: null })).toBe(
-      false
-    );
-    expect(canOverwritePublishedSourceFamily({ editingPublishedFamilyId: "" })).toBe(
       false
     );
     expect(
@@ -71,10 +116,11 @@ describe("publishedEditSession Phase 2", () => {
     ).toBe(true);
   });
 
-  it("CASE A/B: no session → null intent; matching session → UPDATE", () => {
+  it("CASE A/B: no session → null intent; matching LOCAL/PUBLISHED → UPDATE", () => {
     expect(
       resolveOverwriteSaveIntent({
         editingPublishedFamilyId: null,
+        editingLocalFamilyId: null,
         slotIdentity: {
           familyId: "fm_abc",
           memberId: "mb_authored_1",
@@ -86,6 +132,7 @@ describe("publishedEditSession Phase 2", () => {
     expect(
       resolveOverwriteSaveIntent({
         editingPublishedFamilyId: "fm_abc",
+        editingLocalFamilyId: null,
         slotIdentity: {
           familyId: "fm_abc",
           memberId: "mb_authored_1",
@@ -94,7 +141,18 @@ describe("publishedEditSession Phase 2", () => {
       })
     ).toBe("UPDATE");
 
-    // deprecated alias still works
+    expect(
+      resolveOverwriteSaveIntent({
+        editingPublishedFamilyId: null,
+        editingLocalFamilyId: "fm_abc",
+        slotIdentity: {
+          familyId: "fm_abc",
+          memberId: "mb_authored_1",
+          memberOrigin: "AUTHORED",
+        },
+      })
+    ).toBe("UPDATE");
+
     expect(
       resolvePublishedEditSaveIntent({
         editingPublishedFamilyId: "fm_abc",
@@ -110,7 +168,7 @@ describe("publishedEditSession Phase 2", () => {
   it("CASE F: session without slot identity does not invent UPDATE", () => {
     expect(
       resolveOverwriteSaveIntent({
-        editingPublishedFamilyId: "fm_abc",
+        editingLocalFamilyId: "fm_abc",
         slotIdentity: null,
       })
     ).toBe(null);
@@ -119,7 +177,7 @@ describe("publishedEditSession Phase 2", () => {
   it("mismatched session vs slot family → not UPDATE", () => {
     expect(
       resolveOverwriteSaveIntent({
-        editingPublishedFamilyId: "fm_abc",
+        editingLocalFamilyId: "fm_abc",
         slotIdentity: {
           familyId: "fm_other",
           memberId: "mb_authored_1",
@@ -132,7 +190,7 @@ describe("publishedEditSession Phase 2", () => {
   it("Derived / symmetry slot resolves UPDATE to source family", () => {
     expect(
       resolveOverwriteSaveIntent({
-        editingPublishedFamilyId: "fm_abc",
+        editingLocalFamilyId: "fm_abc",
         slotIdentity: {
           familyId: "fm_abc",
           memberId: "mb_sym_1",
@@ -156,5 +214,26 @@ describe("publishedEditSession Phase 2", () => {
         },
       })
     ).toBe("UPDATE");
+  });
+
+  it("resolveTrustedOverwriteSourceFamilyId returns the active owner", () => {
+    expect(
+      resolveTrustedOverwriteSourceFamilyId({
+        editingPublishedFamilyId: "fm_pub",
+        editingLocalFamilyId: null,
+      })
+    ).toBe("fm_pub");
+    expect(
+      resolveTrustedOverwriteSourceFamilyId({
+        editingPublishedFamilyId: null,
+        editingLocalFamilyId: "fm_loc",
+      })
+    ).toBe("fm_loc");
+    expect(
+      resolveTrustedOverwriteSourceFamilyId({
+        editingPublishedFamilyId: "fm_pub",
+        editingLocalFamilyId: "fm_loc",
+      })
+    ).toBe(null);
   });
 });

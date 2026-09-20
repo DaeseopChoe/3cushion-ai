@@ -1,16 +1,17 @@
 /**
- * Save Intent Split — CASE 1–10 contract tests.
+ * Local DB Overwrite + Save Intent Split — CASE 1–16 contract tests.
  *
  * SSOT:
- * - SAVE = always CREATE NEW Family
- * - OVERWRITE = Source Family UPDATE (trusted Published session only)
- * - Recall source must never auto-switch SAVE → UPDATE
+ * - SAVE = always CREATE NEW Family (any source)
+ * - OVERWRITE = UPDATE trusted LOCAL or PUBLISHED source Family
+ * - LOCAL UPDATE ≠ PUBLISHED UPDATE (PublishOperation)
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runSaveStrategy, type SaveFlowContext } from "../../application/flows/saveFlow";
 import { resolveFamilySaveIntent } from "./familySavePolicy";
 import {
   canOverwriteTrustedSourceFamily,
+  resolveEditSourceKind,
   resolveOverwriteSaveIntent,
 } from "./publishedEditSession";
 import type { PositionRecord } from "../positionSearchEngine";
@@ -133,8 +134,27 @@ function slotWithIdentity(
   };
 }
 
-describe("Save Intent Split CASE 1–10", () => {
-  it("CASE 1 — fresh input SAVE → NEW Family", () => {
+function firstSave(): {
+  dataset: PositionRecord[];
+  source: NonNullable<ReturnType<typeof authoredFrom>>;
+} {
+  let dataset: PositionRecord[] = [];
+  const first = buildCtx({
+    saveWorkingDataset: (u) => {
+      dataset = u;
+    },
+    setDataset: (u) => {
+      dataset = u;
+    },
+  });
+  expect(runSaveStrategy(first.ctx).ok).toBe(true);
+  const source = authoredFrom(dataset)!;
+  expect(source.familyId).toBeTruthy();
+  return { dataset, source };
+}
+
+describe("Local Overwrite + Save Intent CASE 1–16", () => {
+  it("CASE 1 — fresh SAVE → NEW Family", () => {
     let dataset: PositionRecord[] = [];
     const { ctx } = buildCtx({
       saveCommand: "SAVE",
@@ -152,28 +172,17 @@ describe("Save Intent Split CASE 1–10", () => {
     expect(r.publishOperation?.intent).toBe("CREATE");
   });
 
-  it("CASE 2 — Published MASTER recall → SAVE → NEW Family; source preserved", () => {
-    let dataset: PositionRecord[] = [];
-    const first = buildCtx({
-      saveWorkingDataset: (u) => {
-        dataset = u;
-      },
-      setDataset: (u) => {
-        dataset = u;
-      },
-    });
-    expect(runSaveStrategy(first.ctx).ok).toBe(true);
-    const source = authoredFrom(dataset)!;
-    const sourceFamilyId = source.familyId!;
-    const sourceMemberId = source.memberId!;
-
+  it("CASE 2 — Local A → SAVE → NEW Local Family B; A preserved", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
     const after = buildCtx({
       dataset,
-      editingPublishedFamilyId: sourceFamilyId,
+      editingLocalFamilyId: source.familyId!,
+      editingPublishedFamilyId: null,
       saveCommand: "SAVE",
       slots: slotWithIdentity({
-        familyId: sourceFamilyId,
-        memberId: sourceMemberId,
+        familyId: source.familyId,
+        memberId: source.memberId,
         memberOrigin: "AUTHORED",
       }),
       saveWorkingDataset: (u) => {
@@ -186,37 +195,25 @@ describe("Save Intent Split CASE 1–10", () => {
     const r = runSaveStrategy(after.ctx);
     expect(r.ok).toBe(true);
     expect(r.saveIntent).toBe("CREATE");
-    expect(r.familyId).not.toBe(sourceFamilyId);
-    expect(r.familyId).toBeTruthy();
-    // Source family still present
+    expect(r.familyId).not.toBe(source.familyId);
     expect(
       dataset.some((rec) =>
-        Object.values(rec.strategies).some((e) => e?.familyId === sourceFamilyId)
+        Object.values(rec.strategies).some((e) => e?.familyId === source.familyId)
       )
     ).toBe(true);
   });
 
-  it("CASE 3 — Published MASTER recall → OVERWRITE → Source Family UPDATE; no new family", () => {
-    let dataset: PositionRecord[] = [];
-    const first = buildCtx({
-      saveWorkingDataset: (u) => {
-        dataset = u;
-      },
-      setDataset: (u) => {
-        dataset = u;
-      },
-    });
-    expect(runSaveStrategy(first.ctx).ok).toBe(true);
-    const source = authoredFrom(dataset)!;
-    const sourceFamilyId = source.familyId!;
-
+  it("CASE 3 — Local A → OVERWRITE → Local Family A UPDATE; no new family", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
     const after = buildCtx({
       dataset,
-      editingPublishedFamilyId: sourceFamilyId,
+      editingLocalFamilyId: source.familyId!,
+      editingPublishedFamilyId: null,
       saveCommand: "OVERWRITE",
       slots: slotWithIdentity(
         {
-          familyId: sourceFamilyId,
+          familyId: source.familyId,
           memberId: source.memberId,
           memberOrigin: "AUTHORED",
         },
@@ -232,10 +229,8 @@ describe("Save Intent Split CASE 1–10", () => {
     const r = runSaveStrategy(after.ctx);
     expect(r.ok).toBe(true);
     expect(r.saveIntent).toBe("UPDATE");
-    expect(r.familyId).toBe(sourceFamilyId);
-    expect(r.publishOperation?.intent).toBe("UPDATE");
-    expect(r.publishOperation?.sourceFamilyId).toBe(sourceFamilyId);
-    expect(r.publishOperation?.destinationFamilyId).toBe(sourceFamilyId);
+    expect(r.overwriteSourceKind).toBe("LOCAL");
+    expect(r.familyId).toBe(source.familyId);
     const authoredFamilies = new Set(
       dataset
         .flatMap((rec) => Object.values(rec.strategies))
@@ -243,29 +238,18 @@ describe("Save Intent Split CASE 1–10", () => {
         .map((e) => e?.familyId)
     );
     expect(authoredFamilies.size).toBe(1);
-    expect(authoredFamilies.has(sourceFamilyId)).toBe(true);
+    expect(authoredFamilies.has(source.familyId)).toBe(true);
   });
 
-  it("CASE 4 — Published Derived Member → SAVE → NEW Family B; Family A preserved", () => {
-    let dataset: PositionRecord[] = [];
-    const first = buildCtx({
-      saveWorkingDataset: (u) => {
-        dataset = u;
-      },
-      setDataset: (u) => {
-        dataset = u;
-      },
-    });
-    expect(runSaveStrategy(first.ctx).ok).toBe(true);
-    const source = authoredFrom(dataset)!;
-    const familyA = source.familyId!;
-
+  it("CASE 4 — Local Derived(A) → SAVE → NEW Family B; A preserved", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
     const after = buildCtx({
       dataset,
-      editingPublishedFamilyId: familyA,
+      editingLocalFamilyId: source.familyId!,
       saveCommand: "SAVE",
       slots: slotWithIdentity({
-        familyId: familyA,
+        familyId: source.familyId,
         memberId: "mb_der_30",
         memberOrigin: "DERIVED_CUE_IMPACT",
         generatedFromMemberId: source.memberId,
@@ -282,33 +266,17 @@ describe("Save Intent Split CASE 1–10", () => {
     const r = runSaveStrategy(after.ctx);
     expect(r.ok).toBe(true);
     expect(r.saveIntent).toBe("CREATE");
-    expect(r.familyId).not.toBe(familyA);
-    expect(
-      dataset.some((rec) =>
-        Object.values(rec.strategies).some((e) => e?.familyId === familyA)
-      )
-    ).toBe(true);
+    expect(r.familyId).not.toBe(source.familyId);
   });
 
-  it("CASE 5 — Published Derived Member → OVERWRITE → Source Family A UPDATE", () => {
-    let dataset: PositionRecord[] = [];
-    const first = buildCtx({
-      saveWorkingDataset: (u) => {
-        dataset = u;
-      },
-      setDataset: (u) => {
-        dataset = u;
-      },
-    });
-    expect(runSaveStrategy(first.ctx).ok).toBe(true);
-    const source = authoredFrom(dataset)!;
-    const familyA = source.familyId!;
-
+  it("CASE 5 — Local Derived(A) → OVERWRITE → Source Local Family A UPDATE", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
     expect(
       resolveOverwriteSaveIntent({
-        editingPublishedFamilyId: familyA,
+        editingLocalFamilyId: source.familyId!,
         slotIdentity: {
-          familyId: familyA,
+          familyId: source.familyId!,
           memberId: "mb_der_30",
           memberOrigin: "DERIVED_CUE_IMPACT",
           generatedFromMemberId: source.memberId!,
@@ -320,11 +288,11 @@ describe("Save Intent Split CASE 1–10", () => {
 
     const after = buildCtx({
       dataset,
-      editingPublishedFamilyId: familyA,
+      editingLocalFamilyId: source.familyId!,
       saveCommand: "OVERWRITE",
       slots: slotWithIdentity(
         {
-          familyId: familyA,
+          familyId: source.familyId,
           memberId: "mb_der_30",
           memberOrigin: "DERIVED_CUE_IMPACT",
           generatedFromMemberId: source.memberId,
@@ -343,30 +311,21 @@ describe("Save Intent Split CASE 1–10", () => {
     const r = runSaveStrategy(after.ctx);
     expect(r.ok).toBe(true);
     expect(r.saveIntent).toBe("UPDATE");
-    expect(r.familyId).toBe(familyA);
+    expect(r.familyId).toBe(source.familyId);
+    expect(r.overwriteSourceKind).toBe("LOCAL");
   });
 
-  it("CASE 6 — Local DB recall → SAVE → NEW Family", () => {
-    // Local DB clears editingPublishedFamilyId; draft may still carry familyId.
-    let dataset: PositionRecord[] = [];
-    const first = buildCtx({
-      saveWorkingDataset: (u) => {
-        dataset = u;
-      },
-      setDataset: (u) => {
-        dataset = u;
-      },
-    });
-    expect(runSaveStrategy(first.ctx).ok).toBe(true);
-    const prior = authoredFrom(dataset)!;
-
+  it("CASE 6 — Published A → SAVE → NEW Family B", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
     const after = buildCtx({
       dataset,
-      editingPublishedFamilyId: null, // Local DB clears session
+      editingPublishedFamilyId: source.familyId!,
+      editingLocalFamilyId: null,
       saveCommand: "SAVE",
       slots: slotWithIdentity({
-        familyId: prior.familyId,
-        memberId: prior.memberId,
+        familyId: source.familyId,
+        memberId: source.memberId,
         memberOrigin: "AUTHORED",
       }),
       saveWorkingDataset: (u) => {
@@ -379,19 +338,25 @@ describe("Save Intent Split CASE 1–10", () => {
     const r = runSaveStrategy(after.ctx);
     expect(r.ok).toBe(true);
     expect(r.saveIntent).toBe("CREATE");
-    expect(r.familyId).not.toBe(prior.familyId);
+    expect(r.familyId).not.toBe(source.familyId);
   });
 
-  it("CASE 7 — Local DB provenance unclear → OVERWRITE BLOCKED", () => {
-    expect(
-      canOverwriteTrustedSourceFamily({
-        editingPublishedFamilyId: null,
-        editingLocalFamilyId: null,
-      })
-    ).toBe(false);
-
-    let dataset: PositionRecord[] = [];
-    const first = buildCtx({
+  it("CASE 7 — Published A → OVERWRITE → Published Source A UPDATE", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
+    const after = buildCtx({
+      dataset,
+      editingPublishedFamilyId: source.familyId!,
+      editingLocalFamilyId: null,
+      saveCommand: "OVERWRITE",
+      slots: slotWithIdentity(
+        {
+          familyId: source.familyId,
+          memberId: source.memberId,
+          memberOrigin: "AUTHORED",
+        },
+        { CO_f: 37, C1_f: 10, C3_r: 20 }
+      ),
       saveWorkingDataset: (u) => {
         dataset = u;
       },
@@ -399,18 +364,29 @@ describe("Save Intent Split CASE 1–10", () => {
         dataset = u;
       },
     });
-    expect(runSaveStrategy(first.ctx).ok).toBe(true);
-    const prior = authoredFrom(dataset)!;
+    const r = runSaveStrategy(after.ctx);
+    expect(r.ok).toBe(true);
+    expect(r.saveIntent).toBe("UPDATE");
+    expect(r.overwriteSourceKind).toBe("PUBLISHED");
+    expect(r.familyId).toBe(source.familyId);
+    expect(r.publishOperation?.intent).toBe("UPDATE");
+    expect(r.publishOperation?.sourceFamilyId).toBe(source.familyId);
+  });
 
-    // Draft has familyId but no trusted published session → block
+  it("CASE 8 — Published Derived(A) → SAVE → NEW Family B", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
     const after = buildCtx({
       dataset,
-      editingPublishedFamilyId: null,
-      saveCommand: "OVERWRITE",
+      editingPublishedFamilyId: source.familyId!,
+      saveCommand: "SAVE",
       slots: slotWithIdentity({
-        familyId: prior.familyId,
-        memberId: prior.memberId,
-        memberOrigin: "AUTHORED",
+        familyId: source.familyId,
+        memberId: "mb_der_p",
+        memberOrigin: "DERIVED_CUE_IMPACT",
+        generatedFromMemberId: source.memberId,
+        derivedRule: "CUE_IMPACT_FIRST_30PCT",
+        derivedStep: "0.3",
       }),
       saveWorkingDataset: (u) => {
         dataset = u;
@@ -420,47 +396,53 @@ describe("Save Intent Split CASE 1–10", () => {
       },
     });
     const r = runSaveStrategy(after.ctx);
-    expect(r.ok).toBe(false);
-    expect(r.reason).toBe("overwrite-missing-source-family");
+    expect(r.ok).toBe(true);
+    expect(r.saveIntent).toBe("CREATE");
+    expect(r.familyId).not.toBe(source.familyId);
   });
 
-  it("CASE 8 — SAVE → PublishOperation CREATE", () => {
-    let dataset: PositionRecord[] = [];
-    const { ctx } = buildCtx({
-      saveCommand: "SAVE",
-      editingPublishedFamilyId: "fm_should_not_become_source",
-      saveWorkingDataset: (u) => {
-        dataset = u;
-      },
-      setDataset: (u) => {
-        dataset = u;
-      },
-    });
-    const r = runSaveStrategy(ctx);
-    expect(r.publishOperation).toEqual({
-      schemaVersion: 1,
-      intent: "CREATE",
-      sourceFamilyId: null,
-      destinationFamilyId: r.familyId,
-    });
-  });
-
-  it("CASE 9 — OVERWRITE → PublishOperation UPDATE", () => {
-    let dataset: PositionRecord[] = [];
-    const first = buildCtx({
-      saveWorkingDataset: (u) => {
-        dataset = u;
-      },
-      setDataset: (u) => {
-        dataset = u;
-      },
-    });
-    expect(runSaveStrategy(first.ctx).ok).toBe(true);
-    const source = authoredFrom(dataset)!;
-
+  it("CASE 9 — Published Derived(A) → OVERWRITE → Published Source A UPDATE", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
     const after = buildCtx({
       dataset,
       editingPublishedFamilyId: source.familyId!,
+      saveCommand: "OVERWRITE",
+      slots: slotWithIdentity({
+        familyId: source.familyId,
+        memberId: "mb_der_p",
+        memberOrigin: "DERIVED_CUE_IMPACT",
+        generatedFromMemberId: source.memberId,
+        derivedRule: "CUE_IMPACT_FIRST_30PCT",
+        derivedStep: "0.3",
+      }),
+      saveWorkingDataset: (u) => {
+        dataset = u;
+      },
+      setDataset: (u) => {
+        dataset = u;
+      },
+    });
+    const r = runSaveStrategy(after.ctx);
+    expect(r.ok).toBe(true);
+    expect(r.saveIntent).toBe("UPDATE");
+    expect(r.familyId).toBe(source.familyId);
+    expect(r.publishOperation?.intent).toBe("UPDATE");
+  });
+
+  it("CASE 10 — source NONE → OVERWRITE BLOCK", () => {
+    expect(
+      canOverwriteTrustedSourceFamily({
+        editingPublishedFamilyId: null,
+        editingLocalFamilyId: null,
+      })
+    ).toBe(false);
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
+    const after = buildCtx({
+      dataset,
+      editingPublishedFamilyId: null,
+      editingLocalFamilyId: null,
       saveCommand: "OVERWRITE",
       slots: slotWithIdentity({
         familyId: source.familyId,
@@ -475,17 +457,50 @@ describe("Save Intent Split CASE 1–10", () => {
       },
     });
     const r = runSaveStrategy(after.ctx);
-    expect(r.publishOperation).toEqual({
-      schemaVersion: 1,
-      intent: "UPDATE",
-      sourceFamilyId: source.familyId,
-      destinationFamilyId: source.familyId,
-    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("overwrite-missing-source-family");
   });
 
-  it("CASE 10 — SAVE does not reuse source familyId/memberId as NEW identity", () => {
-    let dataset: PositionRecord[] = [];
-    const first = buildCtx({
+  it("CASE 11 — Local recall ownership sets LOCAL and clears PUBLISHED", () => {
+    expect(
+      resolveEditSourceKind({
+        editingLocalFamilyId: "fm_loc",
+        editingPublishedFamilyId: null,
+      })
+    ).toBe("LOCAL");
+  });
+
+  it("CASE 12 — Published recall ownership sets PUBLISHED and clears LOCAL", () => {
+    expect(
+      resolveEditSourceKind({
+        editingPublishedFamilyId: "fm_pub",
+        editingLocalFamilyId: null,
+      })
+    ).toBe("PUBLISHED");
+  });
+
+  it("CASE 13 — reset/new input clears both ownerships → NONE", () => {
+    expect(
+      resolveEditSourceKind({
+        editingPublishedFamilyId: null,
+        editingLocalFamilyId: null,
+      })
+    ).toBe("NONE");
+  });
+
+  it("CASE 14 — Local OVERWRITE does NOT create Published UPDATE PublishOperation", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
+    const after = buildCtx({
+      dataset,
+      editingLocalFamilyId: source.familyId!,
+      editingPublishedFamilyId: null,
+      saveCommand: "OVERWRITE",
+      slots: slotWithIdentity({
+        familyId: source.familyId,
+        memberId: source.memberId,
+        memberOrigin: "AUTHORED",
+      }),
       saveWorkingDataset: (u) => {
         dataset = u;
       },
@@ -493,12 +508,24 @@ describe("Save Intent Split CASE 1–10", () => {
         dataset = u;
       },
     });
-    expect(runSaveStrategy(first.ctx).ok).toBe(true);
-    const source = authoredFrom(dataset)!;
+    const r = runSaveStrategy(after.ctx);
+    expect(r.ok).toBe(true);
+    expect(r.saveIntent).toBe("UPDATE");
+    expect(r.overwriteSourceKind).toBe("LOCAL");
+    expect(r.publishOperation).toEqual({
+      schemaVersion: 1,
+      intent: "CREATE",
+      sourceFamilyId: null,
+      destinationFamilyId: source.familyId,
+    });
+  });
 
+  it("CASE 15 — Local A → SAVE does not reuse A familyId/memberId", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
     const after = buildCtx({
       dataset,
-      editingPublishedFamilyId: source.familyId!,
+      editingLocalFamilyId: source.familyId!,
       saveCommand: "SAVE",
       slots: slotWithIdentity({
         familyId: source.familyId,
@@ -518,12 +545,40 @@ describe("Save Intent Split CASE 1–10", () => {
     const newest = dataset
       .flatMap((rec) => Object.values(rec.strategies))
       .find(
-        (e) =>
-          e?.familyId === r.familyId && e?.memberOrigin === "AUTHORED"
+        (e) => e?.familyId === r.familyId && e?.memberOrigin === "AUTHORED"
       );
-    expect(newest?.memberId).toBeTruthy();
     expect(newest?.memberId).not.toBe(source.memberId);
-    expect(newest?.familyId).toBe(r.familyId);
+  });
+
+  it("CASE 16 — Local A → OVERWRITE preserves A family identity", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
+    const after = buildCtx({
+      dataset,
+      editingLocalFamilyId: source.familyId!,
+      saveCommand: "OVERWRITE",
+      slots: slotWithIdentity({
+        familyId: source.familyId,
+        memberId: source.memberId,
+        memberOrigin: "AUTHORED",
+      }),
+      saveWorkingDataset: (u) => {
+        dataset = u;
+      },
+      setDataset: (u) => {
+        dataset = u;
+      },
+    });
+    const r = runSaveStrategy(after.ctx);
+    expect(r.ok).toBe(true);
+    expect(r.familyId).toBe(source.familyId);
+    const kept = dataset
+      .flatMap((rec) => Object.values(rec.strategies))
+      .find(
+        (e) =>
+          e?.familyId === source.familyId && e?.memberOrigin === "AUTHORED"
+      );
+    expect(kept?.memberId).toBe(source.memberId);
   });
 
   it("policy: draft familyId alone never auto-UPDATE", () => {

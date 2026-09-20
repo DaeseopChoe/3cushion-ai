@@ -6,6 +6,49 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-20 — Local DB Overwrite (Trusted Local Source Family UPDATE)
+
+## Mode
+
+**Agent** · Local source ownership · Local OVERWRITE · Contracts · Docs · Commit/Push
+
+## Goal
+
+Local DB → 덮어쓰기 = Source Local Family UPDATE
+while keeping:
+
+- Local/Published → SAVE = NEW Family
+- Published → 덮어쓰기 = Published Source UPDATE
+
+## Implementation
+
+- Explicit ownership: `editingLocalFamilyId` + `editingPublishedFamilyId`
+- Source kinds: NONE | LOCAL | PUBLISHED (mutually exclusive)
+- One [덮어쓰기] button; enabled when LOCAL or PUBLISHED trusted
+- Local OVERWRITE → Family UPDATE in `positions_dataset`
+- Local OVERWRITE → PublishOperation **CREATE** (not Published UPDATE)
+- Published OVERWRITE path unchanged
+
+## Tests
+
+- `localOverwrite.contract.test.ts` CASE 1–16
+- Updated publishedEditSession / wiring / saveIntentSplit
+
+## Docs
+
+- PROJECT_MASTER_INDEX: Save Intent / Source Ownership SSOT
+- This log entry
+
+## Protected WT
+
+- `frontend/src/domain/trajectory/incidenceAngle.ts` untouched
+
+## Commit
+
+`fix(admin): support trusted local family overwrite`
+
+---
+
 # 2026-09-20 — Save Intent Split (SAVE = NEW Family / OVERWRITE = Source UPDATE)
 
 ## Mode

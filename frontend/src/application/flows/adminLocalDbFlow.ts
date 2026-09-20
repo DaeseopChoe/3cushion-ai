@@ -12,8 +12,10 @@ import { runSpatialRecall } from "../../domain/recall/recallEngine";
 import { makeSignatureKey } from "../../domain/search/signatureKey";
 import {
   listStrategiesInRecord,
+  type Ball3,
   type PositionRecord,
 } from "../../domain/positionSearchEngine";
+import { readFamilyIdFromRecordSlot } from "../../domain/family/publishedEditSession";
 import { normalizeTargetBallForKey } from "../../domain/positionMergeEngine";
 import { ADMIN_SEARCH_SOFT_DISTANCE_WARN } from "../../domain/recall/recallProfiles";
 import {
@@ -41,8 +43,10 @@ export type AdminLocalDbFlowContext = {
   // WRITE
   setAdminState: (updater: (prev: AdminState) => AdminState) => void;
   setIsAdminPublishedSearchMatched: (value: boolean) => void;
-  /** Phase 2: LocalDB must not claim published UPDATE ownership. */
+  /** Clear Published UPDATE ownership (LocalDB is not Published UPDATE). */
   setEditingPublishedFamilyId?: (familyId: string | null) => void;
+  /** Set Local UPDATE ownership from trusted Local recall. */
+  setEditingLocalFamilyId?: (familyId: string | null) => void;
   setAdminTableLayersVisible: (value: boolean) => void;
   setShowCoaching: (value: boolean) => void;
   /** Load success → editable session (Undo/Recall model; no Reset gate). */
@@ -281,8 +285,11 @@ export async function runAdminLocalDbRecall(
     });
   }
   ctx.setIsAdminPublishedSearchMatched(true);
-  // LocalDB is not Published UPDATE ownership (Phase 2).
+  // LocalDB recall: LOCAL ownership only (clear Published).
   ctx.setEditingPublishedFamilyId?.(null);
+  ctx.setEditingLocalFamilyId?.(
+    readFamilyIdFromRecordSlot(result.record, ctx.activeSlot)
+  );
 
   if (result.distance > SOFT_DISTANCE_WARN) {
     alert("유사도 낮음");

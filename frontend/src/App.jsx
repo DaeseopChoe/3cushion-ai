@@ -310,7 +310,9 @@ import {
 } from "./domain/realInterpolation/uiSurface";
 import { runSaveStrategy } from "./application/flows/saveFlow";
 import { runCanonicalSave } from "./application/flows/historyFlow";
-import { canOverwritePublishedSourceFamily } from "./domain/family/publishedEditSession";
+import {
+  canOverwriteTrustedSourceFamily,
+} from "./domain/family/publishedEditSession";
 import { commitDerivedApprovalDataset } from "./application/flows/derivedApprovalFlow";
 import {
   DERIVED_REVIEW_MARKER_HIT_RADIUS_RG,
@@ -1238,10 +1240,17 @@ export default function App({
   const [isAdminPublishedSearchMatched, setIsAdminPublishedSearchMatched] = useState(false);
   /** Phase 2 — Published Search family being edited (null = not a published UPDATE session). */
   const [editingPublishedFamilyId, setEditingPublishedFamilyId] = useState(null);
+  /** Local DB recall family being edited (null = not a local UPDATE session). */
+  const [editingLocalFamilyId, setEditingLocalFamilyId] = useState(null);
   const clearPublishedEditSession = useCallback(() => {
     setIsAdminPublishedSearchMatched(false);
     setEditingPublishedFamilyId(null);
+    setEditingLocalFamilyId(null);
   }, []);
+  const canOverwriteTrustedSource = canOverwriteTrustedSourceFamily({
+    editingPublishedFamilyId,
+    editingLocalFamilyId,
+  });
   const [isSaved, setIsSaved] = useState(false);
   const [targetColor, setTargetColor] = useState(null);
 
@@ -2496,6 +2505,7 @@ export default function App({
       reflectionOverridePayload: c2ReflectionOverride ?? null,
       editSource: editSourceContext,
       editingPublishedFamilyId,
+      editingLocalFamilyId,
       saveCommand: "SAVE",
       saveWorkingDataset,
       setDataset,
@@ -2534,6 +2544,7 @@ export default function App({
       reflectionOverridePayload: c2ReflectionOverride ?? null,
       editSource: editSourceContext,
       editingPublishedFamilyId,
+      editingLocalFamilyId,
       saveCommand: "SAVE",
       saveWorkingDataset,
       setDataset,
@@ -2553,12 +2564,10 @@ export default function App({
     }
   }
 
-  /** 우측 덮어쓰기: UPDATE Source Family (Published Search session only) */
+  /** 우측 덮어쓰기: UPDATE trusted LOCAL or PUBLISHED Source Family */
   function handleCanonicalOverwrite() {
     if (isDerivedReviewSessionPending) return;
-    if (
-      !canOverwritePublishedSourceFamily({ editingPublishedFamilyId })
-    ) {
+    if (!canOverwriteTrustedSource) {
       return;
     }
     const result = runCanonicalSave({
@@ -2578,6 +2587,7 @@ export default function App({
       reflectionOverridePayload: c2ReflectionOverride ?? null,
       editSource: editSourceContext,
       editingPublishedFamilyId,
+      editingLocalFamilyId,
       saveCommand: "OVERWRITE",
       saveWorkingDataset,
       setDataset,
@@ -2615,6 +2625,7 @@ export default function App({
       setAdminState,
       setIsAdminPublishedSearchMatched,
       setEditingPublishedFamilyId,
+      setEditingLocalFamilyId,
       setAdminTableLayersVisible,
       setShowCoaching,
       applyPositionRecall: actions.applyPositionRecall,
@@ -2778,6 +2789,7 @@ export default function App({
       setAdminState,
       setIsAdminPublishedSearchMatched,
       setEditingPublishedFamilyId,
+      setEditingLocalFamilyId,
       setAdminTableLayersVisible,
       setShowCoaching,
       setIsAdminInputSessionActive,
@@ -7268,7 +7280,7 @@ function handlePointerCancel(e) {
               disabled={
                 !canUseSystemControls ||
                 isDerivedReviewSessionPending ||
-                !canOverwritePublishedSourceFamily({ editingPublishedFamilyId })
+                !canOverwriteTrustedSource
               }
               className="control-button"
               onClick={() => {
@@ -7281,17 +7293,17 @@ function handlePointerCancel(e) {
                 opacity:
                   canUseSystemControls &&
                   !isDerivedReviewSessionPending &&
-                  canOverwritePublishedSourceFamily({ editingPublishedFamilyId })
+                  canOverwriteTrustedSource
                     ? 1
                     : 0.45,
                 cursor:
                   canUseSystemControls &&
                   !isDerivedReviewSessionPending &&
-                  canOverwritePublishedSourceFamily({ editingPublishedFamilyId })
+                  canOverwriteTrustedSource
                     ? "pointer"
                     : "not-allowed",
               }}
-              title="Search에서 불러온 기존 공략을 덮어씁니다"
+              title="불러온 기존 작업을 덮어씁니다 (로컬DB 또는 Search)"
             >
               덮어쓰기
             </button>

@@ -1,5 +1,5 @@
 /**
- * Phase 2 — Search → Apply identity preservation + SAVE intent wiring (source).
+ * Phase 2+ — Search/LocalDB source ownership wiring + SAVE/OVERWRITE (source).
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-describe("Phase 2 published family identity session wiring", () => {
+describe("Phase 2+ edit source ownership session wiring", () => {
   it("applyDraftSys preserves family identity fields from draft", () => {
     const src = readFileSync(
       join(__dirname, "../../hooks/useShotSlots.ts"),
@@ -19,7 +19,7 @@ describe("Phase 2 published family identity session wiring", () => {
     expect(src).toContain("draft.memberId");
   });
 
-  it("adminSearch sets editingPublishedFamilyId; LocalDB clears it", () => {
+  it("adminSearch sets PUBLISHED ownership and clears LOCAL; LocalDB sets LOCAL and clears PUBLISHED", () => {
     const published = readFileSync(
       join(__dirname, "../../application/flows/adminSearchFlow.ts"),
       "utf8"
@@ -29,27 +29,34 @@ describe("Phase 2 published family identity session wiring", () => {
       "utf8"
     );
     expect(published).toContain("setEditingPublishedFamilyId");
+    expect(published).toContain("setEditingLocalFamilyId?.(null)");
     expect(published).toContain("readFamilyIdFromRecordSlot");
     expect(local).toContain("setEditingPublishedFamilyId?.(null)");
+    expect(local).toContain("setEditingLocalFamilyId?.(");
+    expect(local).toContain("readFamilyIdFromRecordSlot");
   });
 
-  it("saveFlow uses saveCommand SAVE→CREATE / OVERWRITE→session UPDATE", () => {
+  it("saveFlow uses saveCommand SAVE→CREATE / OVERWRITE→trusted LOCAL|PUBLISHED UPDATE", () => {
     const src = readFileSync(
       join(__dirname, "../../application/flows/saveFlow.ts"),
       "utf8"
     );
     expect(src).toContain('saveCommand === "OVERWRITE"');
     expect(src).toContain("resolveOverwriteSaveIntent");
+    expect(src).toContain("resolveEditSourceKind");
+    expect(src).toContain("editingLocalFamilyId");
     expect(src).toContain('requestedIntent = "CREATE"');
-    expect(src).toContain("editingPublishedFamilyId");
+    expect(src).toContain('overwriteSourceKind === "LOCAL"');
     expect(src).not.toContain("publishedEditIntent ?? ctx.saveIntent");
   });
 
-  it("App owns editingPublishedFamilyId, OVERWRITE button, and clearPublishedEditSession", () => {
+  it("App owns both ownerships, OVERWRITE button, and clear session", () => {
     const app = readFileSync(join(__dirname, "../../App.jsx"), "utf8");
     expect(app).toContain("editingPublishedFamilyId");
+    expect(app).toContain("editingLocalFamilyId");
     expect(app).toContain("clearPublishedEditSession");
-    expect(app).toContain("setEditingPublishedFamilyId");
+    expect(app).toContain("setEditingLocalFamilyId");
+    expect(app).toContain("canOverwriteTrustedSource");
     expect(app).toContain("handleCanonicalOverwrite");
     expect(app).toContain("덮어쓰기");
     expect(app).toContain('saveCommand: "SAVE"');

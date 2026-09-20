@@ -29,7 +29,11 @@ import {
   resolveFamilySaveIntent,
   shouldWriteFourTrackFamilyOnSave,
 } from "../../domain/family/familySavePolicy";
-import { resolveOverwriteSaveIntent } from "../../domain/family/publishedEditSession";
+import {
+  resolveEditSourceKind,
+  resolveOverwriteSaveIntent,
+  type EditSourceKind,
+} from "../../domain/family/publishedEditSession";
 import {
   buildPublishOperationFromSave,
   type PublishOperation,
@@ -125,6 +129,8 @@ export type SaveFlowResult = {
   destinationFamilyId?: string;
   /** Phase 3-C1 — immutable publish command for History (null = LEGACY / omit). */
   publishOperation?: PublishOperation | null;
+  /** Trusted edit source at OVERWRITE time (NONE on SAVE). */
+  overwriteSourceKind?: EditSourceKind;
   /**
    * Phase 3A-326 shadow dual-write result. Failure never rolls back positions_dataset.
    * Production READ still uses legacy corpus.
@@ -162,14 +168,21 @@ export type SaveFlowContext = {
   saveIntent?: FamilySaveIntent | null;
   /**
    * User storage command. Default SAVE = always CREATE NEW Family.
-   * OVERWRITE = UPDATE Source Family when editingPublishedFamilyId is trusted.
+   * OVERWRITE = UPDATE trusted source Family (LOCAL or PUBLISHED).
    */
   saveCommand?: SaveCommand;
   /**
    * Published Search session ownership (Source Family).
-   * Enables OVERWRITE only — never auto-switches SAVE to UPDATE.
+   * Enables PUBLISHED OVERWRITE — never auto-switches SAVE to UPDATE.
+   * Mutually exclusive with editingLocalFamilyId.
    */
   editingPublishedFamilyId?: string | null;
+  /**
+   * Local DB recall session ownership (Source Family).
+   * Enables LOCAL OVERWRITE — never auto-switches SAVE to UPDATE.
+   * Mutually exclusive with editingPublishedFamilyId.
+   */
+  editingLocalFamilyId?: string | null;
 
   // READ (Infrastructure)
   saveWorkingDataset: (updated: PositionRecord[]) => void;
@@ -358,16 +371,21 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   const explicitSlotFamilyIdentity = explicitFamilyIdentityFromSlot(slotRaw);
   const saveCommand: SaveCommand =
     ctx.saveCommand === "OVERWRITE" ? "OVERWRITE" : "SAVE";
+  const overwriteSourceKind: EditSourceKind = resolveEditSourceKind({
+    editingPublishedFamilyId: ctx.editingPublishedFamilyId,
+    editingLocalFamilyId: ctx.editingLocalFamilyId,
+  });
 
   let requestedIntent: FamilySaveIntent | null = null;
   if (saveCommand === "OVERWRITE") {
     const overwriteIntent = resolveOverwriteSaveIntent({
       editingPublishedFamilyId: ctx.editingPublishedFamilyId,
+      editingLocalFamilyId: ctx.editingLocalFamilyId,
       slotIdentity: explicitSlotFamilyIdentity,
       authoringStrategyId,
       positionId: positionIdForIdentity,
     });
-    if (!overwriteIntent) {
+    if (!overwriteIntent || overwriteSourceKind === "NONE") {
       console.warn("[SAVE] OVERWRITE blocked: missing trusted source family");
       return { ok: false, reason: "overwrite-missing-source-family" };
     }
@@ -386,7 +404,9 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   });
   console.log("[SAVE] saveIntent:", saveIntent, {
     saveCommand,
+    overwriteSourceKind,
     editingPublishedFamilyId: ctx.editingPublishedFamilyId ?? null,
+    editingLocalFamilyId: ctx.editingLocalFamilyId ?? null,
   });
   const familyIdentity = resolveFamilyIdentityForSave({
     saveIntent: saveIntent === "LEGACY" ? "CREATE" : saveIntent,
@@ -644,15 +664,27 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       ? strategy.familyId.trim()
       : undefined);
 
+  // LOCAL UPDATE ≠ PUBLISHED UPDATE:
+  // Local overwrite preserves family identity in positions_dataset, but History
+  // PublishOperation must not claim Published UPDATE (no published source ownership).
+  const publishSaveIntent =
+    saveCommand === "OVERWRITE" && overwriteSourceKind === "LOCAL"
+      ? "CREATE"
+      : saveIntent;
+  const publishEditingPublishedFamilyId =
+    overwriteSourceKind === "PUBLISHED" ? ctx.editingPublishedFamilyId : null;
+
   return {
     ok: true,
     updated,
     normalizedDualWrite,
     saveIntent,
     destinationFamilyId,
+    overwriteSourceKind:
+      saveCommand === "OVERWRITE" ? overwriteSourceKind : "NONE",
     publishOperation: buildPublishOperationFromSave({
-      saveIntent,
-      editingPublishedFamilyId: ctx.editingPublishedFamilyId,
+      saveIntent: publishSaveIntent,
+      editingPublishedFamilyId: publishEditingPublishedFamilyId,
       destinationFamilyId: destinationFamilyId ?? null,
     }),
     ...(useFourTrackFamily && destinationFamilyId
