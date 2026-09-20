@@ -6,6 +6,56 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-20 — Position / Family Identity Contract Ratification
+
+## Mode
+
+**Agent** · Docs SSOT · Contract tests · No production behavior change · Commit/Push
+
+## Audit input
+
+Identity Architecture Audit (Ask):
+
+- Position = Ball3 6 logical coords
+- positionId/createPositionId = deterministic Position Key (0.1 quantum in key)
+- Strategy S1/S2/S3 separate from Position
+- familyId permanent Family UUID — never PositionKey
+- memberId KEEP + logical identityKey
+- Track = Member semantic
+- SAVE = NEW Family; OVERWRITE preserves source Family
+- Flat positions.json duplicates Family-common payload
+- Product Cartesian is a major amplification driver
+- Search is O(N) linear Ball3 rank
+
+## Ratified SSOT
+
+Recorded in `PROJECT_MASTER_INDEX.md`:
+
+- Position / Strategy / Family / Member Identity Contract
+- Forbidden: familyId from coordinates / positionId / positionId+S1
+- Next Architecture Issue: Family MASTER / MEMBERS Storage Separation Audit
+
+## Code
+
+- Documentation-only comments: `positionId.ts`, `familyIdentity.ts`
+- Contract tests: `identityContract.ratification.test.ts` (10 locks)
+- No createPositionId algorithm change
+- No dataset / ID format / Master cutover / Search Index
+
+## Protected WT
+
+- `frontend/src/domain/trajectory/incidenceAngle.ts` untouched
+
+## Next
+
+Family MASTER / MEMBERS Storage Separation Audit (Ask)
+
+## Commit
+
+`docs(architecture): ratify position and family identity contract`
+
+---
+
 # 2026-09-20 — Local DB Overwrite (Trusted Local Source Family UPDATE)
 
 ## Mode

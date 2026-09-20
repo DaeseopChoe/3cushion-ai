@@ -796,6 +796,80 @@ Rules:
 - Draft `familyId` alone never grants overwrite permission.
 - **LOCAL UPDATE ≠ PUBLISHED UPDATE** — Local overwrite must not create a Published UPDATE `PublishOperation`.
 
+### Position / Strategy / Family / Member Identity Contract (2026-09-20)
+
+**Authority:** 본 절 · Architecture Identity SSOT  
+**Code owners:** `domain/positionId.ts` · `domain/positionSearchEngine.ts` · `domain/family/familyIdentity.ts` · `domain/family/trackSymmetry.ts`  
+**Not this work:** dataset migration · ID format change · Master/Members cutover · Search Index · Product reshape · storage 0.1 rounding
+
+#### Hierarchy
+
+```text
+Position  (Ball3: cue/target/second · 6 logical coords)
+│
+├─ Position Key = positionId / createPositionId
+│    (deterministic · 0.1 quantum in key only · color excluded)
+│
+├─ S1 ── Family A (familyId) ── MASTER + MEMBERS
+│    └── Family B (familyId)     ← SAVE may create another Family
+├─ S2 ── Family C
+└─ S3 ── Family D
+```
+
+| Layer | Meaning | Owner / field |
+|-------|---------|----------------|
+| **Position** | Logical Ball3 centers (cue → target → second) | `Ball3` |
+| **Position Key** | Deterministic Exact Position identity | `positionId` = `createPositionId(balls)` |
+| **Strategy** | Slot on a Position — **not** part of Position Key | `S1` \| `S2` \| `S3` |
+| **Family** | Permanent unique 공략 묶음 identity | `familyId` (`fm_*` UUID) |
+| **Member** | Permanent Member identity + logical replace key | `memberId` (`mb_*`) + `genericFamilyMemberIdentityKey` |
+| **Track** | Member semantic / handedness — **not** Position identity | `B2T_L` \| `B2T_R` \| `T2B_L` \| `T2B_R` |
+
+#### Hard rules
+
+1. **Position** = 6 logical coordinates only. Physical `red`/`yellow` (`targetBall`) is metadata — **excluded** from Position Key.
+2. **PositionKey ≡ positionId** conceptually. Field is **not** renamed to `positionKey` in this ratification.
+3. Position Key quantum = `round(v * 10)` (0.1). This does **not** authorize whole-corpus coordinate storage rounding (separate future policy).
+4. **Strategy S1/S2/S3** is a separate layer from Position identity.
+5. **Same Position + same Strategy may hold multiple Families** because **SAVE = always NEW Family**.
+6. **Forbidden as familyId:** coordinate key · `positionId` · `positionId+S1` · six coords + strategy.
+7. **SAVE** mints new `familyId`. **OVERWRITE** preserves trusted source `familyId` (LOCAL or PUBLISHED). Same Position Key alone never selects UPDATE.
+8. **memberId KEEP** (lineage / validators / Derived·Product). Logical replacement also uses `genericFamilyMemberIdentityKey` (AUTHORED / SYMMETRY / DERIVED axes) — not coordinates.
+9. **Track KEEP** as Member semantic. Symmetry may change Ball3 → different `positionId`; track remains a separate field.
+10. Production WRITE SSOT remains flat `positions_dataset` / published `positions.json` for now; Master/Members is the **next** architecture issue (below).
+
+#### Logical Member identity (existing)
+
+| Kind | `genericFamilyMemberIdentityKey` shape |
+|------|----------------------------------------|
+| AUTHORED | `family:{familyId}\|base:AUTHORED` |
+| SYMMETRY | `family:{familyId}\|sym:{H\|V\|RPI}` |
+| DERIVED | `family:{familyId}\|src:{from}\|rule:{rule}\|step:{step}` |
+
+#### Next Architecture Issue — Family MASTER / MEMBERS Storage Separation
+
+**Problem:** Flat production `positions.json` repeats Family-common payload on every Member (`TEMPORARY_COMPATIBILITY_DUPLICATION`).
+
+**Common payload examples (duplicated today):** `signature` · `sysInputs` · `corrections` · `ai` · `str` · canonical `hpT`
+
+**Member-specific candidates (future split audit):** `balls` · `positionId` · `track` · `memberOrigin` · `symmetryOp` · `derivedRule` / `derivedStep` · `generatedFromMemberId` · `memberId` · member meta / extensions
+
+**Amplification input (Product):** `DERIVED_CUE_C3_PRODUCT` expected ≈ `4 * (nc + n3 + nc*n3)` per Family; large term `4 * nc * n3`. Product delete/shrink policy **not** decided here.
+
+**Search input:** Current recall is Ball3 distance **O(N)** linear rank; no Search Index. Future candidate: lightweight index (`positionId`, slot, track, `familyId`, `memberId`) → hydrate — **not** implemented here.
+
+**Open questions for next Ask (answers not decided):**
+
+1. Which fields are MASTER-only?
+2. Which fields are Member-specific?
+3. Which fields are recomputable?
+4. Minimum Member payload for Search/runtime?
+5. Must all Product Cartesian members be durable?
+6. Can FamilyMaster / FamilyMember shadow become production WRITE SSOT?
+7. Flat `positions.json` migration / cutover strategy?
+
+**Next Track:** Family MASTER / MEMBERS Storage Separation Audit (Ask) — after this Identity Contract.
+
 **Production SSOT (검증 완료, 2026-06):**
 
 - Published Dataset은 **Git 관리 대상**이다.

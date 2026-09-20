@@ -1,6 +1,15 @@
 /**
  * Phase 1B — Family Identity & Compatibility Foundation.
  *
+ * Identity Contract (2026-09-20, PROJECT_MASTER_INDEX):
+ *   Position Key = positionId/createPositionId (Ball3) — NOT familyId
+ *   Strategy S1/S2/S3 = separate layer from Position
+ *   familyId = permanent Family UUID (fm_*) — NEVER derived from coordinates/positionId
+ *   memberId = permanent Member UUID (mb_*) — KEEP; logical replace also uses
+ *     genericFamilyMemberIdentityKey
+ *   Track = Member semantic, not Position identity
+ *   SAVE mints new familyId; OVERWRITE preserves trusted source familyId
+ *
  * This module is NOT the final Family DB / Master table.
  * Persistence remains PositionRecord + StrategyEntry.
  * FamilyMasterView is a compatibility projection of existing StrategyEntry
@@ -9,6 +18,7 @@
  * Identity aliases are forbidden:
  *   familyId != authoringStrategyId
  *   memberId != positionId
+ *   familyId != positionId / coordinates / positionId+slot
  *   slot != Family != Member != track
  *   coordinates equality != family identity
  */
