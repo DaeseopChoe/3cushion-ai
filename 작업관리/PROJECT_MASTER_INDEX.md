@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.16
-Last Updated: 2026-09-12
+Version: 2.17
+Last Updated: 2026-09-20
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -333,6 +333,7 @@ Official Name·Pipeline Label은 **GLOSSARY_SSOT**가 우선한다.
 | **Structure** | Architecture (`Architecture/*`) |
 | **Terminology** | Glossary (`작업관리/GLOSSARY_SSOT.md`) |
 | **Operations** | Handoff (`CURSOR_SESSION_HANDOFF.md`) |
+| **User Communication** | MASTER § User Communication Principles (Beginner-First) |
 
 Authority는 중복되지 않는다. Terminology 전용 추가 SSOT(`SEARCH_TERMINOLOGY.md` 등)를 신설하지 않는다 — GLOSSARY에 통합 (GLOSSARY §8).
 
@@ -393,6 +394,38 @@ Authority는 중복되지 않는다. Terminology 전용 추가 SSOT(`SEARCH_TERM
 
 기존 Authority와 중복되는 별도 SSOT를 만들지 않는다.
 용어·Pipeline 표현은 GLOSSARY에만 등록한다.
+
+---
+
+## User Communication Principles (Beginner-First)
+
+**Authority:** 본 절 · Project Operations / User Communication  
+**Not:** 코드·계산·Architecture SSOT (동작 규칙은 변경하지 않는다)
+
+프로젝트 소유자는 **비개발자**이다.  
+AI Agent·Cursor·문서 작성자가 작업 결과·오류·다음 행동을 설명할 때  
+**개발 용어·status code·파일 경로만으로 끝내지 않는다.**
+
+### Required order
+
+1. **무엇이 일어났는지** — 쉬운 말로 먼저 설명한다.
+2. **왜 그런 일이 생겼는지** — 원인을 쉬운 말로 이어서 설명한다.
+3. **지금은 어떤 상태인지** — 고쳐졌는지 / 아직 남았는지 / 막힌 것인지 명확히 말한다.
+4. **다음에 무엇을 하면 되는지** — 사용자가 앱에서 할 다음 행동을 구체적으로 안내한다.
+
+### Style rules
+
+- 전문용어가 필요하면 **쉬운 설명 뒤에** 괄호 또는 짧은 보충으로만 붙인다.
+- `status` / `reason` / function / file 이름만 나열하고 설명을 끝내지 않는다.
+- 사용자가 다른 AI에게 다시 해석을 요청하지 않아도 이해할 수 있는 수준을 목표로 한다.
+- Cursor Agent **최종 보고**는 가능하면 **`BEGINNER SUMMARY`를 맨 앞**에 둔다.
+
+### Example (shape only)
+
+> Publish가 실패한 것은 새 데이터가 잘못돼서가 아닙니다.  
+> Publish하려는 파일에 예전 테스트 변경이 남아 있어서,  
+> 프로그램이 덮어쓰지 않도록 먼저 멈춘 것입니다.  
+> (status: `PRE_EXISTING_TARGET_DIRTY`)
 
 ---
 

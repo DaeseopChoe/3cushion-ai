@@ -6,6 +6,42 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-20 — Clean Disposable Dirty Target + Beginner Communication SSOT
+
+## Mode
+
+**Agent** · Working-tree restore (one disposable leaf) · Docs SSOT · Commit/Push · **Publish NOT executed**
+
+## Context
+
+Fresh History Publish attempt failed with:
+
+- status: `PRE_EXISTING_TARGET_DIRTY`
+- dirty-target: `dataset/뒤돌리기/파이브앤하프/positions.json`
+
+New SAVE/Derived data was **not** validated yet (preflight blocked before write).  
+Root cause: pre-existing **disposable test-data** modification on the Publish target.  
+Publish guard itself was **CORRECT** and remains unchanged.
+
+## Actions
+
+1. `git restore -- dataset/뒤돌리기/파이브앤하프/positions.json` only  
+   → target dirty cleared (HEAD match)
+2. `frontend/src/domain/trajectory/incidenceAngle.ts` **untouched** (still untracked)
+3. No legacy migration · no other dataset restore · no Publish
+4. Added **User Communication Principles (Beginner-First)** to `PROJECT_MASTER_INDEX.md`
+
+## Next
+
+User retries the **same** History item Publish in the app  
+(no need to recreate SAVE/Derived data).
+
+## Commit
+
+`docs: add beginner-first project communication rule`
+
+---
+
 # 2026-09-19 — Published Product Integrity (Recurrence Prevention)
 
 ## Mode
