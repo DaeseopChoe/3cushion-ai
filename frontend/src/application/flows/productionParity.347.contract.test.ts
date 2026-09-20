@@ -5,7 +5,8 @@
  *
  * Run: npx vitest run src/application/flows/productionParity.347.contract.test.ts
  *
- * PRODUCTION CODE UNCHANGED. Flag default remains false.
+ * PRODUCTION HYDRATE: rematerialize rebuilds canonical meta (not placeholder).
+ * Flag default ON for gated normalized READ (FAMILY_NORMALIZED_STORAGE_ENABLED).
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -707,16 +708,17 @@ describe("Phase 3A-347 production parity regression", () => {
     expect(r2.dataset).toEqual(r1.dataset);
   });
 
-  it("J meta regeneration: SAVE does not persist rematerialize placeholder as durable meta", async () => {
+  it("J meta regeneration: rematerialize rebuilds canonical meta (not placeholder)", async () => {
     const legacy = [multiSlotTwo()];
     persistAligned(legacy, 9);
     forceFamilyNormalizedStorageEnabledForTests(true);
     const view = loadProductionCompatibleDataset();
     expect(view.source).toBe("normalized");
-    // Rematerialized S2 uses placeholder meta (no StrategyEntry.meta in family shadow)
+    // Hydrate fidelity: rematerialized meta must not be placeholder cue/second zeros
     expect(
       isPlaceholderMeta(view.dataset[0]?.strategies.S2?.meta, ballsX)
-    ).toBe(true);
+    ).toBe(false);
+    expect(view.dataset[0]?.strategies.S2?.meta).toBeTruthy();
 
     const s2 = view.dataset[0]!.strategies.S2!;
     const { ctx, capture } = buildSaveCtx({

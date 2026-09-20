@@ -6,6 +6,59 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-20 — Family MASTER / MEMBER Ownership SSOT + Hydration Fidelity
+
+## Mode
+
+**Agent** · Docs SSOT · Hydrate fidelity fix · Contract tests · Commit/Push
+
+## Audit input
+
+Family MASTER / MEMBERS Storage Separation Deep Architecture Audit (Ask):
+
+- Family owns strategy; Member owns geometry/track/provenance
+- Flat StrategyEntry common payload = TEMPORARY_COMPATIBILITY_DUPLICATION
+- placeholderMeta on rematerialize hydrate was a fidelity hazard
+- Product Cartesian count is a separate problem (B)
+
+## Ratified SSOT
+
+Recorded in `PROJECT_MASTER_INDEX.md`:
+
+- Family MASTER / MEMBER Ownership Contract
+- Field Ownership Matrix (MASTER / MEMBER / DERIVABLE / COMPATIBILITY)
+- HPT/thickness: canonical on Master; runtime mirror DERIVABLE
+- meta = DERIVABLE; hydrate must rebuild via `rebuildCanonicalMemberMeta`
+- SAVE = NEW Family; OVERWRITE = source Family UPDATE; no Member strategy override
+- Problem A (payload dup) vs Problem B (Product count) separated
+
+## Code
+
+- `familyHydrate.ts`: remove placeholderMeta as final hydrate output; wire `rebuildCanonicalMemberMeta`
+- `familyNormalizedSchema.ts` / `familyMigrationDebt.ts`: ownership comments
+- Contract: `familyMasterMemberOwnership.contract.test.ts` (CASE 1–21 + round-trip)
+- `productionParity.347` test J updated for rebuilt meta (not placeholder)
+
+## Not changed
+
+- production WRITE SSOT (still flat positions_dataset)
+- dataset / Product Cartesian / Search / calculation formulas / IDs
+- SAVE / OVERWRITE behavior
+
+## Protected WT
+
+- `frontend/src/domain/trajectory/incidenceAngle.ts` untouched
+
+## Next
+
+Family MASTER / MEMBER Production Storage Cutover Audit (Ask)
+
+## Commit
+
+`refactor(architecture): lock family master member ownership contracts`
+
+---
+
 # 2026-09-20 — Position / Family Identity Contract Ratification
 
 ## Mode

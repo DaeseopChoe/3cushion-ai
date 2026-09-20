@@ -2,6 +2,14 @@
  * Phase 3A-321 Phase A — hydrate / split boundary between
  * FamilyMaster+FamilyMember and PositionRecord/StrategyEntry compatibility views.
  *
+ * Ownership SSOT (2026-09-20): FamilyMaster owns strategy payload; FamilyMember owns
+ * geometry / track / provenance. Hydration injects Master common fields onto a
+ * temporary StrategyEntry for flat-compatible consumers.
+ *
+ * Meta fidelity: when options.meta is omitted, rebuild via rebuildCanonicalMemberMeta
+ * (existing calculation owner). placeholderMeta must NEVER be the final production-
+ * equivalent hydrated meta.
+ *
  * Does not change SAVE, Approval, Search, or History call sites.
  * Geometry / HPT resolvers are not invoked here — canonical hpT stays on Master;
  * mirrored runtime HPT remains the existing resolver responsibility at UI hydrate.
@@ -13,20 +21,21 @@ import type {
   StrategyEntry,
   StrategyMeta,
 } from "../positionSearchEngine";
+import type { HptLike } from "../evaluateStrategy";
 import {
   readPersistedFamilyIdentity,
   validateFamilyProvenance,
 } from "./familyIdentity";
 import type { FamilyMaster, FamilyMember } from "./familyNormalizedSchema";
 import { FAMILY_NORMALIZED_SCHEMA_VERSION } from "./familyNormalizedSchema";
+import { rebuildCanonicalMemberMeta } from "./rebuildCanonicalMemberMeta";
 
 export type HydrateFamilyMemberOptions = {
   /** Compatibility slot for StrategyEntry (not Family identity). Default S1. */
   slot?: StrategyEntry["slot"];
   /**
-   * Optional meta for consumers that require StrategyEntry.meta.
-   * When omitted, a deterministic placeholder is built from balls
-   * (not a geometry recompute).
+   * Optional precomputed meta override (tests / callers with already-canonical meta).
+   * When omitted, hydrate rebuilds canonical meta via rebuildCanonicalMemberMeta.
    */
   meta?: StrategyMeta;
   positionId?: string;
@@ -47,18 +56,37 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function placeholderMeta(balls: FamilyMember["balls"]): StrategyMeta {
-  return {
-    impact: { x: balls.cue.x, y: balls.cue.y },
-    final: { x: balls.second.x, y: balls.second.y },
-    angle_ci: 0,
-    angle_fs: 0,
-  };
+function hpTLikeFromMaster(hpT: unknown): HptLike {
+  if (hpT == null || typeof hpT !== "object") return undefined;
+  const T = (hpT as { T?: unknown }).T;
+  return typeof T === "string" ? { T } : undefined;
+}
+
+/**
+ * Resolve StrategyEntry.meta for hydrate.
+ * Prefer caller override; otherwise rebuild from Master strategy + Member geometry.
+ */
+export function resolveHydratedStrategyMeta(
+  master: FamilyMaster,
+  member: FamilyMember,
+  slot: StrategyEntry["slot"],
+  options?: Pick<HydrateFamilyMemberOptions, "meta">
+): StrategyMeta {
+  if (options?.meta) return cloneJson(options.meta);
+  return rebuildCanonicalMemberMeta({
+    balls: member.balls,
+    signature: master.signature,
+    sysInputs: { ...(master.sysInputs ?? {}) },
+    slot,
+    track: member.track,
+    hpT: hpTLikeFromMaster(master.hpT),
+  });
 }
 
 /**
  * FamilyMaster + FamilyMember → PositionRecord-compatible runtime view.
  * Injects Master common payload onto StrategyEntry for existing consumers.
+ * Meta is rebuilt via rebuildCanonicalMemberMeta unless options.meta is supplied.
  */
 export function hydrateFamilyMemberToPositionRecord(
   master: FamilyMaster,
@@ -82,13 +110,14 @@ export function hydrateFamilyMemberToPositionRecord(
     second: { x: member.balls.second.x, y: member.balls.second.y },
   };
   const positionId = options?.positionId ?? createPositionId(balls);
+  const meta = resolveHydratedStrategyMeta(master, member, slot, options);
 
   const entry: StrategyEntry = {
     slot,
     signature: cloneJson(master.signature),
     track: member.track,
     sysInputs: { ...master.sysInputs },
-    meta: options?.meta ? cloneJson(options.meta) : placeholderMeta(balls),
+    meta,
     familyId: member.familyId,
     memberId: member.memberId,
     memberOrigin: member.memberOrigin,

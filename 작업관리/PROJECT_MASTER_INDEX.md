@@ -1,6 +1,6 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.17
+Version: 2.18
 Last Updated: 2026-09-20
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Commit/Push when user requests (Issue A code + docs; exclude user dataset dirty) |
+| **Next Track** | Family MASTER / MEMBER Production Storage Cutover Audit (Ask) — ownership + hydrate fidelity ratified |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -836,7 +836,7 @@ Position  (Ball3: cue/target/second · 6 logical coords)
 7. **SAVE** mints new `familyId`. **OVERWRITE** preserves trusted source `familyId` (LOCAL or PUBLISHED). Same Position Key alone never selects UPDATE.
 8. **memberId KEEP** (lineage / validators / Derived·Product). Logical replacement also uses `genericFamilyMemberIdentityKey` (AUTHORED / SYMMETRY / DERIVED axes) — not coordinates.
 9. **Track KEEP** as Member semantic. Symmetry may change Ball3 → different `positionId`; track remains a separate field.
-10. Production WRITE SSOT remains flat `positions_dataset` / published `positions.json` for now; Master/Members is the **next** architecture issue (below).
+10. Production WRITE SSOT remains flat `positions_dataset` / published `positions.json` for now; Master/Members ownership + hydrate fidelity ratified (below); WRITE cutover is the next Ask.
 
 #### Logical Member identity (existing)
 
@@ -858,17 +858,71 @@ Position  (Ball3: cue/target/second · 6 logical coords)
 
 **Search input:** Current recall is Ball3 distance **O(N)** linear rank; no Search Index. Future candidate: lightweight index (`positionId`, slot, track, `familyId`, `memberId`) → hydrate — **not** implemented here.
 
-**Open questions for next Ask (answers not decided):**
+**Ownership SSOT:** ratified below (2026-09-20). Open questions for field ownership / meta / HPT are **closed**. Remaining: production WRITE cutover.
 
-1. Which fields are MASTER-only?
-2. Which fields are Member-specific?
-3. Which fields are recomputable?
-4. Minimum Member payload for Search/runtime?
-5. Must all Product Cartesian members be durable?
-6. Can FamilyMaster / FamilyMember shadow become production WRITE SSOT?
-7. Flat `positions.json` migration / cutover strategy?
+**Next Track:** Family MASTER / MEMBER Production Storage Cutover Audit (Ask) — after Ownership + Hydration Fidelity ratification.
 
-**Next Track:** Family MASTER / MEMBERS Storage Separation Audit (Ask) — after this Identity Contract.
+### Family MASTER / MEMBER Ownership Contract (2026-09-20)
+
+**Authority:** 본 절 · Architecture Ownership SSOT
+
+**Code owners:** `domain/family/familyNormalizedSchema.ts` · `familyHydrate.ts` · `rebuildCanonicalMemberMeta.ts` · `familyMigrationDebt.ts` · `migratePositionRecordsToFamilyParts.ts` · `hptResolver.ts`
+
+**Contract tests:** `domain/family/familyMasterMemberOwnership.contract.test.ts`
+
+**Not this work:** production WRITE cutover · dataset migration · Product Cartesian shrink · Search Index · calculation formula change · ID redesign
+
+#### FAMILY OWNS THE STRATEGY
+
+Family는 공략 자체를 소유한다. 같은 `familyId`의 모든 Member는 동일한 공략 정의를 공유한다.
+
+Member가 다른 위치에 있다고 해서 별도의 SYS / correction / AI / STR / canonical HPT / thickness를 소유하지 않는다.
+
+공략 정의가 달라져야 하면 **새 Member가 아니라 새 Family**다.
+
+| Intent | Effect |
+|--------|--------|
+| **SAVE** | Always **NEW** Family (`familyId` mint) |
+| **OVERWRITE** | Trusted source Family **UPDATE** (same `familyId`) |
+
+예: Family A Cue→Impact 30% 이후 다른 correction이 필요하면 Family A 내부 Derived의 correction을 바꾸지 않는다. Derived Position recall 후 **SAVE → NEW Family B**.
+
+**Member-specific strategy override 개념은 존재하지 않는다.**
+
+#### Field Ownership Matrix
+
+| Category | Fields | Notes |
+|----------|--------|-------|
+| **MASTER** | `familyId`, `signature`, `sysInputs`, `corrections?`, `correctionsStored?`, `ai?`, `str?`, canonical `hpT?` (thickness = `hpT.T`) | Authoritative Family-common strategy payload. Optional semantics follow existing `FamilyMaster` type. |
+| **MEMBER** | `memberId`, `familyId` (FK), `balls`, `track`, `memberOrigin`, `generatedFromMemberId?`, `symmetryOp?`, `derivedRule?`, `derivedStep?`, `authoringStrategyId?`, `sourceSlot`, `targetBall?`, `reflectionOverride?`, `trajectoryExtensions?` | Geometry / Track / provenance / packing. `positionId` = `createPositionId(balls)` (derivable; retained on PositionRecord). |
+| **DERIVABLE** | `meta` (impact/final/angles), runtime/display mirrored HPT & thickness, `positionId` from balls | Not Family Master. Not Member strategy authority. Rebuild via existing calculation owner. |
+| **COMPATIBILITY DUPLICATE** | Flat `StrategyEntry` copies of MASTER common payload | `TEMPORARY_COMPATIBILITY_DUPLICATION` only — **not** authoritative Member ownership. Production WRITE SSOT still flat `positions_dataset` / `positions.json`. |
+
+#### HPT / Thickness
+
+- **Stored canonical HPT / thickness (`hpT.T`):** Family MASTER
+- **Runtime / display mirrored HPT / thickness:** DERIVABLE from Master canonical + Member Track handedness (`resolveFamilyHpt`) — **not** a new stored Member 공략 SSOT
+- Flat Member `hpT` copies remain temporary compatibility only
+
+#### Meta + Hydration Fidelity
+
+- `meta` = **DERIVABLE geometry** (Master strategy + Member balls + existing `rebuildCanonicalMemberMeta` / `evaluateStrategy` / `buildStrategyMeta`)
+- Normalized hydrate (`hydrateFamilyMemberToPositionRecord` / rematerialize) **MUST** rebuild canonical meta when `options.meta` omitted
+- **`placeholderMeta` must NEVER be the final production-equivalent hydrated StrategyEntry.meta**
+
+#### Shadow store status
+
+- `family_masters` / `family_members`: dual-written after positions persist; gated READ may rematerialize
+- Production **WRITE SSOT unchanged** (flat). Flag / dual-write cutover **not** decided here
+
+#### Separated problems
+
+| Problem | Status |
+|---------|--------|
+| **A — Duplicated Master payload** | Ownership + hydrate fidelity **ratified**; WRITE cutover = next Ask |
+| **B — Product Cartesian member count** | **Separate** later architecture issue — not solved by MASTER/MEMBER split |
+
+**Next Track:** Family MASTER / MEMBER Production Storage Cutover Audit (Ask).
 
 **Production SSOT (검증 완료, 2026-06):**
 
