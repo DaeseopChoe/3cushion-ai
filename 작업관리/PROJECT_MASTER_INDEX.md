@@ -798,8 +798,8 @@ Rules:
 
 ### Position / Strategy / Family / Member Identity Contract (2026-09-20)
 
-**Authority:** 본 절 · Architecture Identity SSOT  
-**Code owners:** `domain/positionId.ts` · `domain/positionSearchEngine.ts` · `domain/family/familyIdentity.ts` · `domain/family/trackSymmetry.ts`  
+**Authority:** 본 절 · Architecture Identity SSOT
+**Code owners:** `domain/positionId.ts` · `domain/positionSearchEngine.ts` · `domain/family/familyIdentity.ts` · `domain/family/trackSymmetry.ts`
 **Not this work:** dataset migration · ID format change · Master/Members cutover · Search Index · Product reshape · storage 0.1 rounding
 
 #### Hierarchy
