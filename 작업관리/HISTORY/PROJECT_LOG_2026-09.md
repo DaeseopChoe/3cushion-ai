@@ -6,6 +6,59 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-20 — Save Intent Split (SAVE = NEW Family / OVERWRITE = Source UPDATE)
+
+## Mode
+
+**Agent** · Save Intent Split · Contract tests · Docs SSOT · Commit/Push
+
+## Audit (pre-fix)
+
+- Recall source (Published Search / Local DB / Derived) could steer SAVE toward UPDATE
+- `editingPublishedFamilyId` auto-forced UPDATE on SAVE
+- Draft `familyId` could imply UPDATE
+- No explicit OVERWRITE button
+
+## Confirmed SSOT
+
+| Command | Meaning |
+|---------|---------|
+| **SAVE** | Always **CREATE NEW Family** |
+| **덮어쓰기 (OVERWRITE)** | **UPDATE Source Family** (trusted Published session only) |
+
+| Recall | Role |
+|--------|------|
+| Search | Published data lookup — not a save command |
+| Local DB | Pre-publish local workspace recall — not a save command |
+| Derived Member | Provenance only — not a save intent |
+
+## Implementation
+
+- SAVE forces `requestedIntent = CREATE` (ignores session/draft for intent)
+- OVERWRITE requires `editingPublishedFamilyId` + matching source identity
+- UI: `[SAVE] [덮어쓰기]` (overwrite enabled only with trusted Published source)
+- PublishOperation matches button intent (CREATE / UPDATE)
+- Fixed authored-slot resolution after four-track write (CREATE on occupied Exact)
+
+## Tests
+
+- CASE 1–10 `saveIntentSplit.contract.test.ts`
+- Updated family identity / publishedEditSession / wiring contracts
+
+## Docs
+
+- Cursor copyable final-report rule recorded under User Communication Principles in `PROJECT_MASTER_INDEX.md`
+
+## Protected WT
+
+- `frontend/src/domain/trajectory/incidenceAngle.ts` untouched
+
+## Commit
+
+`fix(admin): split create and overwrite save intents`
+
+---
+
 # 2026-09-20 — Clean Disposable Dirty Target + Beginner Communication SSOT
 
 ## Mode

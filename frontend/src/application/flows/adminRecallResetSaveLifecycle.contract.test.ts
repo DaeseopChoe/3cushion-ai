@@ -4,12 +4,15 @@
  * Full Lifecycle End-to-End Contract Tests for ADMIN:
  * Local DB Search → Load (immediately editable) → Edit → SAVE
  *
+ * Save Intent Split (2026-09-20):
+ * Local DB recall → SAVE always CREATE NEW Family (never UPDATE via draft identity).
+ *
  * Invariants Verified:
- * - TEST A: Red Target Load → Edit → SAVE Success with Family Identity Preserved
+ * - TEST A: Red Target Load → Edit → SAVE Success (NEW Family minted)
  * - TEST B: Yellow Target Load → Edit → SAVE Success with Physical Color Invariance
  * - TEST C: Target=NONE Search Preparation → Matched Record Load → SAVE Success
  * - TEST D: patchSlotRuntimeMeta does not create targetOnlyStub in applied (applied=null preserved)
- * - TEST E: Defensive Identity Resolver recovers complete Family Identity from draft when applied is partial
+ * - TEST E: SAVE mints NEW Family even when draft carries prior Local DB identity
  * - TEST F: SAVE failure provides explicit user feedback (alert) instead of Silent No-Op
  */
 
@@ -210,7 +213,10 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
     const saveResult = runCanonicalSave(saveCtx);
     expect(saveResult.ok).toBe(true);
     expect(historyCommitted).toBe(true);
-    expect(saveResult.familyId).toBe("fm_lifecycle_001");
+    expect(saveResult.saveIntent).toBe("CREATE");
+    expect(saveResult.familyId).toBeTruthy();
+    expect(saveResult.familyId).not.toBe("fm_lifecycle_001");
+    expect(saveResult.publishOperation?.intent).toBe("CREATE");
   });
 
   it("TEST B — Yellow Target Lifecycle: Yellow Target → Load (editable) → Edit → SAVE Success", async () => {
@@ -376,7 +382,7 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
     expect(nextSlot.draft.targetBall).toBe("red");
   });
 
-  it("TEST E — Defensive Identity Resolver recovers complete Family Identity from draft when applied is partial", () => {
+  it("TEST E — Local DB draft identity does not force UPDATE; SAVE mints NEW Family", () => {
     // Case where applied exists (e.g. from partial SYS apply) but has no familyId
     const slotWithPartialApplied = {
       draft: {
@@ -409,6 +415,8 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
       system: null,
       resolvedSlotSysValues: { CO_f: 30, C3_r: 20 },
       autoSave: false,
+      editingPublishedFamilyId: null,
+      saveCommand: "SAVE",
       saveWorkingDataset: vi.fn(),
       setDataset: vi.fn(),
       setUserPublishedSearchContext: vi.fn(),
@@ -423,7 +431,9 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
 
     const saveResult = runSaveStrategy(saveCtx);
     expect(saveResult.ok).toBe(true);
-    expect(saveResult.familyId).toBe("fm_defensive_001");
+    expect(saveResult.saveIntent).toBe("CREATE");
+    expect(saveResult.familyId).toBeTruthy();
+    expect(saveResult.familyId).not.toBe("fm_defensive_001");
   });
 
   it("TEST F — SAVE failure provides explicit user feedback (alert) instead of Silent No-Op", () => {

@@ -310,6 +310,7 @@ import {
 } from "./domain/realInterpolation/uiSurface";
 import { runSaveStrategy } from "./application/flows/saveFlow";
 import { runCanonicalSave } from "./application/flows/historyFlow";
+import { canOverwritePublishedSourceFamily } from "./domain/family/publishedEditSession";
 import { commitDerivedApprovalDataset } from "./application/flows/derivedApprovalFlow";
 import {
   DERIVED_REVIEW_MARKER_HIT_RADIUS_RG,
@@ -2475,7 +2476,7 @@ export default function App({
     closeOverlay();
   }
 
-  /** Strategy Save — SRCH-005 + DS-002 → saveFlow.runSaveStrategy */
+  /** Strategy Save — SRCH-005 + DS-002 → saveFlow.runSaveStrategy (always CREATE) */
   function handleSaveStrategy(aiOverride = null) {
     if (isDerivedReviewSessionPending) return null;
     const result = runSaveStrategy({
@@ -2495,6 +2496,7 @@ export default function App({
       reflectionOverridePayload: c2ReflectionOverride ?? null,
       editSource: editSourceContext,
       editingPublishedFamilyId,
+      saveCommand: "SAVE",
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
@@ -2512,7 +2514,7 @@ export default function App({
     return result;
   }
 
-  /** 우측 SAVE: DS-003 → historyFlow.runCanonicalSave */
+  /** 우측 SAVE: always CREATE NEW Family */
   function handleCanonicalRightPanelSave() {
     if (isDerivedReviewSessionPending) return;
     const result = runCanonicalSave({
@@ -2532,6 +2534,51 @@ export default function App({
       reflectionOverridePayload: c2ReflectionOverride ?? null,
       editSource: editSourceContext,
       editingPublishedFamilyId,
+      saveCommand: "SAVE",
+      saveWorkingDataset,
+      setDataset,
+      setUserPublishedSearchContext,
+      setAdminState,
+      patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
+      patchSlotFamilyIdentity: actions.patchSlotFamilyIdentity,
+      saveToFile,
+      canUseSystemControls,
+      commitWorkspaceHistoryWithStrategyDataset,
+      resolveFormulaHash,
+      resolveEvalProfile,
+      resolveAnchorsData,
+    });
+    if (result?.ok && result.fourTrackWritten && result.familyId && result.updated) {
+      openUnifiedDerivedPreview(result.updated, result.familyId);
+    }
+  }
+
+  /** 우측 덮어쓰기: UPDATE Source Family (Published Search session only) */
+  function handleCanonicalOverwrite() {
+    if (isDerivedReviewSessionPending) return;
+    if (
+      !canOverwritePublishedSourceFamily({ editingPublishedFamilyId })
+    ) {
+      return;
+    }
+    const result = runCanonicalSave({
+      dataset,
+      ballsState,
+      adminState,
+      activeSlot: shotEditor.activeSlot,
+      slots: shotEditor.slots,
+      targetColor,
+      aiOverride: null,
+      system,
+      resolvedSlotSysValues,
+      autoSave,
+      trajectoryExtensionPayload: trajectoryExtensionDraft
+        ? draftToPayload(trajectoryExtensionDraft)
+        : null,
+      reflectionOverridePayload: c2ReflectionOverride ?? null,
+      editSource: editSourceContext,
+      editingPublishedFamilyId,
+      saveCommand: "OVERWRITE",
       saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
@@ -7212,8 +7259,41 @@ function handlePointerCancel(e) {
                     ? "pointer"
                     : "not-allowed",
               }}
+              title="새 공략으로 저장 (항상 새로 만들기)"
             >
               SAVE
+            </button>
+            <button
+              type="button"
+              disabled={
+                !canUseSystemControls ||
+                isDerivedReviewSessionPending ||
+                !canOverwritePublishedSourceFamily({ editingPublishedFamilyId })
+              }
+              className="control-button"
+              onClick={() => {
+                hideBallPositionController();
+                handleCanonicalOverwrite();
+              }}
+              style={{
+                backgroundColor: "#64748b",
+                color: "white",
+                opacity:
+                  canUseSystemControls &&
+                  !isDerivedReviewSessionPending &&
+                  canOverwritePublishedSourceFamily({ editingPublishedFamilyId })
+                    ? 1
+                    : 0.45,
+                cursor:
+                  canUseSystemControls &&
+                  !isDerivedReviewSessionPending &&
+                  canOverwritePublishedSourceFamily({ editingPublishedFamilyId })
+                    ? "pointer"
+                    : "not-allowed",
+              }}
+              title="Search에서 불러온 기존 공략을 덮어씁니다"
+            >
+              덮어쓰기
             </button>
           </div>
           <div className="right-panel-divider" aria-hidden="true" />

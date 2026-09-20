@@ -347,6 +347,8 @@ function buildSaveCtx(args: {
     resolvedSlotSysValues: { ...inputs },
     autoSave: false,
     editSource: null,
+    saveCommand: "OVERWRITE",
+    editingPublishedFamilyId: args.entry.familyId ?? null,
     saveIntent: "UPDATE",
     saveWorkingDataset: (updated) => {
       capture.dataset = updated;

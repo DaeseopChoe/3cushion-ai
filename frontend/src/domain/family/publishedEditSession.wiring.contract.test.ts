@@ -33,21 +33,27 @@ describe("Phase 2 published family identity session wiring", () => {
     expect(local).toContain("setEditingPublishedFamilyId?.(null)");
   });
 
-  it("saveFlow uses resolvePublishedEditSaveIntent before FamilySavePolicy", () => {
+  it("saveFlow uses saveCommand SAVE→CREATE / OVERWRITE→session UPDATE", () => {
     const src = readFileSync(
       join(__dirname, "../../application/flows/saveFlow.ts"),
       "utf8"
     );
-    expect(src).toContain("resolvePublishedEditSaveIntent");
+    expect(src).toContain('saveCommand === "OVERWRITE"');
+    expect(src).toContain("resolveOverwriteSaveIntent");
+    expect(src).toContain('requestedIntent = "CREATE"');
     expect(src).toContain("editingPublishedFamilyId");
-    expect(src).toContain("publishedEditIntent ?? ctx.saveIntent");
+    expect(src).not.toContain("publishedEditIntent ?? ctx.saveIntent");
   });
 
-  it("App owns editingPublishedFamilyId and clearPublishedEditSession", () => {
+  it("App owns editingPublishedFamilyId, OVERWRITE button, and clearPublishedEditSession", () => {
     const app = readFileSync(join(__dirname, "../../App.jsx"), "utf8");
     expect(app).toContain("editingPublishedFamilyId");
     expect(app).toContain("clearPublishedEditSession");
     expect(app).toContain("setEditingPublishedFamilyId");
+    expect(app).toContain("handleCanonicalOverwrite");
+    expect(app).toContain("덮어쓰기");
+    expect(app).toContain('saveCommand: "SAVE"');
+    expect(app).toContain('saveCommand: "OVERWRITE"');
   });
 
   it("Phase 1 SAVE success alert remains removed", () => {

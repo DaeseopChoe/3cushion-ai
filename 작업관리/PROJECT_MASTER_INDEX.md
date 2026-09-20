@@ -420,6 +420,25 @@ AI Agent·Cursor·문서 작성자가 작업 결과·오류·다음 행동을 �
 - 사용자가 다른 AI에게 다시 해석을 요청하지 않아도 이해할 수 있는 수준을 목표로 한다.
 - Cursor Agent **최종 보고**는 가능하면 **`BEGINNER SUMMARY`를 맨 앞**에 둔다.
 
+### Cursor Final Report Output (Copyable Plain Text) — REQUIRED
+
+**Authority:** 본 절 · Project Operations / Cursor Agent Reporting
+**Not:** 코드·계산·Architecture SSOT
+
+Cursor Agent **최종 보고서**는 사용자가 ChatGPT에 **그대로 전달**할 수 있도록
+**복사 가능한 plain-text code block**으로 출력한다.
+
+| Rule | Statement |
+|------|-----------|
+| Format | 최종 보고 전체를 ` ```text ` code block으로 제공 |
+| Beginner | `BEGINNER SUMMARY`도 **같은** 복사 영역에 포함 |
+| No UI-only | UI table만으로 최종 보고하지 않음 |
+| No screenshot-only | screenshot을 찍어야 전달 가능한 형식 금지 |
+| Copy-first | Copy 버튼으로 복사 가능한 형식 우선 |
+| Split | 너무 길면 `REPORT 1/2`, `REPORT 2/2` 등으로 분할 |
+| Split independence | 분할된 각 보고도 독립된 plain-text code block |
+| Verification | Git / test / files / PASS·FAIL / hash 등 검증 정보 생략 금지 |
+
 ### Example (shape only)
 
 > Publish가 실패한 것은 새 데이터가 잘못돼서가 아닙니다.  

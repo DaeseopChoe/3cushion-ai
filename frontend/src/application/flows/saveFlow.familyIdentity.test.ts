@@ -184,7 +184,7 @@ describe("runSaveStrategy Family identity", () => {
     expect(latest?.memberId).not.toBe(memberId);
   });
 
-  it("explicit UPDATE reuses the same Family identity", () => {
+  it("OVERWRITE command reuses the same Family identity", () => {
     const first = buildCtx();
     let dataset: PositionRecord[] = [];
     first.ctx.saveWorkingDataset = (updated) => {
@@ -205,7 +205,8 @@ describe("runSaveStrategy Family identity", () => {
     };
     const second = buildCtx({
       dataset,
-      saveIntent: "UPDATE",
+      saveCommand: "OVERWRITE",
+      editingPublishedFamilyId: authored!.familyId!,
       slots: {
         S1: {
           draft: { sys: slotSys, hpt: { T: "8/8" }, ...authored },
@@ -228,7 +229,7 @@ describe("runSaveStrategy Family identity", () => {
     expect(authoredMembers[0]?.memberId).toBe(authored?.memberId);
   });
 
-  it("editingPublishedFamilyId forces UPDATE and preserves familyId", () => {
+  it("editingPublishedFamilyId alone does not UPDATE; OVERWRITE preserves familyId", () => {
     const first = buildCtx();
     let dataset: PositionRecord[] = [];
     first.ctx.saveWorkingDataset = (updated) => {
@@ -248,9 +249,10 @@ describe("runSaveStrategy Family identity", () => {
       inputs: { CO_f: 31, C1_f: 10, C3_r: 20 },
       outputs: { result: { CO_f: 31, C1_f: 10, C3_r: 20 } },
     };
-    const second = buildCtx({
+    const saveAfterRecall = buildCtx({
       dataset,
       editingPublishedFamilyId: authored!.familyId!,
+      saveCommand: "SAVE",
       slots: {
         S1: {
           draft: {
@@ -272,20 +274,54 @@ describe("runSaveStrategy Family identity", () => {
         },
       },
     });
-    second.ctx.saveWorkingDataset = (updated) => {
+    saveAfterRecall.ctx.saveWorkingDataset = (updated) => {
       dataset = updated;
     };
-    second.ctx.setDataset = (updated) => {
+    saveAfterRecall.ctx.setDataset = (updated) => {
       dataset = updated;
     };
-    const result = runSaveStrategy(second.ctx);
+    const createResult = runSaveStrategy(saveAfterRecall.ctx);
+    expect(createResult.ok).toBe(true);
+    expect(createResult.familyId).not.toBe(authored!.familyId);
+    expect(createResult.saveIntent).toBe("CREATE");
+
+    const overwrite = buildCtx({
+      dataset: [dataset.find((r) =>
+        Object.values(r.strategies).some((e) => e?.familyId === authored!.familyId)
+      )!].filter(Boolean),
+      editingPublishedFamilyId: authored!.familyId!,
+      saveCommand: "OVERWRITE",
+      slots: {
+        S1: {
+          draft: {
+            sys: slotSys,
+            hpt: { T: "8/8" },
+            familyId: authored!.familyId,
+            memberId: authored!.memberId,
+            memberOrigin: "AUTHORED",
+          },
+          applied: {
+            sys: slotSys,
+            hpt: { T: "8/8" },
+            str: { speed: 1 },
+            ai: {},
+            familyId: authored!.familyId,
+            memberId: authored!.memberId,
+            memberOrigin: "AUTHORED",
+          },
+        },
+      },
+    });
+    overwrite.ctx.saveWorkingDataset = (updated) => {
+      dataset = updated;
+    };
+    overwrite.ctx.setDataset = (updated) => {
+      dataset = updated;
+    };
+    const result = runSaveStrategy(overwrite.ctx);
     expect(result.ok).toBe(true);
     expect(result.familyId).toBe(authored!.familyId);
-    const authoredMembers = dataset
-      .flatMap((r) => Object.values(r.strategies))
-      .filter((e) => e?.memberOrigin === "AUTHORED");
-    expect(new Set(authoredMembers.map((e) => e?.familyId)).size).toBe(1);
-    expect(authoredMembers[0]?.familyId).toBe(authored?.familyId);
+    expect(result.saveIntent).toBe("UPDATE");
   });
 
   it("S2 on the same Exact balls gets a different Family", () => {

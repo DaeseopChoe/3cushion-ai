@@ -3,7 +3,9 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  canOverwritePublishedSourceFamily,
   readFamilyIdFromRecordSlot,
+  resolveOverwriteSaveIntent,
   resolvePublishedEditSaveIntent,
 } from "./publishedEditSession";
 import type { PositionRecord } from "../positionSearchEngine";
@@ -57,9 +59,21 @@ describe("publishedEditSession Phase 2", () => {
     );
   });
 
+  it("canOverwrite only when trusted published session family exists", () => {
+    expect(canOverwritePublishedSourceFamily({ editingPublishedFamilyId: null })).toBe(
+      false
+    );
+    expect(canOverwritePublishedSourceFamily({ editingPublishedFamilyId: "" })).toBe(
+      false
+    );
+    expect(
+      canOverwritePublishedSourceFamily({ editingPublishedFamilyId: "fm_abc" })
+    ).toBe(true);
+  });
+
   it("CASE A/B: no session → null intent; matching session → UPDATE", () => {
     expect(
-      resolvePublishedEditSaveIntent({
+      resolveOverwriteSaveIntent({
         editingPublishedFamilyId: null,
         slotIdentity: {
           familyId: "fm_abc",
@@ -69,6 +83,18 @@ describe("publishedEditSession Phase 2", () => {
       })
     ).toBe(null);
 
+    expect(
+      resolveOverwriteSaveIntent({
+        editingPublishedFamilyId: "fm_abc",
+        slotIdentity: {
+          familyId: "fm_abc",
+          memberId: "mb_authored_1",
+          memberOrigin: "AUTHORED",
+        },
+      })
+    ).toBe("UPDATE");
+
+    // deprecated alias still works
     expect(
       resolvePublishedEditSaveIntent({
         editingPublishedFamilyId: "fm_abc",
@@ -83,7 +109,7 @@ describe("publishedEditSession Phase 2", () => {
 
   it("CASE F: session without slot identity does not invent UPDATE", () => {
     expect(
-      resolvePublishedEditSaveIntent({
+      resolveOverwriteSaveIntent({
         editingPublishedFamilyId: "fm_abc",
         slotIdentity: null,
       })
@@ -92,7 +118,7 @@ describe("publishedEditSession Phase 2", () => {
 
   it("mismatched session vs slot family → not UPDATE", () => {
     expect(
-      resolvePublishedEditSaveIntent({
+      resolveOverwriteSaveIntent({
         editingPublishedFamilyId: "fm_abc",
         slotIdentity: {
           familyId: "fm_other",
@@ -103,9 +129,9 @@ describe("publishedEditSession Phase 2", () => {
     ).toBe(null);
   });
 
-  it("symmetry slot resolves UPDATE to AUTHORED member under same family", () => {
+  it("Derived / symmetry slot resolves UPDATE to source family", () => {
     expect(
-      resolvePublishedEditSaveIntent({
+      resolveOverwriteSaveIntent({
         editingPublishedFamilyId: "fm_abc",
         slotIdentity: {
           familyId: "fm_abc",
@@ -113,6 +139,20 @@ describe("publishedEditSession Phase 2", () => {
           memberOrigin: "SYMMETRY",
           generatedFromMemberId: "mb_authored_1",
           symmetryOp: "H",
+        },
+      })
+    ).toBe("UPDATE");
+
+    expect(
+      resolveOverwriteSaveIntent({
+        editingPublishedFamilyId: "fm_abc",
+        slotIdentity: {
+          familyId: "fm_abc",
+          memberId: "mb_der_1",
+          memberOrigin: "DERIVED_CUE_IMPACT",
+          generatedFromMemberId: "mb_authored_1",
+          derivedRule: "CUE_IMPACT_FIRST_30PCT",
+          derivedStep: "0.3",
         },
       })
     ).toBe("UPDATE");

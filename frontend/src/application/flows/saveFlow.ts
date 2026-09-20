@@ -21,6 +21,7 @@ import {
 } from "../../domain/cueEditSnap";
 import { resolveAuthoringStrategyIdForSave } from "../../domain/authoringStrategyId";
 import {
+  familySymmetryIdentity,
   resolveFamilyIdentityForSave,
   type FamilySaveIntent,
 } from "../../domain/family/familyIdentity";
@@ -28,7 +29,7 @@ import {
   resolveFamilySaveIntent,
   shouldWriteFourTrackFamilyOnSave,
 } from "../../domain/family/familySavePolicy";
-import { resolvePublishedEditSaveIntent } from "../../domain/family/publishedEditSession";
+import { resolveOverwriteSaveIntent } from "../../domain/family/publishedEditSession";
 import {
   buildPublishOperationFromSave,
   type PublishOperation,
@@ -63,6 +64,9 @@ import { normalizePublishedShotTypeHint } from "./recallHydrateFlow";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+/** User button intent — SAVE always CREATE; OVERWRITE = Source Family UPDATE. */
+export type SaveCommand = "SAVE" | "OVERWRITE";
 
 type AdminState = Record<string, unknown>;
 
@@ -151,10 +155,19 @@ export type SaveFlowContext = {
    * History Load Edit Source (session). Null → no Cue Snap / no proximity replace.
    */
   editSource?: EditSourceContext | null;
+  /**
+   * @deprecated Prefer saveCommand. Ignored when saveCommand is SAVE (forced CREATE).
+   * Only honored when saveCommand is OVERWRITE and overwrite session resolves.
+   */
   saveIntent?: FamilySaveIntent | null;
   /**
-   * Phase 2 — Published Search edit session familyId.
-   * When set and matching slot identity → UPDATE. Null → defer to FamilySavePolicy.
+   * User storage command. Default SAVE = always CREATE NEW Family.
+   * OVERWRITE = UPDATE Source Family when editingPublishedFamilyId is trusted.
+   */
+  saveCommand?: SaveCommand;
+  /**
+   * Published Search session ownership (Source Family).
+   * Enables OVERWRITE only — never auto-switches SAVE to UPDATE.
    */
   editingPublishedFamilyId?: string | null;
 
@@ -343,21 +356,36 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   const existingExactSlotEntry =
     existingExactRecord?.strategies?.[slotId as "S1" | "S2" | "S3"] ?? null;
   const explicitSlotFamilyIdentity = explicitFamilyIdentityFromSlot(slotRaw);
-  const publishedEditIntent = resolvePublishedEditSaveIntent({
-    editingPublishedFamilyId: ctx.editingPublishedFamilyId,
-    slotIdentity: explicitSlotFamilyIdentity,
-    authoringStrategyId,
-    positionId: positionIdForIdentity,
-  });
+  const saveCommand: SaveCommand =
+    ctx.saveCommand === "OVERWRITE" ? "OVERWRITE" : "SAVE";
+
+  let requestedIntent: FamilySaveIntent | null = null;
+  if (saveCommand === "OVERWRITE") {
+    const overwriteIntent = resolveOverwriteSaveIntent({
+      editingPublishedFamilyId: ctx.editingPublishedFamilyId,
+      slotIdentity: explicitSlotFamilyIdentity,
+      authoringStrategyId,
+      positionId: positionIdForIdentity,
+    });
+    if (!overwriteIntent) {
+      console.warn("[SAVE] OVERWRITE blocked: missing trusted source family");
+      return { ok: false, reason: "overwrite-missing-source-family" };
+    }
+    requestedIntent = "UPDATE";
+  } else {
+    // SAVE button: always CREATE. Recall source must not switch to UPDATE.
+    requestedIntent = "CREATE";
+  }
+
   const saveIntent = resolveFamilySaveIntent({
     explicitIdentity: explicitSlotFamilyIdentity,
     existingSlotEntry: existingExactSlotEntry,
     authoringStrategyId,
     positionId: positionIdForIdentity,
-    requestedIntent: publishedEditIntent ?? ctx.saveIntent ?? null,
+    requestedIntent,
   });
   console.log("[SAVE] saveIntent:", saveIntent, {
-    publishedEditIntent,
+    saveCommand,
     editingPublishedFamilyId: ctx.editingPublishedFamilyId ?? null,
   });
   const familyIdentity = resolveFamilyIdentityForSave({
@@ -366,7 +394,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     authoringStrategyId,
     positionId: positionIdForIdentity,
   });
-  if (saveIntent !== "LEGACY" && !familyIdentity) {
+  if (saveIntent === "UPDATE" && !familyIdentity) {
     console.warn("[SAVE] missing explicit Family identity for UPDATE");
     return { ok: false, reason: "family-save:update-missing-identity" };
   }
@@ -474,7 +502,14 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       };
     }
     updated = familyWrite.dataset;
-    const authoredPlan = familyWrite.plans.find((p) => p.identity === "IDENTITY");
+    const authoredMember = familyWrite.set.members.find(
+      (m) => familySymmetryIdentity(m.entry) === "IDENTITY"
+    );
+    const authoredPlan = authoredMember
+      ? familyWrite.plans.find(
+          (p) => p.memberId === authoredMember.entry.memberId
+        )
+      : undefined;
     if (authoredPlan?.slot) savedSlotId = authoredPlan.slot;
     for (const member of familyWrite.set.members) {
       updated = applySchemaVersionToDatasetRecord(updated, member.balls);
@@ -550,12 +585,12 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
         : null,
   });
   ctx.patchSlotFamilyIdentity(
-    savedSlotId,
+    slotId,
     useFourTrackFamily
       ? {
-          familyId: savedStrategy.familyId,
-          memberId: savedStrategy.memberId,
-          memberOrigin: savedStrategy.memberOrigin,
+          familyId: savedStrategy.familyId ?? strategy.familyId,
+          memberId: savedStrategy.memberId ?? strategy.memberId,
+          memberOrigin: savedStrategy.memberOrigin ?? strategy.memberOrigin,
           generatedFromMemberId: savedStrategy.generatedFromMemberId,
           symmetryOp: savedStrategy.symmetryOp,
         }
@@ -600,27 +635,28 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     });
   }
 
+  const destinationFamilyId =
+    (typeof savedStrategy.familyId === "string" &&
+    savedStrategy.familyId.trim()
+      ? savedStrategy.familyId.trim()
+      : familyIdentity?.familyId) ??
+    (useFourTrackFamily && typeof strategy.familyId === "string"
+      ? strategy.familyId.trim()
+      : undefined);
+
   return {
     ok: true,
     updated,
     normalizedDualWrite,
     saveIntent,
-    destinationFamilyId:
-      (typeof savedStrategy.familyId === "string" &&
-      savedStrategy.familyId.trim()
-        ? savedStrategy.familyId.trim()
-        : familyIdentity?.familyId) ?? undefined,
+    destinationFamilyId,
     publishOperation: buildPublishOperationFromSave({
       saveIntent,
       editingPublishedFamilyId: ctx.editingPublishedFamilyId,
-      destinationFamilyId:
-        (typeof savedStrategy.familyId === "string" &&
-        savedStrategy.familyId.trim()
-          ? savedStrategy.familyId.trim()
-          : familyIdentity?.familyId) ?? null,
+      destinationFamilyId: destinationFamilyId ?? null,
     }),
-    ...(useFourTrackFamily && savedStrategy.familyId
-      ? { familyId: savedStrategy.familyId, fourTrackWritten: true }
+    ...(useFourTrackFamily && destinationFamilyId
+      ? { familyId: destinationFamilyId, fourTrackWritten: true }
       : {}),
   };
 }

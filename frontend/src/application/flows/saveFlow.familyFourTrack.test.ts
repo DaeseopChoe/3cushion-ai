@@ -277,6 +277,8 @@ describe("idempotency / collision / capacity", () => {
       .sort();
     const second = buildCtx({
       dataset: first.capture.dataset,
+      saveCommand: "OVERWRITE",
+      editingPublishedFamilyId: familyId!,
       saveIntent: "UPDATE",
       slots: {
         S1: {
@@ -436,7 +438,7 @@ describe("HPT persist vs hydrate", () => {
 });
 
 describe("legacy SAVE", () => {
-  it("does not auto-generate 4 tracks when overwriting a legacy slot", () => {
+  it("SAVE on legacy Exact creates a NEW 4-track Family (CREATE)", () => {
     const legacy: PositionRecord = {
       positionId: createPositionId(balls),
       balls,
@@ -459,14 +461,20 @@ describe("legacy SAVE", () => {
         },
       },
     };
-    const { ctx, capture } = buildCtx({ dataset: [legacy] });
+    const { ctx, capture } = buildCtx({
+      dataset: [legacy],
+      saveCommand: "SAVE",
+    });
     expect(runSaveStrategy(ctx).ok).toBe(true);
-    expect(capture.dataset).toHaveLength(1);
-    const entry = capture.dataset[0].strategies.S1;
-    expect(entry?.symmetryOp).toBeUndefined();
+    const authored = capture.dataset
+      .flatMap((r) => Object.values(r.strategies))
+      .find((e) => e?.memberOrigin === "AUTHORED");
+    expect(authored?.familyId?.startsWith("fm_")).toBe(true);
     expect(
-      capture.dataset.flatMap((r) => Object.values(r.strategies)).filter((e) => e?.memberOrigin === "SYMMETRY")
-    ).toHaveLength(0);
-    expect(runtimeHptFromStrategyEntry(entry!)).toEqual(entry?.hpT);
+      capture.dataset
+        .flatMap((r) => Object.values(r.strategies))
+        .filter((e) => e?.familyId === authored?.familyId)
+    ).toHaveLength(4);
+    expect(runtimeHptFromStrategyEntry(authored!)).toEqual(authored?.hpT);
   });
 });

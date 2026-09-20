@@ -10,6 +10,7 @@
 import { runSaveStrategy, type SaveFlowContext, type SaveFlowResult } from "./saveFlow";
 import { type PositionRecord } from "../../domain/positionSearchEngine";
 import type { PublishOperation } from "../../domain/publishOperation";
+import { OVERWRITE_MISSING_SOURCE_USER_MESSAGE } from "../../domain/family/publishedEditSession";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,7 +70,9 @@ export function runCanonicalSave(ctx: HistoryFlowContext): SaveFlowResult {
     if (import.meta.env.DEV) {
       console.warn("[SAVE] failed", r?.reason);
     }
-    if (r?.reason === "missing-balls-state-cue") {
+    if (r?.reason === "overwrite-missing-source-family") {
+      alert(OVERWRITE_MISSING_SOURCE_USER_MESSAGE);
+    } else if (r?.reason === "missing-balls-state-cue") {
       alert(
         "공 배치(ballsState)를 확인할 수 없습니다. 테이블 공 위치를 확인 후 다시 저장하세요."
       );
