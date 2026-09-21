@@ -6,6 +6,45 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-21 — Phase A Canonical Normalized Dataset Envelope + Validator
+
+## Mode
+
+**Agent** · Schema/contract only · No WRITE/READ/Export/Publish cutover · No dataset wipe
+
+## Delivered
+
+- `NORMALIZED_DATASET_SCHEMA_VERSION = 3` leaf envelope:
+  `familyMasters[]` + `familyMembers[]` (filename still `positions.json`)
+- `parseNormalizedDatasetEnvelope` fail-closed validator
+- Discriminators: `isFlatLegacyDataset` / `isNormalizedDataset`
+- Pure compose/decompose from shadow FamilyMasters/Members envelopes
+- Contracts: same Position+same sourceSlot across Families PASS;
+  global positionId+slot uniqueness NOT enforced;
+  flat records[] rejected without silent migration
+- Docs: PROJECT_MASTER_INDEX Canonical Normalized Dataset Leaf section
+
+## Not changed
+
+- Production WRITE SSOT (flat positions_dataset)
+- Export / Publish / Search / Verify live paths
+- dataset/** files
+- TEMPORARY_COMPATIBILITY_DUPLICATION (debt remains until cutover)
+
+## Protected WT
+
+- `frontend/src/domain/trajectory/incidenceAngle.ts` untouched
+
+## Next
+
+Phase B — Atomic Normalized Local Family WRITE Contract
+
+## Commit
+
+`feat(dataset): define canonical normalized leaf envelope`
+
+---
+
 # 2026-09-20 — Family MASTER / MEMBER Ownership SSOT + Hydration Fidelity
 
 ## Mode

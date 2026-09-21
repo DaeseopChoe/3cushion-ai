@@ -5,6 +5,11 @@
  * Envelope PublishedDataset (Product publish contract):
  * dataset/_published/envelope/dataset.json
  * → runtime /dataset/_published/envelope/dataset.json
+ *
+ * Leaf schema versions:
+ * - DATASET_EXPORT_SCHEMA_VERSION (2) = flat records[] (current LIVE export/publish)
+ * - NORMALIZED_DATASET_SCHEMA_VERSION (3) = familyMasters[]+familyMembers[] (Phase A contract;
+ *   not yet Production WRITE SSOT)
  */
 
 import { getSystemNameKo } from "../utils/aiPlayStrategyBuilder";
@@ -17,6 +22,12 @@ export const DATASET_ROOT_DIR = "dataset";
 
 /** Dataset export envelope schema (not PositionRecord.schemaVersion logic) */
 export const DATASET_EXPORT_SCHEMA_VERSION = 2;
+
+/**
+ * Future canonical leaf schemaVersion = 3 (NORMALIZED_DATASET_SCHEMA_VERSION).
+ * Defined in domain/dataset/normalizedDatasetEnvelope.ts — do not duplicate here
+ * (avoids circular import). LIVE export/publish still uses schemaVersion 2 + records[].
+ */
 
 /**
  * Product → Frontend static Envelope corpus (Task #3/#4 contract).

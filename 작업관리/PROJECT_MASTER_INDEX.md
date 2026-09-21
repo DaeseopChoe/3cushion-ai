@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.18
-Last Updated: 2026-09-20
+Version: 2.19
+Last Updated: 2026-09-21
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Family MASTER / MEMBER Production Storage Cutover Audit (Ask) — ownership + hydrate fidelity ratified |
+| **Next Track** | Phase B — Atomic Normalized Local Family WRITE (after Phase A envelope) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -922,7 +922,60 @@ Member가 다른 위치에 있다고 해서 별도의 SYS / correction / AI / ST
 | **A — Duplicated Master payload** | Ownership + hydrate fidelity **ratified**; WRITE cutover = next Ask |
 | **B — Product Cartesian member count** | **Separate** later architecture issue — not solved by MASTER/MEMBER split |
 
-**Next Track:** Family MASTER / MEMBER Production Storage Cutover Audit (Ask).
+**Next Track:** Family MASTER / MEMBER Production Storage Cutover — Phase A Canonical Normalized Dataset Envelope (in progress / below).
+
+### Canonical Normalized Dataset Leaf Envelope (Phase A · 2026-09-21)
+
+**Authority:** 본 절 · future leaf storage contract
+
+**Code owners:** `domain/dataset/normalizedDatasetEnvelope.ts` · `domain/family/familyNormalizedSchema.ts`
+
+**Contract tests:** `domain/dataset/normalizedDatasetEnvelope.contract.test.ts`
+
+**Not this work:** WRITE/READ/Export/Publish cutover · dataset wipe · Search Index · Product shrink
+
+#### Path (unchanged)
+
+```text
+dataset/{shotType}/{systemLabel}/positions.json
+```
+
+Filename **kept**. Path resolvers / Vercel public URLs **unchanged**.
+
+#### Schema versions (distinct contracts)
+
+| Version | Shape | Status |
+|---------|--------|--------|
+| `DATASET_EXPORT_SCHEMA_VERSION` = **2** | `records: PositionRecord[]` | **LIVE** Export / Publish / Published loader |
+| `NORMALIZED_DATASET_SCHEMA_VERSION` = **3** | `familyMasters[]` + `familyMembers[]` | **Contract only** (Phase A) — not Production WRITE SSOT yet |
+| `PublishOperation.schemaVersion` = **1** | publish intent identity | **Separate** — not coupled to leaf schemaVersion |
+
+#### Canonical future leaf content
+
+```text
+NormalizedDatasetEnvelope {
+  schemaVersion: 3
+  shotType, systemId, systemLabel
+  exportedAt?, sourceSnapshotId?
+  familyMasters: FamilyMaster[]
+  familyMembers: FamilyMember[]
+}
+```
+
+- **Storage ≠ Runtime.** Runtime may hydrate to `PositionRecord` / `StrategyEntry`; that projection is **not** canonical storage.
+- **Forbidden:** hydrate → flat `records[]` → export (would reintroduce Master payload duplication).
+- **Member** must not carry Master common fields (`FAMILY_MASTER_COMMON_FIELD_KEYS`).
+- **Same Position + same `sourceSlot` across different Families is LEGAL** in normalized storage. Global uniqueness of `positionId+sourceSlot` or `balls+sourceSlot` is **FORBIDDEN**.
+- Logical Member uniqueness remains **Family-scoped** (`genericFamilyMemberIdentityKey`).
+- Legacy test datasets may be discarded at clean cutover (Phase F); **no migration requirement**. Phase A does **not** delete data.
+
+#### Helpers
+
+- `parseNormalizedDatasetEnvelope` — fail-closed; rejects flat `records[]` without silent migration
+- `isFlatLegacyDataset` / `isNormalizedDataset` — discriminators
+- `composeNormalizedDatasetEnvelope` / `decomposeNormalizedDatasetEnvelope` — pure shadow ↔ leaf shape (no persistence)
+
+**Next Track:** Phase B — Atomic Normalized Local Family WRITE Contract (Ask/Agent when approved).
 
 **Production SSOT (검증 완료, 2026-06):**
 

@@ -14,6 +14,10 @@
  * Dual-write runs after positions persist. Gated normalized READ may rematerialize
  * (flag default ON). Production WRITE SSOT remains positions_dataset.
  *
+ * Phase A (2026-09-21): Canonical NormalizedDatasetEnvelope (schemaVersion 3) +
+ * validator exist as contract only — LIVE Export/Publish still flat records[].
+ * TEMPORARY_COMPATIBILITY_DUPLICATION ends only after later WRITE cutover.
+ *
  * This duplication is TEMPORARY — FINAL FAMILY MASTER MIGRATION TARGET.
  *
  * Final Family DB migration MUST:
