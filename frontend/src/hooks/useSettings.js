@@ -39,12 +39,6 @@ import {
   DATASET_ROOT_DIR,
   buildDatasetExportPathSegments,
 } from "../domain/datasetPath";
-import {
-  PRODUCT_EXPORT_ROOT_DIR,
-  PRODUCT_EXPORT_REQUEST_FILENAME,
-  buildProductExportRequestFromSnapshot,
-  mergeProductExportRequests,
-} from "../domain/productExportRequest";
 import { canonicalDebugLog } from "../domain/canonicalPersistAudit";
 import { POSITIONS_DATASET_META_KEY } from "../domain/dataset/infra/positionsDatasetMeta";
 import { refreshPublishedDataset } from "../domain/publishedDatasetStore";
@@ -292,43 +286,6 @@ export function useSettings({
     []
   );
 
-  const saveProductExportRequestToFile = useCallback(async (snapshots, rootDir) => {
-    if (!rootDir || !snapshots?.length) return false;
-    try {
-      const parts = snapshots.map((snap) =>
-        buildProductExportRequestFromSnapshot(snap)
-      );
-      const payload = mergeProductExportRequests(parts);
-      if (!payload.strategies.length) {
-        console.warn(
-          "Product Export Request skipped: no Authoring strategies in snapshots"
-        );
-        return false;
-      }
-      const productRoot = await getOrCreateDir(rootDir, PRODUCT_EXPORT_ROOT_DIR);
-      const fileHandle = await productRoot.getFileHandle(
-        PRODUCT_EXPORT_REQUEST_FILENAME,
-        { create: true }
-      );
-      const writable = await fileHandle.createWritable();
-      await writable.write(JSON.stringify(payload, null, 2));
-      await writable.close();
-      console.log("📤 Product Export Request:", {
-        path: `${PRODUCT_EXPORT_ROOT_DIR}/${PRODUCT_EXPORT_REQUEST_FILENAME}`,
-        strategyCount: payload.strategies.length,
-        sourceSnapshotIds: payload.sourceSnapshotIds,
-      });
-      // Optional native / IDE bridge: run Product Host (Generator) automatically.
-      if (typeof window !== "undefined" && window.__PRODUCT_EXPORT_HOST__?.run) {
-        await window.__PRODUCT_EXPORT_HOST__.run(payload);
-      }
-      return true;
-    } catch (e) {
-      console.error("saveProductExportRequestToFile failed", e);
-      return false;
-    }
-  }, []);
-
   /**
    * Append workspace_history after successful handleSaveStrategy; `strategyUpdatedDataset` must be result.updated.
    * Caller is responsible for guards (Position LOCK / systemId) and strategy ok.
@@ -567,19 +524,13 @@ export function useSettings({
 
       if (successfulExportIds.length > 0) {
         refreshPublishedDataset();
-        const successSnaps = toExport.filter((s) =>
-          successfulExportIds.includes(s.id)
-        );
-        // Product side-channel: best-effort for successful snaps only; does not gate Dataset success.
-        await saveProductExportRequestToFile(successSnaps, rootDir);
         updateSnapshotsExported(successfulExportIds);
         setWorkspaceHistoryVersion((v) => v + 1);
       }
 
       if (failures.length === 0 && successfulExportIds.length === toExport.length) {
         alert(
-          `${successfulExportIds.length}개 Dataset Export 완료 (verified)\n(dataset/공략명/시스템명/positions.json)\n` +
-            `Product Export Request → ${PRODUCT_EXPORT_ROOT_DIR}/${PRODUCT_EXPORT_REQUEST_FILENAME}`
+          `${successfulExportIds.length}개 Dataset Export 완료 (verified)\n(dataset/공략명/시스템명/positions.json)`
         );
       } else if (successfulExportIds.length > 0) {
         alert(
@@ -588,7 +539,7 @@ export function useSettings({
         );
       }
     },
-    [resolveExportRootDir, saveDatasetExportToFile, saveProductExportRequestToFile]
+    [resolveExportRootDir, saveDatasetExportToFile]
   );
 
   /**

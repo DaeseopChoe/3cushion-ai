@@ -6,6 +6,38 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-21 — Phase B-0 Product Export Pipeline Permanent Removal
+
+## Mode
+
+**Agent** · Remove product_export side-channel · Keep DERIVED_CUE_C3_PRODUCT · No WRITE cutover
+
+## Delivered
+
+- Manual History Export writes **only** canonical Dataset Export (`positions.json`)
+- Removed: `productExportRequest.ts`, Export → `product_export/export_request.json` write,
+  `__PRODUCT_EXPORT_HOST__` bridge, legacy Python `product/` offline pipeline + related pytest
+- Removed `.gitignore` `product_export/` (creation forbidden; do not hide)
+- Contract: `productExportSideChannelRemoval.contract.test.ts`
+- Docs: Product = FamilyMember; dataset root forbids product_export scratch
+
+## Not changed
+
+- Production WRITE SSOT (flat positions_dataset)
+- flat Dataset Export schemaVersion 2
+- PublishOperation / Search / Product member count / geometry
+- dataset/{shotType}/{system}/positions.json leaves
+
+## Next
+
+Phase B-1 — Atomic Normalized Local Corpus Store
+
+## Commit
+
+`refactor(product): remove legacy product export pipeline`
+
+---
+
 # 2026-09-21 — Phase A Canonical Normalized Dataset Envelope + Validator
 
 ## Mode

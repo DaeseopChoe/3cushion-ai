@@ -48,8 +48,7 @@ _commit_msg*.txt
 _update_*.py
 _update_*.txt
 
-# Phase 4 local artifacts / caches (never commit)
-product_export/
+# Local caches (never commit)
 .npm-cache/
 
 # Agent/test ephemeral console captures (Phase 3A-353)

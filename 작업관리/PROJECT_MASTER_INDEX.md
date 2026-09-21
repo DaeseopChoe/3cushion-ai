@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase B — Atomic Normalized Local Family WRITE (after Phase A envelope) |
+| **Next Track** | Phase B-1 — Atomic Normalized Local Corpus Store (after B-0 product_export removal) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -76,10 +76,10 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **ADMIN History Overlay UX** | ✅ **COMPLETE** (2026-08-28 · Selection/Shift/Density/Delete/Sizing · 브라우저 검증 완료 · **Commit/Push 대기**) |
 | **Ball Fine Position Controller** | ✅ **COMPLETE** (`1eaf76c` · Desktop PASS · Mobile Production PASS · Admin/User PASS) |
 | **Git baseline (pre–Fine Controller)** | `9678b69d0f82b82a685de86cb42eec07e18cb53f` |
-| **Mission 01 Export Pipeline** | ✅ **COMPLETED** |
-| **Mission 02 Published Package Builder** | ✅ **COMPLETED** |
-| **Mission 03 Deployment Workflow** | ✅ **COMPLETED** |
-| **Mission 04 Authoring Integration** | ✅ **ABSORBED** (ADR · Missions 01–03 + `product pipeline`) |
+| **Mission 01 Export Pipeline** | ✅ **COMPLETED** · **RETIRED Phase B-0** (app no longer writes `product_export/`; offline `product/` package removed) |
+| **Mission 02 Published Package Builder** | ✅ **COMPLETED** · **RETIRED Phase B-0** (offline package builder removed with `product/`) |
+| **Mission 03 Deployment Workflow** | ✅ **COMPLETED** · **RETIRED Phase B-0** (offline deploy CLI removed with `product/`) |
+| **Mission 04 Authoring Integration** | ✅ **ABSORBED** · offline `product pipeline` **RETIRED Phase B-0** |
 
 ### USER Display Runtime HPT (2026-09-02)
 
@@ -975,7 +975,47 @@ NormalizedDatasetEnvelope {
 - `isFlatLegacyDataset` / `isNormalizedDataset` — discriminators
 - `composeNormalizedDatasetEnvelope` / `decomposeNormalizedDatasetEnvelope` — pure shadow ↔ leaf shape (no persistence)
 
-**Next Track:** Phase B — Atomic Normalized Local Family WRITE Contract (Ask/Agent when approved).
+**Next Track:** Phase B-1 — Atomic Normalized Local Corpus Store (WRITE foundation).
+
+### Phase B-0 — Product Export Pipeline Permanent Removal (2026-09-21)
+
+**Authority:** 본 절 · Product = FamilyMember; no product_export side-channel
+
+**Code owners:** `hooks/useSettings.js` (Dataset Export only) · `domain/family/buildCueC3ProductMembers.ts` · `domain/family/unifiedDerivedReview.ts`
+
+**Contract tests:** `domain/productExportSideChannelRemoval.contract.test.ts`
+
+#### SSOT
+
+- **Product** (`DERIVED_CUE_C3_PRODUCT`) = **FamilyMember** sharing **FamilyMaster** strategy common payload.
+- Generation is **in-app / in-memory** (`buildCueC3ProductMembers` → Unified Derived Review → Approval → corpus persist).
+- **Does not** depend on `product_export/` or `export_request.json`.
+
+#### Removed
+
+- App producer: `productExportRequest.ts`, `saveProductExportRequestToFile`, `__PRODUCT_EXPORT_HOST__` bridge
+- Manual Export side-channel that wrote `product_export/export_request.json`
+- Legacy offline Python package `product/` (Mission 01–04 export→handoff→package→deploy CLI) and its pytest suite
+- `.gitignore` `product_export/` rule (must not be created; do not hide)
+
+#### Preserved
+
+- Manual Dataset Export → `dataset/{shotType}/{systemLabel}/positions.json` (flat schemaVersion **2** until Phase D)
+- PublishOperation / Publish / Search / Local WRITE SSOT (unchanged this Phase)
+- Canonical shotType/system `positions.json` leaves (not deleted; Phase F Clean Reset)
+
+#### Dataset root policy
+
+```text
+dataset/
+  {shotType}/
+    {systemLabel}/
+      positions.json
+```
+
+**Forbidden:** `dataset/product_export/`, `export_request.json` scratch under dataset root.
+
+**Next Track:** Phase B-1 — Atomic Normalized Local Corpus Store.
 
 **Production SSOT (검증 완료, 2026-06):**
 
