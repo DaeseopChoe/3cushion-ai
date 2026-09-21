@@ -1092,6 +1092,7 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
     const authoredEntry = authoredRecord.strategies.S1!;
 
     // 1. Execute runCanonicalSave for Four-track Family
+    // Phase C-0: recalled Family already occupies S1 → OVERWRITE same Family (Edit path).
     const saveCtx = {
       dataset: initialDataset,
       ballsState: authoredRecord.balls,
@@ -1106,6 +1107,8 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
         },
       },
       activeSlot: "S1" as const,
+      saveCommand: "OVERWRITE" as const,
+      editingLocalFamilyId: authoredEntry.familyId,
       slots: {
         S1: {
           draft: {
@@ -1126,7 +1129,25 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
             ai: authoredEntry.ai,
             targetBall: "yellow",
           },
-          applied: null,
+          applied: {
+            slot: "S1",
+            track: authoredEntry.track,
+            familyId: authoredEntry.familyId,
+            memberId: authoredEntry.memberId,
+            memberOrigin: authoredEntry.memberOrigin,
+            sys: {
+              systemId: "5_half_system",
+              system_id: "5_half_system",
+              system: "5_half_system",
+              shotType: "뒤돌리기",
+              inputs: { CO_f: 30, C3_r: 20 },
+              outputs: { result: { CO_f: 30, C3_r: 20 } },
+            },
+            hpt: sampleHpt,
+            str: authoredEntry.str,
+            ai: authoredEntry.ai,
+            targetBall: "yellow",
+          },
         },
       },
       targetColor: "yellow" as const,

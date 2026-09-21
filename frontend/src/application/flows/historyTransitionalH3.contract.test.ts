@@ -434,7 +434,43 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     expect(isNormalizedCorpusFresh()).toBe(false);
 
     saveWorkspaceHistory([]);
-    const { ctx, capture } = buildSaveCtx({ dataset: c5, ballsState: ballsC5 });
+    // Phase C-0: restored corpus already occupies P/S1 — use OVERWRITE to resync same Family.
+    const { ctx, capture } = buildSaveCtx({
+      dataset: c5,
+      ballsState: ballsC5,
+      saveCommand: "OVERWRITE",
+      editingLocalFamilyId: "fm_c5",
+      slots: {
+        S1: {
+          draft: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+            familyId: "fm_c5",
+            memberId: "mb_c5",
+            memberOrigin: "AUTHORED",
+          },
+          applied: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+            str: { speed: 1 },
+            ai: {},
+            familyId: "fm_c5",
+            memberId: "mb_c5",
+            memberOrigin: "AUTHORED",
+          },
+        },
+      },
+    });
     const historyCtx: HistoryFlowContext = {
       ...ctx,
       canUseSystemControls: true,
@@ -615,15 +651,54 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
       return realSet(key, value);
     });
 
-    const { ctx } = buildSaveCtx({ dataset: c5, ballsState: ballsC5 });
+    const { ctx } = buildSaveCtx({
+      dataset: c5,
+      ballsState: ballsC5,
+      saveCommand: "OVERWRITE",
+      editingLocalFamilyId: "fm_c5",
+      slots: {
+        S1: {
+          draft: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+            familyId: "fm_c5",
+            memberId: "mb_c5",
+            memberOrigin: "AUTHORED",
+          },
+          applied: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+            str: { speed: 1 },
+            ai: {},
+            familyId: "fm_c5",
+            memberId: "mb_c5",
+            memberOrigin: "AUTHORED",
+          },
+        },
+      },
+    });
     const result = runSaveStrategy(ctx);
     expect(result.ok).toBe(true);
     expect(loadPositionsDatasetCorpusGeneration()).toBeGreaterThan(
       restored.corpusGeneration
     );
-    expect(JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)[0].positionId).toBe(
-      "pos_c5"
-    );
+    const working = JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!);
+    expect(Array.isArray(working) && working.length > 0).toBe(true);
+    expect(
+      working.some((r: { strategies?: Record<string, { familyId?: string }> }) =>
+        Object.values(r.strategies ?? {}).some((e) => e?.familyId === "fm_c5")
+      )
+    ).toBe(true);
     // Dual-write failure leaves prior family gens stale vs new positions gen.
     expect(isNormalizedCorpusFresh()).toBe(false);
   });
@@ -641,7 +716,42 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     expect(transitionalHistoryRestore(c5).ok).toBe(true);
     expect(isNormalizedCorpusFresh()).toBe(false);
 
-    const { ctx } = buildSaveCtx({ dataset: c5, ballsState: ballsC5 });
+    const { ctx } = buildSaveCtx({
+      dataset: c5,
+      ballsState: ballsC5,
+      saveCommand: "OVERWRITE",
+      editingLocalFamilyId: "fm_c5",
+      slots: {
+        S1: {
+          draft: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+            familyId: "fm_c5",
+            memberId: "mb_c5",
+            memberOrigin: "AUTHORED",
+          },
+          applied: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+            str: { speed: 1 },
+            ai: {},
+            familyId: "fm_c5",
+            memberId: "mb_c5",
+            memberOrigin: "AUTHORED",
+          },
+        },
+      },
+    });
     expect(runSaveStrategy(ctx).ok).toBe(true);
 
     const g = loadPositionsDatasetCorpusGeneration();

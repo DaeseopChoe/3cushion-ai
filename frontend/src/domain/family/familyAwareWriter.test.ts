@@ -228,6 +228,28 @@ describe("cross-Family collision", () => {
     expect(result.dataset[0].strategies.S3?.familyId).toBe("fm_z");
     expect(reconstructFamilyMembers(result.dataset, "fm_family1")).toHaveLength(0);
   });
+
+  it("blocks preferredAuthoredSlot S1 when occupied even if S2 free (Phase C-0)", () => {
+    const p = authoredBalls;
+    const occupied: PositionRecord = {
+      positionId: createPositionId(p),
+      balls: p,
+      strategies: {
+        S1: otherFamilyEntry("fm_x", "mb_x", "as_x"),
+      },
+      schemaVersion: 1,
+    };
+    const result = writeFourTrackFamilyMembers(
+      [occupied],
+      { balls: p, entry: authoredEntry() },
+      { preferredAuthoredSlot: "S1" }
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("POSITION_STRATEGY_SLOT_CONFLICT");
+    expect(occupied.strategies.S1?.familyId).toBe("fm_x");
+    expect(occupied.strategies.S2).toBeUndefined();
+  });
 });
 
 describe("legacy + consumer preservation", () => {
@@ -438,7 +460,9 @@ describe("generic family writer", () => {
     expect(result.dataset).toEqual([occupied]);
   });
 
-  it("allows same PositionKey to hold unrelated Families without conflating member identity", () => {
+  it("allows same PositionKey to hold unrelated Families on different Strategy Slots (Phase C-0)", () => {
+    // Without preferredAuthoredSlot, generic writer places into next free slot.
+    // Same Position + different slots = LEGAL; same Position + same slot = REJECT.
     const familyA = candidateFromEntry(authoredBalls, {
       familyId: "fm_a",
       memberId: "mb_a",
@@ -463,9 +487,35 @@ describe("generic family writer", () => {
     const families = new Set(Object.values(shared?.strategies ?? {}).map((entry) => entry?.familyId));
     expect(families.has("fm_a")).toBe(true);
     expect(families.has("fm_b")).toBe(true);
+    expect(shared?.strategies.S1?.familyId).toBe("fm_a");
+    expect(shared?.strategies.S2?.familyId).toBe("fm_b");
     expect(createFamilyPositionKey("B2T_L", authoredBalls)).toBe(
       createFamilyPositionKey("B2T_L", authoredBalls)
     );
+  });
+
+  it("blocks preferredAuthoredSlot when occupied by another Family (no auto S2)", () => {
+    const familyA = candidateFromEntry(authoredBalls, {
+      familyId: "fm_a",
+      memberId: "mb_a",
+      authoringStrategyId: "as_a",
+    });
+    const first = writeFamilyMembers([], { familyId: "fm_a", members: [familyA] });
+    if (!first.ok) throw new Error(first.reason);
+
+    const familyB = candidateFromEntry(authoredBalls, {
+      familyId: "fm_b",
+      memberId: "mb_b",
+      authoringStrategyId: "as_b",
+    });
+    const second = writeFamilyMembers(
+      first.dataset,
+      { familyId: "fm_b", members: [familyB] },
+      { preferredAuthoredSlot: "S1" }
+    );
+    expect(second.ok).toBe(false);
+    if (second.ok) return;
+    expect(second.code).toBe("POSITION_STRATEGY_SLOT_CONFLICT");
   });
 
   it("rejects invalid derived provenance in the generic writer", () => {

@@ -321,78 +321,7 @@ describe("idempotency / collision / capacity", () => {
     expect(ids2).toEqual(ids1);
   });
 
-  it("explicit CREATE on Exact same-slot mints a new family instead of inheriting", () => {
-    const first = buildCtx();
-    expect(runSaveStrategy(first.ctx).ok).toBe(true);
-    const authoredA = first.capture.dataset
-      .flatMap((r) => Object.values(r.strategies))
-      .find((e) => e?.memberOrigin === "AUTHORED");
-    const second = buildCtx({
-      dataset: first.capture.dataset,
-      saveIntent: "CREATE",
-    });
-    expect(runSaveStrategy(second.ctx).ok).toBe(true);
-    const authoredFamilies = second.capture.dataset
-      .flatMap((r) => Object.values(r.strategies))
-      .filter((e) => e?.memberOrigin === "AUTHORED")
-      .map((e) => ({ familyId: e?.familyId, memberId: e?.memberId }));
-    expect(new Set(authoredFamilies.map((x) => x.familyId)).size).toBe(2);
-    expect(authoredFamilies.some((x) => x.familyId === authoredA?.familyId)).toBe(true);
-    expect(authoredFamilies.some((x) => x.familyId !== authoredA?.familyId)).toBe(true);
-  });
-
-  it("preserves an unrelated Family on the same Exact authored coordinates", () => {
-    const a = buildCtx();
-    expect(runSaveStrategy(a.ctx).ok).toBe(true);
-    const familyA = a.capture.dataset
-      .flatMap((r) => Object.values(r.strategies))
-      .find((e) => e?.memberOrigin === "AUTHORED")?.familyId;
-    const b = buildCtx({
-      dataset: a.capture.dataset,
-      activeSlot: "S2",
-      slots: {
-        S1: a.ctx.slots.S1,
-        S2: {
-          draft: {
-            sys: {
-              systemId: "5_half_system",
-              track: "B2T_L",
-              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
-              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
-            },
-            hpt: canonicalHpt,
-          },
-          applied: {
-            sys: {
-              systemId: "5_half_system",
-              track: "B2T_L",
-              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
-              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
-            },
-            hpt: canonicalHpt,
-            str: { speed: 1 },
-            ai: {},
-          },
-        },
-      },
-    });
-    b.ctx.saveWorkingDataset = (updated) => {
-      b.capture.dataset = updated;
-    };
-    b.ctx.setDataset = (updated) => {
-      b.capture.dataset = updated;
-    };
-    expect(runSaveStrategy(b.ctx).ok).toBe(true);
-    const familyB = b.capture.dataset
-      .flatMap((r) => Object.values(r.strategies))
-      .find((e) => e?.slot === "S2" && e?.memberOrigin === "AUTHORED")?.familyId;
-    expect(familyB).toBeTruthy();
-    expect(familyB).not.toBe(familyA);
-    expect(membersOf(b.capture.dataset, familyA!)).toHaveLength(4);
-    expect(membersOf(b.capture.dataset, familyB!)).toHaveLength(4);
-  });
-
-  it("CREATE fails closed when authored Exact position has S1–S3 occupied by unrelated Families", () => {
+  it("CREATE fails closed when preferred Strategy Slot is occupied by another Family (Phase C-0)", () => {
     const occupied: PositionRecord = {
       positionId: createPositionId(balls),
       balls,
@@ -406,10 +335,76 @@ describe("idempotency / collision / capacity", () => {
     const { ctx } = buildCtx({ dataset: [occupied], saveIntent: "CREATE" });
     const directResult = runSaveStrategy(ctx);
     expect(directResult.ok).toBe(false);
-    expect(directResult.reason).toMatch(/SLOT_CAPACITY/);
+    // Preferred S1 occupied → POSITION_STRATEGY_SLOT_CONFLICT (no auto S2/S3).
+    expect(directResult.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT|SLOT_CAPACITY/);
     expect(occupied.strategies.S1?.familyId).toBe("fm_x");
     expect(occupied.strategies.S2?.familyId).toBe("fm_y");
     expect(occupied.strategies.S3?.familyId).toBe("fm_z");
+  });
+
+  // Phase C-0: same Position+same preferred Slot CREATE is BLOCKED (supersedes mint-new-family).
+  it("explicit CREATE on Exact same preferred Slot → BLOCK (occupancy)", () => {
+    const first = buildCtx();
+    expect(runSaveStrategy(first.ctx).ok).toBe(true);
+    const second = buildCtx({
+      dataset: first.capture.dataset,
+      saveIntent: "CREATE",
+    });
+    const r = runSaveStrategy(second.ctx);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT/);
+  });
+
+  it("explicit CREATE on Exact different Slot (S2) mints a new family", () => {
+    const first = buildCtx();
+    expect(runSaveStrategy(first.ctx).ok).toBe(true);
+    const authoredA = first.capture.dataset
+      .flatMap((r) => Object.values(r.strategies))
+      .find((e) => e?.memberOrigin === "AUTHORED");
+    const second = buildCtx({
+      dataset: first.capture.dataset,
+      saveIntent: "CREATE",
+      activeSlot: "S2",
+      slots: {
+        S1: first.ctx.slots.S1,
+        S2: {
+          draft: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 31, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 31, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+          },
+          applied: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 31, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 31, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+            str: { speed: 1 },
+            ai: {},
+          },
+        },
+      },
+    });
+    second.ctx.saveWorkingDataset = (updated) => {
+      second.capture.dataset = updated;
+    };
+    second.ctx.setDataset = (updated) => {
+      second.capture.dataset = updated;
+    };
+    expect(runSaveStrategy(second.ctx).ok).toBe(true);
+    const authoredFamilies = second.capture.dataset
+      .flatMap((r) => Object.values(r.strategies))
+      .filter((e) => e?.memberOrigin === "AUTHORED")
+      .map((e) => ({ familyId: e?.familyId, memberId: e?.memberId }));
+    expect(new Set(authoredFamilies.map((x) => x.familyId)).size).toBe(2);
+    expect(authoredFamilies.some((x) => x.familyId === authoredA?.familyId)).toBe(true);
+    expect(authoredFamilies.some((x) => x.familyId !== authoredA?.familyId)).toBe(true);
   });
 });
 
@@ -438,7 +433,42 @@ describe("HPT persist vs hydrate", () => {
 });
 
 describe("legacy SAVE", () => {
-  it("SAVE on legacy Exact creates a NEW 4-track Family (CREATE)", () => {
+  // Phase C-0: legacy S1 occupancy blocks preferred-S1 CREATE (no auto-fallback to S2).
+  // Admin must choose an empty Strategy Slot explicitly.
+  it("SAVE on legacy Exact with preferred S1 occupied → BLOCK", () => {
+    const legacy: PositionRecord = {
+      positionId: createPositionId(balls),
+      balls,
+      strategies: {
+        S1: {
+          slot: "S1",
+          signature: {
+            systemId: "5_half_system",
+            formulaHash: "h1",
+            shotType: "뒤돌리기",
+          },
+          sysInputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+          hpT: { T: "8/8" },
+          meta: {
+            impact: { x: 1, y: 1 },
+            final: { x: 2, y: 2 },
+            angle_ci: 0,
+            angle_fs: 0,
+          },
+        },
+      },
+    };
+    const { ctx } = buildCtx({
+      dataset: [legacy],
+      saveCommand: "SAVE",
+    });
+    const r = runSaveStrategy(ctx);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT/);
+    expect(legacy.strategies.S1?.sysInputs?.CO_f).toBe(30);
+  });
+
+  it("SAVE on legacy Exact via empty S2 creates a NEW 4-track Family (CREATE)", () => {
     const legacy: PositionRecord = {
       positionId: createPositionId(balls),
       balls,
@@ -464,12 +494,42 @@ describe("legacy SAVE", () => {
     const { ctx, capture } = buildCtx({
       dataset: [legacy],
       saveCommand: "SAVE",
+      activeSlot: "S2",
+      slots: {
+        S1: {
+          draft: null,
+          applied: null,
+        },
+        S2: {
+          draft: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+          },
+          applied: {
+            sys: {
+              systemId: "5_half_system",
+              track: "B2T_L",
+              inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+              outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
+            },
+            hpt: canonicalHpt,
+            str: { speed: 1 },
+            ai: {},
+          },
+        },
+      },
     });
     expect(runSaveStrategy(ctx).ok).toBe(true);
     const authored = capture.dataset
       .flatMap((r) => Object.values(r.strategies))
       .find((e) => e?.memberOrigin === "AUTHORED");
     expect(authored?.familyId?.startsWith("fm_")).toBe(true);
+    expect(authored?.slot).toBe("S2");
     expect(
       capture.dataset
         .flatMap((r) => Object.values(r.strategies))

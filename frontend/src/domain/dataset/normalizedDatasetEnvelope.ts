@@ -9,12 +9,18 @@
  * Flat positions_dataset is Local compatibility projection only (not WRITE authority).
  *
  * Storage ≠ Runtime: PositionRecord/StrategyEntry are hydrate projections only.
+ *
+ * Phase C-0 occupancy invariant (validator):
+ *   (createPositionId(member.balls), sourceSlot) → at most one familyId
+ * One Position supports at most three Strategies (S1/S2/S3); each slot ≤ 1 Family.
+ * This is an occupancy constraint — not a Family ID rule (familyId remains fm_<uuid>).
  */
 
 import {
   DATASET_EXPORT_SCHEMA_VERSION,
   systemIdToFolderLabel,
 } from "../datasetPath";
+import { createPositionId } from "../positionId";
 import {
   genericFamilyMemberIdentityKey,
   isValidMemberId,
@@ -74,7 +80,9 @@ export type NormalizedDatasetIssueCode =
   | "INVALID_PROVENANCE"
   | "DUPLICATE_LOGICAL_MEMBER"
   | "DANGLING_GENERATED_FROM"
-  | "FK_MISMATCH";
+  | "FK_MISMATCH"
+  /** Phase C-0: (positionId, sourceSlot) may belong to at most one familyId. */
+  | "POSITION_STRATEGY_SLOT_CONFLICT";
 
 export type NormalizedDatasetIssue = {
   code: NormalizedDatasetIssueCode;
@@ -83,6 +91,9 @@ export type NormalizedDatasetIssue = {
   memberId?: string;
   field?: string;
   path?: string;
+  positionId?: string;
+  sourceSlot?: string;
+  conflictingFamilyIds?: string[];
 };
 
 export type ParseNormalizedDatasetResult =
@@ -437,7 +448,7 @@ export function parseNormalizedDatasetEnvelope(
     members.push(member);
   }
 
-  // Family-scoped logical identity uniqueness (NOT global balls+sourceSlot)
+  // Family-scoped logical identity uniqueness
   const logicalKeys = new Map<string, string>(); // key → memberId
   for (const member of members) {
     const identityFields: FamilyIdentityFields = {
@@ -476,6 +487,47 @@ export function parseNormalizedDatasetEnvelope(
       );
     } else {
       logicalKeys.set(key, member.memberId);
+    }
+  }
+
+  // Phase C-0: Position × Strategy Slot occupancy
+  // (positionId, sourceSlot) → at most one familyId (not a Family-ID rule).
+  // Same familyId occupying the same key twice is not a cross-Family conflict
+  // (logical Member uniqueness handles same-Family duplicates).
+  const occupancy = new Map<
+    string,
+    { familyId: string; memberId: string; positionId: string; sourceSlot: string }
+  >();
+  for (const member of members) {
+    if (!isBall3Shape(member.balls) || !isFamilySourceSlot(member.sourceSlot)) {
+      continue;
+    }
+    const positionId = createPositionId(member.balls);
+    const sourceSlot = member.sourceSlot;
+    const occKey = `${positionId}|${sourceSlot}`;
+    const prev = occupancy.get(occKey);
+    if (prev && prev.familyId !== member.familyId) {
+      issues.push(
+        issue(
+          "POSITION_STRATEGY_SLOT_CONFLICT",
+          `Position ${positionId} slot ${sourceSlot} already occupied by family ${prev.familyId}; cannot also assign family ${member.familyId}`,
+          {
+            memberId: member.memberId,
+            familyId: member.familyId,
+            positionId,
+            sourceSlot,
+            field: "sourceSlot",
+            conflictingFamilyIds: [prev.familyId, member.familyId],
+          }
+        )
+      );
+    } else if (!prev) {
+      occupancy.set(occKey, {
+        familyId: member.familyId,
+        memberId: member.memberId,
+        positionId,
+        sourceSlot,
+      });
     }
   }
 

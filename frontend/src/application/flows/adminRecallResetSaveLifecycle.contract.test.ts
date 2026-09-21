@@ -174,7 +174,7 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
     expect(loaded.canUseSystemControls).toBe(true);
     expect(loaded.targetColor).toBe("red");
 
-    // 2. Edit + SAVE
+    // 2. Edit + SAVE on empty S2 (Phase C-0: S1 already occupied by recalled Family)
     let historyCommitted = false;
     let savedDataset: PositionRecord[] | null = null;
     const alertMock = vi.fn();
@@ -189,8 +189,8 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
       dataset,
       ballsState: ballsRedTarget,
       adminState: recallCtx.adminState,
-      activeSlot: "S1",
-      slots: { S1: slotState },
+      activeSlot: "S2",
+      slots: { S1: { draft: null, applied: null }, S2: slotState },
       targetColor: "red",
       aiOverride: null,
       system: null,
@@ -243,9 +243,10 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
           system_values: { CO_f: 30, C3_r: 20 },
         },
       },
-      activeSlot: "S1",
+      activeSlot: "S2",
       slots: {
-        S1: {
+        S1: { draft: null, applied: null },
+        S2: {
           draft: {
             sys: {
               systemId: "5_half_system",
@@ -311,9 +312,10 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
           system_values: { CO_f: 30, C3_r: 20 },
         },
       },
-      activeSlot: "S1",
+      activeSlot: "S2",
       slots: {
-        S1: {
+        S1: { draft: null, applied: null },
+        S2: {
           draft: {
             sys: {
               systemId: "5_half_system",
@@ -382,17 +384,31 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
     expect(nextSlot.draft.targetBall).toBe("red");
   });
 
-  it("TEST E — Local DB draft identity does not force UPDATE; SAVE mints NEW Family", () => {
-    // Case where applied exists (e.g. from partial SYS apply) but has no familyId
+  it("TEST E — Local DB draft identity does not force UPDATE; SAVE S2 mints NEW Family", () => {
+    // Phase C-0: S1 occupied by recalled Family → CREATE on empty S2.
     const slotWithPartialApplied = {
       draft: {
-        sys: { systemId: "5_half_system", track: "B2T_L" },
+        sys: {
+          systemId: "5_half_system",
+          track: "B2T_L",
+          inputs: { CO_f: 30, C3_r: 20 },
+          outputs: { result: { CO_f: 30, C3_r: 20 } },
+        },
+        hpt: { T: "-3/8" },
         familyId: "fm_defensive_001",
         memberId: "mb_defensive_001",
         memberOrigin: "AUTHORED" as const,
       },
       applied: {
-        sys: { systemId: "5_half_system", track: "B2T_L" },
+        sys: {
+          systemId: "5_half_system",
+          track: "B2T_L",
+          inputs: { CO_f: 30, C3_r: 20 },
+          outputs: { result: { CO_f: 30, C3_r: 20 } },
+        },
+        hpt: { T: "-3/8" },
+        str: { speed: 1 },
+        ai: {},
         // familyId missing in applied!
       },
     };
@@ -408,8 +424,11 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
           system_values: { CO_f: 30, C3_r: 20 },
         },
       },
-      activeSlot: "S1",
-      slots: { S1: slotWithPartialApplied },
+      activeSlot: "S2",
+      slots: {
+        S1: { draft: null, applied: null },
+        S2: slotWithPartialApplied,
+      },
       targetColor: "red",
       aiOverride: null,
       system: null,

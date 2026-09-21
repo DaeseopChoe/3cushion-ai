@@ -521,6 +521,19 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     );
     if (!familyWrite.ok) {
       console.warn("[SAVE] four-track family write failed:", familyWrite.code, familyWrite.reason);
+      // Phase C-0: occupied preferred Strategy Slot — admin must pick S2/S3 (no auto-move).
+      if (familyWrite.code === "POSITION_STRATEGY_SLOT_CONFLICT") {
+        return {
+          ok: false,
+          reason: `같은 포지션의 ${savedSlotId}에는 이미 공략이 저장되어 있습니다. 다른 공략이라면 S2 또는 S3를 사용하십시오. [POSITION_STRATEGY_SLOT_CONFLICT]`,
+        };
+      }
+      if (familyWrite.code === "SLOT_CAPACITY") {
+        return {
+          ok: false,
+          reason: `같은 포지션의 S1/S2/S3 공략이 모두 사용 중입니다. [SLOT_CAPACITY]`,
+        };
+      }
       return {
         ok: false,
         reason: `family-four-track:${familyWrite.code}`,

@@ -199,7 +199,73 @@ describe("Phase A normalized dataset envelope", () => {
     expect(parseNormalizedDatasetEnvelope(raw).ok).toBe(true);
   });
 
-  it("CASE 4: same Position + same sourceSlot across different Families → PASS", () => {
+  // Phase C-0 SSOT: same Position + same sourceSlot → at most one familyId.
+  // Previous Phase A contract (LEGAL for multiple Families) is SUPERSEDED.
+  it("CASE 4: same Position + same sourceSlot across different Families → REJECT", () => {
+    expectFailCode(
+      envelope(
+        [
+          master("fm_a1b2c3d4-0000-4000-8000-000000000001"),
+          master("fm_a1b2c3d4-0000-4000-8000-000000000002"),
+        ],
+        [
+          member({
+            memberId: "mb_a1b2c3d4-0000-4000-8000-000000000001",
+            familyId: "fm_a1b2c3d4-0000-4000-8000-000000000001",
+            memberOrigin: "AUTHORED",
+            track: "B2T_L",
+            sourceSlot: "S1",
+            balls: ballsP,
+          }),
+          member({
+            memberId: "mb_a1b2c3d4-0000-4000-8000-000000000002",
+            familyId: "fm_a1b2c3d4-0000-4000-8000-000000000002",
+            memberOrigin: "AUTHORED",
+            track: "B2T_L",
+            sourceSlot: "S1",
+            balls: ballsP,
+          }),
+        ]
+      ),
+      "POSITION_STRATEGY_SLOT_CONFLICT"
+    );
+  });
+
+  it("CASE 4b: same Position + different sourceSlot across Families → PASS", () => {
+    const raw = envelope(
+      [
+        master("fm_a1b2c3d4-0000-4000-8000-000000000001"),
+        master("fm_a1b2c3d4-0000-4000-8000-000000000002"),
+      ],
+      [
+        member({
+          memberId: "mb_a1b2c3d4-0000-4000-8000-000000000001",
+          familyId: "fm_a1b2c3d4-0000-4000-8000-000000000001",
+          memberOrigin: "AUTHORED",
+          track: "B2T_L",
+          sourceSlot: "S1",
+          balls: ballsP,
+        }),
+        member({
+          memberId: "mb_a1b2c3d4-0000-4000-8000-000000000002",
+          familyId: "fm_a1b2c3d4-0000-4000-8000-000000000002",
+          memberOrigin: "AUTHORED",
+          track: "B2T_L",
+          sourceSlot: "S2",
+          balls: ballsP,
+        }),
+      ]
+    );
+    const parsed = parseNormalizedDatasetEnvelope(raw);
+    expect(parsed.ok).toBe(true);
+  });
+
+  it("CASE 4c: same sourceSlot + different Position → PASS", () => {
+    const ballsQ = {
+      cue: { x: 20, y: 10 },
+      target: { x: 40, y: 20 },
+      second: { x: 60, y: 14 },
+    };
     const raw = envelope(
       [
         master("fm_a1b2c3d4-0000-4000-8000-000000000001"),
@@ -220,18 +286,62 @@ describe("Phase A normalized dataset envelope", () => {
           memberOrigin: "AUTHORED",
           track: "B2T_L",
           sourceSlot: "S1",
-          balls: ballsP,
+          balls: ballsQ,
         }),
       ]
     );
-    const parsed = parseNormalizedDatasetEnvelope(raw);
-    expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
-    expect(parsed.envelope.familyMembers[0]!.balls).toEqual(
-      parsed.envelope.familyMembers[1]!.balls
+    expect(parseNormalizedDatasetEnvelope(raw).ok).toBe(true);
+  });
+
+  it("CASE 4d: Position max three Strategies S1+S2+S3 → PASS; fourth Family on occupied S1 → REJECT", () => {
+    const masters = [
+      master("fm_a1b2c3d4-0000-4000-8000-000000000001"),
+      master("fm_a1b2c3d4-0000-4000-8000-000000000002"),
+      master("fm_a1b2c3d4-0000-4000-8000-000000000003"),
+      master("fm_a1b2c3d4-0000-4000-8000-000000000004"),
+    ];
+    const three = envelope(masters.slice(0, 3), [
+      member({
+        memberId: "mb_a1b2c3d4-0000-4000-8000-000000000001",
+        familyId: "fm_a1b2c3d4-0000-4000-8000-000000000001",
+        memberOrigin: "AUTHORED",
+        track: "B2T_L",
+        sourceSlot: "S1",
+        balls: ballsP,
+      }),
+      member({
+        memberId: "mb_a1b2c3d4-0000-4000-8000-000000000002",
+        familyId: "fm_a1b2c3d4-0000-4000-8000-000000000002",
+        memberOrigin: "AUTHORED",
+        track: "B2T_L",
+        sourceSlot: "S2",
+        balls: ballsP,
+      }),
+      member({
+        memberId: "mb_a1b2c3d4-0000-4000-8000-000000000003",
+        familyId: "fm_a1b2c3d4-0000-4000-8000-000000000003",
+        memberOrigin: "AUTHORED",
+        track: "B2T_L",
+        sourceSlot: "S3",
+        balls: ballsP,
+      }),
+    ]);
+    expect(parseNormalizedDatasetEnvelope(three).ok).toBe(true);
+
+    expectFailCode(
+      envelope(masters, [
+        ...(three.familyMembers as FamilyMember[]),
+        member({
+          memberId: "mb_a1b2c3d4-0000-4000-8000-000000000004",
+          familyId: "fm_a1b2c3d4-0000-4000-8000-000000000004",
+          memberOrigin: "AUTHORED",
+          track: "B2T_L",
+          sourceSlot: "S1",
+          balls: ballsP,
+        }),
+      ]),
+      "POSITION_STRATEGY_SLOT_CONFLICT"
     );
-    expect(parsed.envelope.familyMembers[0]!.sourceSlot).toBe("S1");
-    expect(parsed.envelope.familyMembers[1]!.sourceSlot).toBe("S1");
   });
 
   it("CASE 5: duplicate familyId → FAIL", () => {
@@ -390,31 +500,35 @@ describe("Phase A normalized dataset envelope", () => {
     );
   });
 
-  it("CASE 18: same spatial Member across different Families → PASS", () => {
-    // Same as CASE 4 — family-scoped identity only
-    const raw = envelope(
-      [
-        master("fm_a1b2c3d4-0000-4000-8000-000000000001"),
-        master("fm_a1b2c3d4-0000-4000-8000-000000000002"),
-      ],
-      [
-        member({
-          memberId: "mb_a1b2c3d4-0000-4000-8000-000000000001",
-          familyId: "fm_a1b2c3d4-0000-4000-8000-000000000001",
-          memberOrigin: "AUTHORED",
-          track: "B2T_L",
-          sourceSlot: "S1",
-        }),
-        member({
-          memberId: "mb_a1b2c3d4-0000-4000-8000-000000000002",
-          familyId: "fm_a1b2c3d4-0000-4000-8000-000000000002",
-          memberOrigin: "AUTHORED",
-          track: "B2T_L",
-          sourceSlot: "S1",
-        }),
-      ]
+  // Phase C-0: spatial coincidence across Families is no longer LEGAL when
+  // Position+sourceSlot collide. Same Family / different Positions remains OK
+  // (covered by CASE 3 / CASE 19). Cross-Family same Position+Slot → REJECT.
+  it("CASE 18: same Position + same sourceSlot across different Families → REJECT", () => {
+    expectFailCode(
+      envelope(
+        [
+          master("fm_a1b2c3d4-0000-4000-8000-000000000001"),
+          master("fm_a1b2c3d4-0000-4000-8000-000000000002"),
+        ],
+        [
+          member({
+            memberId: "mb_a1b2c3d4-0000-4000-8000-000000000001",
+            familyId: "fm_a1b2c3d4-0000-4000-8000-000000000001",
+            memberOrigin: "AUTHORED",
+            track: "B2T_L",
+            sourceSlot: "S1",
+          }),
+          member({
+            memberId: "mb_a1b2c3d4-0000-4000-8000-000000000002",
+            familyId: "fm_a1b2c3d4-0000-4000-8000-000000000002",
+            memberOrigin: "AUTHORED",
+            track: "B2T_L",
+            sourceSlot: "S1",
+          }),
+        ]
+      ),
+      "POSITION_STRATEGY_SLOT_CONFLICT"
     );
-    expect(parseNormalizedDatasetEnvelope(raw).ok).toBe(true);
   });
 
   it("CASE 19: JSON serialization round trip → PASS", () => {

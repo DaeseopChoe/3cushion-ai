@@ -4,6 +4,11 @@
  * Phase B-1 (2026-09-21): Local WRITE SSOT = NormalizedDatasetEnvelope
  * (`normalized_dataset` single key). FamilyMaster + FamilyMember are authoritative.
  *
+ * Phase C-0 (2026-09-21): Position × Strategy Slot occupancy is now an explicit
+ * domain invariant — (positionId, sourceSlot) → at most one familyId.
+ * Flat PositionRecord.strategies S1/S2/S3 cardinality and normalized canonical
+ * cardinality are aligned (not a migration debt; domain correction).
+ *
  * Remaining TEMPORARY_COMPATIBILITY_DUPLICATION:
  * - Flat positions_dataset = compatibility projection/cache for Search/Export/UI
  *   until Phase C/D (NOT WRITE authority).

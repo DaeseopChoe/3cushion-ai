@@ -150,7 +150,34 @@ describe("runSaveStrategy Family identity", () => {
     expect(s1?.sysInputs.CO_f).toBe(30);
   });
 
-  it("default SAVE on Exact same-slot does not inherit prior Family identity", () => {
+  // Phase C-0: same preferred Slot CREATE is BLOCKED (no auto S2).
+  it("default SAVE on Exact same preferred Slot → BLOCK occupancy", () => {
+    const first = buildCtx();
+    let dataset: PositionRecord[] = [];
+    first.ctx.saveWorkingDataset = (updated) => {
+      dataset = updated;
+    };
+    first.ctx.setDataset = (updated) => {
+      dataset = updated;
+    };
+    expect(runSaveStrategy(first.ctx).ok).toBe(true);
+    const familyId = dataset[0].strategies.S1?.familyId;
+    expect(familyId).toBeTruthy();
+
+    const second = buildCtx({ dataset });
+    second.ctx.saveWorkingDataset = (updated) => {
+      dataset = updated;
+    };
+    second.ctx.setDataset = (updated) => {
+      dataset = updated;
+    };
+    const r = runSaveStrategy(second.ctx);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT/);
+    expect(dataset[0].strategies.S1?.familyId).toBe(familyId);
+  });
+
+  it("default SAVE on Exact different Slot (S2) mints new Family identity", () => {
     const first = buildCtx();
     let dataset: PositionRecord[] = [];
     first.ctx.saveWorkingDataset = (updated) => {
@@ -164,7 +191,23 @@ describe("runSaveStrategy Family identity", () => {
     const memberId = dataset[0].strategies.S1?.memberId;
     expect(familyId).toBeTruthy();
 
-    const second = buildCtx({ dataset });
+    const slotSys = {
+      systemId: "5_half_system",
+      track: "B2T_L",
+      inputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+      outputs: { result: { CO_f: 30, C1_f: 10, C3_r: 20 } },
+    };
+    const second = buildCtx({
+      dataset,
+      activeSlot: "S2",
+      slots: {
+        S1: first.ctx.slots.S1,
+        S2: {
+          draft: { sys: slotSys, hpt: { T: "8/8" } },
+          applied: { sys: slotSys, hpt: { T: "8/8" }, str: { speed: 1 }, ai: {} },
+        },
+      },
+    });
     second.ctx.saveWorkingDataset = (updated) => {
       dataset = updated;
     };
@@ -229,7 +272,7 @@ describe("runSaveStrategy Family identity", () => {
     expect(authoredMembers[0]?.memberId).toBe(authored?.memberId);
   });
 
-  it("editingPublishedFamilyId alone does not UPDATE; OVERWRITE preserves familyId", () => {
+  it("editingPublishedFamilyId alone does not UPDATE; SAVE same Slot BLOCKS occupancy", () => {
     const first = buildCtx();
     let dataset: PositionRecord[] = [];
     first.ctx.saveWorkingDataset = (updated) => {
@@ -281,9 +324,8 @@ describe("runSaveStrategy Family identity", () => {
       dataset = updated;
     };
     const createResult = runSaveStrategy(saveAfterRecall.ctx);
-    expect(createResult.ok).toBe(true);
-    expect(createResult.familyId).not.toBe(authored!.familyId);
-    expect(createResult.saveIntent).toBe("CREATE");
+    expect(createResult.ok).toBe(false);
+    expect(createResult.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT/);
 
     const overwrite = buildCtx({
       dataset: [dataset.find((r) =>

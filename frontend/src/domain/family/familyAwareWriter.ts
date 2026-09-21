@@ -59,7 +59,9 @@ function resolveInsertSlot(args: {
   preferredAuthoredSlot?: StrategyEntry["slot"];
   familyId: string;
   identityKey: string;
-}): { ok: true; slot: StrategyEntry["slot"] } | { ok: false } {
+}):
+  | { ok: true; slot: StrategyEntry["slot"] }
+  | { ok: false; reason: "PREFERRED_SLOT_OCCUPIED" | "NO_FREE_SLOT" } {
   const { isAuthored, destRecord, available, preferredAuthoredSlot, familyId, identityKey } = args;
   if (!destRecord) {
     return {
@@ -77,9 +79,12 @@ function resolveInsertSlot(args: {
     if (occ?.familyId === familyId && occ.identityKey === identityKey) {
       return { ok: true, slot: preferredAuthoredSlot };
     }
+    // Phase C-0: preferred Strategy Slot occupied by another Family → BLOCK.
+    // Do NOT auto-fallback to S2/S3; admin must choose the slot explicitly.
+    return { ok: false, reason: "PREFERRED_SLOT_OCCUPIED" };
   }
   if (available[0]) return { ok: true, slot: available[0] };
-  return { ok: false };
+  return { ok: false, reason: "NO_FREE_SLOT" };
 }
 
 export type FamilyMemberLocation = {
@@ -98,6 +103,8 @@ export type FamilyWriteFailureCode =
   | "DUPLICATE_LOGICAL_IDENTITY"
   | "GENERATE_FAILED"
   | "SLOT_CAPACITY"
+  /** Phase C-0: preferred Position+sourceSlot already held by a different familyId. */
+  | "POSITION_STRATEGY_SLOT_CONFLICT"
   | "CROSS_FAMILY_COLLISION";
 
 export type FamilyCompatibilityPayload = Pick<
@@ -582,6 +589,15 @@ export function preflightFamilyMemberWrite(
       identityKey,
     });
     if (!picked.ok) {
+      if (picked.reason === "PREFERRED_SLOT_OCCUPIED") {
+        const slot = options?.preferredAuthoredSlot ?? "S1";
+        return {
+          ok: false,
+          code: "POSITION_STRATEGY_SLOT_CONFLICT",
+          reason: `Position ${createPositionId(member.balls)} slot ${slot} already occupied by another Family; choose a different Strategy Slot (S1/S2/S3)`,
+          set,
+        };
+      }
       return {
         ok: false,
         code: "SLOT_CAPACITY",

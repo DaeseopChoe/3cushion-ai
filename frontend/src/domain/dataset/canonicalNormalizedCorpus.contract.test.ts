@@ -82,7 +82,8 @@ function authoredMember(
     cue: { x: 10, y: 10 },
     target: { x: 40, y: 20 },
     second: { x: 60, y: 15 },
-  }
+  },
+  sourceSlot: "S1" | "S2" | "S3" = "S1"
 ): FamilyMember {
   return {
     schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
@@ -91,7 +92,7 @@ function authoredMember(
     balls,
     track: "B2T_L",
     memberOrigin: "AUTHORED",
-    sourceSlot: "S1",
+    sourceSlot,
     authoringStrategyId: `as_${memberId}`,
   };
 }
@@ -452,7 +453,8 @@ describe("Phase B-1 canonical normalized corpus store", () => {
     ).toBe(true);
   });
 
-  it("CASE 18: same Position+same S1 different Families → canonical PASS", () => {
+  // Phase C-0: SUPERSEDED — same Position+same S1 different Families must REJECT.
+  it("CASE 18: same Position+same S1 different Families → canonical REJECT", () => {
     const sharedBalls = {
       cue: { x: 10, y: 10 },
       target: { x: 40, y: 20 },
@@ -471,16 +473,36 @@ describe("Phase B-1 canonical normalized corpus store", () => {
     const b = upsertFamilySliceInEnvelope(a.envelope, masterOf("fm_pos_b"), [
       authoredMember("fm_pos_b", "mb_pos_b", sharedBalls),
     ]);
+    expect(b.ok).toBe(false);
+    if (b.ok) return;
+    expect(
+      b.issues.some((i) => i.code === "POSITION_STRATEGY_SLOT_CONFLICT")
+    ).toBe(true);
+  });
+
+  it("CASE 18b: same Position+different Slot different Families → canonical PASS", () => {
+    const sharedBalls = {
+      cue: { x: 10, y: 10 },
+      target: { x: 40, y: 20 },
+      second: { x: 60, y: 15 },
+    };
+    const a = upsertFamilySliceInEnvelope(
+      createEmptyCanonicalNormalizedCorpus({
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }),
+      masterOf("fm_pos_a2"),
+      [authoredMember("fm_pos_a2", "mb_pos_a2", sharedBalls, "S1")]
+    );
+    expect(a.ok).toBe(true);
+    if (!a.ok) return;
+    const b = upsertFamilySliceInEnvelope(a.envelope, masterOf("fm_pos_b2"), [
+      authoredMember("fm_pos_b2", "mb_pos_b2", sharedBalls, "S2"),
+    ]);
     expect(b.ok).toBe(true);
     if (!b.ok) return;
     const commit = commitCanonicalNormalizedCorpus(b.envelope);
     expect(commit.ok).toBe(true);
-    if (!commit.ok) return;
-    const sameSlot = commit.envelope.familyMembers.filter(
-      (m) => m.sourceSlot === "S1" && m.balls.cue.x === 10
-    );
-    expect(sameSlot).toHaveLength(2);
-    expect(new Set(sameSlot.map((m) => m.familyId)).size).toBe(2);
   });
 
   it("CASE 20: canonical Members contain no Master common payload", () => {
@@ -635,7 +657,7 @@ describe("Phase B-1 WRITE order + lifecycle", () => {
       return;
     }
     const dual2 = upsertFamilySliceInEnvelope(dual.envelope, masterOf("fm_2"), [
-      authoredMember("fm_2", "mb_2", sharedBalls),
+      authoredMember("fm_2", "mb_2", sharedBalls, "S2"),
     ]);
     expect(dual2.ok).toBe(true);
     if (!dual2.ok) return;

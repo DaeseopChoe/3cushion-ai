@@ -111,7 +111,8 @@ function authoredFrom(dataset: PositionRecord[]) {
 
 function slotWithIdentity(
   identity: Record<string, unknown>,
-  inputs = { CO_f: 30, C1_f: 10, C3_r: 20 }
+  inputs = { CO_f: 30, C1_f: 10, C3_r: 20 },
+  slot: "S1" | "S2" | "S3" = "S1"
 ) {
   const slotSys = {
     systemId: "5_half_system",
@@ -120,7 +121,7 @@ function slotWithIdentity(
     outputs: { result: { ...inputs } },
   };
   return {
-    S1: {
+    [slot]: {
       draft: { sys: slotSys, hpt: { T: "8/8" }, ...identity },
       applied: {
         sys: slotSys,
@@ -152,7 +153,7 @@ describe("Save Intent Split CASE 1–10", () => {
     expect(r.publishOperation?.intent).toBe("CREATE");
   });
 
-  it("CASE 2 — Published MASTER recall → SAVE → NEW Family; source preserved", () => {
+  it("CASE 2 — Published MASTER recall → SAVE same Slot → BLOCK occupancy (Phase C-0)", () => {
     let dataset: PositionRecord[] = [];
     const first = buildCtx({
       saveWorkingDataset: (u) => {
@@ -184,11 +185,57 @@ describe("Save Intent Split CASE 1–10", () => {
       },
     });
     const r = runSaveStrategy(after.ctx);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT/);
+    // Source family still present; no auto-overwrite / no auto S2.
+    expect(
+      dataset.some((rec) =>
+        Object.values(rec.strategies).some((e) => e?.familyId === sourceFamilyId)
+      )
+    ).toBe(true);
+  });
+
+  it("CASE 2b — Published MASTER recall → SAVE S2 → NEW Family; source preserved", () => {
+    let dataset: PositionRecord[] = [];
+    const first = buildCtx({
+      saveWorkingDataset: (u) => {
+        dataset = u;
+      },
+      setDataset: (u) => {
+        dataset = u;
+      },
+    });
+    expect(runSaveStrategy(first.ctx).ok).toBe(true);
+    const source = authoredFrom(dataset)!;
+    const sourceFamilyId = source.familyId!;
+    const sourceMemberId = source.memberId!;
+
+    const after = buildCtx({
+      dataset,
+      editingPublishedFamilyId: sourceFamilyId,
+      saveCommand: "SAVE",
+      activeSlot: "S2",
+      slots: slotWithIdentity(
+        {
+          familyId: sourceFamilyId,
+          memberId: sourceMemberId,
+          memberOrigin: "AUTHORED",
+        },
+        { CO_f: 30, C1_f: 10, C3_r: 20 },
+        "S2"
+      ),
+      saveWorkingDataset: (u) => {
+        dataset = u;
+      },
+      setDataset: (u) => {
+        dataset = u;
+      },
+    });
+    const r = runSaveStrategy(after.ctx);
     expect(r.ok).toBe(true);
     expect(r.saveIntent).toBe("CREATE");
     expect(r.familyId).not.toBe(sourceFamilyId);
     expect(r.familyId).toBeTruthy();
-    // Source family still present
     expect(
       dataset.some((rec) =>
         Object.values(rec.strategies).some((e) => e?.familyId === sourceFamilyId)
@@ -246,7 +293,7 @@ describe("Save Intent Split CASE 1–10", () => {
     expect(authoredFamilies.has(sourceFamilyId)).toBe(true);
   });
 
-  it("CASE 4 — Published Derived Member → SAVE → NEW Family B; Family A preserved", () => {
+  it("CASE 4 — Published Derived Member → SAVE S2 → NEW Family B; Family A preserved", () => {
     let dataset: PositionRecord[] = [];
     const first = buildCtx({
       saveWorkingDataset: (u) => {
@@ -264,14 +311,19 @@ describe("Save Intent Split CASE 1–10", () => {
       dataset,
       editingPublishedFamilyId: familyA,
       saveCommand: "SAVE",
-      slots: slotWithIdentity({
-        familyId: familyA,
-        memberId: "mb_der_30",
-        memberOrigin: "DERIVED_CUE_IMPACT",
-        generatedFromMemberId: source.memberId,
-        derivedRule: "CUE_IMPACT_FIRST_30PCT",
-        derivedStep: "0.3",
-      }),
+      activeSlot: "S2",
+      slots: slotWithIdentity(
+        {
+          familyId: familyA,
+          memberId: "mb_der_30",
+          memberOrigin: "DERIVED_CUE_IMPACT",
+          generatedFromMemberId: source.memberId,
+          derivedRule: "CUE_IMPACT_FIRST_30PCT",
+          derivedStep: "0.3",
+        },
+        { CO_f: 30, C1_f: 10, C3_r: 20 },
+        "S2"
+      ),
       saveWorkingDataset: (u) => {
         dataset = u;
       },
@@ -346,8 +398,9 @@ describe("Save Intent Split CASE 1–10", () => {
     expect(r.familyId).toBe(familyA);
   });
 
-  it("CASE 6 — Local DB recall → SAVE → NEW Family", () => {
+  it("CASE 6 — Local DB recall → SAVE S2 → NEW Family", () => {
     // Local DB clears editingPublishedFamilyId; draft may still carry familyId.
+    // Phase C-0: same Position S1 occupied → use S2 for CREATE.
     let dataset: PositionRecord[] = [];
     const first = buildCtx({
       saveWorkingDataset: (u) => {
@@ -364,11 +417,16 @@ describe("Save Intent Split CASE 1–10", () => {
       dataset,
       editingPublishedFamilyId: null, // Local DB clears session
       saveCommand: "SAVE",
-      slots: slotWithIdentity({
-        familyId: prior.familyId,
-        memberId: prior.memberId,
-        memberOrigin: "AUTHORED",
-      }),
+      activeSlot: "S2",
+      slots: slotWithIdentity(
+        {
+          familyId: prior.familyId,
+          memberId: prior.memberId,
+          memberOrigin: "AUTHORED",
+        },
+        { CO_f: 30, C1_f: 10, C3_r: 20 },
+        "S2"
+      ),
       saveWorkingDataset: (u) => {
         dataset = u;
       },
@@ -483,7 +541,7 @@ describe("Save Intent Split CASE 1–10", () => {
     });
   });
 
-  it("CASE 10 — SAVE does not reuse source familyId/memberId as NEW identity", () => {
+  it("CASE 10 — SAVE S2 does not reuse source familyId/memberId as NEW identity", () => {
     let dataset: PositionRecord[] = [];
     const first = buildCtx({
       saveWorkingDataset: (u) => {
@@ -500,11 +558,16 @@ describe("Save Intent Split CASE 1–10", () => {
       dataset,
       editingPublishedFamilyId: source.familyId!,
       saveCommand: "SAVE",
-      slots: slotWithIdentity({
-        familyId: source.familyId,
-        memberId: source.memberId,
-        memberOrigin: "AUTHORED",
-      }),
+      activeSlot: "S2",
+      slots: slotWithIdentity(
+        {
+          familyId: source.familyId,
+          memberId: source.memberId,
+          memberOrigin: "AUTHORED",
+        },
+        { CO_f: 30, C1_f: 10, C3_r: 20 },
+        "S2"
+      ),
       saveWorkingDataset: (u) => {
         dataset = u;
       },

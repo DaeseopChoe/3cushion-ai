@@ -6,6 +6,57 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-21 — Phase C-0 Position × Strategy Slot Cardinality SSOT Correction
+
+## Mode
+
+**Agent** · One Position = max three Strategies (S1/S2/S3) · Occupancy invariant · No Phase C Search cutover
+
+## Superseded contract
+
+Previous (Phase A/B):
+  same Position + same sourceSlot across different Families = LEGAL
+
+Status: **SUPERSEDED**
+
+## New ACTIVE SSOT
+
+- One Position → maximum 3 Strategies (S1 / S2 / S3)
+- Each Strategy Slot → at most one Family
+- `(positionId, sourceSlot) → at most one familyId`
+- Occupancy ≠ Family ID (familyId remains `fm_<uuid>`)
+- Different 공략 on same Position → different Slot (admin chooses; no auto S2/S3)
+- SAVE to occupied preferred Slot → BLOCK
+- OVERWRITE same Family OK; cross-Family Slot collision → BLOCK
+- schemaVersion 3 retained (validator strengthen only)
+
+## Delivered
+
+- `POSITION_STRATEGY_SLOT_CONFLICT` in `parseNormalizedDatasetEnvelope`
+- Preferred-slot CREATE no longer auto-falls back to next free slot (`familyAwareWriter`)
+- SAVE UX reason (Korean) for occupancy / capacity
+- Phase A/B tests flipped LEGAL→REJECT; SAVE/OVERWRITE cardinality contracts
+- Docs: PROJECT_MASTER_INDEX + this log + envelope header + migration debt note
+
+## Not changed
+
+- Local / Published Search
+- Manual Export / Publish / repository positions.json
+- Product count / Cartesian / trajectory / incidenceAngle.ts
+- familyId / memberId / positionId / 0.1 quantum
+- dataset/** leaves
+
+## Next
+
+Phase C — Local READ / Member-Centric Search + Hydration
+(Use ≤ S1/S2/S3 candidates per Position; do not design for multi-Family same Slot.)
+
+## Commit
+
+`fix(domain): enforce one family per position strategy slot`
+
+---
+
 # 2026-09-21 — Phase B-1 Atomic Normalized Local Corpus Store
 
 ## Mode

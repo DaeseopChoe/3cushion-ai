@@ -831,12 +831,12 @@ Position  (Ball3: cue/target/second · 6 logical coords)
 2. **PositionKey ≡ positionId** conceptually. Field is **not** renamed to `positionKey` in this ratification.
 3. Position Key quantum = `round(v * 10)` (0.1). This does **not** authorize whole-corpus coordinate storage rounding (separate future policy).
 4. **Strategy S1/S2/S3** is a separate layer from Position identity.
-5. **Same Position + same Strategy may hold multiple Families** because **SAVE = always NEW Family**.
+5. **Position Strategy Cardinality (Phase C-0 ACTIVE SSOT):** One Position → maximum **three** Strategies (`S1`/`S2`/`S3`). Each slot holds **at most one** Family. `(positionId, sourceSlot) → at most one familyId`. Same Position + same Slot + different Families = **BLOCKED**. Same Position + different Slots = **ALLOWED**. ~~Previous contract (same Position + same Strategy may hold multiple Families because SAVE = always NEW Family) is **SUPERSEDED**.~~
 6. **Forbidden as familyId:** coordinate key · `positionId` · `positionId+S1` · six coords + strategy.
-7. **SAVE** mints new `familyId`. **OVERWRITE** preserves trusted source `familyId` (LOCAL or PUBLISHED). Same Position Key alone never selects UPDATE.
+7. **SAVE** = CREATE intent (mints new `familyId`) but **BLOCKED** when preferred Position+Slot is already occupied by another Family (no auto S2/S3; no auto-overwrite). **OVERWRITE** preserves trusted source `familyId` (LOCAL or PUBLISHED) and still must pass corpus occupancy validation. Same Position Key alone never selects UPDATE.
 8. **memberId KEEP** (lineage / validators / Derived·Product). Logical replacement also uses `genericFamilyMemberIdentityKey` (AUTHORED / SYMMETRY / DERIVED axes) — not coordinates.
 9. **Track KEEP** as Member semantic. Symmetry may change Ball3 → different `positionId`; track remains a separate field.
-10. Production WRITE SSOT remains flat `positions_dataset` / published `positions.json` for now; Master/Members ownership + hydrate fidelity ratified (below); WRITE cutover is the next Ask.
+10. Local WRITE SSOT = `normalized_dataset` (NormalizedDatasetEnvelope). Flat `positions_dataset` = compatibility only. Repository leaf remains flat until Phase D.
 
 #### Logical Member identity (existing)
 
@@ -965,7 +965,8 @@ NormalizedDatasetEnvelope {
 - **Storage ≠ Runtime.** Runtime may hydrate to `PositionRecord` / `StrategyEntry`; that projection is **not** canonical storage.
 - **Forbidden:** hydrate → flat `records[]` → export (would reintroduce Master payload duplication).
 - **Member** must not carry Master common fields (`FAMILY_MASTER_COMMON_FIELD_KEYS`).
-- **Same Position + same `sourceSlot` across different Families is LEGAL** in normalized storage. Global uniqueness of `positionId+sourceSlot` or `balls+sourceSlot` is **FORBIDDEN**.
+- **Position × Strategy Slot occupancy (Phase C-0 ACTIVE):** `(positionId, sourceSlot) → at most one familyId`. Same Position + same `sourceSlot` across different Families = **REJECT** (`POSITION_STRATEGY_SLOT_CONFLICT`). Same Position + different slots = **PASS**. Same slot + different Positions = **PASS**.
+- ~~Previous Phase A note: “Same Position + same sourceSlot across different Families is LEGAL” / “Global uniqueness of positionId+sourceSlot is FORBIDDEN” — **SUPERSEDED** by Phase C-0.~~ Occupancy uniqueness is **not** a Family-ID rule; `familyId` remains `fm_<uuid>`.
 - Logical Member uniqueness remains **Family-scoped** (`genericFamilyMemberIdentityKey`).
 - Legacy test datasets may be discarded at clean cutover (Phase F); **no migration requirement**. Phase A does **not** delete data.
 
@@ -1039,8 +1040,8 @@ contents: familyMasters[] + familyMembers[]
 - **SAVE success** = validate + ONE durable canonical commit (+ read-back) only.
 - Flat `positions_dataset` = **compatibility projection** (written after canonical; not authority).
 - `family_masters` / `family_members` = **best-effort shadow** (not authority).
-- same Position + same `sourceSlot` across Families = **legal** in canonical storage.
-- Flat packing / SLOT_COLLISION does **not** forbid canonical multi-Family states.
+- **Position Strategy Cardinality (Phase C-0):** One Position → max 3 Strategies; each `S1`/`S2`/`S3` → 0..1 Family. Occupancy conflict → validation reject → **zero** canonical/flat/shadow writes.
+- ~~same Position + same `sourceSlot` across Families = legal — **SUPERSEDED**.~~ Flat packing cardinality now matches domain occupancy invariant.
 - Repository `positions.json` remains flat schemaVersion **2** until Phase D.
 - Manual Export / Publish / Search algorithms unchanged this Phase.
 
@@ -1052,7 +1053,34 @@ contents: familyMasters[] + familyMembers[]
 | Application (no write on invalid) | YES |
 | Storage (single-key setItem) | YES |
 
-**Next Track:** Phase C — Local READ / Member-Centric Search + Hydration.
+### Phase C-0 — Position × Strategy Slot Cardinality SSOT Correction (2026-09-21)
+
+**Authority:** 본 절 · One Position = maximum three Strategies
+
+**Code owners:** `domain/dataset/normalizedDatasetEnvelope.ts` · `domain/family/familyAwareWriter.ts` · `application/flows/saveFlow.ts`
+
+#### FINAL SSOT
+
+```text
+Position (cue/target/second via createPositionId)
+  ├─ S1 → 0..1 Family
+  ├─ S2 → 0..1 Family
+  └─ S3 → 0..1 Family
+
+(positionId, sourceSlot) → at most one familyId
+Families per Position: 0..3
+```
+
+- Different 공략 on the same Position → admin stores on a **different** Strategy Slot (S1/S2/S3). Same system name with different thickness/HPT/correction may still be separate Strategies (admin decision; no auto equality).
+- `familyId` / `memberId` formats unchanged (`fm_` / `mb_` UUID). Position+Slot is **occupancy only**, never Family ID.
+- Same Family across many Positions (AUTHORED + SYMMETRY + Derived + Product) remains **LEGAL**.
+- **SAVE** to occupied preferred Slot → **BLOCK** (clear Korean reason; no auto S2/S3; no auto-overwrite).
+- **OVERWRITE** same Family on its Slot → **PASS**; collision with another Family's occupied Slot → **BLOCK**; failed overwrite preserves prior corpus.
+- schemaVersion **3** retained (validator strengthen; no bump).
+- Local Search / Published Search / Export / Publish / dataset leaves / Product / trajectory: **UNCHANGED**.
+
+**Next Track:** Phase C — Local READ / Member-Centric Search + Hydration
+(Design must assume ≤3 Strategy candidates per Position match; not multiple Families per same Slot.)
 
 **Production SSOT (검증 완료, 2026-06):**
 

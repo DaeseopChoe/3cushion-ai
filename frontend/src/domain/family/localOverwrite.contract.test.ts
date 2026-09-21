@@ -112,7 +112,8 @@ function authoredFrom(dataset: PositionRecord[]) {
 
 function slotWithIdentity(
   identity: Record<string, unknown>,
-  inputs = { CO_f: 30, C1_f: 10, C3_r: 20 }
+  inputs = { CO_f: 30, C1_f: 10, C3_r: 20 },
+  slot: "S1" | "S2" | "S3" = "S1"
 ) {
   const slotSys = {
     systemId: "5_half_system",
@@ -121,7 +122,7 @@ function slotWithIdentity(
     outputs: { result: { ...inputs } },
   };
   return {
-    S1: {
+    [slot]: {
       draft: { sys: slotSys, hpt: { T: "8/8" }, ...identity },
       applied: {
         sys: slotSys,
@@ -172,7 +173,7 @@ describe("Local Overwrite + Save Intent CASE 1–16", () => {
     expect(r.publishOperation?.intent).toBe("CREATE");
   });
 
-  it("CASE 2 — Local A → SAVE → NEW Local Family B; A preserved", () => {
+  it("CASE 2 — Local A → SAVE same Slot → BLOCK occupancy (Phase C-0)", () => {
     const { dataset: initial, source } = firstSave();
     let dataset = initial;
     const after = buildCtx({
@@ -185,6 +186,41 @@ describe("Local Overwrite + Save Intent CASE 1–16", () => {
         memberId: source.memberId,
         memberOrigin: "AUTHORED",
       }),
+      saveWorkingDataset: (u) => {
+        dataset = u;
+      },
+      setDataset: (u) => {
+        dataset = u;
+      },
+    });
+    const r = runSaveStrategy(after.ctx);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT/);
+    expect(
+      dataset.some((rec) =>
+        Object.values(rec.strategies).some((e) => e?.familyId === source.familyId)
+      )
+    ).toBe(true);
+  });
+
+  it("CASE 2b — Local A → SAVE S2 → NEW Local Family B; A preserved", () => {
+    const { dataset: initial, source } = firstSave();
+    let dataset = initial;
+    const after = buildCtx({
+      dataset,
+      editingLocalFamilyId: source.familyId!,
+      editingPublishedFamilyId: null,
+      saveCommand: "SAVE",
+      activeSlot: "S2",
+      slots: slotWithIdentity(
+        {
+          familyId: source.familyId,
+          memberId: source.memberId,
+          memberOrigin: "AUTHORED",
+        },
+        { CO_f: 30, C1_f: 10, C3_r: 20 },
+        "S2"
+      ),
       saveWorkingDataset: (u) => {
         dataset = u;
       },
@@ -241,21 +277,26 @@ describe("Local Overwrite + Save Intent CASE 1–16", () => {
     expect(authoredFamilies.has(source.familyId)).toBe(true);
   });
 
-  it("CASE 4 — Local Derived(A) → SAVE → NEW Family B; A preserved", () => {
+  it("CASE 4 — Local Derived(A) → SAVE S2 → NEW Family B; A preserved", () => {
     const { dataset: initial, source } = firstSave();
     let dataset = initial;
     const after = buildCtx({
       dataset,
       editingLocalFamilyId: source.familyId!,
       saveCommand: "SAVE",
-      slots: slotWithIdentity({
-        familyId: source.familyId,
-        memberId: "mb_der_30",
-        memberOrigin: "DERIVED_CUE_IMPACT",
-        generatedFromMemberId: source.memberId,
-        derivedRule: "CUE_IMPACT_FIRST_30PCT",
-        derivedStep: "0.3",
-      }),
+      activeSlot: "S2",
+      slots: slotWithIdentity(
+        {
+          familyId: source.familyId,
+          memberId: "mb_der_30",
+          memberOrigin: "DERIVED_CUE_IMPACT",
+          generatedFromMemberId: source.memberId,
+          derivedRule: "CUE_IMPACT_FIRST_30PCT",
+          derivedStep: "0.3",
+        },
+        { CO_f: 30, C1_f: 10, C3_r: 20 },
+        "S2"
+      ),
       saveWorkingDataset: (u) => {
         dataset = u;
       },
@@ -315,7 +356,7 @@ describe("Local Overwrite + Save Intent CASE 1–16", () => {
     expect(r.overwriteSourceKind).toBe("LOCAL");
   });
 
-  it("CASE 6 — Published A → SAVE → NEW Family B", () => {
+  it("CASE 6 — Published A → SAVE S2 → NEW Family B", () => {
     const { dataset: initial, source } = firstSave();
     let dataset = initial;
     const after = buildCtx({
@@ -323,11 +364,16 @@ describe("Local Overwrite + Save Intent CASE 1–16", () => {
       editingPublishedFamilyId: source.familyId!,
       editingLocalFamilyId: null,
       saveCommand: "SAVE",
-      slots: slotWithIdentity({
-        familyId: source.familyId,
-        memberId: source.memberId,
-        memberOrigin: "AUTHORED",
-      }),
+      activeSlot: "S2",
+      slots: slotWithIdentity(
+        {
+          familyId: source.familyId,
+          memberId: source.memberId,
+          memberOrigin: "AUTHORED",
+        },
+        { CO_f: 30, C1_f: 10, C3_r: 20 },
+        "S2"
+      ),
       saveWorkingDataset: (u) => {
         dataset = u;
       },
@@ -373,21 +419,26 @@ describe("Local Overwrite + Save Intent CASE 1–16", () => {
     expect(r.publishOperation?.sourceFamilyId).toBe(source.familyId);
   });
 
-  it("CASE 8 — Published Derived(A) → SAVE → NEW Family B", () => {
+  it("CASE 8 — Published Derived(A) → SAVE S2 → NEW Family B", () => {
     const { dataset: initial, source } = firstSave();
     let dataset = initial;
     const after = buildCtx({
       dataset,
       editingPublishedFamilyId: source.familyId!,
       saveCommand: "SAVE",
-      slots: slotWithIdentity({
-        familyId: source.familyId,
-        memberId: "mb_der_p",
-        memberOrigin: "DERIVED_CUE_IMPACT",
-        generatedFromMemberId: source.memberId,
-        derivedRule: "CUE_IMPACT_FIRST_30PCT",
-        derivedStep: "0.3",
-      }),
+      activeSlot: "S2",
+      slots: slotWithIdentity(
+        {
+          familyId: source.familyId,
+          memberId: "mb_der_p",
+          memberOrigin: "DERIVED_CUE_IMPACT",
+          generatedFromMemberId: source.memberId,
+          derivedRule: "CUE_IMPACT_FIRST_30PCT",
+          derivedStep: "0.3",
+        },
+        { CO_f: 30, C1_f: 10, C3_r: 20 },
+        "S2"
+      ),
       saveWorkingDataset: (u) => {
         dataset = u;
       },
@@ -520,18 +571,23 @@ describe("Local Overwrite + Save Intent CASE 1–16", () => {
     });
   });
 
-  it("CASE 15 — Local A → SAVE does not reuse A familyId/memberId", () => {
+  it("CASE 15 — Local A → SAVE S2 does not reuse A familyId/memberId", () => {
     const { dataset: initial, source } = firstSave();
     let dataset = initial;
     const after = buildCtx({
       dataset,
       editingLocalFamilyId: source.familyId!,
       saveCommand: "SAVE",
-      slots: slotWithIdentity({
-        familyId: source.familyId,
-        memberId: source.memberId,
-        memberOrigin: "AUTHORED",
-      }),
+      activeSlot: "S2",
+      slots: slotWithIdentity(
+        {
+          familyId: source.familyId,
+          memberId: source.memberId,
+          memberOrigin: "AUTHORED",
+        },
+        { CO_f: 30, C1_f: 10, C3_r: 20 },
+        "S2"
+      ),
       saveWorkingDataset: (u) => {
         dataset = u;
       },

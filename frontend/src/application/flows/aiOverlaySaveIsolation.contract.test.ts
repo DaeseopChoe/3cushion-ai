@@ -535,10 +535,11 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
     const countAfterFirst = dataset.length;
     expect(countAfterFirst).toBe(4);
 
-    // Second SAVE on identical exact balls
+    // Second SAVE on identical exact balls + same preferred Slot → occupancy BLOCK (Phase C-0)
     const secondSave = runCanonicalSave(buildSaveCtx());
-    expect(secondSave.ok).toBe(true);
+    expect(secondSave.ok).toBe(false);
+    expect(secondSave.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT/);
     const countAfterSecond = dataset.length;
-    expect(countAfterSecond).toBe(countAfterFirst); // Dedup / exact upsert preserved
+    expect(countAfterSecond).toBe(countAfterFirst); // prior corpus preserved
   });
 });
