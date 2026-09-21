@@ -6,6 +6,39 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-21 — Phase B-1 Atomic Normalized Local Corpus Store
+
+## Mode
+
+**Agent** · Promote NormalizedDatasetEnvelope to Local WRITE SSOT · No Search/Export/Publish cutover
+
+## Delivered
+
+- Canonical key `normalized_dataset` (single-key NormalizedDatasetEnvelope commit)
+- `persistWorkingCorpusNormalizedAuthority`: migrate → validate → canonical commit → flat projection → optional shadow
+- SAVE / Derived Approval / Import: success requires canonical commit
+- Flat `positions_dataset` = compatibility only; family_* = shadow only
+- Contracts CASE 1–31 (store + lifecycle + wiring)
+- Docs + familyMigrationDebt updated
+
+## Not changed
+
+- Repository positions.json (flat v2)
+- Manual Export schema v2
+- PublishOperation / Search algorithms
+- Product Cartesian count
+- dataset/** leaves
+
+## Next
+
+Phase C — Local READ / Member-Centric Search + Hydration
+
+## Commit
+
+`refactor(storage): promote normalized local corpus authority`
+
+---
+
 # 2026-09-21 — Phase B-0 Product Export Pipeline Permanent Removal
 
 ## Mode

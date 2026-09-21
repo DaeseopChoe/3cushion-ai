@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase B-1 — Atomic Normalized Local Corpus Store (after B-0 product_export removal) |
+| **Next Track** | Phase C — Local READ / Member-Centric Search + Hydration (after B-1) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -975,7 +975,7 @@ NormalizedDatasetEnvelope {
 - `isFlatLegacyDataset` / `isNormalizedDataset` — discriminators
 - `composeNormalizedDatasetEnvelope` / `decomposeNormalizedDatasetEnvelope` — pure shadow ↔ leaf shape (no persistence)
 
-**Next Track:** Phase B-1 — Atomic Normalized Local Corpus Store (WRITE foundation).
+**Next Track:** Phase C — Local READ / Member-Centric Search + Hydration.
 
 ### Phase B-0 — Product Export Pipeline Permanent Removal (2026-09-21)
 
@@ -1015,7 +1015,44 @@ dataset/
 
 **Forbidden:** `dataset/product_export/`, `export_request.json` scratch under dataset root.
 
-**Next Track:** Phase B-1 — Atomic Normalized Local Corpus Store.
+**Next Track:** Phase C — Local READ / Member-Centric Search + Hydration.
+
+### Phase B-1 — Atomic Normalized Local Corpus Store (2026-09-21)
+
+**Authority:** 본 절 · Local WRITE SSOT cutover
+
+**Code owners:**
+- `domain/dataset/infra/canonicalNormalizedCorpusStore.ts`
+- `domain/dataset/infra/persistWorkingCorpusNormalizedAuthority.ts`
+- `application/flows/saveFlow.ts` · `derivedApprovalFlow.ts`
+
+**Contract tests:** `domain/dataset/canonicalNormalizedCorpus.contract.test.ts`
+
+#### Local WRITE SSOT (LIVE)
+
+```text
+localStorage key: normalized_dataset
+type: NormalizedDatasetEnvelope (schemaVersion = 3)
+contents: familyMasters[] + familyMembers[]
+```
+
+- **SAVE success** = validate + ONE durable canonical commit (+ read-back) only.
+- Flat `positions_dataset` = **compatibility projection** (written after canonical; not authority).
+- `family_masters` / `family_members` = **best-effort shadow** (not authority).
+- same Position + same `sourceSlot` across Families = **legal** in canonical storage.
+- Flat packing / SLOT_COLLISION does **not** forbid canonical multi-Family states.
+- Repository `positions.json` remains flat schemaVersion **2** until Phase D.
+- Manual Export / Publish / Search algorithms unchanged this Phase.
+
+#### Atomicity
+
+| Level | Status |
+|-------|--------|
+| In-memory build + validate | YES |
+| Application (no write on invalid) | YES |
+| Storage (single-key setItem) | YES |
+
+**Next Track:** Phase C — Local READ / Member-Centric Search + Hydration.
 
 **Production SSOT (검증 완료, 2026-06):**
 

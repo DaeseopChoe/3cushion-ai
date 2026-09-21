@@ -281,8 +281,7 @@ import {
   saveWorkingDataset,
   importDatasetFromFile,
 } from "./domain/dataset/infra/datasetStorage";
-import { persistPositionsDatasetWithGeneration } from "./domain/dataset/infra/persistPositionsDatasetWithGeneration";
-import { syncPositionDatasetToNormalizedFamilyStore } from "./domain/family/syncPositionDatasetToNormalizedFamilyStore";
+import { persistWorkingCorpusNormalizedAuthority } from "./domain/dataset/infra/persistWorkingCorpusNormalizedAuthority";
 import { useAutoCapture } from "./domain/dataset/autoCapture";
 import {
   adminSysFromRecallEntry,
@@ -2166,11 +2165,21 @@ export default function App({
 
     try {
       const normalized = await importDatasetFromFile(file);
-      // Phase 3A-335: invalidate → positions → generation, then stamp shadow.
-      const corpusPersist = persistPositionsDatasetWithGeneration(normalized);
+      // Phase B-1: canonical normalized commit first; flat = compatibility.
+      const corpusPersist = persistWorkingCorpusNormalizedAuthority({
+        dataset: normalized,
+        shotType:
+          normalizePublishedShotTypeHint(adminState?.sys?.shotType) ??
+          "뒤돌리기",
+        systemId:
+          adminState?.sys?.system_id ??
+          adminState?.sys?.systemId ??
+          adminState?.sys?.system ??
+          "5_half_system",
+      });
       if (!corpusPersist.ok) {
         console.warn(
-          "[Import] safe corpus persist failed",
+          "[Import] canonical corpus persist failed",
           corpusPersist.stage,
           corpusPersist.reason
         );
@@ -2180,9 +2189,6 @@ export default function App({
         return;
       }
       setDataset(normalized);
-      syncPositionDatasetToNormalizedFamilyStore(normalized, {
-        corpusGeneration: corpusPersist.corpusGeneration,
-      });
     } catch (err) {
       alert(err?.message ?? "Failed to import dataset.json");
     }
@@ -2459,7 +2465,7 @@ export default function App({
         alert(`파생 승인 실패: ${result.reason}`);
         return;
       }
-      commitDerivedApprovalDataset({
+      const commit = commitDerivedApprovalDataset({
         resultDataset: result.dataset,
         baselineSnapshot: reviewBaselineSnapshotRef.current,
         saveWorkingDataset,
@@ -2467,6 +2473,12 @@ export default function App({
         restoreDerivedReviewSnapshot,
         commitWorkspaceHistoryWithStrategyDataset,
       });
+      if (!commit.canonicalOk) {
+        alert(
+          `파생 승인 저장 실패: ${commit.canonicalReason ?? "canonical corpus persist failed"}`
+        );
+        return;
+      }
       setUnifiedDerivedReview(null);
       derivedReviewUi.resetReviewUi();
       reviewBaselineSnapshotRef.current = null;

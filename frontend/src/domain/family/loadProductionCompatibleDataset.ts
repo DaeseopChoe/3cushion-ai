@@ -1,16 +1,23 @@
 /**
- * Phase 3A-342 — Gated production READ boundary.
+ * Phase 3A-342 / B-1 — Production READ boundary.
  *
- * Durable WRITE SSOT remains positions_dataset.
- * Normalized family_* is an optional READ projection when:
- *   flag ON ∧ corpus fresh ∧ compatible hydration succeeds.
- * Otherwise always fall back to loadWorkingDataset().
+ * Phase B-1 WRITE SSOT = canonical NormalizedDatasetEnvelope
+ *   (localStorage key: normalized_dataset).
  *
- * READ never mutates positions, meta, or family stores.
- * Phase 3A-349: production default flag ON; eligibility gate unchanged.
+ * READ preference:
+ *   1. Canonical envelope → rematerialize (when possible)
+ *   2. Else flat positions_dataset compatibility projection
+ *   3. Else gated family_* shadow rematerialize (legacy freshness path)
+ *
+ * Search algorithm unchanged — still consumes PositionRecord[].
+ * READ never mutates storage.
  */
 
 import { loadWorkingDataset } from "../dataset/infra/datasetStorage";
+import {
+  loadCanonicalNormalizedCorpus,
+} from "../dataset/infra/canonicalNormalizedCorpusStore";
+import { rematerializeFamilyPartsToPositionRecords } from "./rematerializeFamilyPartsToPositionRecords";
 import type { PositionRecord } from "../positionSearchEngine";
 import { isFamilyNormalizedStorageEnabled } from "./familyNormalizedFlag";
 import {
@@ -22,14 +29,20 @@ import {
   type LoadFamilyCompatibleDatasetResult,
 } from "./loadFamilyCompatibleDataset";
 
-export type ProductionCompatibleReadSource = "legacy" | "normalized";
+export type ProductionCompatibleReadSource =
+  | "legacy"
+  | "normalized"
+  | "canonical";
 
 export type ProductionCompatibleReadReason =
   | "flag_off"
   | "freshness_ineligible"
   | "hydration_failed"
   | "hydration_exception"
-  | "normalized_eligible";
+  | "normalized_eligible"
+  | "canonical_rematerialized"
+  | "canonical_present_flat_fallback"
+  | "canonical_absent_legacy";
 
 export type LoadProductionCompatibleDatasetResult = {
   dataset: PositionRecord[];
@@ -43,10 +56,36 @@ export type LoadProductionCompatibleDatasetResult = {
 
 /**
  * Production corpus READ for App startup / reload.
- * Never writes storage. Failures → legacy positions_dataset (or empty catch of loader).
+ * Never writes storage.
  */
 export function loadProductionCompatibleDataset(): LoadProductionCompatibleDatasetResult {
   const legacy = loadWorkingDataset();
+
+  // Prefer canonical single-key corpus when present and rematerializable.
+  try {
+    const canonical = loadCanonicalNormalizedCorpus();
+    if (canonical.ok && canonical.present) {
+      const remat = rematerializeFamilyPartsToPositionRecords({
+        masters: canonical.envelope.familyMasters,
+        members: canonical.envelope.familyMembers,
+      });
+      if (remat.ok) {
+        return {
+          dataset: remat.dataset,
+          source: "canonical",
+          reason: "canonical_rematerialized",
+        };
+      }
+      // SLOT_COLLISION etc. — flat compatibility may still serve Search until Phase C.
+      return {
+        dataset: legacy,
+        source: "legacy",
+        reason: "canonical_present_flat_fallback",
+      };
+    }
+  } catch {
+    /* fall through to legacy / shadow paths */
+  }
 
   if (!isFamilyNormalizedStorageEnabled()) {
     return {

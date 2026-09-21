@@ -8,8 +8,9 @@
 // Batch 6 STEP 6-4: profile / anchors via App-injected HELPER (D-006 / D-007 Closed).
 //
 // 핵심 불변 조건:
-//   Durable corpus write uses persistPositionsDatasetWithGeneration
-//   (invalidate → positions → generation). Then setDataset + saveWorkingDataset DI.
+//   Durable corpus write uses persistWorkingCorpusNormalizedAuthority
+//   (canonical NormalizedDatasetEnvelope commit first; flat = compatibility).
+//   React mirror via setDataset + saveWorkingDataset DI after canonical ok.
 //   localStorage 직접 접근 금지 in this flow.
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
@@ -40,10 +41,12 @@ import {
 } from "../../domain/publishOperation";
 import { writeFourTrackFamilyMembers } from "../../domain/family/familyAwareWriter";
 import {
-  syncPositionDatasetToNormalizedFamilyStore,
   type NormalizedDualWriteResult,
 } from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
-import { persistPositionsDatasetWithGeneration } from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
+import {
+  persistWorkingCorpusNormalizedAuthority,
+} from "../../domain/dataset/infra/persistWorkingCorpusNormalizedAuthority";
+import type { PersistPositionsWithGenerationResult } from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
 import { createPositionId } from "../../domain/positionId";
 import { upsertPositionRecord } from "../../domain/positionMergeEngine";
 
@@ -132,12 +135,14 @@ export type SaveFlowResult = {
   /** Trusted edit source at OVERWRITE time (NONE on SAVE). */
   overwriteSourceKind?: EditSourceKind;
   /**
-   * Phase 3A-326 shadow dual-write result. Failure never rolls back positions_dataset.
-   * Production READ still uses legacy corpus.
+   * Phase B-1: family_* compatibility shadow (best-effort after canonical).
+   * Does not gate SAVE success.
    */
   normalizedDualWrite?: NormalizedDualWriteResult;
-  /** Phase 3A-335 corpus persist stage when durable write/gen commit failed. */
-  corpusPersistStage?: "invalidate" | "positions" | "generation";
+  /** Phase B-1: flat positions_dataset compatibility projection result. */
+  flatProjection?: PersistPositionsWithGenerationResult;
+  /** Canonical normalized commit stage when authority write failed. */
+  corpusPersistStage?: "migrate" | "compose" | "canonical" | "invalidate" | "positions" | "generation";
 };
 
 export type SaveFlowContext = {
@@ -569,11 +574,16 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     effectiveRenderKeys: Object.keys(ctx.resolvedSlotSysValues || {}),
   });
 
-  // Phase 3A-335: invalidate → positions → generation (fail-closed).
-  const corpusPersist = persistPositionsDatasetWithGeneration(updated);
+  // Phase B-1: canonical NormalizedDatasetEnvelope commit FIRST.
+  // Flat positions_dataset is compatibility projection only (after canonical ok).
+  const corpusPersist = persistWorkingCorpusNormalizedAuthority({
+    dataset: updated,
+    shotType: normalizePublishedShotTypeHint(shotType) ?? shotType,
+    systemId,
+  });
   if (!corpusPersist.ok) {
     console.warn(
-      "[SAVE] safe corpus persist failed",
+      "[SAVE] canonical normalized corpus persist failed",
       corpusPersist.stage,
       corpusPersist.reason
     );
@@ -589,15 +599,21 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     };
   }
 
-  // DS-002: React mirror + DI callback after durable commit succeeds.
+  // DS-002: React mirror + DI callback after durable canonical commit succeeds.
   ctx.setDataset(updated);
   ctx.saveWorkingDataset(updated);
 
-  // Phase 3A-326/335: shadow sync stamped with committed N.
-  const normalizedDualWrite = syncPositionDatasetToNormalizedFamilyStore(
-    updated,
-    { corpusGeneration: corpusPersist.corpusGeneration }
-  );
+  const normalizedDualWrite: NormalizedDualWriteResult =
+    corpusPersist.shadowSync.ok === true
+      ? corpusPersist.shadowSync
+      : {
+          ok: false,
+          stage: "exception",
+          reason:
+            "reason" in corpusPersist.shadowSync
+              ? String(corpusPersist.shadowSync.reason)
+              : "family_* shadow not written",
+        };
   ctx.patchSlotRuntimeMeta(slotId, {
     targetBall:
       ctx.targetColor === "red" || ctx.targetColor === "yellow"
@@ -678,6 +694,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     ok: true,
     updated,
     normalizedDualWrite,
+    flatProjection: corpusPersist.flatProjection,
     saveIntent,
     destinationFamilyId,
     overwriteSourceKind:

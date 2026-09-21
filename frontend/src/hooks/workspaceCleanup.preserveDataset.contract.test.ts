@@ -466,21 +466,26 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
     expect(isNormalizedCorpusFresh()).toBe(false);
   });
 
-  describe("failure-window after preserve", () => {
-    it("A: positions persist failure → not fresh", () => {
+  describe("failure-window after preserve (Phase B-1)", () => {
+    it("A: flat positions projection failure → SAVE still ok when canonical commits", () => {
       seedAtGeneration(17);
       runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
       forcePersistPositionsFailureForTests("positions");
-      expect(runSaveStrategy(buildSaveCtx()).ok).toBe(false);
+      const result = runSaveStrategy(buildSaveCtx());
+      expect(result.ok).toBe(true);
+      expect(result.flatProjection?.ok).toBe(false);
       clearPersistPositionsFailureForTests();
+      // Shadow freshness may be false when flat projection/generation skipped.
       expect(isNormalizedCorpusFresh()).toBe(false);
     });
 
-    it("B: generation commit failure → not fresh", () => {
+    it("B: flat generation commit failure → SAVE still ok when canonical commits", () => {
       seedAtGeneration(17);
       runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
       forcePersistPositionsFailureForTests("generation");
-      expect(runSaveStrategy(buildSaveCtx()).ok).toBe(false);
+      const result = runSaveStrategy(buildSaveCtx());
+      expect(result.ok).toBe(true);
+      expect(result.flatProjection?.ok).toBe(false);
       clearPersistPositionsFailureForTests();
       expect(isNormalizedCorpusFresh()).toBe(false);
     });

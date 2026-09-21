@@ -1,11 +1,12 @@
 /**
- * Phase A — Canonical Normalized Dataset Leaf Envelope + Validator.
+ * Phase A/B-1 — Canonical Normalized Dataset Leaf Envelope + Validator.
  *
+ * Local WRITE SSOT (Phase B-1): localStorage `normalized_dataset`
  * Future Production leaf (filename still positions.json):
  *   familyMasters[] + familyMembers[]
  *
- * Flat DatasetExportPayload.records[] remains LIVE export/publish SSOT until cutover.
- * This module is contract-only — no WRITE/READ/Export/Publish wiring.
+ * Flat DatasetExportPayload.records[] remains LIVE export/publish until Phase D.
+ * Flat positions_dataset is Local compatibility projection only (not WRITE authority).
  *
  * Storage ≠ Runtime: PositionRecord/StrategyEntry are hydrate projections only.
  */

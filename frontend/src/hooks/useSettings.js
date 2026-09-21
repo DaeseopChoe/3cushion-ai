@@ -41,6 +41,7 @@ import {
 } from "../domain/datasetPath";
 import { canonicalDebugLog } from "../domain/canonicalPersistAudit";
 import { POSITIONS_DATASET_META_KEY } from "../domain/dataset/infra/positionsDatasetMeta";
+import { CANONICAL_NORMALIZED_CORPUS_KEY } from "../domain/dataset/infra/canonicalNormalizedCorpusStore";
 import { refreshPublishedDataset } from "../domain/publishedDatasetStore";
 
 async function getOrCreateDir(parent, name) {
@@ -74,6 +75,7 @@ export function listWorkspaceCleanupPreservedKeys() {
   return [
     POSITIONS_DATASET_STORAGE_KEY,
     POSITIONS_DATASET_META_KEY,
+    CANONICAL_NORMALIZED_CORPUS_KEY,
     ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
     ONE_POINT_CATEGORY_LIBRARY_STORAGE_KEY,
     ANCHORS_OVERRIDE_STORAGE_KEY,
@@ -95,7 +97,7 @@ export function listLocalStorageKeysExcept(exceptKeys) {
 
 /**
  * Local workspace cleanup ([로컬 삭제]).
- * KEEP: positions_dataset + meta + AI one-point libraries + anchors override.
+ * KEEP: positions_dataset + meta + normalized_dataset + AI one-point libraries + anchors override.
  * DELETE: workspace_history, family_* shadow, and other non-preserved keys.
  * Never bulk-clears storage; never touches repo published dataset files.
  * @returns {string[]} keys removed

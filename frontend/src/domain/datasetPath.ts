@@ -8,8 +8,8 @@
  *
  * Leaf schema versions:
  * - DATASET_EXPORT_SCHEMA_VERSION (2) = flat records[] (current LIVE export/publish)
- * - NORMALIZED_DATASET_SCHEMA_VERSION (3) = familyMasters[]+familyMembers[] (Phase A contract;
- *   not yet Production WRITE SSOT)
+ * - NORMALIZED_DATASET_SCHEMA_VERSION (3) = familyMasters[]+familyMembers[]
+ *   Local WRITE SSOT since Phase B-1 (`normalized_dataset`); repository leaf still v2 until Phase D
  */
 
 import { getSystemNameKo } from "../utils/aiPlayStrategyBuilder";

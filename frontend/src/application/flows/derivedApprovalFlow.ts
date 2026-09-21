@@ -1,15 +1,13 @@
 // application/flows/derivedApprovalFlow.ts
-// Derived Approval → working dataset + workspace history (no canonical SAVE).
+// Derived Approval → canonical normalized corpus mutate (no canonical SAVE).
 
 import type { PositionRecord } from "../../domain/positionSearchEngine";
 import {
-  persistPositionsDatasetWithGeneration,
-  type PersistPositionsWithGenerationResult,
-} from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
-import {
-  syncPositionDatasetToNormalizedFamilyStore,
-  type NormalizedDualWriteResult,
-} from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
+  persistWorkingCorpusNormalizedAuthority,
+} from "../../domain/dataset/infra/persistWorkingCorpusNormalizedAuthority";
+import type { PersistPositionsWithGenerationResult } from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
+import type { NormalizedDualWriteResult } from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
+import { normalizePublishedShotTypeHint } from "./recallHydrateFlow";
 
 /** Review-start baseline captured by App.jsx captureDerivedReviewSnapshot. */
 export type DerivedReviewBaselineSnapshot = {
@@ -42,6 +40,9 @@ export type DerivedApprovalCommitContext = {
     updated: PositionRecord[],
     runtimeOverride?: DerivedApprovalHistoryRuntimeOverride
   ) => void;
+  /** Leaf metadata for normalized envelope (defaults applied if omitted). */
+  shotType?: string;
+  systemId?: string;
 };
 
 export function baselineSnapshotToHistoryRuntime(
@@ -58,30 +59,63 @@ export function baselineSnapshotToHistoryRuntime(
 }
 
 export type DerivedApprovalCommitResult = {
-  /** Phase 3A-326 shadow dual-write; failure never rolls back positions_dataset. */
+  /** Phase B-1 family_* compatibility shadow; never rolls back canonical. */
   normalizedDualWrite: NormalizedDualWriteResult;
-  /** Phase 3A-335 corpus persist result. */
+  /** Flat compatibility projection result (after canonical). */
   corpusPersist: PersistPositionsWithGenerationResult;
+  /** True when authoritative normalized corpus commit succeeded. */
+  canonicalOk: boolean;
+  canonicalReason?: string;
 };
 
 /**
- * Persist approved Derived members, restore pre-review authoring runtime.
+ * Persist approved Derived members via canonical normalized commit first.
  * Single successor workspace_history snapshot is committed by runCanonicalSave.
  * Must not call runSaveStrategy / runCanonicalSave or double-append history.
  */
 export function commitDerivedApprovalDataset(
   ctx: DerivedApprovalCommitContext
 ): DerivedApprovalCommitResult {
-  // Phase 3A-335: invalidate → positions → generation (fail-closed).
-  const corpusPersist = persistPositionsDatasetWithGeneration(ctx.resultDataset);
+  const adminSys = ctx.baselineSnapshot?.adminState as
+    | { sys?: Record<string, unknown> }
+    | undefined;
+  const shotType =
+    normalizePublishedShotTypeHint(ctx.shotType) ??
+    normalizePublishedShotTypeHint(adminSys?.sys?.shotType) ??
+    "뒤돌리기";
+  const systemId =
+    (typeof ctx.systemId === "string" && ctx.systemId.trim()
+      ? ctx.systemId.trim()
+      : "") ||
+    (typeof adminSys?.sys?.system_id === "string"
+      ? adminSys.sys.system_id
+      : "") ||
+    (typeof adminSys?.sys?.systemId === "string"
+      ? adminSys.sys.systemId
+      : "") ||
+    "5_half_system";
+
+  const corpusPersist = persistWorkingCorpusNormalizedAuthority({
+    dataset: ctx.resultDataset,
+    shotType,
+    systemId,
+  });
+
   if (!corpusPersist.ok) {
     console.warn(
-      "[APPROVAL] safe corpus persist failed",
+      "[APPROVAL] canonical normalized corpus persist failed",
       corpusPersist.stage,
       corpusPersist.reason
     );
     return {
-      corpusPersist,
+      canonicalOk: false,
+      canonicalReason: corpusPersist.reason,
+      corpusPersist: {
+        ok: false,
+        stage: "generation",
+        reason: corpusPersist.reason,
+        previousGeneration: null,
+      },
       normalizedDualWrite: {
         ok: false,
         stage: "generation",
@@ -93,14 +127,25 @@ export function commitDerivedApprovalDataset(
   ctx.setDataset(ctx.resultDataset);
   ctx.saveWorkingDataset?.(ctx.resultDataset);
 
-  const normalizedDualWrite = syncPositionDatasetToNormalizedFamilyStore(
-    ctx.resultDataset,
-    { corpusGeneration: corpusPersist.corpusGeneration }
-  );
+  const normalizedDualWrite: NormalizedDualWriteResult =
+    corpusPersist.shadowSync.ok === true
+      ? corpusPersist.shadowSync
+      : {
+          ok: false,
+          stage: "exception",
+          reason:
+            "reason" in corpusPersist.shadowSync
+              ? String(corpusPersist.shadowSync.reason)
+              : "family_* shadow not written",
+        };
 
   if (ctx.baselineSnapshot) {
     ctx.restoreDerivedReviewSnapshot(ctx.baselineSnapshot);
   }
 
-  return { normalizedDualWrite, corpusPersist };
+  return {
+    canonicalOk: true,
+    normalizedDualWrite,
+    corpusPersist: corpusPersist.flatProjection,
+  };
 }
