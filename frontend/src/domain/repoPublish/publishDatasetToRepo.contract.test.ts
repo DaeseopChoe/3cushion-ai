@@ -758,7 +758,7 @@ describe("wiring", () => {
     expect(src).not.toMatch(/closeBundle[\s\S]*publish-dataset/);
   });
 
-  it("WorkspaceHistoryModal exposes Publish + 수동 Export in separate groups", () => {
+  it("WorkspaceHistoryModal exposes Publish only (no Manual Export UI)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(
       join(here, "../../components/WorkspaceHistoryModal.jsx"),
@@ -766,20 +766,20 @@ describe("wiring", () => {
     );
     expect(src).toContain("onPublish");
     expect(src).toContain("Publish");
-    expect(src).toContain("수동 Export");
+    expect(src).toContain("publishInFlight");
     expect(src).toContain("workspace-history-actions-left");
     expect(src).toContain("workspace-history-actions-right");
-    // Standalone English Export label must not be the button text
+    // Phase D-3: user-facing Manual Export removed
+    expect(src).not.toContain("수동 Export");
+    expect(src).not.toContain("onExport");
+    expect(src).not.toContain("showDirectoryPicker");
     expect(src).not.toMatch(/>\s*Export\s*</);
-    // Manual Export sits with Close (right group), not beside Publish
     const leftIdx = src.indexOf("workspace-history-actions-left");
     const rightIdx = src.indexOf("workspace-history-actions-right");
     const publishInLeft = src.indexOf("Publish", leftIdx);
-    const manualInRight = src.indexOf("수동 Export", rightIdx);
     expect(leftIdx).toBeGreaterThan(-1);
     expect(rightIdx).toBeGreaterThan(leftIdx);
     expect(publishInLeft).toBeGreaterThan(leftIdx);
     expect(publishInLeft).toBeLessThan(rightIdx);
-    expect(manualInRight).toBeGreaterThan(rightIdx);
   });
 });

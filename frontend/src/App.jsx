@@ -791,11 +791,11 @@ export default function App({
   const [overlayContent, setOverlayContent] = useState(null);
   const userToast = useUserToast(3000);
 
-  
+
   // ============================================
   // ShotSlots & TrajectoryState 훅 연결 (ballsState 이후에 연결)
   // ============================================
-  
+
   // ============================================
   // 관리자 모드 상태 (v0)
   // ============================================
@@ -1346,8 +1346,8 @@ export default function App({
     handleLoadWorkspaceSnapshot,
     handleDeleteWorkspaceSnapshot,
     handleDeleteOldest30,
-    handleExportSnapshots,
     handlePublishSnapshots,
+    publishInFlight,
     editSourceContext,
     clearEditSourceContext,
   } = useSettings({
@@ -1866,14 +1866,14 @@ export default function App({
           })
         )
       : [];
-  
+
   // ============================================
   // USER MODE 코칭 표시 상태
   // ============================================
   const [showCoaching, setShowCoaching] = useState(false);
   // false: 배치만 표시 (임펙트볼/가이드 비표시)
   // true: 코칭 결과 표시 (임펙트볼/가이드 표시)
-  
+
   // Ball drag state (ballsState는 adminState 직후에 선언됨)
   const [dragState, setDragState] = useState({
   // dragging: pointer capture 동안만 true (Freeze 적용 구간)
@@ -2017,7 +2017,7 @@ export default function App({
   // ============================================
   // 관리자 모드 헬퍼 함수
   // ============================================
-  
+
   // 권한 체크
   const canEdit = appMode === "ADMIN";
 
@@ -3112,7 +3112,7 @@ export default function App({
     if (dragState.dragging) {
       handlePointerUp({ pointerId: null });
     }
-    
+
     // 조이스틱 숨김
     setDragState(prev => ({ ...prev, joystickVisible: false }));
 
@@ -3121,7 +3121,7 @@ export default function App({
     if (buttonId === "AI") {
       hydrateAiCommentEditorSessionIfNeeded();
     }
-    
+
     setOverlayState({
       open: true,
       type: buttonId
@@ -3234,20 +3234,20 @@ export default function App({
     setBallsState((prev) => {
       const cur = prev?.[ballId];
       if (!cur) return prev;
-      
+
       // ⭐ impact drag: temporary CONTACT edit — cushion-near range
       let minX = 0.5;
       let maxX = 79.5;
       let minY = 0.5;
       let maxY = 39.5;
-      
+
       if (ballId === "impact") {
         minX = -CUSHION_RG;
         maxX = 80 + CUSHION_RG;
         minY = -CUSHION_RG;
         maxY = 40 + CUSHION_RG;
       }
-      
+
       const next = {
         x: clamp(cur.x + dx, minX, maxX),
         y: clamp(cur.y + dy, minY, maxY),
@@ -3414,7 +3414,7 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     // ✅ ADMIN 모드에서는 기존(USER) overlayContent 흐름을 막는다
     if (appMode === "ADMIN") return;
-    
+
     if (!currentButtonId) return;
 
     hideBallPositionController();
@@ -4055,10 +4055,10 @@ function handleJoyPadPointerCancel(e) {
     const url = shot.file === "canonical.json"
       ? `${basePath}/B2T_R/canonical.json`
       : `${basePath}/${shot.file}`;
-    
-       
+
+
     fetch(url)
-    
+
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -4126,7 +4126,7 @@ function handleJoyPadPointerCancel(e) {
     function handleKeyDown(e) {
       // ✅ 조건 3: input/textarea 포커스 시 동작 금지
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-      
+
       // Ctrl+Alt+A: 관리자 모드 토글 (Ctrl+Shift+A는 호환 alias)
       const isAdminToggle =
         e.ctrlKey &&
@@ -4136,13 +4136,13 @@ function handleJoyPadPointerCancel(e) {
         e.preventDefault();
         handleToggleAdminMode();
       }
-      
+
       // ESC: 오버레이 닫기
       if (e.key === "Escape" && overlayState.open) {
         closeOverlay();
       }
     }
-    
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [appMode, overlayState.open]);
@@ -4548,18 +4548,18 @@ function handleJoyPadPointerCancel(e) {
   // 자동 분리 알고리즘
   function autoSeparate(draggedBall, otherBalls, maxIterations = 3) {
     const MIN_DISTANCE = BALL_DIAMETER_RG;
-    
+
     for (let iter = 0; iter < maxIterations; iter++) {
       let hasOverlap = false;
-      
+
       otherBalls.forEach(other => {
         const dx = draggedBall.x - other.x;
         const dy = draggedBall.y - other.y;
         const dist = Math.hypot(dx, dy);
-        
+
         if (dist < MIN_DISTANCE) {
           hasOverlap = true;
-          
+
           // dist=0 가드 (1e-3만큼만 이동)
           if (dist < 1e-6) {
             draggedBall.x += 1e-3;
@@ -4571,16 +4571,16 @@ function handleJoyPadPointerCancel(e) {
           }
         }
       });
-      
+
       draggedBall.x = clamp(draggedBall.x, 0.5, 79.5);
       draggedBall.y = clamp(draggedBall.y, 0.5, 39.5);
-      
+
       if (!hasOverlap) return true;
     }
-    
+
     return false;
   }
-  
+
   // 드래그 핸들러
 // 드래그/선택 핸들러
 
@@ -6683,8 +6683,8 @@ function handlePointerCancel(e) {
             }}
             onDelete={handleDeleteWorkspaceSnapshot}
             onDeleteOldest30={handleDeleteOldest30}
-            onExport={handleExportSnapshots}
             onPublish={handlePublishSnapshots}
+            publishInFlight={publishInFlight}
           />
         </Suspense>
       )}
@@ -7103,7 +7103,7 @@ function handlePointerCancel(e) {
           />
         </Suspense>
       ) : null}
-      
+
       {/* USER Calculation chrome — Overlay 밖 상단 버튼 (계산 모드에서 항상 표시) */}
       {appMode === "USER" && userTableDisplayMode === "trajectory" ? (
         <UserCalcToolbar

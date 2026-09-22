@@ -685,6 +685,8 @@ describe("Git Publish diagnostic propagation", () => {
       "utf8"
     );
     expect(settingsSrc).toContain("result.issues.slice(0, 12)");
-    expect(settingsSrc).toContain("Git Publish 실패");
+    // Phase D-3: failure copy is beginner-first Publish incomplete (not "Git Publish 실패")
+    expect(settingsSrc).toContain("Publish가 완료되지 않았습니다.");
+    expect(settingsSrc).toContain("Published 완료로 표시하지 않았습니다.");
   }, 60_000);
 });

@@ -157,7 +157,12 @@ export function deleteOldest30(): WorkspaceSnapshot[] {
   return next;
 }
 
-/** 선택된 스냅샷들의 exported를 true로 업데이트 */
+/**
+ * Mark snapshots as officially Published.
+ * Phase D-3: callers must only invoke after PRODUCTION_VERIFIED.
+ * Legacy History rows may already have exported:true from prior Manual Export
+ * or older soft-success paths — D-3 does not migrate those.
+ */
 export function updateSnapshotsExported(ids: string[]): void {
   const history = loadWorkspaceHistory();
   const idSet = new Set(ids);

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import {
   loadWorkspaceHistory,
   saveWorkspaceHistory,
@@ -121,6 +121,77 @@ export function runWorkspaceLocalStorageCleanup(mode) {
   return removedKeys;
 }
 
+/** Phase D-3 — user-facing failure stage label from orchestrator result. */
+function formatPublishFailureStage(result) {
+  const status = String(result?.production?.status ?? result?.status ?? "");
+  const reason = String(result?.reason ?? "");
+  const key = status || reason;
+  if (
+    key.includes("PRODUCTION_VERIFY_TIMEOUT") ||
+    status === "PRODUCTION_VERIFY_TIMEOUT"
+  ) {
+    return "Git Push까지 완료됐지만 배포 확인 시간이 초과되었습니다.";
+  }
+  if (
+    key.includes("PRODUCTION_VERIFY_FAILED") ||
+    key.includes("SEMANTIC") ||
+    key.includes("mismatch")
+  ) {
+    return "Published 데이터 검증 단계에서 불일치가 확인되었습니다.";
+  }
+  if (
+    result?.localCommit ||
+    key.includes("LOCAL_COMMITTED") ||
+    key.includes("GIT_PUSH")
+  ) {
+    return "Git Push 단계에서 실패했습니다.";
+  }
+  if (
+    key.includes("GIT_COMMIT") ||
+    key.includes("GIT_STAGE") ||
+    key.includes("GIT_PREFLIGHT")
+  ) {
+    return "Git 단계에서 실패했습니다.";
+  }
+  if (
+    key.includes("READBACK") ||
+    key.includes("FILE_WRITE") ||
+    key.includes("REPO_WRITE")
+  ) {
+    return "저장소 파일 쓰기/확인 단계에서 실패했습니다.";
+  }
+  if (
+    key.includes("TARGET_RESOLVE") ||
+    key.includes("VALIDATE") ||
+    key.includes("validation")
+  ) {
+    return "검증 단계에서 실패했습니다.";
+  }
+  if (key) {
+    return `실패 단계: ${key}`;
+  }
+  return "Publish 파이프라인에서 실패했습니다.";
+}
+
+/** Phase D-3 — retry guidance matched to backend state (do not lie). */
+function formatPublishRetryHint(result) {
+  const status = String(result?.production?.status ?? result?.status ?? "");
+  const reason = String(result?.reason ?? "");
+  if (
+    status === "PRODUCTION_VERIFY_TIMEOUT" ||
+    reason.includes("PRODUCTION_VERIFY_TIMEOUT")
+  ) {
+    return "잠시 후 다시 Publish하여 배포 상태를 확인할 수 있습니다.";
+  }
+  if (result?.localCommit) {
+    return "로컬 commit 상태를 확인한 뒤, 필요하면 관리자 절차로 Push/검증을 이어가세요. 자동 재시도를 강제하지 않습니다.";
+  }
+  if (result?.hostAvailable === false) {
+    return "localhost Vite 환경에서 다시 시도하세요.";
+  }
+  return "문제를 확인한 뒤 다시 Publish할 수 있습니다.";
+}
+
 /**
  * Workspace history / snapshot persistence (localStorage + optional folder export).
  * Canonical SAVE orchestration: strategy persistence runs in App; history append uses
@@ -144,6 +215,14 @@ export function useSettings({
   const [workspaceHistoryVersion, setWorkspaceHistoryVersion] = useState(0);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [exportDirHandle, setExportDirHandle] = useState(null);
+  /**
+   * Phase D-3 — Publish in-flight lock (handler-owned).
+   * Prevents double file-write / double commit / double push.
+   * Legacy note: `exported` on older History rows may mean prior Manual Export
+   * OR Publish; new D-3 marks only apply after PRODUCTION_VERIFIED.
+   */
+  const publishInFlightRef = useRef(false);
+  const [publishInFlight, setPublishInFlight] = useState(false);
   /** History Load → SAVE Cue-Only Edit Snap context (session only; not Schema). */
   const [editSourceContext, setEditSourceContext] = useState(null);
 
@@ -563,180 +642,171 @@ export function useSettings({
   );
 
   /**
-   * Phase 4-B/C: Git-enabled Publish + Production read-back (local Vite host only).
-   * C2 snapshots only. Preflight → repo write → commit → push → Production verify.
-   * Does not open picker. Does not auto-fallback to Export or repo-only.
-   * Phase 4-A repo-only endpoint remains available separately.
+   * Phase D-3: History Publish — sole official deployment action.
+   * Snapshot-bound PublishOperation + PublishFamilyPayload → normalized repo write
+   * → Git commit/push → Production semantic verify.
+   * SUCCESS (exported=true) only when status === PRODUCTION_VERIFIED.
+   * Push success / PRODUCTION_VERIFY_TIMEOUT are NOT completed.
+   * Does not open folder picker. Does not auto-fallback to Manual Export.
    */
   const handlePublishSnapshots = useCallback(async (ids) => {
-    if (!ids?.length) return;
-
-    const history = loadWorkspaceHistory();
-    const toPublish = ids
-      .map((id) => findSnapshotById(history, id))
-      .filter(Boolean);
-    if (toPublish.length === 0) return;
-
-    /** @type {import("../domain/repoPublish/publishDatasetToLocalRepo").LocalPublishClientItem[]} */
-    const items = [];
-    /** @type {{ id: string, reason: string }[]} */
-    const blocked = [];
-
-    for (const snap of toPublish) {
-      const op = readPublishOperationFromSnapshot(snap);
-      const payloadRead = readPublishFamilyPayloadFromSnapshot(snap);
-      if (!op) {
-        blocked.push({
-          id: snap.id,
-          reason: "legacy-snapshot-repo-publish-blocked",
-        });
-        continue;
-      }
-      if (!payloadRead.ok) {
-        blocked.push({
-          id: snap.id,
-          reason: payloadRead.reason ?? "payload-invalid",
-        });
-        continue;
-      }
-      if (
-        !payloadRead.payload ||
-        ("absent" in payloadRead && payloadRead.absent)
-      ) {
-        blocked.push({
-          id: snap.id,
-          reason: "c2-payload-required",
-        });
-        continue;
-      }
-      items.push({
-        snapshotId: snap.id,
-        shotType: snap.pattern ?? "뒤돌리기",
-        systemId: snap.systemId ?? "5_half_system",
-        publishOperation: op,
-        publishFamilyPayload: payloadRead.payload,
-      });
+    /** @type {{ ok: boolean, successfulIds: string[], reason?: string }} */
+    const emptyFail = { ok: false, successfulIds: [] };
+    if (!ids?.length) return emptyFail;
+    if (publishInFlightRef.current) {
+      return { ok: false, successfulIds: [], reason: "publish-in-flight" };
     }
 
-    if (items.length === 0) {
-      alert(
-        `Git Publish 불가 (C2 snapshot 필요)\n` +
-          blocked.map((b) => `${b.reason}`).join("\n") +
-          `\n\nLegacy/C1은 수동 Export(폴더 선택)를 사용하세요.`
-      );
-      return;
-    }
+    publishInFlightRef.current = true;
+    setPublishInFlight(true);
 
-    const result = await publishDatasetToLocalRepoWithGit(items);
-    if (!result.hostAvailable) {
-      alert(
-        `LOCAL_PUBLISH_HOST_UNAVAILABLE\n${
-          result.message ?? ""
-        }\n\n로컬 Vite 개발 서버에서 Publish하거나, 수동 Export(폴더 선택)를 사용하세요.`
-      );
-      return;
-    }
+    try {
+      const history = loadWorkspaceHistory();
+      const toPublish = ids
+        .map((id) => findSnapshotById(history, id))
+        .filter(Boolean);
+      if (toPublish.length === 0) return emptyFail;
 
-    const markExported = () => {
-      /** @type {string[]} */
-      const successfulIds = items.map((it) => it.snapshotId);
-      for (const it of items) {
-        refreshPublishedDataset(it.shotType, it.systemId);
+      /** @type {import("../domain/repoPublish/publishDatasetToLocalRepo").LocalPublishClientItem[]} */
+      const items = [];
+      /** @type {{ id: string, reason: string }[]} */
+      const blocked = [];
+
+      for (const snap of toPublish) {
+        const op = readPublishOperationFromSnapshot(snap);
+        const payloadRead = readPublishFamilyPayloadFromSnapshot(snap);
+        if (!op) {
+          blocked.push({
+            id: snap.id,
+            reason: "legacy-snapshot-repo-publish-blocked",
+          });
+          continue;
+        }
+        if (!payloadRead.ok) {
+          blocked.push({
+            id: snap.id,
+            reason: payloadRead.reason ?? "payload-invalid",
+          });
+          continue;
+        }
+        if (
+          !payloadRead.payload ||
+          ("absent" in payloadRead && payloadRead.absent)
+        ) {
+          blocked.push({
+            id: snap.id,
+            reason: "c2-payload-required",
+          });
+          continue;
+        }
+        items.push({
+          snapshotId: snap.id,
+          shotType: snap.pattern ?? "뒤돌리기",
+          systemId: snap.systemId ?? "5_half_system",
+          publishOperation: op,
+          publishFamilyPayload: payloadRead.payload,
+        });
       }
-      refreshPublishedDataset();
-      updateSnapshotsExported(successfulIds);
-      setWorkspaceHistoryVersion((v) => v + 1);
-      return successfulIds;
-    };
 
-    if (result.ok) {
-      const successfulIds = markExported();
-      const sha = result.commit ? `HEAD: ${result.commit.slice(0, 7)}\n` : "";
-      if (result.status === "PRODUCTION_VERIFIED") {
+      if (items.length === 0) {
+        alert(
+          `Publish가 완료되지 않았습니다.\n` +
+            `검증 단계에서 실패했습니다.\n` +
+            `C2 snapshot(PublishOperation + PublishFamilyPayload)이 필요합니다.\n` +
+            blocked.map((b) => b.reason).join("\n") +
+            `\nPublished 완료로 표시하지 않았습니다.`
+        );
+        return { ok: false, successfulIds: [], reason: "validation-blocked" };
+      }
+
+      const result = await publishDatasetToLocalRepoWithGit(items);
+      if (!result.hostAvailable) {
+        alert(
+          `Publish가 완료되지 않았습니다.\n` +
+            `로컬 Publish 환경을 사용할 수 없습니다.\n` +
+            `${result.message ?? result.reason ?? ""}\n` +
+            `로컬 Vite 개발 서버(localhost)에서만 Publish할 수 있습니다.\n` +
+            `Published 완료로 표시하지 않았습니다.`
+        );
+        return {
+          ok: false,
+          successfulIds: [],
+          reason: "LOCAL_PUBLISH_HOST_UNAVAILABLE",
+        };
+      }
+
+      // Strict SUCCESS: PRODUCTION_VERIFIED only.
+      if (result.ok && result.status === "PRODUCTION_VERIFIED") {
+        /** @type {string[]} */
+        const successfulIds = items.map((it) => it.snapshotId);
+        for (const it of items) {
+          refreshPublishedDataset(it.shotType, it.systemId);
+        }
+        refreshPublishedDataset();
+        updateSnapshotsExported(successfulIds);
+        setWorkspaceHistoryVersion((v) => v + 1);
+        const sha = result.commit ? `HEAD: ${result.commit.slice(0, 7)}\n` : "";
         if (result.gitStatus === "VERIFIED_NO_CHANGE") {
           alert(
-            `${successfulIds.length}개 Git Publish\n` +
-              `No repository changes\n` +
-              `Production verified\n` +
+            `Publish 완료\n` +
+              `저장소에 추가 변경은 없었습니다.\n` +
+              `Published 데이터 검증까지 완료되었습니다.\n` +
               sha
           );
         } else {
           alert(
-            `${successfulIds.length}개 Git Publish\n` +
-              `Repository updated\n` +
-              `Git committed\n` +
-              `Push complete\n` +
-              `Production verified\n` +
+            `Publish 완료\n` +
+              `Published 데이터 검증까지 완료되었습니다.\n` +
               sha
           );
         }
-      } else if (result.status === "VERIFIED_NO_CHANGE") {
-        alert(
-          `${successfulIds.length}개 Git Publish 완료 (NO_CHANGE)\n` +
-            `변경 없음 — commit/push 생략`
-        );
-      } else {
-        alert(
-          `${successfulIds.length}개 Git Publish\n` +
-            `Push complete\n` +
-            sha
-        );
+        return { ok: true, successfulIds };
       }
-      return;
+
+      const prodStatus =
+        result.production?.status ?? result.status ?? result.reason ?? "";
+      const stageLabel = formatPublishFailureStage(result);
+      const retryHint = formatPublishRetryHint(result);
+
+      const failLines = [
+        "Publish가 완료되지 않았습니다.",
+        stageLabel,
+        result.reason ? `원인: ${result.reason}` : "",
+        Array.isArray(result.issues) && result.issues.length > 0
+          ? result.issues.slice(0, 12).join("\n")
+          : "",
+        result.localCommit
+          ? "로컬 Git commit은 있을 수 있지만 Publish는 완료되지 않았습니다. 자동 되돌리기는 하지 않습니다."
+          : "",
+        result.repoWritten && !result.localCommit
+          ? "저장소 파일은 쓰여졌을 수 있지만 Git/배포 확인은 완료되지 않았습니다."
+          : "",
+        prodStatus && prodStatus !== result.reason
+          ? `상태: ${prodStatus}`
+          : "",
+        "Published 완료로 표시하지 않았습니다.",
+        retryHint,
+        ...blocked.map((b) => b.reason),
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      alert(failLines);
+      return {
+        ok: false,
+        successfulIds: [],
+        reason: String(result.reason ?? result.status ?? "publish-failed"),
+      };
+    } finally {
+      publishInFlightRef.current = false;
+      setPublishInFlight(false);
     }
-
-    // Git succeeded; Production observation incomplete (not a Git rollback).
-    if (
-      result.gitStatus === "PUSHED" ||
-      result.gitStatus === "VERIFIED_NO_CHANGE"
-    ) {
-      const successfulIds = markExported();
-      const sha = result.commit ? `HEAD: ${result.commit.slice(0, 7)}\n` : "";
-      const prodStatus = result.production?.status ?? result.status ?? "";
-      if (result.gitStatus === "VERIFIED_NO_CHANGE") {
-        alert(
-          `${successfulIds.length}개 Git Publish\n` +
-            `No repository changes\n` +
-            `Production verification timed out\n` +
-            `(${prodStatus})\n` +
-            sha +
-            `Production did not reach expected dataset within verification window.`
-        );
-      } else {
-        alert(
-          `${successfulIds.length}개 Git Publish\n` +
-            `Push complete\n` +
-            `Production verification timed out\n` +
-            `(${prodStatus})\n` +
-            sha +
-            `Production did not reach expected dataset within verification window.`
-        );
-      }
-      return;
-    }
-
-    const failDetail = [
-      result.status ? `status: ${result.status}` : "",
-      result.reason,
-      // Field-level issues (e.g. records[n].strategies.S1.meta:missing); UI truncates display only.
-      ...(Array.isArray(result.issues) ? result.issues.slice(0, 12) : []),
-      result.localCommit
-        ? `LOCAL_COMMITTED (push 실패 — reset 금지, 수동 확인)`
-        : "",
-      result.repoWritten
-        ? `repo write는 되었을 수 있음 — Git commit 없음`
-        : "",
-      ...blocked.map((b) => b.reason),
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    alert(`Git Publish 실패\n${failDetail}`);
   }, []);
 
   /**
    * Phase 4-A repo-only Publish (no Git). Kept for recovery / advanced use.
-   * Not wired to primary Publish button.
+   * Not wired to primary Publish button. Does NOT mark History as official
+   * Publish SUCCESS (D-3: PRODUCTION_VERIFIED only via Git Publish path).
    */
   const handleRepoOnlyPublishSnapshots = useCallback(async (ids) => {
     if (!ids?.length) return;
@@ -771,14 +841,13 @@ export function useSettings({
     const successfulIds = (result.results || [])
       .filter((r) => r.ok)
       .map((r) => r.snapshotId);
+    // D-3: do not mark History exported — repo-only is not PRODUCTION_VERIFIED.
     if (successfulIds.length > 0) {
-      updateSnapshotsExported(successfulIds);
-      setWorkspaceHistoryVersion((v) => v + 1);
       refreshPublishedDataset();
     }
     alert(
       result.ok
-        ? `Repo-only Publish 완료 (${successfulIds.length})`
+        ? `Repo-only write 완료 (${successfulIds.length}) — History Published 표시 안 함`
         : `Repo-only Publish 실패: ${result.reason}`
     );
   }, []);
@@ -793,6 +862,7 @@ export function useSettings({
     handleDeleteOldest30,
     handleExportSnapshots,
     handlePublishSnapshots,
+    publishInFlight,
     handleRepoOnlyPublishSnapshots,
     editSourceContext,
     clearEditSourceContext,

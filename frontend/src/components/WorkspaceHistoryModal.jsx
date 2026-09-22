@@ -2,7 +2,9 @@
  * Workspace History Modal
  * - 상단: [ 전체선택 ] [ 로컬데이터 ] [ Unexported ]
  * - 개별 행: 체크박스 (선택/해제, Shift 범위선택) + 행 클릭 시 Workspace Load
- * - 하단 LEFT: Delete / Publish · RIGHT: 수동 Export / 닫기 (공간 분리)
+ * - 하단 LEFT: Delete / Publish · RIGHT: 닫기
+ * Phase D-3: user-facing action = Publish only (independent Manual Export UI removed).
+ * `exported` flag = PRODUCTION_VERIFIED Publish success (legacy field name kept).
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ModalShell from "./common/ModalShell";
@@ -12,12 +14,17 @@ export default function WorkspaceHistoryModal({
   onClose,
   onLoad,
   onDelete,
-  onExport,
   onPublish,
+  /** Phase D-3 — true while Publish pipeline is running (handler-owned). */
+  publishInFlight = false,
 }) {
   const [tab, setTab] = useState("all"); // "all": 로컬데이터, "unexported": Unexported
   const [selectedIds, setSelectedIds] = useState([]);
   const lastCheckedIndexRef = useRef(null);
+  const localPublishBusyRef = useRef(false);
+  const [localPublishBusy, setLocalPublishBusy] = useState(false);
+
+  const busy = publishInFlight || localPublishBusy;
 
   const sorted = useMemo(() => {
     return [...(history ?? [])].sort(
@@ -34,14 +41,18 @@ export default function WorkspaceHistoryModal({
 
   useEffect(() => {
     const handleEsc = (e) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === "Escape") {
+        if (busy) return;
+        onClose?.();
+      }
     };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, [onClose]);
+  }, [onClose, busy]);
 
   // View/Filter 전환 시 selection 및 shift-range 기준 reset
   const handleSwitchTab = (nextTab) => {
+    if (busy) return;
     if (tab === nextTab) return;
     setTab(nextTab);
     setSelectedIds([]);
@@ -53,6 +64,7 @@ export default function WorkspaceHistoryModal({
     currentList.every((snap) => selectedIds.includes(snap.id));
 
   const handleToggleSelectAll = () => {
+    if (busy) return;
     if (currentList.length === 0) return;
     if (isAllSelected) {
       setSelectedIds([]);
@@ -64,6 +76,7 @@ export default function WorkspaceHistoryModal({
 
   const handleCheckboxClick = (e, snap, index) => {
     e.stopPropagation();
+    if (busy) return;
     const isShift = e.shiftKey;
     const currentId = snap.id;
     const isCurrentlyChecked = selectedIds.includes(currentId);
@@ -100,6 +113,7 @@ export default function WorkspaceHistoryModal({
   };
 
   const handleDeleteSelected = () => {
+    if (busy) return;
     if (selectedIds.length === 0) return;
     const count = selectedIds.length;
     if (window.confirm(`선택한 Workspace ${count}개를 삭제하시겠습니까?`)) {
@@ -109,43 +123,46 @@ export default function WorkspaceHistoryModal({
     }
   };
 
-  const handleExport = async () => {
-    if (selectedIds.length === 0) {
-      alert("Export할 스냅샷을 선택하세요.");
-      return;
-    }
-    const ids = [...selectedIds];
-    setSelectedIds([]);
-    lastCheckedIndexRef.current = null;
-    try {
-      await onExport?.(ids);
-    } catch (e) {
-      console.warn("Export failed", e);
-    }
-  };
-
   const handlePublish = async () => {
+    if (busy || localPublishBusyRef.current) return;
+    if (!onPublish) return;
     if (selectedIds.length === 0) {
       alert("Publish할 스냅샷을 선택하세요.");
       return;
     }
     const ids = [...selectedIds];
-    setSelectedIds([]);
-    lastCheckedIndexRef.current = null;
+    // Do NOT clear selection before await — keep for failure retry.
+    localPublishBusyRef.current = true;
+    setLocalPublishBusy(true);
     try {
-      await onPublish?.(ids);
+      const result = await onPublish(ids);
+      if (result?.ok && Array.isArray(result.successfulIds)) {
+        const done = new Set(result.successfulIds);
+        setSelectedIds((prev) => prev.filter((id) => !done.has(id)));
+        lastCheckedIndexRef.current = null;
+      }
     } catch (e) {
       console.warn("Publish failed", e);
+    } finally {
+      localPublishBusyRef.current = false;
+      setLocalPublishBusy(false);
     }
   };
 
+  const handleClose = () => {
+    if (busy) return;
+    onClose?.();
+  };
+
   const formatName = (name) => name.replace(/_(\d{4}-\d{2}-\d{2})$/, "");
+  const publishDisabled = busy || selectedIds.length === 0 || !onPublish;
+  const deleteDisabled = busy || selectedIds.length === 0;
 
   return (
     <ModalShell
       open
-      onClose={onClose}
-      draggable
+      onClose={handleClose}
+      draggable={!busy}
       fixed
       zIndex={100}
       variant="history"
@@ -181,14 +198,15 @@ export default function WorkspaceHistoryModal({
         <button
           type="button"
           className="modal-panel-close"
-          onClick={onClose}
+          onClick={handleClose}
+          disabled={busy}
           aria-label="닫기"
           style={{
             fontSize: 26,
-            color: "#94a3b8",
+            color: busy ? "#cbd5e1" : "#94a3b8",
             background: "none",
             border: "none",
-            cursor: "pointer",
+            cursor: busy ? "not-allowed" : "pointer",
             lineHeight: 1,
             padding: 0,
           }}
@@ -213,16 +231,27 @@ export default function WorkspaceHistoryModal({
         <button
           type="button"
           onClick={handleToggleSelectAll}
-          disabled={currentList.length === 0}
+          disabled={busy || currentList.length === 0}
           style={{
             padding: "8px 18px",
             fontSize: 15,
             fontWeight: 600,
-            color: currentList.length === 0 ? "#94a3b8" : isAllSelected ? "#2563eb" : "#475569",
-            backgroundColor: currentList.length === 0 ? "#f1f5f9" : isAllSelected ? "#eff6ff" : "#ffffff",
+            color:
+              busy || currentList.length === 0
+                ? "#94a3b8"
+                : isAllSelected
+                  ? "#2563eb"
+                  : "#475569",
+            backgroundColor:
+              busy || currentList.length === 0
+                ? "#f1f5f9"
+                : isAllSelected
+                  ? "#eff6ff"
+                  : "#ffffff",
             border: isAllSelected ? "1px solid #3b82f6" : "1px solid #cbd5e1",
             borderRadius: 8,
-            cursor: currentList.length === 0 ? "not-allowed" : "pointer",
+            cursor:
+              busy || currentList.length === 0 ? "not-allowed" : "pointer",
             transition: "all 0.15s ease",
           }}
         >
@@ -235,6 +264,7 @@ export default function WorkspaceHistoryModal({
         <button
           type="button"
           onClick={() => handleSwitchTab("all")}
+          disabled={busy}
           style={{
             padding: "8px 18px",
             fontSize: 15,
@@ -243,17 +273,18 @@ export default function WorkspaceHistoryModal({
             backgroundColor: tab === "all" ? "#3b82f6" : "#ffffff",
             border: tab === "all" ? "1px solid #3b82f6" : "1px solid #cbd5e1",
             borderRadius: 8,
-            cursor: "pointer",
+            cursor: busy ? "not-allowed" : "pointer",
             transition: "all 0.15s ease",
           }}
         >
           로컬데이터
         </button>
 
-        {/* View: Unexported */}
+        {/* View: Unexported (= not yet PRODUCTION_VERIFIED Publish) */}
         <button
           type="button"
           onClick={() => handleSwitchTab("unexported")}
+          disabled={busy}
           style={{
             padding: "8px 18px",
             fontSize: 15,
@@ -262,12 +293,25 @@ export default function WorkspaceHistoryModal({
             backgroundColor: tab === "unexported" ? "#3b82f6" : "#ffffff",
             border: tab === "unexported" ? "1px solid #3b82f6" : "1px solid #cbd5e1",
             borderRadius: 8,
-            cursor: "pointer",
+            cursor: busy ? "not-allowed" : "pointer",
             transition: "all 0.15s ease",
           }}
         >
           Unexported
         </button>
+
+        {busy ? (
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#2563eb",
+            }}
+          >
+            Publish 진행 중…
+          </span>
+        ) : null}
       </div>
 
       {/* Body List */}
@@ -374,7 +418,7 @@ export default function WorkspaceHistoryModal({
                       flexShrink: 0,
                     }}
                   >
-                    Exported
+                    Published
                   </span>
                 )}
               </div>
@@ -383,7 +427,7 @@ export default function WorkspaceHistoryModal({
         )}
       </div>
 
-      {/* Footer: primary LEFT (Delete/Publish) · secondary RIGHT (수동 Export/닫기) */}
+      {/* Footer: primary LEFT (Delete/Publish) · secondary RIGHT (닫기) */}
       <div
         style={{
           display: "flex",
@@ -411,46 +455,42 @@ export default function WorkspaceHistoryModal({
           <button
             type="button"
             onClick={handleDeleteSelected}
-            disabled={selectedIds.length === 0}
+            disabled={deleteDisabled}
             style={{
               padding: "10px 20px",
               fontSize: 15,
               fontWeight: 600,
               color: "#ffffff",
-              backgroundColor: selectedIds.length === 0 ? "#cbd5e1" : "#ef4444",
+              backgroundColor: deleteDisabled ? "#cbd5e1" : "#ef4444",
               border: "none",
               borderRadius: 8,
-              cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
+              cursor: deleteDisabled ? "not-allowed" : "pointer",
               transition: "background-color 0.15s ease",
             }}
           >
             Delete ({selectedIds.length})
           </button>
 
-          {/* Publish — primary normal workflow (Unexported tab) */}
+          {/* Publish — sole official deployment action (Unexported tab) */}
           {tab === "unexported" && (
             <button
               type="button"
               onClick={handlePublish}
-              disabled={selectedIds.length === 0 || !onPublish}
-              title="로컬 Vite → repo write → git commit → push origin/main (C2)"
+              disabled={publishDisabled}
+              title="로컬 Vite → repo write → git commit → push → Production 검증"
               style={{
                 padding: "10px 20px",
                 fontSize: 15,
                 fontWeight: 600,
                 color: "#ffffff",
-                backgroundColor:
-                  selectedIds.length === 0 || !onPublish ? "#94a3b8" : "#2563eb",
+                backgroundColor: publishDisabled ? "#94a3b8" : "#2563eb",
                 border: "none",
                 borderRadius: 8,
-                cursor:
-                  selectedIds.length === 0 || !onPublish
-                    ? "not-allowed"
-                    : "pointer",
+                cursor: publishDisabled ? "not-allowed" : "pointer",
                 transition: "background-color 0.15s ease",
               }}
             >
-              Publish
+              {busy ? "Publishing…" : "Publish"}
             </button>
           )}
         </div>
@@ -465,45 +505,20 @@ export default function WorkspaceHistoryModal({
             marginLeft: "auto",
           }}
         >
-          {/* 수동 Export — legacy/manual folder-picker fallback (not primary Publish) */}
-          {tab === "unexported" && (
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={selectedIds.length === 0}
-              title="수동 Export — 폴더 선택 (legacy/manual fallback)"
-              style={{
-                padding: "10px 16px",
-                fontSize: 14,
-                fontWeight: 500,
-                color: selectedIds.length === 0 ? "#94a3b8" : "#475569",
-                backgroundColor: selectedIds.length === 0 ? "#e2e8f0" : "#ffffff",
-                border:
-                  selectedIds.length === 0
-                    ? "1px solid #cbd5e1"
-                    : "1px solid #94a3b8",
-                borderRadius: 8,
-                cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
-                transition: "background-color 0.15s ease, border-color 0.15s ease",
-              }}
-            >
-              수동 Export
-            </button>
-          )}
-
           {/* 닫기 */}
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
+            disabled={busy}
             style={{
               padding: "10px 20px",
               fontSize: 15,
               fontWeight: 600,
               color: "#ffffff",
-              backgroundColor: "#64748b",
+              backgroundColor: busy ? "#94a3b8" : "#64748b",
               border: "none",
               borderRadius: 8,
-              cursor: "pointer",
+              cursor: busy ? "not-allowed" : "pointer",
               transition: "background-color 0.15s ease",
             }}
           >

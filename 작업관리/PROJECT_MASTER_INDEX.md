@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase D-3 — History ONE Publish UX (after D-2) |
+| **Next Track** | Phase E — Native Normalized Published Search (after D-3) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -399,11 +399,11 @@ Authority는 중복되지 않는다. Terminology 전용 추가 SSOT(`SEARCH_TERM
 
 ## User Communication Principles (Beginner-First)
 
-**Authority:** 본 절 · Project Operations / User Communication  
+**Authority:** 본 절 · Project Operations / User Communication
 **Not:** 코드·계산·Architecture SSOT (동작 규칙은 변경하지 않는다)
 
-프로젝트 소유자는 **비개발자**이다.  
-AI Agent·Cursor·문서 작성자가 작업 결과·오류·다음 행동을 설명할 때  
+프로젝트 소유자는 **비개발자**이다.
+AI Agent·Cursor·문서 작성자가 작업 결과·오류·다음 행동을 설명할 때
 **개발 용어·status code·파일 경로만으로 끝내지 않는다.**
 
 ### Required order
@@ -441,9 +441,9 @@ Cursor Agent **최종 보고서**는 사용자가 ChatGPT에 **그대로 전달*
 
 ### Example (shape only)
 
-> Publish가 실패한 것은 새 데이터가 잘못돼서가 아닙니다.  
-> Publish하려는 파일에 예전 테스트 변경이 남아 있어서,  
-> 프로그램이 덮어쓰지 않도록 먼저 멈춘 것입니다.  
+> Publish가 실패한 것은 새 데이터가 잘못돼서가 아닙니다.
+> Publish하려는 파일에 예전 테스트 변경이 남아 있어서,
+> 프로그램이 덮어쓰지 않도록 먼저 멈춘 것입니다.
 > (status: `PRE_EXISTING_TARGET_DIRTY`)
 
 ---
@@ -1156,7 +1156,7 @@ PositionRecord[]           = runtime projection KEEP
 
 #### External flat boundaries (unchanged until D-2/E)
 
-- Manual Export schemaVersion 2 (UI still present — D-3 removes independent Export)
+- Manual Export schemaVersion 2 (UI removed in D-3; internal helper may remain unwired)
 - PublishOperation / PublishFamilyPayload (History transport — unchanged)
 - repository `positions.json` **still flat v2** (physical leaf not cut over)
 - Published Search still flat reader
@@ -1210,10 +1210,40 @@ PositionRecord[]           = runtime projection KEEP
 **What is NOT active:**
 - Bulk dataset/** migration
 - Native Member-centric Published Search (Phase E)
-- History ONE Publish UX / 수동 Export removal (Phase D-3)
 - Local SSOT change
 
-**Next Track:** Phase D-3 — History ONE Publish UX.
+**Next Track:** Phase D-3 — History ONE Publish UX. (COMPLETE — see below)
+
+### Phase D-3 — History ONE Publish UX (2026-09-22)
+
+**Authority:** 본 절 · History user-facing deployment action = Publish only
+
+**Product rules (fixed):**
+- History user-facing action = **Publish only**
+- Independent Manual Export UI **removed**
+- Internal repository file-write remains inside Publish pipeline (D-2 normalized v3 writer)
+- Strict SUCCESS = **PRODUCTION_VERIFIED** only
+- `PRODUCTION_VERIFY_TIMEOUT` / Git push failure / semantic mismatch → **NOT** completed (`exported` not set)
+- Publish in-flight duplicate protection (handler-owned ref + UI disable)
+- Failure stage UX (beginner-first messages)
+- SAVE remains Local-only
+- Local Search / Published Search remain separate
+- Publish remains localhost admin environment only
+- Repository writer remains normalized v3; Published reader remains v2/v3 adapter
+- Tab label **Unexported** retained (means not yet PRODUCTION_VERIFIED Publish)
+- Legacy History `exported:true` rows are **not** auto-migrated
+
+**Code owners:**
+- `components/WorkspaceHistoryModal.jsx` (Publish-only footer; selection retained until success)
+- `hooks/useSettings.js` (`handlePublishSnapshots` strict SUCCESS + `publishInFlight`)
+- `App.jsx` (wires `onPublish` + `publishInFlight`; no `onExport`)
+
+**What is NOT active:**
+- Native Member-centric Published Search rewrite (Phase E)
+- History schema migration / PublishOperation / PublishFamilyPayload schema change
+- D-2 writer / Local SSOT / C-0 / Search architecture change
+
+**Next Track:** Phase E — Native Normalized Published Search Audit/Implementation.
 
 **Production SSOT (검증 완료, 2026-06):**
 
@@ -1225,13 +1255,14 @@ PositionRecord[]           = runtime projection KEEP
 > **`dataset/`은 작업용 데이터가 아니라 Production Search가 사용하는 Published Corpus SSOT이다.**
 > 절대 `.gitignore` 대상이 되어서는 안 된다.
 
-### Dataset Export (Phase 1 — 완료)
+### Dataset Export (legacy internal — UI removed Phase D-3)
 
-- History Export 버튼 → `handleExportSnapshots` → `saveDatasetExportToFile`
-- 경로: `dataset/{공략명}/{시스템명}/positions.json` (폴더 자동 생성)
-- Envelope: `schemaVersion: 2`, `records: PositionRecord[]`
+- History user-facing Manual Export **removed** (D-3). Official path = Publish only.
+- Internal helper `handleExportSnapshots` / `saveDatasetExportToFile` may remain unwired for migration/tests.
+- Publish path uses D-2 normalized repository writer (not this Manual Export path).
+- 경로 (Publish auto-resolve): `dataset/{공략명}/{시스템명}/positions.json`
+- Legacy Envelope reader: `schemaVersion: 2` still supported for untouched leaves
 - 코드 SSOT: `domain/datasetExport.ts`, `domain/datasetPath.ts`, `hooks/useSettings.js`
-- Export 단위: 선택 스냅샷의 `state.dataset` → `systemId` + `shotType` 필터 (Position 1건이 아닌 **Dataset Export**)
 
 ### Published Dataset Loader (Phase 2 — 완료)
 

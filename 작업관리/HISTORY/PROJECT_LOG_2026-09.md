@@ -6,6 +6,53 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-22 — Phase D-3 History ONE Publish UX
+
+## Mode
+
+**Agent** · History user-facing Publish only · Manual Export UI removed · Strict SUCCESS = PRODUCTION_VERIFIED
+
+## Background (Phase D-2)
+
+Normalized repository write (v3) + v2/v3 reader adapter complete.
+History still exposed Publish + independent Manual Export; soft SUCCESS on push/timeout remained.
+
+## Delivered
+
+- WorkspaceHistoryModal: remove 수동 Export; Publish-only; in-flight disables Publish/Delete/Close; selection kept until SUCCESS
+- `handlePublishSnapshots`: `exported` only after `PRODUCTION_VERIFIED`; timeout/push/semantic failure never mark complete
+- Handler-owned `publishInFlight` lock (double-click → single pipeline)
+- Stage-aware beginner-first failure messages; success copy = "Publish 완료"
+- App wiring: `onPublish` + `publishInFlight`; no `onExport`
+- Internal `handleExportSnapshots` / file-write helpers retained unwired (migration/guard/tests)
+- Contracts: `historyOnePublishUx.contract.test.ts` + updated wiring test
+- Docs: MASTER_INDEX D-3 COMPLETE
+
+## Not changed
+
+- dataset/** (no real Publish)
+- D-2 normalized writer / Published v2/v3 reader semantics
+- PublishOperation / PublishFamilyPayload schemas
+- History schema (exported flag meaning clarified for new ops only; no migration)
+- Local `normalized_dataset` SSOT; SAVE Local-only
+- Local Search / Published Search runtime
+- product_export ABSENT; incidenceAngle.ts preserved
+
+## Tab terminology decision
+
+**Unexported** tab label retained — means not yet PRODUCTION_VERIFIED Publish. Rename deferred (not required for D-3 correctness).
+
+## Next
+
+Phase E — Native Normalized Published Search Audit/Implementation
+(Do not auto-start; wait for user review.)
+
+## Commit
+
+`feat(history): unify publishing into one verified action`
+
+---
+
 # 2026-09-22 — Phase D-2 Normalized Publisher + Published Read Adapter Cutover
 
 ## Mode
@@ -568,13 +615,13 @@ Fresh History Publish attempt failed with:
 - status: `PRE_EXISTING_TARGET_DIRTY`
 - dirty-target: `dataset/뒤돌리기/파이브앤하프/positions.json`
 
-New SAVE/Derived data was **not** validated yet (preflight blocked before write).  
-Root cause: pre-existing **disposable test-data** modification on the Publish target.  
+New SAVE/Derived data was **not** validated yet (preflight blocked before write).
+Root cause: pre-existing **disposable test-data** modification on the Publish target.
 Publish guard itself was **CORRECT** and remains unchanged.
 
 ## Actions
 
-1. `git restore -- dataset/뒤돌리기/파이브앤하프/positions.json` only  
+1. `git restore -- dataset/뒤돌리기/파이브앤하프/positions.json` only
    → target dirty cleared (HEAD match)
 2. `frontend/src/domain/trajectory/incidenceAngle.ts` **untouched** (still untracked)
 3. No legacy migration · no other dataset restore · no Publish
@@ -582,7 +629,7 @@ Publish guard itself was **CORRECT** and remains unchanged.
 
 ## Next
 
-User retries the **same** History item Publish in the app  
+User retries the **same** History item Publish in the app
 (no need to recreate SAVE/Derived data).
 
 ## Commit
@@ -644,7 +691,7 @@ User retries the **same** History item Publish in the app
 
 ## Next
 
-Fresh verification data via app: **SAVE → Derived → History → Publish**  
+Fresh verification data via app: **SAVE → Derived → History → Publish**
 Do **not** repair remaining legacy meta:missing on test leaf first.
 
 ## Commit
@@ -794,7 +841,7 @@ Keep the occurrence whose Exact balls match **current Product SSOT reconstructio
 
 ## Meta rebuild owner
 
-`rebuildCanonicalMemberMeta` → `evaluateStrategy` → `buildStrategyMeta`  
+`rebuildCanonicalMemberMeta` → `evaluateStrategy` → `buildStrategyMeta`
 (repo registry via `getSystemContract` bound in CLI only)
 
 ## Dry-run results (live scan SSOT)
@@ -1324,15 +1371,15 @@ Principles recorded there:
 
 ## User manual validation (SYS screen) — all PASS
 
-1. 밀림/끌림 독립 `[-]`  
-2. 기울기 독립 `[-]`  
-3. 스핀 독립 `[-]`  
-4. CO 무보정 시 「출발값」 표시  
-5. CO 무보정 시 불필요 curve 없음  
-6. spin → C3  
-7. CO 변경 시 기존 curve 정상  
-8. 밀림|끌림 + spin 동시 domain 분리 반영  
-9. 보정 계산식 표시 일치  
+1. 밀림/끌림 독립 `[-]`
+2. 기울기 독립 `[-]`
+3. 스핀 독립 `[-]`
+4. CO 무보정 시 「출발값」 표시
+5. CO 무보정 시 불필요 curve 없음
+6. spin → C3
+7. CO 변경 시 기존 curve 정상
+8. 밀림|끌림 + spin 동시 domain 분리 반영
+9. 보정 계산식 표시 일치
 
 ## Non-goals (this docs pass)
 
@@ -2846,7 +2893,7 @@ C2 formula / q/K / R0/R1b/P7 / USER search semantics unchanged.
 | Spin scale (Phase 2B) | Eligible C1_f: `finalθ = baseθ + rawSpin × K(q)` exactly once |
 | tip=0 | `effectiveSpin = 0` → Phase 2A bit-identical |
 
-q/K는 R1b base law의 일부가 아니다. P7과 q eligibility는 분리된다.  
+q/K는 R1b base law의 일부가 아니다. P7과 q eligibility는 분리된다.
 Short-rail C1_f는 base=R0를 유지하면서 tip≠0 시 K(q) 적용 가능.
 
 ## B. q/K v1 SSOT
