@@ -9,16 +9,21 @@
  * Flat PositionRecord.strategies S1/S2/S3 cardinality and normalized canonical
  * cardinality are aligned (not a migration debt; domain correction).
  *
+ * Phase C (2026-09-22): Local READ / Search SSOT = normalized_dataset.
+ * Search unit = FamilyMember geometry; Master resolved by familyId; selected
+ * Position Strategies (S1/S2/S3) rematerialized only after Member rank.
+ * Local Search does NOT read positions_dataset or family_* shadow as authority.
+ *
  * Remaining TEMPORARY_COMPATIBILITY_DUPLICATION:
- * - Flat positions_dataset = compatibility projection/cache for Search/Export/UI
- *   until Phase C/D (NOT WRITE authority).
+ * - Flat positions_dataset = compatibility projection/cache for Export/UI/SAVE
+ *   mirror until Phase D (NOT Local Search authority).
  * - family_masters / family_members = optional best-effort shadow (NOT authority).
  * - Hydrated StrategyEntry still carries Master common payload copies for
  *   flat-compatible consumers.
  *
  * Ends fully when:
- * - Phase C Member-centric READ/Search
  * - Phase D Export/Publish leaf schema v3
+ * - Published Search normalized
  * - flat projection / two-key shadow removed
  *
  * Do not treat copied sysInputs / corrections / ai / str / canonical hpT

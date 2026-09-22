@@ -111,12 +111,45 @@ export function rankRecordsForRecall(
     distanceMetric?: RecallDistanceMetric;
   }
 ): RankedRecallRow[] {
+  return rankBall3CandidatesForRecall(records, query, {
+    ...policy,
+    getBalls: (rec) => rec.balls,
+    getTargetBall: (rec) => rec.targetBall,
+    getTieBreakId: (rec) => rec.positionId,
+  }).map((row) => ({
+    record: row.candidate,
+    distance: row.distance,
+    coarsePass: row.coarsePass,
+    targetBallMatch: row.targetBallMatch,
+  }));
+}
+
+/** Generic Ball3 ranking — shared by flat PositionRecord and FamilyMember Local Search. */
+export type RankedBall3CandidateRow<T> = {
+  candidate: T;
+  distance: number;
+  coarsePass: boolean;
+  targetBallMatch: boolean;
+};
+
+export function rankBall3CandidatesForRecall<T>(
+  candidates: T[],
+  query: Ball3,
+  policy: {
+    coarsePerBall: number;
+    targetBall?: TargetBall | null;
+    distanceMetric?: RecallDistanceMetric;
+    getBalls: (c: T) => Ball3;
+    getTargetBall?: (c: T) => TargetBall | null | undefined;
+    getTieBreakId?: (c: T) => string;
+  }
+): RankedBall3CandidateRow<T>[] {
   const metric: RecallDistanceMetric = policy.distanceMetric ?? "manhattan";
   const want = normalizeTargetBallForKey(policy.targetBall);
-  const rows: RankedRecallRow[] = [];
+  const rows: RankedBall3CandidateRow<T>[] = [];
 
-  for (const rec of records) {
-    const stored = rec.balls;
+  for (const candidate of candidates) {
+    const stored = policy.getBalls(candidate);
     const coarsePass = passesCoarseStrictRoles(
       query,
       stored,
@@ -124,12 +157,12 @@ export function rankRecordsForRecall(
       metric
     );
     const distance = ball3AggregateDistance(query, stored, metric);
-
+    const tb = policy.getTargetBall?.(candidate);
     rows.push({
-      record: rec,
+      candidate,
       distance,
       coarsePass,
-      targetBallMatch: normalizeTargetBallForKey(rec.targetBall) === want,
+      targetBallMatch: normalizeTargetBallForKey(tb) === want,
     });
   }
 
@@ -138,8 +171,25 @@ export function rankRecordsForRecall(
     if (a.targetBallMatch !== b.targetBallMatch) {
       return a.targetBallMatch ? -1 : 1;
     }
-    return a.record.positionId.localeCompare(b.record.positionId);
+    const idA = policy.getTieBreakId?.(a.candidate) ?? "";
+    const idB = policy.getTieBreakId?.(b.candidate) ?? "";
+    return idA.localeCompare(idB);
   });
 
   return rows;
+}
+
+export function filterBall3CandidatesByTargetBallStrict<T>(
+  candidates: T[],
+  targetBall: TargetBall | null | undefined,
+  getTargetBall: (c: T) => TargetBall | null | undefined
+): { candidates: T[]; bucketApplied: boolean } {
+  const want = normalizeTargetBallForKey(targetBall);
+  const filtered = candidates.filter(
+    (c) => normalizeTargetBallForKey(getTargetBall(c)) === want
+  );
+  if (filtered.length > 0) {
+    return { candidates: filtered, bucketApplied: true };
+  }
+  return { candidates, bucketApplied: false };
 }

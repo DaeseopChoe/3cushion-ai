@@ -177,6 +177,11 @@ async function executeAdminRecall(
   ballsState: Ball3,
   targetColor: "red" | "yellow" = "yellow"
 ): Promise<{ ok: boolean; record: PositionRecord | null }> {
+  const { seedCanonicalLocalCorpusFromFlat } = await import(
+    "../../domain/recall/seedCanonicalCorpusForTests"
+  );
+  seedCanonicalLocalCorpusFromFlat(dataset);
+
   let record: PositionRecord | null = null;
   const ok = await runAdminLocalDbRecall({
     dataset,

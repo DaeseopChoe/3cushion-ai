@@ -20,6 +20,7 @@ import {
   WORKSPACE_HISTORY_KEY,
   type WorkspaceSnapshot,
 } from "../../domain/workspaceHistory";
+import { seedCanonicalLocalCorpusFromFlat } from "../../domain/recall/seedCanonicalCorpusForTests";
 
 function createMemoryLocalStorage() {
   const map = new Map<string, string>();
@@ -92,6 +93,7 @@ function derivedProductStrategy(overrides: Partial<StrategyEntry> = {}): Strateg
     familyId: "fm_test",
     memberId: "mb_test_prod_1",
     memberOrigin: "DERIVED_CUE_C3_PRODUCT",
+    generatedFromMemberId: "mb_test_auth",
     derivedRule: "CUE_C3_CARTESIAN_PRODUCT_V1",
     derivedStep: "cue:t:0.100000|c3:seg:0@0.100000",
     track: "B2T_L",
@@ -130,12 +132,29 @@ describe("Phase 1 — History Workspace and Local DB Search Corpus Separation", 
     v001SparseCorpus = [recAuth];
 
     // Build v005 (dense: authored + derived product records)
-    const recProd1 = makeRecord(derivedCueBalls, derivedProductStrategy({ memberId: "mb_prod_1" }));
-    const recProd2 = makeRecord(derivedProductBalls, derivedProductStrategy({ memberId: "mb_prod_2" }));
+    const recProd1 = makeRecord(
+      derivedCueBalls,
+      derivedProductStrategy({
+        memberId: "mb_prod_1",
+        derivedStep: "cue:t:0.100000|c3:seg:0@0.100000",
+      })
+    );
+    const recProd2 = makeRecord(
+      derivedProductBalls,
+      derivedProductStrategy({
+        memberId: "mb_prod_2",
+        derivedStep: "cue:t:0.200000|c3:seg:0@0.200000",
+      })
+    );
     fullSearchableCorpus = [recAuth, recProd1, recProd2];
 
-    // Seed localStorage positions_dataset with fullSearchableCorpus
+    // Seed localStorage positions_dataset with fullSearchableCorpus (compatibility only)
     localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(fullSearchableCorpus));
+    // Phase C: Local Search authority is normalized_dataset
+    seedCanonicalLocalCorpusFromFlat(fullSearchableCorpus, {
+      shotType: "옆돌리기",
+      systemId: "5_half_system",
+    });
 
     // Seed workspace_history with snapshots v001, v002, v005
     const snapshots: WorkspaceSnapshot[] = [
@@ -287,6 +306,10 @@ describe("Phase 1 — History Workspace and Local DB Search Corpus Separation", 
     // Create red targetBall record
     const redRecord = makeRecord(baseBalls, authoredStrategy(), "red");
     const corpusWithRed = [redRecord];
+    seedCanonicalLocalCorpusFromFlat(corpusWithRed, {
+      shotType: "옆돌리기",
+      systemId: "5_half_system",
+    });
 
     const { ctx, tracker } = buildSearchContext({
       ballsState: { ...baseBalls },

@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase C — Local READ / Member-Centric Search + Hydration (after B-1) |
+| **Next Track** | Post–Phase C: remaining consumer audit → Phase D Export/Publish cutover OR smaller flat/shadow cleanup |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -1082,6 +1082,49 @@ Families per Position: 0..3
 **Next Track:** Phase C — Local READ / Member-Centric Search + Hydration
 (Design must assume ≤3 Strategy candidates per Position match; not multiple Families per same Slot.)
 
+### Phase C — Local READ / Member-Centric Search + Hydration (2026-09-22)
+
+**Authority:** 본 절 · Normalized Local Search READ cutover
+
+**Code owners:** `domain/recall/normalizedLocalMemberSearch.ts` · `application/flows/adminLocalDbFlow.ts` · `domain/recall/recallCompare.ts` (generic Ball3 rank)
+
+#### FINAL Local SSOT
+
+```text
+LOCAL WRITE SSOT = normalized_dataset
+LOCAL READ  SSOT = normalized_dataset
+
+SEARCH UNIT     = FamilyMember.balls
+STRATEGY OWNER  = FamilyMaster (via member.familyId)
+POSITION        = createPositionId(member.balls)
+STRATEGIES      = S1 / S2 / S3 (0..1 Family each; C-0)
+```
+
+#### Pipeline
+
+```text
+normalized_dataset
+  → parseNormalizedDatasetEnvelope
+  → familyMembers[] Ball3 rank (shared euclidean primitives)
+  → winning Position's S1/S2/S3 Members preserved
+  → rematerialize ONLY those Members + Masters
+  → applyPositionRecall (runtime PositionRecord)
+```
+
+#### Authority gates
+
+| Key | Local Search authority |
+|-----|------------------------|
+| `normalized_dataset` | **YES** (only) |
+| `positions_dataset` | **NO** (compatibility / Export / App mirror) |
+| `family_masters` / `family_members` | **NO** |
+
+- invalid / missing canonical → **FAIL CLOSED** (no flat/shadow fallback)
+- empty valid normalized → **NO MATCH** (stale flat ignored)
+- Published Search remains flat `positions.json` (unchanged)
+
+**Next Track:** Determine from remaining consumers — likely Phase D Export/Publish cutover, or smaller compatibility cleanup if App mirror still depends heavily on flat projection outside Search.
+
 **Production SSOT (검증 완료, 2026-06):**
 
 - Published Dataset은 **Git 관리 대상**이다.
@@ -1129,7 +1172,7 @@ Families per Position: 0..3
 | Profile | coarsePerBall | totalL1Cap | 용도 |
 |---------|---------------|------------|------|
 | **userStrict** | 2 | 6 | USER Search · ADMIN Search (published; permutation, coarse 필수) |
-| **adminSearch** | 5 | 15 | ADMIN **로컬DB** (UI) — local `positions_dataset` |
+| **adminSearch** | 5 | 15 | ADMIN **로컬DB** (UI) — Local Search via `normalized_dataset` Members (Phase C) |
 | **adminStrict** | 6 | null | ADMIN **Search** (UI; published) · legacy `runPositionRecall` |
 
 ### Published Dataset 운영 검증 (Phase 3-2 — 완료)

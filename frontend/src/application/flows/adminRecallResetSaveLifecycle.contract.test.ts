@@ -28,6 +28,7 @@ import type {
   PositionRecord,
   StrategyEntry,
 } from "../../domain/positionSearchEngine";
+import { seedCanonicalLocalCorpusFromFlat } from "../../domain/recall/seedCanonicalCorpusForTests";
 
 const ballsRedTarget: Ball3 = {
   cue: { x: 10, y: 8 },
@@ -106,6 +107,7 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
   it("TEST A — Red Target Lifecycle: Red Target → Load (editable) → Edit → SAVE Success", async () => {
     const record = createSampleAuthoredRecord("pos_red_01", ballsRedTarget, "red");
     const dataset = [record];
+    seedCanonicalLocalCorpusFromFlat(dataset);
 
     let appliedDrafts: any = null;
     let layersVisible = false;

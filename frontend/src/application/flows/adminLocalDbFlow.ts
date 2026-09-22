@@ -1,20 +1,13 @@
 // application/flows/adminLocalDbFlow.ts
 // SRCH-001 — ADMIN LocalDB Recall Flow
-// Batch 3 STEP 3-5
 //
-// AD-B3-02: Hybrid Object Context (READ / WRITE / ACTION / HELPER 분리).
-// React import 금지. Hook 사용 금지. Named Export Only.
-//
-// Batch 6 STEP 6-4: formulaHash via App-injected HELPER (D-006 Closed).
+// Phase C: Local Search READ SSOT = normalized_dataset (FamilyMember search).
+// Never falls back to positions_dataset / family_* shadow.
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
-import { runSpatialRecall } from "../../domain/recall/recallEngine";
+import { runNormalizedLocalMemberSearch } from "../../domain/recall/normalizedLocalMemberSearch";
 import { makeSignatureKey } from "../../domain/search/signatureKey";
-import {
-  listStrategiesInRecord,
-  type Ball3,
-  type PositionRecord,
-} from "../../domain/positionSearchEngine";
+import type { Ball3, PositionRecord } from "../../domain/positionSearchEngine";
 import { readFamilyIdFromRecordSlot } from "../../domain/family/publishedEditSession";
 import { normalizeTargetBallForKey } from "../../domain/positionMergeEngine";
 import { ADMIN_SEARCH_SOFT_DISTANCE_WARN } from "../../domain/recall/recallProfiles";
@@ -31,8 +24,9 @@ import { adminSysFromRecallEntry } from "./recallHydrateFlow";
 type AdminState = Record<string, unknown>;
 
 export type AdminLocalDbFlowContext = {
-  // READ
-  dataset: PositionRecord[] | null | undefined;
+  // READ — Phase C: dataset is NOT Local Search authority (kept optional for
+  // transitional callers / diagnostics only).
+  dataset?: PositionRecord[] | null | undefined;
   ballsState: Record<string, unknown> | null | undefined;
   adminState: AdminState | null | undefined;
   activeSlot: string;
@@ -108,7 +102,7 @@ function rejectAdminRecallHydrateForMismatch(
 // ---------------------------------------------------------------------------
 
 /**
- * ADMIN strict recall — Working Dataset 검색 → Recall 적용 → AdminState 갱신.
+ * ADMIN LocalDB Search — Phase C Member-centric normalized_dataset READ.
  * match 여부를 Promise<boolean>으로 반환.
  */
 export async function runAdminLocalDbRecall(
@@ -135,39 +129,22 @@ export async function runAdminLocalDbRecall(
     shotType: "_",
   });
 
-  const ds = ctx.dataset ?? [];
-  const datasetSigKeys = new Set<string>();
-  for (const r of ds) {
-    for (const e of listStrategiesInRecord(r)) {
-      datasetSigKeys.add(makeSignatureKey(e.signature));
-    }
-  }
-
   const recallProfile = "adminSearch";
   console.log("[RECALL_QUERY]", {
     hypothesisId: "H_RECALL_QUERY",
     recallProfile,
+    readSource: "normalized_dataset",
     signatureKey,
     systemId,
     formulaHash,
     uiShotType: (sys?.shotType as string | undefined) ?? null,
-    datasetLength: ds.length,
-    uniqueSignatureKeysInDataset: [...datasetSigKeys].slice(0, 40),
-    uniqueKeyCount: datasetSigKeys.size,
-  });
-  console.log("[RECALL_DATASET_SIGNATURES]", {
-    datasetLength: ds.length,
-    signatures: [...datasetSigKeys],
   });
 
   // Spatial recall — Role Ball3 query (Phase 4: target↔target, second↔second)
   const searchQueryTargetBall = ctx.getAdminRecallQueryTargetBall();
 
   // Target NONE: Physical colors are not logical roles (Yellow != Target, Red != Second).
-  // When searchQueryTargetBall is null (Target=NONE), evaluate both candidate role permutations:
-  // 1) Target = Object Ball A (currentBalls.target), Second = Object Ball B (currentBalls.second)
-  // 2) Target = Object Ball B (currentBalls.second), Second = Object Ball A (currentBalls.target)
-  // When searchQueryTargetBall != null (explicit target chosen by user), evaluate only the single permutation.
+  // When searchQueryTargetBall is null (Target=NONE), evaluate both candidate role permutations.
   const candidateBallQueries: Ball3[] =
     searchQueryTargetBall != null
       ? [currentBalls]
@@ -182,52 +159,67 @@ export async function runAdminLocalDbRecall(
 
   let bestMatchRecord: PositionRecord | null = null;
   let bestMatchDistance = Infinity;
-  let bestSpatialResult: ReturnType<typeof runSpatialRecall> | null = null;
+  let bestSearchResult: ReturnType<typeof runNormalizedLocalMemberSearch> | null =
+    null;
   let bestMatchQueryBalls: Ball3 | null = null;
 
   for (const queryBalls of candidateBallQueries) {
-    const spatialResult = runSpatialRecall({
-      dataset: ds,
-      query: { balls: queryBalls, targetBall: searchQueryTargetBall },
+    const searchResult = runNormalizedLocalMemberSearch({
+      query: {
+        balls: queryBalls,
+        targetBall: searchQueryTargetBall as "red" | "yellow" | null | undefined,
+      },
       profile: recallProfile,
     });
 
-    if (spatialResult.kind === "match") {
-      if (spatialResult.distance < bestMatchDistance) {
-        bestMatchDistance = spatialResult.distance;
-        bestMatchRecord = spatialResult.record;
-        bestSpatialResult = spatialResult;
+    if (searchResult.kind === "match") {
+      if (searchResult.distance < bestMatchDistance) {
+        bestMatchDistance = searchResult.distance;
+        bestMatchRecord = searchResult.record;
+        bestSearchResult = searchResult;
         bestMatchQueryBalls = queryBalls;
-        if (spatialResult.distance === 0) {
+        if (searchResult.distance === 0) {
           break;
         }
       }
-    } else if (!bestSpatialResult) {
-      bestSpatialResult = spatialResult;
+    } else if (!bestSearchResult) {
+      bestSearchResult = searchResult;
     }
   }
 
   const result =
-    bestMatchRecord && bestSpatialResult?.kind === "match"
+    bestMatchRecord && bestSearchResult?.kind === "match"
       ? {
           kind: "match" as const,
           record: bestMatchRecord,
           distance: bestMatchDistance,
+          hits: bestSearchResult.hits,
         }
       : {
           kind: "no-match" as const,
           reason:
-            bestSpatialResult && bestSpatialResult.kind === "no-match"
-              ? bestSpatialResult.reason
+            bestSearchResult && bestSearchResult.kind === "no-match"
+              ? bestSearchResult.reason
               : "coarse-empty",
         };
 
   console.log("[RECALL_RESULT]", {
     profile: recallProfile,
+    readSource: "normalized_dataset",
     result,
-    spatialResult: bestSpatialResult,
+    searchResult: bestSearchResult,
     bestMatchQueryBalls,
   });
+
+  // Fail-closed: invalid / missing canonical never falls back to flat.
+  if (
+    result.kind === "no-match" &&
+    (result.reason === "canonical-invalid" ||
+      result.reason === "canonical-missing")
+  ) {
+    alert("로컬 데이터셋이 없거나 유효하지 않습니다");
+    return false;
+  }
 
   // No match
   if (!result || result.kind === "no-match") {
@@ -243,11 +235,14 @@ export async function runAdminLocalDbRecall(
   console.log("[RECALL_APPLY]", {
     positionId: result.record?.positionId,
     kind: result.kind,
+    strategySlots: bestSearchResult?.kind === "match"
+      ? bestSearchResult.meta.strategySlots
+      : [],
+    hits: result.hits,
   });
 
-  // Apply recall
+  // Apply recall — assembled PositionRecord preserves S1/S2/S3 at this Position.
   ctx.applyPositionRecall(result.record);
-  // Target color metadata: query lock preferred, else record (Ready after Reset unlock).
   const targetMeta = resolveAdminRecallTargetMeta({
     searchQueryTargetBall,
     recordTargetBall: result.record?.targetBall,
@@ -265,7 +260,7 @@ export async function runAdminLocalDbRecall(
     }));
   }
 
-  // Hydrate adminState.sys
+  // Hydrate adminState.sys from active Strategy Slot (selected FamilyMaster payload).
   const recallEntry = (result.record?.strategies as Record<string, unknown> | undefined)?.[ctx.activeSlot];
   if (recallEntry) {
     ctx.setAdminState((prev) => {
@@ -287,22 +282,20 @@ export async function runAdminLocalDbRecall(
   ctx.setIsAdminPublishedSearchMatched(true);
   // LocalDB recall: LOCAL ownership only (clear Published).
   ctx.setEditingPublishedFamilyId?.(null);
-  ctx.setEditingLocalFamilyId?.(
-    readFamilyIdFromRecordSlot(result.record, ctx.activeSlot)
-  );
+  const localFamilyId =
+    readFamilyIdFromRecordSlot(result.record, ctx.activeSlot as "S1" | "S2" | "S3") ??
+    result.hits.find((h) => h.sourceSlot === ctx.activeSlot)?.familyId ??
+    null;
+  ctx.setEditingLocalFamilyId?.(localFamilyId);
 
   if (result.distance > SOFT_DISTANCE_WARN) {
     alert("유사도 낮음");
   }
 
-  // Sync table balls into slots and keep editable (Load → editable; no Reset gate).
   if (!ctx.beginAdminInputSession()) {
-    // session 시작 실패 — recall은 match이지만 layer 표시 생략
     return true;
   }
-  // beginAdminInputSession already set session true — keep it.
 
-  // Post-match display: layers on + editable when Target Ready
   ctx.setAdminTableLayersVisible(true);
   ctx.setShowCoaching(true);
 

@@ -1,15 +1,20 @@
 /**
- * Phase 3A-342 / B-1 — Production READ boundary.
+ * Phase 3A-342 / B-1 / C — Production READ boundary for App corpus mirror.
  *
  * Phase B-1 WRITE SSOT = canonical NormalizedDatasetEnvelope
  *   (localStorage key: normalized_dataset).
  *
- * READ preference:
+ * Phase C Local Search does NOT use this loader — Search reads
+ * normalized_dataset Member-centrically via runNormalizedLocalMemberSearch.
+ *
+ * This loader still rematerializes for non-Search runtime consumers
+ * (SAVE working dataset mirror, Export projection inputs, etc.).
+ *
+ * Preference for App dataset mirror:
  *   1. Canonical envelope → rematerialize (when possible)
  *   2. Else flat positions_dataset compatibility projection
  *   3. Else gated family_* shadow rematerialize (legacy freshness path)
  *
- * Search algorithm unchanged — still consumes PositionRecord[].
  * READ never mutates storage.
  */
 

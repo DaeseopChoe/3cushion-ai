@@ -29,6 +29,8 @@ import {
 import { runSpatialRecall } from "../../domain/recall/recallEngine";
 import { runAdminLocalDbRecall } from "./adminLocalDbFlow";
 import type { PositionRecord } from "../../domain/positionSearchEngine";
+import { createPositionId } from "../../domain/positionId";
+import { seedCanonicalLocalCorpusFromFlat } from "../../domain/recall/seedCanonicalCorpusForTests";
 import {
   useCoachingController,
   computeCoachingState,
@@ -74,24 +76,26 @@ beforeEach(() => {
 });
 
 const baseBalls: BallsMap = {
-  cue: { x: 30, y: 70 },
-  target: { x: 20, y: 50 },
-  second: { x: 15, y: 30 },
+  cue: { x: 30, y: 35 },
+  target: { x: 20, y: 25 },
+  second: { x: 15, y: 15 },
 };
 
 const derivedCueBalls: BallsMap = {
-  cue: { x: 32, y: 68 },
-  target: { x: 20, y: 50 },
-  second: { x: 15, y: 30 },
+  cue: { x: 32, y: 34 },
+  target: { x: 20, y: 25 },
+  second: { x: 15, y: 15 },
 };
 
 const derivedSecondBalls: BallsMap = {
-  cue: { x: 30, y: 70 },
-  target: { x: 20, y: 50 },
-  second: { x: 16.5, y: 31.5 },
+  cue: { x: 30, y: 35 },
+  target: { x: 20, y: 25 },
+  second: { x: 16.5, y: 16.5 },
 };
 
 function makeSampleRecord(id: string, balls: BallsMap, targetBall?: "yellow" | "red"): PositionRecord {
+  const familyId = `fm_${id}`;
+  const memberId = `mb_${id}`;
   return {
     positionId: id,
     balls: {
@@ -100,9 +104,6 @@ function makeSampleRecord(id: string, balls: BallsMap, targetBall?: "yellow" | "
       second: { x: balls.second!.x, y: balls.second!.y },
     },
     targetBall: targetBall ?? "yellow",
-    familyId: "fam_001",
-    memberId: id,
-    memberOrigin: "AUTHORED",
     strategies: {
       S1: {
         slot: "S1",
@@ -111,11 +112,17 @@ function makeSampleRecord(id: string, balls: BallsMap, targetBall?: "yellow" | "
           formulaHash: "test_hash",
           shotType: "뒤돌리기",
         },
-        sysInputs: {},
+        sysInputs: { CO_f: 30, C3_r: 20 },
         hpT: { T: "8/8" },
-        str: "MEDIUM",
-        ai: "AI",
+        str: { speed: 2 },
+        ai: { text: "AI" },
         track: "B2T_L",
+        familyId,
+        memberId,
+        memberOrigin: "AUTHORED",
+        authoringStrategyId: `as_${id}`,
+        corrections: { slide: 0, curve_ratio: 0, draw: 0, departure: 0, spin: 0 },
+        correctionsStored: true,
       },
     },
   };
@@ -301,6 +308,7 @@ describe("ADMIN Target Ball UI & Search Rules (T1 - T9)", () => {
   it("T9 — Flow Integration: runAdminLocalDbRecall succeeds in Target=NONE and explicit Target modes", async () => {
     const record = makeSampleRecord("pos_001", baseBalls, "yellow");
     const dataset = [record];
+    seedCanonicalLocalCorpusFromFlat(dataset);
 
     let appliedRecord: PositionRecord | null = null;
     let hydratedTarget: string | null = null;
@@ -332,7 +340,13 @@ describe("ADMIN Target Ball UI & Search Rules (T1 - T9)", () => {
     const matched = await runAdminLocalDbRecall(ctx as any);
     expect(matched).toBe(true);
     expect(appliedRecord).not.toBeNull();
-    expect(appliedRecord?.positionId).toBe("pos_001");
+    expect(appliedRecord?.positionId).toBe(
+      createPositionId({
+        cue: { x: baseBalls.cue!.x, y: baseBalls.cue!.y },
+        target: { x: baseBalls.target!.x, y: baseBalls.target!.y },
+        second: { x: baseBalls.second!.x, y: baseBalls.second!.y },
+      })
+    );
     expect(layersVisible).toBe(true);
     // Recalled record hydrates targetColor metadata for view-only
     expect(hydratedTarget).toBe("yellow");
@@ -608,25 +622,27 @@ describe("ADMIN Explicit Target & Coaching Gate Regression Contracts (TEST A ~ T
 });
 
 describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TEST A ~ TEST H)", () => {
+  // Coordinates must stay inside Family table (80×40) for normalized migrate/validate.
   const yellowAtPos1_redAtPos2: BallsMap = {
-    cue: { x: 30, y: 70 },
-    target: { x: 20, y: 50 }, // Yellow in UI slot
-    second: { x: 15, y: 30 }, // Red in UI slot
+    cue: { x: 30, y: 35 },
+    target: { x: 20, y: 25 }, // Yellow in UI slot
+    second: { x: 15, y: 15 }, // Red in UI slot
   };
 
   const storedYellowTargetRecord = makeSampleRecord("rec_yellow_target", {
-    cue: { x: 30, y: 70 },
-    target: { x: 20, y: 50 }, // Target is Yellow
-    second: { x: 15, y: 30 }, // Second is Red
+    cue: { x: 30, y: 35 },
+    target: { x: 20, y: 25 }, // Target is Yellow
+    second: { x: 15, y: 15 }, // Second is Red
   }, "yellow");
 
   const storedRedTargetRecord = makeSampleRecord("rec_red_target", {
-    cue: { x: 30, y: 70 },
-    target: { x: 15, y: 30 }, // Target is Red (at Pos 2)
-    second: { x: 20, y: 50 }, // Second is Yellow (at Pos 1)
+    cue: { x: 30, y: 35 },
+    target: { x: 15, y: 15 }, // Target is Red (at Pos 2)
+    second: { x: 20, y: 25 }, // Second is Yellow (at Pos 1)
   }, "red");
 
   it("TEST A — Target NONE / stored target Yellow: Search SUCCESS with P1", async () => {
+    seedCanonicalLocalCorpusFromFlat([storedYellowTargetRecord]);
     let appliedRecord: PositionRecord | null = null;
     let hydratedTarget: string | null = null;
     let updatedBalls: any = null;
@@ -656,13 +672,20 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
 
     const matched = await runAdminLocalDbRecall(ctx as any);
     expect(matched).toBe(true);
-    expect(appliedRecord?.positionId).toBe("rec_yellow_target");
+    expect(appliedRecord?.positionId).toBe(
+      createPositionId({
+        cue: { x: 30, y: 35 },
+        target: { x: 20, y: 25 },
+        second: { x: 15, y: 15 },
+      })
+    );
     expect(hydratedTarget).toBe("yellow");
-    expect(updatedBalls?.target).toEqual({ x: 20, y: 50 });
-    expect(updatedBalls?.second).toEqual({ x: 15, y: 30 });
+    expect(updatedBalls?.target).toEqual({ x: 20, y: 25 });
+    expect(updatedBalls?.second).toEqual({ x: 15, y: 15 });
   });
 
   it("TEST B — Target NONE / stored target Red: 2-way permutation Search SUCCESS with P2", async () => {
+    seedCanonicalLocalCorpusFromFlat([storedRedTargetRecord]);
     let appliedRecord: PositionRecord | null = null;
     let hydratedTarget: string | null = null;
     let updatedBalls: any = null;
@@ -695,14 +718,21 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
 
     const matched = await runAdminLocalDbRecall(ctx as any);
     expect(matched).toBe(true);
-    expect(appliedRecord?.positionId).toBe("rec_red_target");
+    expect(appliedRecord?.positionId).toBe(
+      createPositionId({
+        cue: { x: 30, y: 35 },
+        target: { x: 15, y: 15 },
+        second: { x: 20, y: 25 },
+      })
+    );
     expect(hydratedTarget).toBe("red");
     // Verified: ballsState was swapped to match the semantic target role of the record
-    expect(updatedBalls?.target).toEqual({ x: 15, y: 30 });
-    expect(updatedBalls?.second).toEqual({ x: 20, y: 50 });
+    expect(updatedBalls?.target).toEqual({ x: 15, y: 15 });
+    expect(updatedBalls?.second).toEqual({ x: 20, y: 25 });
   });
 
   it("TEST C — Explicit Yellow Target: Yellow permutation only evaluated (Red record not matched)", async () => {
+    seedCanonicalLocalCorpusFromFlat([storedRedTargetRecord]);
     let appliedRecord: PositionRecord | null = null;
 
     const ctx = {
@@ -734,14 +764,15 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
   });
 
   it("TEST D — Explicit Red Target: Red-target permutation evaluated and succeeds", async () => {
+    seedCanonicalLocalCorpusFromFlat([storedRedTargetRecord]);
     let appliedRecord: PositionRecord | null = null;
     let hydratedTarget: string | null = null;
 
-    // When Red is explicitly selected as Target, ballsState has target at (15, 30)
+    // When Red is explicitly selected as Target, ballsState has target at (15, 15)
     const redTargetBalls: BallsMap = {
-      cue: { x: 30, y: 70 },
-      target: { x: 15, y: 30 },
-      second: { x: 20, y: 50 },
+      cue: { x: 30, y: 35 },
+      target: { x: 15, y: 15 },
+      second: { x: 20, y: 25 },
     };
 
     const ctx = {
@@ -769,7 +800,13 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
 
     const matched = await runAdminLocalDbRecall(ctx as any);
     expect(matched).toBe(true);
-    expect(appliedRecord?.positionId).toBe("rec_red_target");
+    expect(appliedRecord?.positionId).toBe(
+      createPositionId({
+        cue: { x: 30, y: 35 },
+        target: { x: 15, y: 15 },
+        second: { x: 20, y: 25 },
+      })
+    );
     expect(hydratedTarget).toBe("red");
   });
 
@@ -781,6 +818,7 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
       target: { x: 70, y: 30 },
       second: { x: 65, y: 15 },
     }, "yellow");
+    seedCanonicalLocalCorpusFromFlat([farRecord]);
 
     const ctx = {
       dataset: [farRecord],
@@ -812,18 +850,19 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
 
   it("TEST F — Deterministic selection: chooses lower distance permutation deterministically", async () => {
     // Record A is at exact distance 0.0 with P2 (Red target)
-    // Record B is at distance 0.5 with P1 (Yellow target)
+    // Record B is at distance ~0.5 with P1 (Yellow target)
     const exactRedRecord = makeSampleRecord("rec_exact_red", {
-      cue: { x: 30, y: 70 },
-      target: { x: 15, y: 30 },
-      second: { x: 20, y: 50 },
+      cue: { x: 30, y: 35 },
+      target: { x: 15, y: 15 },
+      second: { x: 20, y: 25 },
     }, "red");
 
     const nearYellowRecord = makeSampleRecord("rec_near_yellow", {
-      cue: { x: 30, y: 70 },
-      target: { x: 20.3, y: 50.4 }, // slightly offset
-      second: { x: 15, y: 30 },
+      cue: { x: 30, y: 35 },
+      target: { x: 20.3, y: 25.4 }, // slightly offset
+      second: { x: 15, y: 15 },
     }, "yellow");
+    seedCanonicalLocalCorpusFromFlat([nearYellowRecord, exactRedRecord]);
 
     let appliedRecord: PositionRecord | null = null;
 
@@ -852,7 +891,13 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
 
     const matched = await runAdminLocalDbRecall(ctx as any);
     expect(matched).toBe(true);
-    expect(appliedRecord?.positionId).toBe("rec_exact_red"); // exact distance 0.0 wins
+    expect(appliedRecord?.positionId).toBe(
+      createPositionId({
+        cue: { x: 30, y: 35 },
+        target: { x: 15, y: 15 },
+        second: { x: 20, y: 25 },
+      })
+    ); // exact distance 0.0 wins
   });
 
   it("TEST G — Symmetry regression: 4-track family members with different target roles recall in Target=NONE", async () => {
@@ -869,6 +914,7 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
     }, "red");
 
     const dataset = [track1YellowTarget, track2RedTarget];
+    seedCanonicalLocalCorpusFromFlat(dataset);
 
     // Search at Track 1 coords (Yellow target)
     let applied1: PositionRecord | null = null;
@@ -893,7 +939,13 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
       getAdminRecallQueryTargetBall: () => null,
       resolveFormulaHash: () => "test_hash",
     } as any);
-    expect(applied1?.positionId).toBe("track_B2T_L");
+    expect(applied1?.positionId).toBe(
+      createPositionId({
+        cue: { x: 20, y: 10 },
+        target: { x: 40, y: 30 },
+        second: { x: 60, y: 20 },
+      })
+    );
 
     // Search at Track 2 coords (Red target, but UI initially has target in slot A, second in slot B)
     let applied2: PositionRecord | null = null;
@@ -918,7 +970,13 @@ describe("ADMIN Local DB Search Target=NONE 2-Way Role Permutation Contracts (TE
       getAdminRecallQueryTargetBall: () => null,
       resolveFormulaHash: () => "test_hash",
     } as any);
-    expect(applied2?.positionId).toBe("track_B2T_R");
+    expect(applied2?.positionId).toBe(
+      createPositionId({
+        cue: { x: 60, y: 10 },
+        target: { x: 20, y: 20 },
+        second: { x: 40, y: 30 },
+      })
+    );
   });
 
   it("TEST H — Role SSOT: red == second / yellow == target is never hardcoded in recall matching", () => {

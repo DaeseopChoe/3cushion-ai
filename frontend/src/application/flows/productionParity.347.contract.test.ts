@@ -210,6 +210,11 @@ async function runLocalDbParity(args: {
   activeSlot: "S1" | "S2" | "S3";
   balls: Ball3;
 }): Promise<{ ok: boolean; capture: LocalDbCapture }> {
+  const { seedCanonicalLocalCorpusFromFlat } = await import(
+    "../../domain/recall/seedCanonicalCorpusForTests"
+  );
+  seedCanonicalLocalCorpusFromFlat(args.dataset);
+
   const capture: LocalDbCapture = {
     appliedRecord: null,
     drafts: null,

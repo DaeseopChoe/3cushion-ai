@@ -6,6 +6,50 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-22 — Phase C Local READ / Member-Centric Search + Hydration
+
+## Mode
+
+**Agent** · Local Search READ SSOT → normalized_dataset · No Export/Publish/Published Search cutover
+
+## Delivered
+
+- `runNormalizedLocalMemberSearch`: Member Ball3 rank → Position S1/S2/S3 preserve → selected rematerialize
+- `runAdminLocalDbRecall` uses normalized path only (no `runSpatialRecall` / no flat fallback)
+- Shared `rankBall3CandidatesForRecall` (Published flat ranking behavior unchanged)
+- Contracts: READ SSOT / Strategy preservation / stale flat+shadow / wiring
+- Integration tests seed canonical for Local Search
+- Docs + familyMigrationDebt: LOCAL READ SSOT = normalized_dataset
+
+## Authority after Phase C
+
+| Concern | SSOT |
+|---------|------|
+| Local WRITE | normalized_dataset |
+| Local READ/Search | normalized_dataset |
+| positions_dataset | compatibility (not Local Search) |
+| family_* shadow | non-authority |
+| Published Search | flat positions.json (unchanged) |
+
+## Not changed
+
+- Manual Export schemaVersion 2
+- Publish / Production Verify
+- repository positions.json
+- Product count / Cartesian / trajectory / incidenceAngle.ts
+- C-0 occupancy cardinality
+- Search Index (still O(N) Members)
+
+## Next
+
+Remaining consumer audit → choose Phase D (Export/Publish) or smaller flat-mirror cleanup.
+
+## Commit
+
+`refactor(search): read local recall from normalized members`
+
+---
+
 # 2026-09-21 — Phase C-0 Position × Strategy Slot Cardinality SSOT Correction
 
 ## Mode
