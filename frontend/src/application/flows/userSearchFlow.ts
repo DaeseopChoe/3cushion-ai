@@ -13,7 +13,7 @@
 //       Flow에서는 해당 호출을 생략한다. 런타임 동작에 영향 없음.
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
-import { runSpatialRecall } from "../../domain/recall/recallEngine";
+import { runNormalizedPublishedMemberSearch } from "../../domain/recall/normalizedPublishedMemberSearch";
 import { type Ball3, type PositionRecord } from "../../domain/positionSearchEngine";
 import { getOrLoadPublishedLeaf } from "../../domain/publishedDatasetStore";
 import { resolveCandidatePublishedLeaves } from "../../domain/publishedLeafResolve";
@@ -67,7 +67,9 @@ export type UserSearchFlowContext = {
 
 /**
  * USER Published Search Flow (SRCH-003).
- * Published corpus 검색 → Recall 적용 → userLastSearchRecord 저장.
+ * Phase E-2: FamilyMember corpus → Position-level rank → winner-only hydrate.
+ * Multi-leaf: leaf-local Member search; cross-leaf best by distance < only (ties keep earlier leaf).
+ * Does NOT use loadResult.records as Search authority (records remain RI TEMP COMPAT).
  * appMode guard 및 in-flight guard는 App.jsx 호출 전에 수행.
  * @returns { record, matchedBalls } on success; null on no-match / load error
  */
@@ -119,7 +121,7 @@ export async function runUserSearch(
   let bestMatchDistance = Infinity;
   let bestMatchLeaf: { shotType: string; systemId: string } | null = null;
   let bestMatchQueryBalls: Ball3 | null = null;
-  let hasLoadedRecords = false;
+  let hasLoadedMembers = false;
 
   for (const leaf of candidateLeaves) {
     const loadResult = await getOrLoadPublishedLeaf(leaf.shotType, leaf.systemId);
@@ -131,9 +133,14 @@ export async function runUserSearch(
       continue;
     }
 
-    const publishedRecords = loadResult.kind === "ok" ? loadResult.records : [];
-    if (publishedRecords.length > 0) {
-      hasLoadedRecords = true;
+    const familyMembers =
+      loadResult.kind === "ok" ? loadResult.familyMembers : [];
+    const masterByFamilyId =
+      loadResult.kind === "ok"
+        ? loadResult.masterByFamilyId
+        : new Map();
+    if (familyMembers.length > 0) {
+      hasLoadedMembers = true;
     }
 
     console.log("[USER_PUBLISHED_SEARCH]", {
@@ -141,14 +148,15 @@ export async function runUserSearch(
       systemId: leaf.systemId,
       url: loadResult.url,
       fromCache: loadResult.fromCache,
-      recordCount: publishedRecords.length,
+      memberCount: familyMembers.length,
       leafHints: runtimeHints,
       persistedContext: ctx.userPublishedSearchContext,
     });
 
     for (const queryBalls of candidateBallQueries) {
-      const spatialResult = runSpatialRecall({
-        dataset: publishedRecords,
+      const spatialResult = runNormalizedPublishedMemberSearch({
+        members: familyMembers,
+        masterByFamilyId,
         query: { balls: queryBalls, targetBall: null },
         profile: recallProfile,
       });
@@ -171,7 +179,7 @@ export async function runUserSearch(
   }
 
   if (!bestMatchRecord || !bestMatchLeaf || !bestMatchQueryBalls) {
-    const reason = hasLoadedRecords ? "over-max-distance" : "empty-dataset";
+    const reason = hasLoadedMembers ? "over-max-distance" : "empty-dataset";
     console.log("[USER_SEARCH_RECALL] no-match", reason);
     ctx.showToast("일치하는 포지션이 없습니다.", { variant: "center" });
     return null;

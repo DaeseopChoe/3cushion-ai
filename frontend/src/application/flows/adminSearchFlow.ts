@@ -10,8 +10,12 @@
 //   D-008: calculateByProfileExpr 직접 호출 — recallHydrateFlow 경유 (Batch 4 해소 예정)
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
-import { runSpatialRecall } from "../../domain/recall/recallEngine";
-import { type PositionRecord } from "../../domain/positionSearchEngine";
+import { runNormalizedPublishedMemberSearch } from "../../domain/recall/normalizedPublishedMemberSearch";
+import type { SpatialRecallResult } from "../../domain/recall/recallTypes";
+import {
+  type Ball3,
+  type PositionRecord,
+} from "../../domain/positionSearchEngine";
 import { getOrLoadPublishedLeaf } from "../../domain/publishedDatasetStore";
 import { resolvePublishedLeafKey } from "../../domain/publishedLeafResolve";
 import { readFamilyIdFromRecordSlot } from "../../domain/family/publishedEditSession";
@@ -86,7 +90,8 @@ const HARD_THRESHOLD_L1 = 14;
 
 /**
  * ADMIN Published Search Flow (SRCH-002).
- * Published corpus 검색 → Recall 적용 → AdminState hydrate → 표시.
+ * Phase E-2: FamilyMember corpus → Position-level rank → winner-only hydrate.
+ * Does NOT use loadResult.records as Search authority (records remain RI TEMP COMPAT).
  * appMode guard는 App.jsx 호출 전에 수행.
  * @returns true when a published record was applied.
  */
@@ -129,7 +134,12 @@ export async function runAdminSearch(
     return false;
   }
 
-  const publishedRecords = loadResult.kind === "ok" ? loadResult.records : [];
+  const familyMembers =
+    loadResult.kind === "ok" ? loadResult.familyMembers : [];
+  const masterByFamilyId =
+    loadResult.kind === "ok"
+      ? loadResult.masterByFamilyId
+      : new Map();
   const currentBalls = normalizeBallsToBall3(
     (ctx.ballsState ??
       (ctx.adminState as Record<string, unknown> | undefined)?.balls ??
@@ -141,16 +151,16 @@ export async function runAdminSearch(
   console.log("[ADMIN_PUBLISHED_RECALL]", {
     shotType,
     systemId,
-    dataSource: "published",
+    dataSource: "published-members",
     url: loadResult.url,
     fromCache: loadResult.fromCache,
-    recordCount: publishedRecords.length,
+    memberCount: familyMembers.length,
     leafHints: runtimeHints,
     persistedContext: ctx.userPublishedSearchContext,
   });
 
   console.log("[RECALL_QUERY_DEBUG]", {
-    publishedRecordsLength: publishedRecords?.length,
+    publishedMemberCount: familyMembers.length,
     currentBalls,
     searchQueryTargetBall,
     adminShotType: (ctx.adminState as Record<string, unknown> | undefined)?.sys,
@@ -176,13 +186,21 @@ export async function runAdminSearch(
 
   let bestMatchRecord: PositionRecord | null = null;
   let bestMatchDistance = Infinity;
-  let bestSpatialResult: ReturnType<typeof runSpatialRecall> | null = null;
+  let bestSpatialResult: SpatialRecallResult | null = null;
   let bestMatchQueryBalls: Ball3 | null = null;
 
   for (const queryBalls of candidateBallQueries) {
-    const spatialResult = runSpatialRecall({
-      dataset: publishedRecords,
-      query: { balls: queryBalls, targetBall: searchQueryTargetBall },
+    const spatialResult = runNormalizedPublishedMemberSearch({
+      members: familyMembers,
+      masterByFamilyId,
+      query: {
+        balls: queryBalls,
+        targetBall: searchQueryTargetBall as
+          | "red"
+          | "yellow"
+          | null
+          | undefined,
+      },
       profile: recallProfile,
     });
 

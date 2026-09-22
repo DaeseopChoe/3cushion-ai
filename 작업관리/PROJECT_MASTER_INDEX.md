@@ -1265,7 +1265,30 @@ PositionRecord[]           = runtime projection KEEP
 - `domain/datasetLoader.ts`
 - `domain/publishedDatasetStore.ts`
 
-**Next Track:** Phase E-2 — Member-Centric Published Search + Winner-Only Hydration.
+**Next Track:** Phase E-2 — Member-Centric Published Search + Winner-Only Hydration (COMPLETE — see below).
+
+### Phase E-2 — Member-Centric Published Search + Winner-Only Hydration (2026-09-22)
+
+**Authority:** 본 절 · Published Search corpus = FamilyMember[] (Position-level candidates)
+
+**Product rules (fixed):**
+- Published ADMIN/USER Search: `runNormalizedPublishedMemberSearch`
+- Position candidate = `createPositionId(member.balls)` group (not per-Member ranking bias)
+- Profiles unchanged: ADMIN `adminStrict` manhattan · USER `userStrict` manhattan
+- Winner-only: sibling S1/S2/S3 Members + Masters → `rematerializeFamilyPartsToPositionRecords`
+- Search does **not** use `entry.records` / `loadResult.records` as corpus
+- Runtime PositionRecord = winner hydrate only (UI/recall boundary)
+- `records` cache field **retained** for Real Interpolation TEMP COMPAT (E-3)
+- Fail-closed: missing Master / duplicate sourceSlot / hydrate failure
+- No persisted Search Index; no KD rewrite
+- Publish / History / Local SSOT / Local Search **unchanged**
+
+**Code owners:**
+- `domain/recall/normalizedPublishedMemberSearch.ts`
+- `application/flows/adminSearchFlow.ts`
+- `application/flows/userSearchFlow.ts`
+
+**Next Track:** Phase E-3 — RI / Remaining Published Flat Compatibility Cleanup.
 
 **Production SSOT (검증 완료, 2026-06):**
 

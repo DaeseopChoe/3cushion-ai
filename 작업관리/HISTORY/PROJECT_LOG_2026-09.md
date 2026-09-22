@@ -6,6 +6,43 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-22 — Phase E-2 Member-Centric Published Search + Winner-Only Hydration
+
+## Mode
+
+**Agent** · Published Search corpus → FamilyMember (Position-level) · winner-only hydrate · RI keeps records TEMP COMPAT
+
+## Background (E-1)
+
+Published cache authority already NormalizedDatasetEnvelope.
+Search still ranked eager `records[]` projection. E-2 moves Search computation onto Members.
+
+## Delivered
+
+- `normalizedPublishedMemberSearch`: Position candidates from Members; shared Ball3 rank primitives; winner-only rematerialize
+- `adminSearchFlow` / `userSearchFlow`: Search uses `familyMembers` + `masterByFamilyId` (not records)
+- Profiles preserved: adminStrict / userStrict manhattan
+- Contracts: multi-family S1/S2/S3, member-count ranking, missing Master / duplicate slot fail-closed, old/new parity
+- Docs: MASTER_INDEX E-2 COMPLETE
+
+## Not changed
+
+- RI algorithm / `getPublishedLeafCacheEntry().records` consumer
+- Eager whole-leaf records projection in loader (RI still needs it until E-3)
+- Publish / History / Local SSOT / Local Search
+- dataset/** ; product_export ABSENT; incidenceAngle.ts preserved
+
+## Next
+
+Phase E-3 — RI / Remaining Published Flat Compatibility Cleanup
+(Do not auto-start; wait for user review.)
+
+## Commit
+
+`refactor(search): use normalized members for published recall`
+
+---
+
 # 2026-09-22 — Phase E-1 Normalized Published Store / Loader Authority
 
 ## Mode
