@@ -227,7 +227,7 @@ describe("commitDerivedApprovalDataset", () => {
       commitWorkspaceHistoryWithStrategyDataset: commitHistory,
     });
 
-    expect(saveWorkingDataset).toHaveBeenCalledWith(approved.dataset);
+    expect(saveWorkingDataset).not.toHaveBeenCalled();
     expect(setDataset).toHaveBeenCalledWith(approved.dataset);
     expect(restoredSnapshot).toEqual(baselineA);
     expect(currentRuntime.ballsState).toEqual(baselineA.ballsState);
@@ -313,10 +313,9 @@ describe("commitDerivedApprovalDataset", () => {
     commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaselineA(),
-      saveWorkingDataset: (dataset) => {
+      setDataset: (dataset) => {
         snapDataset = dataset;
       },
-      setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: vi.fn(),
     });
 

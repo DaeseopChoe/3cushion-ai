@@ -1,152 +1,105 @@
 /**
- * Phase 3A-342 / B-1 / C — Production READ boundary for App corpus mirror.
+ * Phase C-2 — Production App corpus READ: canonical normalized only.
  *
- * Phase B-1 WRITE SSOT = canonical NormalizedDatasetEnvelope
- *   (localStorage key: normalized_dataset).
+ * Local Durable SSOT = localStorage key normalized_dataset
+ *   (NormalizedDatasetEnvelope → rematerialize → PositionRecord[] memory).
  *
  * Phase C Local Search does NOT use this loader — Search reads
  * normalized_dataset Member-centrically via runNormalizedLocalMemberSearch.
  *
- * This loader still rematerializes for non-Search runtime consumers
- * (SAVE working dataset mirror, Export projection inputs, etc.).
+ * This loader rematerializes for non-Search runtime consumers
+ * (SAVE working dataset mirror, Export projection inputs, UI, etc.).
  *
- * Preference for App dataset mirror:
- *   1. Canonical envelope → rematerialize (when possible)
- *   2. Else flat positions_dataset compatibility projection
- *   3. Else gated family_* shadow rematerialize (legacy freshness path)
+ * FAIL-CLOSED:
+ *   - corrupt / invalid canonical → empty dataset (no flat/shadow fallback)
+ *   - rematerialize failure → empty dataset (no flat/shadow fallback)
+ *   - canonical absent (fresh) → empty dataset
  *
+ * NEVER reads positions_dataset or family_masters / family_members as authority.
  * READ never mutates storage.
  */
 
-import { loadWorkingDataset } from "../dataset/infra/datasetStorage";
 import {
   loadCanonicalNormalizedCorpus,
 } from "../dataset/infra/canonicalNormalizedCorpusStore";
 import { rematerializeFamilyPartsToPositionRecords } from "./rematerializeFamilyPartsToPositionRecords";
 import type { PositionRecord } from "../positionSearchEngine";
-import { isFamilyNormalizedStorageEnabled } from "./familyNormalizedFlag";
-import {
-  evaluateNormalizedCorpusFreshness,
-  type FamilyFreshnessResult,
-} from "./familyCorpusFreshness";
-import {
-  loadFamilyCompatibleDataset,
-  type LoadFamilyCompatibleDatasetResult,
-} from "./loadFamilyCompatibleDataset";
+import type { RematerializeIssue } from "./rematerializeFamilyPartsToPositionRecords";
+import type { NormalizedDatasetIssue } from "../dataset/normalizedDatasetEnvelope";
 
-export type ProductionCompatibleReadSource =
-  | "legacy"
-  | "normalized"
-  | "canonical";
+export type ProductionCompatibleReadSource = "canonical" | "empty";
 
 export type ProductionCompatibleReadReason =
-  | "flag_off"
-  | "freshness_ineligible"
-  | "hydration_failed"
-  | "hydration_exception"
-  | "normalized_eligible"
   | "canonical_rematerialized"
-  | "canonical_present_flat_fallback"
-  | "canonical_absent_legacy";
+  | "canonical_absent_empty"
+  | "canonical_invalid"
+  | "rematerialize_failed";
 
 export type LoadProductionCompatibleDatasetResult = {
   dataset: PositionRecord[];
   source: ProductionCompatibleReadSource;
   reason: ProductionCompatibleReadReason;
-  /** Present when freshness was evaluated (flag ON path). */
-  freshness?: FamilyFreshnessResult;
-  /** Present when hydration was attempted. */
-  hydration?: LoadFamilyCompatibleDatasetResult;
+  /** Present when canonical parse failed. */
+  issues?: NormalizedDatasetIssue[];
+  /** Present when rematerialize failed. */
+  rematerializeIssues?: RematerializeIssue[];
 };
 
 /**
  * Production corpus READ for App startup / reload.
- * Never writes storage.
+ * Canonical normalized_dataset only — never writes storage.
  */
 export function loadProductionCompatibleDataset(): LoadProductionCompatibleDatasetResult {
-  const legacy = loadWorkingDataset();
+  const canonical = loadCanonicalNormalizedCorpus();
 
-  // Prefer canonical single-key corpus when present and rematerializable.
+  if (!canonical.ok) {
+    return {
+      dataset: [],
+      source: "empty",
+      reason: "canonical_invalid",
+      issues: canonical.issues,
+    };
+  }
+
+  if (!canonical.present) {
+    return {
+      dataset: [],
+      source: "empty",
+      reason: "canonical_absent_empty",
+    };
+  }
+
   try {
-    const canonical = loadCanonicalNormalizedCorpus();
-    if (canonical.ok && canonical.present) {
-      const remat = rematerializeFamilyPartsToPositionRecords({
-        masters: canonical.envelope.familyMasters,
-        members: canonical.envelope.familyMembers,
-      });
-      if (remat.ok) {
-        return {
-          dataset: remat.dataset,
-          source: "canonical",
-          reason: "canonical_rematerialized",
-        };
-      }
-      // SLOT_COLLISION etc. — flat compatibility may still serve Search until Phase C.
+    const remat = rematerializeFamilyPartsToPositionRecords({
+      masters: canonical.envelope.familyMasters,
+      members: canonical.envelope.familyMembers,
+    });
+    if (!remat.ok) {
       return {
-        dataset: legacy,
-        source: "legacy",
-        reason: "canonical_present_flat_fallback",
+        dataset: [],
+        source: "empty",
+        reason: "rematerialize_failed",
+        rematerializeIssues: remat.issues,
       };
     }
-  } catch {
-    /* fall through to legacy / shadow paths */
-  }
-
-  if (!isFamilyNormalizedStorageEnabled()) {
     return {
-      dataset: legacy,
-      source: "legacy",
-      reason: "flag_off",
+      dataset: remat.dataset,
+      source: "canonical",
+      reason: "canonical_rematerialized",
     };
-  }
-
-  let freshness: FamilyFreshnessResult;
-  try {
-    freshness = evaluateNormalizedCorpusFreshness();
   } catch {
     return {
-      dataset: legacy,
-      source: "legacy",
-      reason: "freshness_ineligible",
+      dataset: [],
+      source: "empty",
+      reason: "rematerialize_failed",
     };
   }
+}
 
-  if (!freshness.fresh) {
-    return {
-      dataset: legacy,
-      source: "legacy",
-      reason: "freshness_ineligible",
-      freshness,
-    };
-  }
-
-  let hydration: LoadFamilyCompatibleDatasetResult;
-  try {
-    hydration = loadFamilyCompatibleDataset();
-  } catch {
-    return {
-      dataset: legacy,
-      source: "legacy",
-      reason: "hydration_exception",
-      freshness,
-    };
-  }
-
-  if (!hydration.ok) {
-    return {
-      dataset: legacy,
-      source: "legacy",
-      reason: "hydration_failed",
-      freshness,
-      hydration,
-    };
-  }
-
-  return {
-    dataset: hydration.dataset,
-    source: "normalized",
-    reason: "normalized_eligible",
-    freshness,
-    hydration,
-  };
+/**
+ * Rematerialize canonical corpus to PositionRecord[] for Export / History
+ * legacy fallbacks. Never reads positions_dataset.
+ */
+export function loadRematerializedWorkingCorpus(): PositionRecord[] {
+  return loadProductionCompatibleDataset().dataset;
 }

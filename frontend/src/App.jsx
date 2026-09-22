@@ -278,10 +278,10 @@ import {
   loadProductionCompatibleDataset,
 } from "./domain/family/loadProductionCompatibleDataset";
 import {
-  saveWorkingDataset,
   importDatasetFromFile,
 } from "./domain/dataset/infra/datasetStorage";
 import { persistWorkingCorpusNormalizedAuthority } from "./domain/dataset/infra/persistWorkingCorpusNormalizedAuthority";
+import { CANONICAL_NORMALIZED_CORPUS_KEY } from "./domain/dataset/infra/canonicalNormalizedCorpusStore";
 import { useAutoCapture } from "./domain/dataset/autoCapture";
 import {
   adminSysFromRecallEntry,
@@ -1333,8 +1333,7 @@ export default function App({
     onSystemControlsAvailabilityChange?.(canUseSystemControls);
   }, [canUseSystemControls, onSystemControlsAvailabilityChange]);
 
-  // dataset: PositionRecord[] — Phase 3A-342 gated production READ boundary
-  // (flag OFF / ineligible → positions_dataset; eligible → normalized projection).
+  // dataset: PositionRecord[] — Phase C-2 App runtime mirror from normalized_dataset rematerialize.
   const [dataset, setDataset] = useState(
     () => loadProductionCompatibleDataset().dataset
   );
@@ -2139,7 +2138,7 @@ export default function App({
   function handleWorkspaceLocalStorageCleanup() {
     const ok = window.confirm(
       "로컬 작업 History/세션 데이터를 정리합니다.\n" +
-        "Local DB(positions_dataset)와 AI 등록 문장 Library는 보존됩니다.\n" +
+        "Local DB(normalized_dataset)와 AI 등록 문장 Library는 보존됩니다.\n" +
         "계속하시겠습니까?"
     );
     if (!ok) return;
@@ -2165,7 +2164,7 @@ export default function App({
 
     try {
       const normalized = await importDatasetFromFile(file);
-      // Phase B-1: canonical normalized commit first; flat = compatibility.
+      // Phase C-2: canonical normalized commit only (no flat mirror).
       const corpusPersist = persistWorkingCorpusNormalizedAuthority({
         dataset: normalized,
         shotType:
@@ -2468,7 +2467,6 @@ export default function App({
       const commit = commitDerivedApprovalDataset({
         resultDataset: result.dataset,
         baselineSnapshot: reviewBaselineSnapshotRef.current,
-        saveWorkingDataset,
         setDataset,
         restoreDerivedReviewSnapshot,
         commitWorkspaceHistoryWithStrategyDataset,
@@ -2519,7 +2517,6 @@ export default function App({
       editingPublishedFamilyId,
       editingLocalFamilyId,
       saveCommand: "SAVE",
-      saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
       setAdminState,
@@ -2558,7 +2555,6 @@ export default function App({
       editingPublishedFamilyId,
       editingLocalFamilyId,
       saveCommand: "SAVE",
-      saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
       setAdminState,
@@ -2601,7 +2597,6 @@ export default function App({
       editingPublishedFamilyId,
       editingLocalFamilyId,
       saveCommand: "OVERWRITE",
-      saveWorkingDataset,
       setDataset,
       setUserPublishedSearchContext,
       setAdminState,
@@ -3794,8 +3789,15 @@ function handleJoyPadPointerCancel(e) {
     mountDatasetTraceDoneRef.current = true;
     let lsRawLength = 0;
     try {
-      const saved = localStorage.getItem("positions_dataset");
-      lsRawLength = saved ? JSON.parse(saved).length : 0;
+      const saved = localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY);
+      if (!saved) {
+        lsRawLength = 0;
+      } else {
+        const parsed = JSON.parse(saved);
+        lsRawLength = Array.isArray(parsed?.familyMembers)
+          ? parsed.familyMembers.length
+          : -1;
+      }
     } catch {
       lsRawLength = -1;
     }
@@ -3805,6 +3807,7 @@ function handleJoyPadPointerCancel(e) {
       "H2C_G3",
       {
         localStorageRawLength: lsRawLength,
+        canonicalKey: CANONICAL_NORMALIZED_CORPUS_KEY,
         setDatasetLength: dataset?.length ?? 0,
         datasetSummary: summarizeDatasetRecords(dataset ?? []),
         appMode,

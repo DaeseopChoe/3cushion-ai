@@ -1,8 +1,8 @@
 /**
- * Phase B-1 — Canonical Normalized Local Corpus Store contracts.
+ * Phase B-1 / C-2 — Canonical Normalized Local Corpus Store contracts.
  *
  * AUTHORITATIVE: normalized_dataset (NormalizedDatasetEnvelope)
- * Compatibility: positions_dataset / family_* (non-authoritative)
+ * Phase C-2: positions_dataset / family_* are NOT production mirrors.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
@@ -525,7 +525,7 @@ describe("Phase B-1 canonical normalized corpus store", () => {
 });
 
 describe("Phase B-1 WRITE order + lifecycle", () => {
-  it("CASE 27/29: canonical precedes flat; failed canonical writes no flat", () => {
+  it("CASE 27/29: failed canonical writes no flat; success writes no flat (C-2)", () => {
     const written = writeFourTrackFamilyMembers([], {
       balls: {
         cue: { x: 8, y: 16 },
@@ -556,7 +556,10 @@ describe("Phase B-1 WRITE order + lifecycle", () => {
     expect(ok.ok).toBe(true);
     if (!ok.ok) return;
     expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
-    expect(ok.flatProjection.ok).toBe(true);
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
+    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
+    expect(ok.flatProjection.ok).toBe(false);
+    expect(ok.shadowSync.ok).toBe(false);
   });
 
   it("CASE 13/21–26: SAVE + Derived/Product approval; product_export absent", () => {

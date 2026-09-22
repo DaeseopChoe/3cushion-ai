@@ -614,7 +614,8 @@ describe("ADMIN Explicit Target & Coaching Gate Regression Contracts (TEST A ~ T
       restoreDerivedReviewSnapshot: vi.fn(),
     });
 
-    expect(commitResult.corpusPersist.ok).toBe(true);
+    expect(commitResult.canonicalOk).toBe(true);
+    expect(commitResult.corpusPersist.ok).toBe(false);
     // Derived Approval must not double-commit history
     expect(commitHistoryFn).not.toHaveBeenCalled();
     expect(setDatasetFn).toHaveBeenCalledWith([sampleRecord]);

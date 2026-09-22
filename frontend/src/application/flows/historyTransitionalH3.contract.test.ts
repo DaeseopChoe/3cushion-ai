@@ -480,11 +480,8 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     expect(result.ok).toBe(true);
     expect(capture.dataset).not.toBeNull();
 
-    const genAfterSave = loadPositionsDatasetCorpusGeneration()!;
-    expect(genAfterSave).toBeGreaterThan(genAfterRestore.corpusGeneration);
-    expect(loadFamilyMastersEnvelope()?.corpusGeneration).toBe(genAfterSave);
-    expect(loadFamilyMembersEnvelope()?.corpusGeneration).toBe(genAfterSave);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    // Phase C-2: SAVE writes canonical only — flat generation may stay at restore value.
+    expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
 
     const saved = capture.dataset!;
     const authored = Object.values(saved[0]!.strategies).find(
@@ -544,17 +541,14 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     const out = commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaseline(),
-      saveWorkingDataset: (updated) => {
-        localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(updated));
-      },
       setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: vi.fn(),
       commitWorkspaceHistoryWithStrategyDataset: commitHistory,
     });
 
-    expect(out.corpusPersist.ok).toBe(true);
-    expect(out.normalizedDualWrite.ok).toBe(true);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(out.canonicalOk).toBe(true);
+    expect(out.corpusPersist.ok).toBe(false);
+    expect(out.normalizedDualWrite.ok).toBe(false);
     expect(commitHistory).not.toHaveBeenCalled();
     expect(loadWorkspaceHistory()).toHaveLength(0);
   });
@@ -689,21 +683,12 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     });
     const result = runSaveStrategy(ctx);
     expect(result.ok).toBe(true);
-    expect(loadPositionsDatasetCorpusGeneration()).toBeGreaterThan(
-      restored.corpusGeneration
-    );
-    const working = JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!);
-    expect(Array.isArray(working) && working.length > 0).toBe(true);
-    expect(
-      working.some((r: { strategies?: Record<string, { familyId?: string }> }) =>
-        Object.values(r.strategies ?? {}).some((e) => e?.familyId === "fm_c5")
-      )
-    ).toBe(true);
-    // Dual-write failure leaves prior family gens stale vs new positions gen.
-    expect(isNormalizedCorpusFresh()).toBe(false);
+    // Phase C-2: SAVE no longer advances positions_dataset generation.
+    expect(result.normalizedDualWrite?.ok).toBe(false);
+    expect(loadPositionsDatasetCorpusGeneration()).toBe(restored.corpusGeneration);
   });
 
-  it("Case F: restore → SAVE all writes succeed → family synchronized / freshness true", () => {
+  it("Case F: restore → SAVE succeeds via canonical (no family_* shadow sync)", () => {
     const c10 = [record("pos_c10", ballsC10, authoredEntry())];
     const c5 = [
       record(
@@ -753,10 +738,6 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
       },
     });
     expect(runSaveStrategy(ctx).ok).toBe(true);
-
-    const g = loadPositionsDatasetCorpusGeneration();
-    expect(loadFamilyMastersEnvelope()?.corpusGeneration).toBe(g);
-    expect(loadFamilyMembersEnvelope()?.corpusGeneration).toBe(g);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
   });
 });

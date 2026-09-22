@@ -1,8 +1,9 @@
 /**
- * Phase B-1 — Canonical Local WRITE SSOT: single-key NormalizedDatasetEnvelope.
+ * Phase B-1 / C-2 — Canonical Local durable SSOT: single-key NormalizedDatasetEnvelope.
  *
- * AUTHORITATIVE: localStorage key CANONICAL_NORMALIZED_CORPUS_KEY
- * Compatibility (non-authoritative): positions_dataset, family_masters/family_members
+ * AUTHORITATIVE: localStorage key CANONICAL_NORMALIZED_CORPUS_KEY (`normalized_dataset`)
+ * Phase C-2: positions_dataset / family_masters / family_members are NOT production
+ * durable mirrors or App-load fallbacks (stale browser keys are ignored).
  *
  * Storage commit = one localStorage.setItem replacement (not a DB transaction).
  * Validate + serialize before write; read-back parse required for success.

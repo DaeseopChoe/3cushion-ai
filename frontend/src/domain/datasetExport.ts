@@ -1,18 +1,21 @@
 /**
  * WorkspaceSnapshot → published Dataset export (PositionRecord[] envelope).
  *
- * Phase 3-C2 source priority:
+ * Phase 3-C2 / Phase C-2 storage source priority:
  * 1. SNAPSHOT_PAYLOAD — snapshot.publishFamilyPayload
  * 2. STATE_DATASET — legacy snapshot.state.dataset
- * 3. C1_WORKING_FALLBACK — operation present, no payload → loadWorkingDataset
- * 4. LEGACY_INFERENCE — no operation → loadWorkingDataset
+ * 3. C1_WORKING_FALLBACK — operation present, no payload → rematerialized canonical
+ * 4. LEGACY_INFERENCE — no operation → rematerialized canonical
+ *
+ * Phase C-2: working-corpus fallbacks rematerialize from normalized_dataset.
+ * NEVER reads positions_dataset as authority.
  *
  * Fail-closed: publishFamilyPayload field present but invalid → no working fallback.
  */
 
 import type { WorkspaceSnapshot } from "./workspaceHistory";
 import { normalizeDatasetFromStorage } from "./positionMergeEngine";
-import { loadWorkingDataset } from "./dataset/infra/datasetStorage";
+import { loadRematerializedWorkingCorpus } from "./family/loadProductionCompatibleDataset";
 import type {
   PositionRecord,
   SlotStrategiesMap,
@@ -138,11 +141,11 @@ export function buildDatasetExport(
   snapshot: WorkspaceSnapshot,
   exportedAt: string = new Date().toISOString(),
   options?: {
-    /** Injectable for tests; default loadWorkingDataset. */
+    /** Injectable for tests; default = rematerialize from normalized_dataset. */
     loadWorking?: () => PositionRecord[];
   }
 ): BuildDatasetExportResult {
-  const loadWorking = options?.loadWorking ?? loadWorkingDataset;
+  const loadWorking = options?.loadWorking ?? loadRematerializedWorkingCorpus;
   const shotType = snapshot.pattern ?? "뒤돌리기";
   const systemId = canonicalSystemId(snapshot.systemId);
   const operation = readPublishOperationFromSnapshot(snapshot);
@@ -234,7 +237,7 @@ export function buildDatasetExport(
     };
   }
 
-  console.warn("[EXPORT] source=LEGACY_INFERENCE (loadWorkingDataset)");
+  console.warn("[EXPORT] source=LEGACY_INFERENCE (canonical rematerialize)");
   const rawRows = loadWorking();
   const normalized = normalizeDatasetFromStorage(rawRows);
   const records = filterRecordsForDatasetExport(

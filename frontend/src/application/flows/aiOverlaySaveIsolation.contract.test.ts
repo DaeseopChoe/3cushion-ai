@@ -329,7 +329,9 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
     }
 
     expect(openUnifiedDerivedPreviewSpy).toHaveBeenCalledTimes(1);
-    expect(loadWorkingDataset().length).toBe(4); // 4 Base family tracks
+    // Phase C-2: runtime mirror via setDataset; durable SSOT is normalized_dataset.
+    expect(dataset.length).toBe(4);
+    expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
     expect(loadWorkspaceHistory().length).toBe(1); // Single successor v001
   });
 
@@ -452,9 +454,11 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
       };
 
       const approvalResult = commitDerivedApprovalDataset(approvalCtx);
-      expect(approvalResult.corpusPersist.ok).toBe(true);
+      expect(approvalResult.canonicalOk).toBe(true);
+      expect(approvalResult.corpusPersist.ok).toBe(false);
       expect(approved.dataset.length).toBeGreaterThan(4); // Base + Marginals + Product
-      expect(loadWorkingDataset().length).toBe(approved.dataset.length);
+      expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
+      expect(dataset.length).toBe(approved.dataset.length);
       expect(loadWorkspaceHistory().length).toBe(1); // Single successor preserved
     }
   });

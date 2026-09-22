@@ -31,7 +31,9 @@ export type DerivedApprovalHistoryRuntimeOverride = {
 export type DerivedApprovalCommitContext = {
   resultDataset: PositionRecord[];
   baselineSnapshot: DerivedReviewBaselineSnapshot | null;
-  /** Optional DI callback after durable persist (tests / React mirror helpers). */
+  /**
+   * @deprecated Phase C-2 — ignored. Flat positions_dataset is not production-written.
+   */
   saveWorkingDataset?: (updated: PositionRecord[]) => void;
   setDataset: (updated: PositionRecord[]) => void;
   restoreDerivedReviewSnapshot: (snapshot: DerivedReviewBaselineSnapshot | null) => void;
@@ -59,9 +61,9 @@ export function baselineSnapshotToHistoryRuntime(
 }
 
 export type DerivedApprovalCommitResult = {
-  /** Phase B-1 family_* compatibility shadow; never rolls back canonical. */
+  /** Phase C-2: family_* shadow skipped (shape retained for callers). */
   normalizedDualWrite: NormalizedDualWriteResult;
-  /** Flat compatibility projection result (after canonical). */
+  /** Phase C-2: flat projection skipped (shape retained for callers). */
   corpusPersist: PersistPositionsWithGenerationResult;
   /** True when authoritative normalized corpus commit succeeded. */
   canonicalOk: boolean;
@@ -125,7 +127,6 @@ export function commitDerivedApprovalDataset(
   }
 
   ctx.setDataset(ctx.resultDataset);
-  ctx.saveWorkingDataset?.(ctx.resultDataset);
 
   const normalizedDualWrite: NormalizedDualWriteResult =
     corpusPersist.shadowSync.ok === true
@@ -136,7 +137,7 @@ export function commitDerivedApprovalDataset(
           reason:
             "reason" in corpusPersist.shadowSync
               ? String(corpusPersist.shadowSync.reason)
-              : "family_* shadow not written",
+              : "family_* shadow not written (Phase C-2)",
         };
 
   if (ctx.baselineSnapshot) {

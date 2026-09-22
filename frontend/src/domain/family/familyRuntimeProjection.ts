@@ -7,10 +7,13 @@
  *
  * Hydrate can recover AUTHORED track from (memberTrack, symmetryOp) because
  * H/V/RPI are involutions — no dataset scan required for a single recalled Entry.
+ *
+ * Phase C-2: never falls back to loadWorkingDataset / positions_dataset.
+ * When dataset arg is omitted/empty, authored-track lookup fails closed
+ * (caller gets entry.hpT / canonicalT fallback).
  */
 
 import type { PositionRecord, StrategyEntry } from "../positionSearchEngine";
-import { loadWorkingDataset } from "../dataset/infra/datasetStorage";
 import { listFamilyMemberLocations } from "./familyAwareWriter";
 import {
   familySymmetryIdentity,
@@ -62,13 +65,13 @@ function resolveAuthoredTrackForFamilyMember(
     authoredTrack = requestedTrack;
   } else if (op) {
     authoredTrack = authoredTrackFromSymmetryMember(requestedTrack, op);
-  } else if (entry.familyId) {
+  } else if (
+    entry.familyId &&
+    Array.isArray(dataset) &&
+    dataset.length > 0
+  ) {
     try {
-      const ds =
-        Array.isArray(dataset) && dataset.length > 0
-          ? dataset
-          : loadWorkingDataset();
-      const authored = findAuthoredFamilyEntry(ds, entry.familyId);
+      const authored = findAuthoredFamilyEntry(dataset, entry.familyId);
       if (authored?.entry.track) {
         authoredTrack = parseFamilyTrack(authored.entry.track);
       }
@@ -150,13 +153,13 @@ export function hydrateFamilyMemberRuntimeThickness(
     authoredTrack = requestedTrack;
   } else if (op) {
     authoredTrack = authoredTrackFromSymmetryMember(requestedTrack, op);
-  } else if (entry.familyId) {
+  } else if (
+    entry.familyId &&
+    Array.isArray(dataset) &&
+    dataset.length > 0
+  ) {
     try {
-      const ds =
-        Array.isArray(dataset) && dataset.length > 0
-          ? dataset
-          : loadWorkingDataset();
-      const authored = findAuthoredFamilyEntry(ds, entry.familyId);
+      const authored = findAuthoredFamilyEntry(dataset, entry.familyId);
       if (authored?.entry.track) {
         authoredTrack = parseFamilyTrack(authored.entry.track);
       }

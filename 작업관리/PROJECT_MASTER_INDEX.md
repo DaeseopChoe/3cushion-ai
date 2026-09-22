@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.19
-Last Updated: 2026-09-21
+Version: 2.20
+Last Updated: 2026-09-22
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Post–Phase C: remaining consumer audit → Phase D Export/Publish cutover OR smaller flat/shadow cleanup |
+| **Next Track** | Phase D — Normalized Export / Publish Cutover (audit first); external flat boundaries remain |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -836,7 +836,7 @@ Position  (Ball3: cue/target/second · 6 logical coords)
 7. **SAVE** = CREATE intent (mints new `familyId`) but **BLOCKED** when preferred Position+Slot is already occupied by another Family (no auto S2/S3; no auto-overwrite). **OVERWRITE** preserves trusted source `familyId` (LOCAL or PUBLISHED) and still must pass corpus occupancy validation. Same Position Key alone never selects UPDATE.
 8. **memberId KEEP** (lineage / validators / Derived·Product). Logical replacement also uses `genericFamilyMemberIdentityKey` (AUTHORED / SYMMETRY / DERIVED axes) — not coordinates.
 9. **Track KEEP** as Member semantic. Symmetry may change Ball3 → different `positionId`; track remains a separate field.
-10. Local WRITE SSOT = `normalized_dataset` (NormalizedDatasetEnvelope). Flat `positions_dataset` = compatibility only. Repository leaf remains flat until Phase D.
+10. Local WRITE SSOT = `normalized_dataset` (NormalizedDatasetEnvelope). ~~Flat `positions_dataset` = compatibility only~~ — **SUPERSEDED Phase C-2:** Local persisted flat / family_* shadow removed. Repository leaf remains flat until Phase D.
 
 #### Logical Member identity (existing)
 
@@ -896,7 +896,7 @@ Member가 다른 위치에 있다고 해서 별도의 SYS / correction / AI / ST
 | **MASTER** | `familyId`, `signature`, `sysInputs`, `corrections?`, `correctionsStored?`, `ai?`, `str?`, canonical `hpT?` (thickness = `hpT.T`) | Authoritative Family-common strategy payload. Optional semantics follow existing `FamilyMaster` type. |
 | **MEMBER** | `memberId`, `familyId` (FK), `balls`, `track`, `memberOrigin`, `generatedFromMemberId?`, `symmetryOp?`, `derivedRule?`, `derivedStep?`, `authoringStrategyId?`, `sourceSlot`, `targetBall?`, `reflectionOverride?`, `trajectoryExtensions?` | Geometry / Track / provenance / packing. `positionId` = `createPositionId(balls)` (derivable; retained on PositionRecord). |
 | **DERIVABLE** | `meta` (impact/final/angles), runtime/display mirrored HPT & thickness, `positionId` from balls | Not Family Master. Not Member strategy authority. Rebuild via existing calculation owner. |
-| **COMPATIBILITY DUPLICATE** | Flat `StrategyEntry` copies of MASTER common payload | `TEMPORARY_COMPATIBILITY_DUPLICATION` only — **not** authoritative Member ownership. Production WRITE SSOT still flat `positions_dataset` / `positions.json`. |
+| **COMPATIBILITY DUPLICATE** | Flat `StrategyEntry` copies of MASTER common payload | `TEMPORARY_COMPATIBILITY_DUPLICATION` on **rematerialized runtime** objects only — **not** a durable Local store. ~~Production WRITE SSOT still flat `positions_dataset` / `positions.json`.~~ **SUPERSEDED:** Local WRITE = `normalized_dataset` (B-1); Local flat persist removed (C-2). External Export/Publish/`positions.json` remain flat until Phase D. |
 
 #### HPT / Thickness
 
@@ -910,10 +910,11 @@ Member가 다른 위치에 있다고 해서 별도의 SYS / correction / AI / ST
 - Normalized hydrate (`hydrateFamilyMemberToPositionRecord` / rematerialize) **MUST** rebuild canonical meta when `options.meta` omitted
 - **`placeholderMeta` must NEVER be the final production-equivalent hydrated StrategyEntry.meta**
 
-#### Shadow store status
+#### Shadow store status (historical · SUPERSEDED Phase C-2)
 
-- `family_masters` / `family_members`: dual-written after positions persist; gated READ may rematerialize
-- Production **WRITE SSOT unchanged** (flat). Flag / dual-write cutover **not** decided here
+- ~~`family_masters` / `family_members`: dual-written after positions persist; gated READ may rematerialize~~
+- ~~Production **WRITE SSOT unchanged** (flat). Flag / dual-write cutover **not** decided here~~
+- **Phase C-2 ACTIVE:** no production dual-write; no production App-load fallback to `family_*` or `positions_dataset`. Stale browser keys are ignored.
 
 #### Separated problems
 
@@ -947,7 +948,7 @@ Filename **kept**. Path resolvers / Vercel public URLs **unchanged**.
 | Version | Shape | Status |
 |---------|--------|--------|
 | `DATASET_EXPORT_SCHEMA_VERSION` = **2** | `records: PositionRecord[]` | **LIVE** Export / Publish / Published loader |
-| `NORMALIZED_DATASET_SCHEMA_VERSION` = **3** | `familyMasters[]` + `familyMembers[]` | **Contract only** (Phase A) — not Production WRITE SSOT yet |
+| `NORMALIZED_DATASET_SCHEMA_VERSION` = **3** | `familyMasters[]` + `familyMembers[]` | **LIVE Local durable SSOT** (`normalized_dataset`) since B-1/C/C-2; repository leaf still flat v2 until Phase D |
 | `PublishOperation.schemaVersion` = **1** | publish intent identity | **Separate** — not coupled to leaf schemaVersion |
 
 #### Canonical future leaf content
@@ -976,7 +977,7 @@ NormalizedDatasetEnvelope {
 - `isFlatLegacyDataset` / `isNormalizedDataset` — discriminators
 - `composeNormalizedDatasetEnvelope` / `decomposeNormalizedDatasetEnvelope` — pure shadow ↔ leaf shape (no persistence)
 
-**Next Track:** Phase C — Local READ / Member-Centric Search + Hydration.
+**Next Track (historical Phase A pointer):** ~~Phase C — Local READ / Member-Centric Search + Hydration.~~ → **DONE** (see Phase C / C-2).
 
 ### Phase B-0 — Product Export Pipeline Permanent Removal (2026-09-21)
 
@@ -1016,7 +1017,7 @@ dataset/
 
 **Forbidden:** `dataset/product_export/`, `export_request.json` scratch under dataset root.
 
-**Next Track:** Phase C — Local READ / Member-Centric Search + Hydration.
+**Next Track (historical Phase B-0 pointer):** ~~Phase C — Local READ / Member-Centric Search + Hydration.~~ → **DONE** (see Phase C / C-2).
 
 ### Phase B-1 — Atomic Normalized Local Corpus Store (2026-09-21)
 
@@ -1038,9 +1039,9 @@ contents: familyMasters[] + familyMembers[]
 ```
 
 - **SAVE success** = validate + ONE durable canonical commit (+ read-back) only.
-- Flat `positions_dataset` = **compatibility projection** (written after canonical; not authority).
-- `family_masters` / `family_members` = **best-effort shadow** (not authority).
-- **Position Strategy Cardinality (Phase C-0):** One Position → max 3 Strategies; each `S1`/`S2`/`S3` → 0..1 Family. Occupancy conflict → validation reject → **zero** canonical/flat/shadow writes.
+- Flat `positions_dataset` = ~~compatibility projection~~ **REMOVED as production persist/App authority (Phase C-2)**.
+- `family_masters` / `family_members` = ~~best-effort shadow~~ **REMOVED as production dual-write/fallback (Phase C-2)**.
+- **Position Strategy Cardinality (Phase C-0):** One Position → max 3 Strategies; each `S1`/`S2`/`S3` → 0..1 Family. Occupancy conflict → validation reject → **zero** canonical writes.
 - ~~same Position + same `sourceSlot` across Families = legal — **SUPERSEDED**.~~ Flat packing cardinality now matches domain occupancy invariant.
 - Repository `positions.json` remains flat schemaVersion **2** until Phase D.
 - Manual Export / Publish / Search algorithms unchanged this Phase.
@@ -1079,7 +1080,7 @@ Families per Position: 0..3
 - schemaVersion **3** retained (validator strengthen; no bump).
 - Local Search / Published Search / Export / Publish / dataset leaves / Product / trajectory: **UNCHANGED**.
 
-**Next Track:** Phase C — Local READ / Member-Centric Search + Hydration
+**Next Track (historical Phase C-0 pointer):** ~~Phase C — Local READ / Member-Centric Search + Hydration~~ → **DONE** (see Phase C / C-2).
 (Design must assume ≤3 Strategy candidates per Position match; not multiple Families per same Slot.)
 
 ### Phase C — Local READ / Member-Centric Search + Hydration (2026-09-22)
@@ -1116,14 +1117,51 @@ normalized_dataset
 | Key | Local Search authority |
 |-----|------------------------|
 | `normalized_dataset` | **YES** (only) |
-| `positions_dataset` | **NO** (compatibility / Export / App mirror) |
+| `positions_dataset` | **NO** (obsolete; not production persist/App load) |
 | `family_masters` / `family_members` | **NO** |
 
 - invalid / missing canonical → **FAIL CLOSED** (no flat/shadow fallback)
 - empty valid normalized → **NO MATCH** (stale flat ignored)
 - Published Search remains flat `positions.json` (unchanged)
 
-**Next Track:** Determine from remaining consumers — likely Phase D Export/Publish cutover, or smaller compatibility cleanup if App mirror still depends heavily on flat projection outside Search.
+### Phase C-2 — Local Persisted Flat Compatibility Removal (2026-09-22)
+
+**Authority:** 본 절 · Local durable SSOT = `normalized_dataset` only
+
+**Code owners:**
+- `domain/family/loadProductionCompatibleDataset.ts`
+- `domain/dataset/infra/persistWorkingCorpusNormalizedAuthority.ts`
+- `application/flows/saveFlow.ts` · `derivedApprovalFlow.ts`
+- `domain/datasetExport.ts` · `hooks/useSettings.js` · `App.jsx`
+
+#### FINAL Local architecture
+
+```text
+LOCAL DURABLE SSOT = normalized_dataset only
+
+APP LOAD   = canonical rematerialize → PositionRecord[] (MEMORY ONLY)
+SEARCH     = FamilyMember-centric (Phase C; unchanged)
+SAVE       = memory mutate → canonical commit (no flat/shadow write)
+
+positions_dataset          = NOT production persist / NOT App authority
+family_masters/members     = NOT production dual-write / NOT fallback
+PositionRecord[]           = runtime projection KEEP
+```
+
+#### Fail-closed
+
+- canonical invalid / rematerialize fail → empty App dataset (no flat/shadow)
+- canonical absent (fresh) → empty App dataset
+- stale browser flat/shadow keys ignored
+
+#### External flat boundaries (unchanged — Phase D/E)
+
+- Manual Export schemaVersion 2
+- PublishOperation / PublishFamilyPayload / repository `positions.json` v2
+- Published Search
+- workspace_history snapshot payloads
+
+**Next Track:** Phase D — Normalized Export / Publish Cutover (audit first). Do not start D until C-2 accepted.
 
 **Production SSOT (검증 완료, 2026-06):**
 

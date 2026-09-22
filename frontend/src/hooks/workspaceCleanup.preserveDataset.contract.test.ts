@@ -1,14 +1,18 @@
 /**
- * Phase 3A-339 — preserve_dataset cleanup contract.
+ * Phase C-2 — local_delete cleanup contract.
  *
- * KEEP: positions_dataset + positions_dataset_meta (+ lesson library)
- * DELETE: family_masters / family_members (+ workspace_history, etc.)
+ * KEEP: normalized_dataset (+ lesson library / anchors)
+ * DELETE: obsolete positions_dataset(+meta), family_*, workspace_history, etc.
  *
  * Run: npx vitest run src/hooks/workspaceCleanup.preserveDataset.contract.test.ts
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WORKING_DATASET_KEY } from "../domain/dataset/infra/datasetStorage";
+import {
+  CANONICAL_NORMALIZED_CORPUS_KEY,
+} from "../domain/dataset/infra/canonicalNormalizedCorpusStore";
+import { persistWorkingCorpusNormalizedAuthority } from "../domain/dataset/infra/persistWorkingCorpusNormalizedAuthority";
 import {
   clearPositionsDatasetMetaForTests,
   loadPositionsDatasetCorpusGeneration,
@@ -226,34 +230,35 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
     vi.restoreAllMocks();
   });
 
-  it("T1–T5: KEEP positions+meta, DELETE family, freshness NORMALIZED_MISSING", () => {
+  it("T1–T5: KEEP normalized_dataset; DELETE obsolete flat/shadow/history", () => {
     const dataset = seedAtGeneration(17);
+    // Also seed canonical SSOT for C-2 preserve semantics.
+    expect(
+      persistWorkingCorpusNormalizedAuthority({
+        dataset,
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }).ok
+    ).toBe(true);
     localStorage.setItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY, JSON.stringify([{ id: "L1" }]));
     localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify([{ id: "h1" }]));
     localStorage.setItem("app_ui_mode_v1", "ADMIN");
 
-    const positionsBefore = localStorage.getItem(WORKING_DATASET_KEY);
-    const metaBefore = localStorage.getItem(POSITIONS_DATASET_META_KEY);
-    expect(positionsBefore).toBeTruthy();
-    expect(metaBefore).toBeTruthy();
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeTruthy();
     expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeTruthy();
-    expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeTruthy();
 
     const removed = runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
 
-    // T1
-    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBe(positionsBefore);
-    expect(JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)).toEqual(dataset);
-
-    // T2
-    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBe(metaBefore);
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(17);
-
-    // T3
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
+    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeNull();
     expect(removed).toEqual(
       expect.arrayContaining([
+        WORKING_DATASET_KEY,
+        POSITIONS_DATASET_META_KEY,
         FAMILY_MASTERS_STORAGE_KEY,
         FAMILY_MEMBERS_STORAGE_KEY,
         WORKSPACE_HISTORY_KEY,
@@ -261,37 +266,39 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
       ])
     );
 
-    // lesson KEEP (existing)
     expect(localStorage.getItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY)).toBeTruthy();
     expect(localStorage.getItem(WORKSPACE_HISTORY_KEY)).toBeNull();
-
-    // T4–T5
-    const freshness = evaluateNormalizedCorpusFreshness();
-    expect(freshness.fresh).toBe(false);
-    expect(freshness.ok).toBe(false);
-    if (!freshness.ok) {
-      expect(freshness.reason).toBe("NORMALIZED_MISSING");
-      expect(freshness.reason).not.toBe("LEGACY_MARKER_MISSING");
-    }
   });
 
-  it("T6/T9: preserve → SAVE advances N→N+1 and rebuilds fresh shadow", () => {
+  it("T6/T9: preserve → SAVE writes canonical (no flat/shadow rebuild)", () => {
     seedAtGeneration(17);
+    expect(
+      persistWorkingCorpusNormalizedAuthority({
+        dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }).ok
+    ).toBe(true);
     runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(17);
-    expect(isNormalizedCorpusFresh()).toBe(false);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
 
     const result = runSaveStrategy(buildSaveCtx());
     expect(result.ok).toBe(true);
-    expect(result.normalizedDualWrite?.ok).toBe(true);
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(18);
-    expect(loadFamilyMastersEnvelope().corpusGeneration).toBe(18);
-    expect(loadFamilyMembersEnvelope().corpusGeneration).toBe(18);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(result.normalizedDualWrite?.ok).toBe(false);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
   });
 
-  it("T7: preserve → Approval advances N→N+1", () => {
+  it("T7: preserve → Approval writes canonical", () => {
     seedAtGeneration(17);
+    expect(
+      persistWorkingCorpusNormalizedAuthority({
+        dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }).ok
+    ).toBe(true);
     runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
 
     const written = writeFourTrackFamilyMembers([], {
@@ -317,21 +324,25 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
     const out = commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaseline(),
-      saveWorkingDataset: (updated) => {
-        localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(updated));
-      },
       setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: vi.fn(),
       commitWorkspaceHistoryWithStrategyDataset: vi.fn(),
     });
-    expect(out.corpusPersist.ok).toBe(true);
-    expect(out.normalizedDualWrite.ok).toBe(true);
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(18);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(out.canonicalOk).toBe(true);
+    expect(out.corpusPersist.ok).toBe(false);
+    expect(out.normalizedDualWrite.ok).toBe(false);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
   });
 
-  it("T8: preserve → Import advances N→N+1", () => {
+  it("T8: preserve → Import advances via canonical persist", () => {
     seedAtGeneration(17);
+    expect(
+      persistWorkingCorpusNormalizedAuthority({
+        dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }).ok
+    ).toBe(true);
     runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
 
     const imported = writeFourTrackFamilyMembers([], {
@@ -342,29 +353,33 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
     expect(imported.ok).toBe(true);
     if (!imported.ok) return;
 
-    // Mirror App Import: safe persist then shadow sync
-    const persist = persistPositionsDatasetWithGeneration(imported.dataset);
-    expect(persist.ok).toBe(true);
-    if (!persist.ok) return;
-    const sync = syncPositionDatasetToNormalizedFamilyStore(imported.dataset, {
-      corpusGeneration: persist.corpusGeneration,
-    });
-    expect(sync.ok).toBe(true);
-    expect(persist.corpusGeneration).toBe(18);
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(18);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(
+      persistWorkingCorpusNormalizedAuthority({
+        dataset: imported.dataset,
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }).ok
+    ).toBe(true);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
   });
 
-  it("T10: clear_all aliases local_delete — corpus + AI library preserved (no clear)", () => {
+  it("T10: clear_all aliases local_delete — normalized + AI library preserved", () => {
     seedAtGeneration(17);
+    expect(
+      persistWorkingCorpusNormalizedAuthority({
+        dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }).ok
+    ).toBe(true);
     localStorage.setItem(
       ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
       JSON.stringify([{ id: "L1" }])
     );
     localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify([{ id: "h1" }]));
     runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_CLEAR_ALL);
-    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeTruthy();
-    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBeTruthy();
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
     expect(localStorage.getItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY)).toBeTruthy();
     expect(localStorage.getItem(WORKSPACE_HISTORY_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
@@ -373,6 +388,13 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
 
   it("T10b: local_delete preserves category library and never calls clear", () => {
     seedAtGeneration(17);
+    expect(
+      persistWorkingCorpusNormalizedAuthority({
+        dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }).ok
+    ).toBe(true);
     const clearSpy = vi.spyOn(localStorage, "clear");
     localStorage.setItem(
       "ONE_POINT_CATEGORY_LIBRARY_V1",
@@ -381,17 +403,22 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
     localStorage.setItem("ANCHORS_OVERRIDE_V1", "{}");
     runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_LOCAL_DELETE);
     expect(clearSpy).not.toHaveBeenCalled();
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
     expect(localStorage.getItem("ONE_POINT_CATEGORY_LIBRARY_V1")).toBeTruthy();
     expect(localStorage.getItem("ANCHORS_OVERRIDE_V1")).toBe("{}");
     clearSpy.mockRestore();
   });
 
-  it("T11: History delete leaves corpus/meta/family untouched", () => {
+  it("T11: History delete leaves canonical corpus untouched", () => {
     seedAtGeneration(17);
-    const pos = localStorage.getItem(WORKING_DATASET_KEY);
-    const meta = localStorage.getItem(POSITIONS_DATASET_META_KEY);
-    const masters = localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY);
-    const members = localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY);
+    expect(
+      persistWorkingCorpusNormalizedAuthority({
+        dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }).ok
+    ).toBe(true);
+    const canonical = localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY);
 
     saveWorkspaceHistory([
       {
@@ -429,24 +456,25 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
     ]);
 
     deleteSnapshotById("hist_a");
-    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBe(pos);
-    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBe(meta);
-    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBe(masters);
-    expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBe(members);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBe(canonical);
 
     deleteOldest30();
-    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBe(pos);
-    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBe(meta);
-    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBe(masters);
-    expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBe(members);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBe(canonical);
     expect(loadWorkspaceHistory()).toHaveLength(0);
   });
 
-  it("T12: preserve does not rewrite History H3 restore contract (family still deletable; restore path separate)", () => {
-    // After preserve, family absent; History restore remains generation-safe persist without family sync.
+  it("T12: History restore helper may write obsolete flat; App load ignores it", () => {
     seedAtGeneration(17);
+    expect(
+      persistWorkingCorpusNormalizedAuthority({
+        dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+      }).ok
+    ).toBe(true);
     runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
     expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
 
     const restoredDataset: PositionRecord[] = [
       {
@@ -456,61 +484,72 @@ describe("Phase 3A-339 preserve_dataset cleanup contract", () => {
         strategies: { S1: authoredEntry({ memberId: "mb_r" }) },
       },
     ];
-    // Restore durable half (same as handleLoadWorkspaceSnapshot)
     const restore = persistPositionsDatasetWithGeneration(restoredDataset);
     expect(restore.ok).toBe(true);
-    if (!restore.ok) return;
-    expect(restore.corpusGeneration).toBe(18);
     expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
-    expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeNull();
-    expect(isNormalizedCorpusFresh()).toBe(false);
   });
 
-  describe("failure-window after preserve (Phase B-1)", () => {
-    it("A: flat positions projection failure → SAVE still ok when canonical commits", () => {
+  describe("failure-window after preserve (Phase C-2)", () => {
+    it("A: SAVE succeeds without flat projection", () => {
       seedAtGeneration(17);
+      expect(
+        persistWorkingCorpusNormalizedAuthority({
+          dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+          shotType: "뒤돌리기",
+          systemId: "5_half_system",
+        }).ok
+      ).toBe(true);
       runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
       forcePersistPositionsFailureForTests("positions");
       const result = runSaveStrategy(buildSaveCtx());
       expect(result.ok).toBe(true);
       expect(result.flatProjection?.ok).toBe(false);
       clearPersistPositionsFailureForTests();
-      // Shadow freshness may be false when flat projection/generation skipped.
-      expect(isNormalizedCorpusFresh()).toBe(false);
+      expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
     });
 
-    it("B: flat generation commit failure → SAVE still ok when canonical commits", () => {
+    it("B: SAVE succeeds without flat generation", () => {
       seedAtGeneration(17);
+      expect(
+        persistWorkingCorpusNormalizedAuthority({
+          dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+          shotType: "뒤돌리기",
+          systemId: "5_half_system",
+        }).ok
+      ).toBe(true);
       runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
       forcePersistPositionsFailureForTests("generation");
-      const result = runSaveStrategy(buildSaveCtx());
-      expect(result.ok).toBe(true);
-      expect(result.flatProjection?.ok).toBe(false);
+      expect(runSaveStrategy(buildSaveCtx()).ok).toBe(true);
       clearPersistPositionsFailureForTests();
-      expect(isNormalizedCorpusFresh()).toBe(false);
+      expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
     });
 
-    it("C: normalized sync failure → not fresh; legacy advanced", () => {
+    it("C: SAVE does not advance obsolete flat generation", () => {
       seedAtGeneration(17);
+      expect(
+        persistWorkingCorpusNormalizedAuthority({
+          dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+          shotType: "뒤돌리기",
+          systemId: "5_half_system",
+        }).ok
+      ).toBe(true);
       runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
-      const realSet = localStorage.setItem.bind(localStorage);
-      vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
-        if (key === FAMILY_MASTERS_STORAGE_KEY || key === FAMILY_MEMBERS_STORAGE_KEY) {
-          throw new Error("injected sync fail");
-        }
-        return realSet(key, value);
-      });
       expect(runSaveStrategy(buildSaveCtx()).ok).toBe(true);
-      expect(loadPositionsDatasetCorpusGeneration()).toBe(18);
-      expect(isNormalizedCorpusFresh()).toBe(false);
+      expect(loadPositionsDatasetCorpusGeneration()).toBeNull();
     });
 
-    it("D: full success → fresh at N+1", () => {
+    it("D: full success → canonical present", () => {
       seedAtGeneration(17);
+      expect(
+        persistWorkingCorpusNormalizedAuthority({
+          dataset: JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!),
+          shotType: "뒤돌리기",
+          systemId: "5_half_system",
+        }).ok
+      ).toBe(true);
       runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
       expect(runSaveStrategy(buildSaveCtx()).ok).toBe(true);
-      expect(loadPositionsDatasetCorpusGeneration()).toBe(18);
-      expect(isNormalizedCorpusFresh()).toBe(true);
+      expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
     });
   });
 });

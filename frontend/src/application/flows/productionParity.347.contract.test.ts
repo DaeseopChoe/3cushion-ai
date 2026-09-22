@@ -1,6 +1,6 @@
 /**
  * Phase 3A-347 ??Production parity regression completion.
- * Closes 3A-346 CONDITIONAL gaps: ADMIN LocalDB E2E, S2/S3 recall?’edit?’SAVE,
+ * Closes 3A-346 CONDITIONAL gaps: ADMIN LocalDB E2E, S2/S3 recall??edit??SAVE,
  * preferred S3, Approval/Import reload, determinism, meta regeneration.
  *
  * Run: npx vitest run src/application/flows/productionParity.347.contract.test.ts
@@ -12,10 +12,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ballsExactEqual } from "../../domain/cueEditSnap";
 import { WORKING_DATASET_KEY } from "../../domain/dataset/infra/datasetStorage";
+import { persistWorkingCorpusNormalizedAuthority } from "../../domain/dataset/infra/persistWorkingCorpusNormalizedAuthority";
+import {
+  CANONICAL_NORMALIZED_CORPUS_KEY,
+} from "../../domain/dataset/infra/canonicalNormalizedCorpusStore";
 import {
   clearPositionsDatasetMetaForTests,
-  loadPositionsDatasetCorpusGeneration,
-  writePositionsDatasetCorpusGeneration,
 } from "../../domain/dataset/infra/positionsDatasetMeta";
 import { persistPositionsDatasetWithGeneration } from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
 import { createPositionId } from "../../domain/positionId";
@@ -93,7 +95,7 @@ function entry(
     signature: {
       systemId: "5_half_system",
       formulaHash: "h1",
-      shotType: "?¤ëŒë¦¬ê¸°",
+      shotType: "?????",
     },
     sysInputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
     corrections: {
@@ -161,15 +163,15 @@ function multiSlotThree(): PositionRecord {
   };
 }
 
-function persistAligned(dataset: PositionRecord[], gen = 7) {
-  localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(dataset));
-  writePositionsDatasetCorpusGeneration(gen);
-  const sync = syncPositionDatasetToNormalizedFamilyStore(dataset, {
-    corpusGeneration: gen,
+function persistAligned(dataset: PositionRecord[], _gen = 7) {
+  // Phase C-2: seed Local durable SSOT (normalized_dataset) only.
+  const persist = persistWorkingCorpusNormalizedAuthority({
+    dataset,
+    shotType: "????",
+    systemId: "5_half_system",
   });
-  expect(sync.ok).toBe(true);
-  expect(isNormalizedCorpusFresh()).toBe(true);
-  return sync;
+  expect(persist.ok).toBe(true);
+  return persist;
 }
 
 function isPlaceholderMeta(
@@ -226,7 +228,7 @@ async function runLocalDbParity(args: {
     sys: {
       systemId: "5_half_system",
       system_id: "5_half_system",
-      shotType: "?¤ëŒë¦¬ê¸°",
+      shotType: "?????",
     },
   };
 
@@ -331,7 +333,7 @@ function buildSaveCtx(args: {
         system: "5_half_system",
         systemId: "5_half_system",
         system_id: "5_half_system",
-        shotType: "?¤ëŒë¦¬ê¸°",
+        shotType: "?????",
         track: args.entry.track ?? "B2T_L",
         inputs,
         system_values: { ...inputs },
@@ -386,21 +388,22 @@ describe("Phase 3A-347 production parity regression", () => {
     clearFamilyNormalizedStorageEnabledForTests();
   });
 
-  it("flag constant default ON; explicit override OFF ??legacy even when family fresh", () => {
+  it("Phase C-2: flag OFF ignored ? App load is canonical-only (no legacy flat)", () => {
     expect(FAMILY_NORMALIZED_STORAGE_ENABLED).toBe(true);
     persistAligned([multiSlotTwo()]);
     forceFamilyNormalizedStorageEnabledForTests(false);
     expect(isFamilyNormalizedStorageEnabled()).toBe(false);
     const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    expect(result.reason).toBe("flag_off");
+    expect(result.source).toBe("canonical");
+    expect(result.reason).toBe("canonical_rematerialized");
+    expect(result.dataset[0]?.strategies.S1?.memberId).toBe("mb_a");
   });
 
-  it("A0 default ON + fresh multi-slot ??normalized without test force-ON", () => {
+  it("A0 default ON + fresh multi-slot ? canonical rematerialize", () => {
     persistAligned([multiSlotTwo()]);
     expect(isFamilyNormalizedStorageEnabled()).toBe(true);
     const prod = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(prod.source);
+    expect(prod.source).toBe("canonical");
     expect(prod.dataset[0]?.strategies.S1?.memberId).toBe("mb_a");
     expect(prod.dataset[0]?.strategies.S2?.memberId).toBe("mb_b");
   });
@@ -410,7 +413,7 @@ describe("Phase 3A-347 production parity regression", () => {
     persistAligned(legacy);
     forceFamilyNormalizedStorageEnabledForTests(true);
     const prod = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(prod.source);
+    expect(prod.source).toBe("canonical");
 
     const a = await runLocalDbParity({
       dataset: legacy,
@@ -444,7 +447,7 @@ describe("Phase 3A-347 production parity regression", () => {
     persistAligned(legacy);
     forceFamilyNormalizedStorageEnabledForTests(true);
     const prod = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(prod.source);
+    expect(prod.source).toBe("canonical");
     expect(prod.dataset[0]?.strategies.S3?.memberId).toBe("mb_c");
 
     const a = await runLocalDbParity({
@@ -491,14 +494,9 @@ describe("Phase 3A-347 production parity regression", () => {
     expect(authoredRec.strategies.S2?.memberId).not.toBe("mb_s3");
 
     persistAligned(written.dataset, 4);
-    const authoredMember = Object.values(loadFamilyMembersEnvelope().members).find(
-      (m) => m.memberId === "mb_s3"
-    )!;
-    expect(authoredMember.sourceSlot).toBe("S3");
-
-    forceFamilyNormalizedStorageEnabledForTests(true);
+    // Phase C-2: assert via rematerialize, not family_* shadow.
     const loaded = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(loaded.source);
+    expect(loaded.source).toBe("canonical");
     const again = loaded.dataset.find((r) => ballsExactEqual(r.balls, ballsX))!;
     expect(again.strategies.S3?.memberId).toBe("mb_s3");
     expect(again.strategies.S1?.memberId).not.toBe("mb_s3");
@@ -510,7 +508,7 @@ describe("Phase 3A-347 production parity regression", () => {
     persistAligned(legacy, 5);
     forceFamilyNormalizedStorageEnabledForTests(true);
     const view = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(view.source);
+    expect(view.source).toBe("canonical");
 
     const recall = await runLocalDbParity({
       dataset: view.dataset,
@@ -538,10 +536,9 @@ describe("Phase 3A-347 production parity regression", () => {
     const ids = capture.dataset.map((r) => r.positionId);
     expect(new Set(ids).size).toBe(ids.length);
 
-    // Reload rematerialize after SAVE sync
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    // Reload rematerialize after SAVE (canonical only)
     const reloaded = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(reloaded.source);
+    expect(reloaded.source).toBe("canonical");
     const packed = reloaded.dataset.find((r) => ballsExactEqual(r.balls, ballsX))!;
     expect(packed.strategies.S1?.memberId).toBe("mb_a");
     expect(packed.strategies.S2?.memberId).toBe("mb_b");
@@ -553,7 +550,7 @@ describe("Phase 3A-347 production parity regression", () => {
     persistAligned(legacy, 6);
     forceFamilyNormalizedStorageEnabledForTests(true);
     const view = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(view.source);
+    expect(view.source).toBe("canonical");
 
     const recall = await runLocalDbParity({
       dataset: view.dataset,
@@ -578,7 +575,7 @@ describe("Phase 3A-347 production parity regression", () => {
     expect(exact.strategies.S3?.sysInputs?.CO_f).toBe(33);
 
     const reloaded = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(reloaded.source);
+    expect(reloaded.source).toBe("canonical");
     const packed = reloaded.dataset.find((r) => ballsExactEqual(r.balls, ballsX))!;
     expect(packed.strategies.S1?.memberId).toBe("mb_a");
     expect(packed.strategies.S2?.memberId).toBe("mb_b");
@@ -627,44 +624,32 @@ describe("Phase 3A-347 production parity regression", () => {
     const commit = commitDerivedApprovalDataset({
       resultDataset: approvedDataset,
       baselineSnapshot: baseline,
-      saveWorkingDataset: (u) => {
-        localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(u));
-      },
       setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: vi.fn(),
       commitWorkspaceHistoryWithStrategyDataset: vi.fn(),
     });
-    expect(commit.corpusPersist.ok).toBe(true);
-    expect(commit.normalizedDualWrite.ok).toBe(true);
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(2);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(commit.canonicalOk).toBe(true);
+    expect(commit.corpusPersist.ok).toBe(false);
+    expect(commit.normalizedDualWrite.ok).toBe(false);
 
-    forceFamilyNormalizedStorageEnabledForTests(true);
     const loaded = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(loaded.source);
+    expect(loaded.source).toBe("canonical");
     const packed = loaded.dataset.find((r) => ballsExactEqual(r.balls, ballsX))!;
     expect(packed.strategies.S1?.memberId).toBe("mb_a");
     expect(packed.strategies.S2?.memberId).toBe("mb_b");
-    const members = Object.values(loadFamilyMembersEnvelope().members);
-    expect(members.every((m) => m.sourceSlot === "S1" || m.sourceSlot === "S2")).toBe(
-      true
-    );
   });
 
-  it("H Import ??reload ??rematerialize", () => {
+  it("H Import ? reload ? rematerialize via canonical persist", () => {
     const imported = [multiSlotThree()];
-    const persist = persistPositionsDatasetWithGeneration(imported);
-    expect(persist.ok).toBe(true);
-    if (!persist.ok) return;
-    const sync = syncPositionDatasetToNormalizedFamilyStore(imported, {
-      corpusGeneration: persist.corpusGeneration,
+    const persist = persistWorkingCorpusNormalizedAuthority({
+      dataset: imported,
+      shotType: "????",
+      systemId: "5_half_system",
     });
-    expect(sync.ok).toBe(true);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(persist.ok).toBe(true);
 
-    forceFamilyNormalizedStorageEnabledForTests(true);
     const loaded = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(loaded.source);
+    expect(loaded.source).toBe("canonical");
     expect(loaded.dataset).toHaveLength(1);
     expect(loaded.dataset[0]?.strategies.S1?.memberId).toBe("mb_a");
     expect(loaded.dataset[0]?.strategies.S2?.memberId).toBe("mb_b");
@@ -709,7 +694,7 @@ describe("Phase 3A-347 production parity regression", () => {
     forceFamilyNormalizedStorageEnabledForTests(true);
     const r1 = loadProductionCompatibleDataset();
     const r2 = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(r1.source);
+    expect(r1.source).toBe("canonical");
     expect(r2.dataset).toEqual(r1.dataset);
   });
 
@@ -718,7 +703,7 @@ describe("Phase 3A-347 production parity regression", () => {
     persistAligned(legacy, 9);
     forceFamilyNormalizedStorageEnabledForTests(true);
     const view = loadProductionCompatibleDataset();
-    expect(["normalized", "canonical"]).toContain(view.source);
+    expect(view.source).toBe("canonical");
     // Hydrate fidelity: rematerialized meta must not be placeholder cue/second zeros
     expect(
       isPlaceholderMeta(view.dataset[0]?.strategies.S2?.meta, ballsX)
@@ -740,37 +725,28 @@ describe("Phase 3A-347 production parity regression", () => {
     expect(exact.strategies.S2?.meta).toBeTruthy();
   });
 
-  it("fail-closed: schema v1 / missing sourceSlot ??legacy under flag ON", () => {
+  it("fail-closed: stale family_* shadow cannot override canonical", () => {
     persistAligned([multiSlotTwo()], 3);
-    const masters = JSON.parse(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)!);
-    const members = JSON.parse(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)!);
-    masters.schemaVersion = 1;
-    members.schemaVersion = 1;
-    for (const m of Object.values(members.members) as Record<string, unknown>[]) {
-      delete m.sourceSlot;
-      m.schemaVersion = 1;
-    }
-    localStorage.setItem(FAMILY_MASTERS_STORAGE_KEY, JSON.stringify(masters));
-    localStorage.setItem(FAMILY_MEMBERS_STORAGE_KEY, JSON.stringify(members));
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    expect(isNormalizedCorpusFresh()).toBe(false);
+    localStorage.setItem(
+      FAMILY_MASTERS_STORAGE_KEY,
+      JSON.stringify({ schemaVersion: 1, masters: {} })
+    );
+    localStorage.setItem(
+      FAMILY_MEMBERS_STORAGE_KEY,
+      JSON.stringify({ schemaVersion: 1, members: {} })
+    );
     const prod = loadProductionCompatibleDataset();
-    expect(prod.source).toBe("legacy");
+    expect(prod.source).toBe("canonical");
+    expect(prod.dataset[0]?.strategies.S1?.memberId).toBe("mb_a");
     expect(FAMILY_NORMALIZED_SCHEMA_VERSION).toBe(2);
   });
 
-  it("compatible load fails closed on collision (no fan-out)", () => {
+  it("fail-closed: corrupt canonical does not fall back to flat/shadow", () => {
     persistAligned([multiSlotTwo()], 2);
-    const env = loadFamilyMembersEnvelope();
-    const s1 = Object.values(env.members).find((m) => m.sourceSlot === "S1")!;
-    env.members.mb_collision = { ...s1, memberId: "mb_collision" };
-    localStorage.setItem(FAMILY_MEMBERS_STORAGE_KEY, JSON.stringify(env));
-    const loaded = loadFamilyCompatibleDataset();
-    expect(loaded.ok).toBe(false);
-    if (!loaded.ok) {
-      expect(loaded.issues.some((i) => i.code === "SLOT_COLLISION")).toBe(true);
-    }
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    expect(loadProductionCompatibleDataset().source).toBe("legacy");
+    localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify([multiSlotThree()]));
+    localStorage.setItem(CANONICAL_NORMALIZED_CORPUS_KEY, "{broken");
+    const loaded = loadProductionCompatibleDataset();
+    expect(loaded.source).toBe("empty");
+    expect(loaded.dataset).toEqual([]);
   });
 });

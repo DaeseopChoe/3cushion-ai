@@ -1,14 +1,18 @@
 /**
- * Phase B-1 — Production WRITE orchestrator.
+ * Phase C-2 — Production WRITE orchestrator.
  *
- * Order (reversed from dual-write era):
+ * Order:
  *   1. PositionRecord[] candidate (in memory from SAVE/Approval writers)
  *   2. migrate → NormalizedDatasetEnvelope
  *   3. validate + ONE canonical durable commit
- *   4. optional flat positions_dataset compatibility projection
- *   5. optional family_* shadow (best-effort; never gates SAVE success)
  *
  * SAVE success = step 3 only.
+ *
+ * Phase C-2: NO positions_dataset compatibility write.
+ * Phase C-2: NO family_* shadow write.
+ * Optional writeFlatCompatibility / writeFamilyShadow remain for
+ * TEST / MIGRATION helpers only — production callers must leave defaults
+ * (false) so Local durable SSOT stays normalized_dataset alone.
  */
 
 import type { PositionRecord } from "../../positionSearchEngine";
@@ -38,13 +42,13 @@ export type PersistWorkingCorpusNormalizedAuthorityArgs = {
   systemId: string;
   systemLabel?: string;
   /**
-   * When true (default), write positions_dataset after canonical success.
-   * Compatibility projection only — not WRITE authority.
+   * TEST/MIGRATION only. Default false (Phase C-2).
+   * When true, also write positions_dataset after canonical success.
    */
   writeFlatCompatibility?: boolean;
   /**
-   * When true (default), best-effort family_* shadow after flat generation bump.
-   * Never fails the overall persist when canonical succeeded.
+   * TEST/MIGRATION only. Default false (Phase C-2).
+   * When true, best-effort family_* shadow after flat generation bump.
    */
   writeFamilyShadow?: boolean;
 };
@@ -53,7 +57,9 @@ export type PersistWorkingCorpusNormalizedAuthoritySuccess = {
   ok: true;
   envelope: NormalizedDatasetEnvelope;
   canonical: CommitCanonicalNormalizedCorpusResult & { ok: true };
+  /** Always skipped in production (ok:false stage skipped). */
   flatProjection: PersistPositionsWithGenerationResult;
+  /** Always skipped in production. */
   shadowSync: NormalizedDualWriteResult | { ok: false; stage: "skipped"; reason: string };
   corpusGeneration: number | null;
 };
@@ -122,7 +128,9 @@ export function persistWorkingCorpusNormalizedAuthority(
     };
   }
 
-  const writeFlat = args.writeFlatCompatibility !== false;
+  // Phase C-2: production writes normalized_dataset only.
+  // Optional flat/shadow remain for explicit TEST/MIGRATION opt-in.
+  const writeFlat = args.writeFlatCompatibility === true;
   let flatProjection: PersistPositionsWithGenerationResult;
   if (writeFlat) {
     flatProjection = persistPositionsDatasetWithGeneration(records);
@@ -130,13 +138,13 @@ export function persistWorkingCorpusNormalizedAuthority(
     flatProjection = {
       ok: false,
       stage: "positions",
-      reason: "flat compatibility write skipped",
+      reason: "flat compatibility write skipped (Phase C-2)",
       previousGeneration: null,
     };
   }
 
   let shadowSync: PersistWorkingCorpusNormalizedAuthoritySuccess["shadowSync"];
-  const writeShadow = args.writeFamilyShadow !== false;
+  const writeShadow = args.writeFamilyShadow === true;
   if (
     writeShadow &&
     flatProjection.ok &&
@@ -151,7 +159,7 @@ export function persistWorkingCorpusNormalizedAuthority(
       stage: "skipped",
       reason: writeShadow
         ? "flat compatibility generation unavailable; family_* shadow skipped"
-        : "family_* shadow write skipped",
+        : "family_* shadow write skipped (Phase C-2)",
     };
   }
 

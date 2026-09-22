@@ -11,7 +11,7 @@ import {
   deleteOldest30,
   updateSnapshotsExported,
 } from "../domain/workspaceHistory";
-import { loadWorkingDataset } from "../domain/dataset/infra/datasetStorage";
+import { loadRematerializedWorkingCorpus } from "../domain/family/loadProductionCompatibleDataset";
 import { normalizeDatasetFromStorage } from "../domain/positionMergeEngine";
 import { buildEditSourceContext } from "../domain/cueEditSnap";
 import {
@@ -48,9 +48,12 @@ async function getOrCreateDir(parent, name) {
   return parent.getDirectoryHandle(name, { create: true });
 }
 
-/** Recall SSOT dataset key — preserved by local cleanup */
+/**
+ * @deprecated Phase C-2 — obsolete Local flat key (not durable SSOT).
+ * Retained as named constant for tests that assert stale flat is ignored/cleaned.
+ */
 export const POSITIONS_DATASET_STORAGE_KEY = "positions_dataset";
-/** Re-export SSOT generation authority key for cleanup preserve list. */
+/** @deprecated Phase C-2 — obsolete flat generation meta key. */
 export { POSITIONS_DATASET_META_KEY as POSITIONS_DATASET_META_STORAGE_KEY };
 export const ONE_POINT_LESSON_LIBRARY_STORAGE_KEY =
   "ONE_POINT_LESSON_LIBRARY_V1";
@@ -70,11 +73,13 @@ export const WORKSPACE_CLEANUP_PRESERVE_DATASET = "preserve_dataset";
  */
 export const WORKSPACE_CLEANUP_CLEAR_ALL = "clear_all";
 
-/** Keys that Local Delete must never remove. */
+/**
+ * Keys that Local Delete must never remove.
+ * Phase C-2: preserve normalized_dataset only (not obsolete positions_dataset /
+ * positions_dataset_meta — those may be safely removed as stale leftovers).
+ */
 export function listWorkspaceCleanupPreservedKeys() {
   return [
-    POSITIONS_DATASET_STORAGE_KEY,
-    POSITIONS_DATASET_META_KEY,
     CANONICAL_NORMALIZED_CORPUS_KEY,
     ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
     ONE_POINT_CATEGORY_LIBRARY_STORAGE_KEY,
@@ -97,8 +102,9 @@ export function listLocalStorageKeysExcept(exceptKeys) {
 
 /**
  * Local workspace cleanup ([로컬 삭제]).
- * KEEP: positions_dataset + meta + normalized_dataset + AI one-point libraries + anchors override.
- * DELETE: workspace_history, family_* shadow, and other non-preserved keys.
+ * KEEP: normalized_dataset + AI one-point libraries + anchors override.
+ * DELETE: workspace_history, obsolete positions_dataset(+meta), family_* shadow,
+ * and other non-preserved keys.
  * Never bulk-clears storage; never touches repo published dataset files.
  * @returns {string[]} keys removed
  */
@@ -403,10 +409,10 @@ export function useSettings({
       const snapshotDataset =
         Array.isArray(s.dataset) && s.dataset.length > 0
           ? normalizeDatasetFromStorage(s.dataset)
-          : loadWorkingDataset();
+          : loadRematerializedWorkingCorpus();
 
       // Phase 1: History Load restores Workspace editing state only (UI/balls/shotEditor/target).
-      // Search Corpus (positions_dataset) remains independent and is NOT replaced by history snapshot.
+      // Search Corpus (normalized_dataset) remains independent and is NOT replaced by history snapshot.
       setAdminState(s.adminState);
       // Phase 3: Role Ball3 restore — snapshot.target → UI balls.target (no color→field).
       const hydratedBalls = hydrateBallsStateForUi(s.ballsState);

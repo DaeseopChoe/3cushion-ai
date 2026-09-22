@@ -9,8 +9,8 @@
 //
 // 핵심 불변 조건:
 //   Durable corpus write uses persistWorkingCorpusNormalizedAuthority
-//   (canonical NormalizedDatasetEnvelope commit first; flat = compatibility).
-//   React mirror via setDataset + saveWorkingDataset DI after canonical ok.
+//   (canonical NormalizedDatasetEnvelope commit only — Phase C-2; no flat/shadow).
+//   React mirror via setDataset after canonical ok.
 //   localStorage 직접 접근 금지 in this flow.
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
@@ -135,11 +135,11 @@ export type SaveFlowResult = {
   /** Trusted edit source at OVERWRITE time (NONE on SAVE). */
   overwriteSourceKind?: EditSourceKind;
   /**
-   * Phase B-1: family_* compatibility shadow (best-effort after canonical).
-   * Does not gate SAVE success.
+   * Phase C-2: family_* shadow no longer production-written.
+   * Present for backwards-compatible result shape (always skipped).
    */
   normalizedDualWrite?: NormalizedDualWriteResult;
-  /** Phase B-1: flat positions_dataset compatibility projection result. */
+  /** Phase C-2: flat positions_dataset no longer production-written. */
   flatProjection?: PersistPositionsWithGenerationResult;
   /** Canonical normalized commit stage when authority write failed. */
   corpusPersistStage?: "migrate" | "compose" | "canonical" | "invalidate" | "positions" | "generation";
@@ -189,8 +189,11 @@ export type SaveFlowContext = {
    */
   editingLocalFamilyId?: string | null;
 
-  // READ (Infrastructure)
-  saveWorkingDataset: (updated: PositionRecord[]) => void;
+  /**
+   * @deprecated Phase C-2 — ignored. Flat positions_dataset is not production-written.
+   * Kept optional so existing tests/callers compile without DI.
+   */
+  saveWorkingDataset?: (updated: PositionRecord[]) => void;
 
   // WRITE
   setDataset: (updated: PositionRecord[]) => void;
@@ -587,8 +590,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     effectiveRenderKeys: Object.keys(ctx.resolvedSlotSysValues || {}),
   });
 
-  // Phase B-1: canonical NormalizedDatasetEnvelope commit FIRST.
-  // Flat positions_dataset is compatibility projection only (after canonical ok).
+  // Phase C-2: canonical NormalizedDatasetEnvelope commit only (no flat/shadow).
   const corpusPersist = persistWorkingCorpusNormalizedAuthority({
     dataset: updated,
     shotType: normalizePublishedShotTypeHint(shotType) ?? shotType,
@@ -612,9 +614,8 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     };
   }
 
-  // DS-002: React mirror + DI callback after durable canonical commit succeeds.
+  // DS-002: React in-memory mirror after durable canonical commit succeeds.
   ctx.setDataset(updated);
-  ctx.saveWorkingDataset(updated);
 
   const normalizedDualWrite: NormalizedDualWriteResult =
     corpusPersist.shadowSync.ok === true
@@ -625,7 +626,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
           reason:
             "reason" in corpusPersist.shadowSync
               ? String(corpusPersist.shadowSync.reason)
-              : "family_* shadow not written",
+              : "family_* shadow not written (Phase C-2)",
         };
   ctx.patchSlotRuntimeMeta(slotId, {
     targetBall:

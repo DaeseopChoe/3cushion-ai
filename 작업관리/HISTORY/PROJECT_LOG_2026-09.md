@@ -6,6 +6,61 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-22 — Phase C-2 Local Persisted Flat Compatibility Removal
+
+## Mode
+
+**Agent** · Remove production positions_dataset / family_* mirror+fallback · Keep PositionRecord[] runtime · No Export/Publish/Published Search cutover
+
+## Background (Phase C-1)
+
+Read-only consumer audit after Phase C established:
+- Local Search already normalized-only
+- App load still had `canonical_present_flat_fallback` / family_* shadow fallback (authority inversion risk)
+- persisted `positions_dataset` not required by Manual Export / Publish / History / UI
+- Recommended next step: Phase C-2 (this entry)
+
+## Delivered
+
+- `loadProductionCompatibleDataset`: canonical rematerialize only; fail-closed (no flat/shadow)
+- `persistWorkingCorpusNormalizedAuthority`: production default writes `normalized_dataset` only
+- SAVE / Derived Approval / Import: `setDataset` memory mirror KEEP; `saveWorkingDataset` flat persist REMOVE
+- Export / History empty fallbacks: rematerialize from canonical (not `loadWorkingDataset`)
+- `familyRuntimeProjection`: no `loadWorkingDataset` fallback
+- Local cleanup preserve list: `normalized_dataset` (+ AI/anchors); obsolete flat/meta may be deleted
+- Authority-inversion + persistence contracts
+- Docs + familyMigrationDebt: Local flat removed in C-2; external flat until D/E
+
+## Authority after Phase C-2
+
+| Concern | SSOT |
+|---------|------|
+| Local WRITE | normalized_dataset |
+| Local READ/Search | normalized_dataset |
+| App load | normalized → PositionRecord[] memory |
+| positions_dataset | obsolete (ignored) |
+| family_* shadow | obsolete (ignored) |
+| Published Search | flat positions.json (unchanged) |
+
+## Not changed
+
+- Manual Export schemaVersion 2
+- Publish / Production Verify
+- repository positions.json
+- Product count / Cartesian / trajectory / incidenceAngle.ts
+- C-0 occupancy cardinality
+- PositionRecord[] runtime shape
+
+## Next
+
+Phase D — Normalized Export / Publish Cutover (audit first)
+
+## Commit
+
+`refactor(storage): remove persisted local flat compatibility`
+
+---
+
 # 2026-09-22 — Phase C Local READ / Member-Centric Search + Hydration
 
 ## Mode

@@ -14,17 +14,26 @@
  * Position Strategies (S1/S2/S3) rematerialized only after Member rank.
  * Local Search does NOT read positions_dataset or family_* shadow as authority.
  *
- * Remaining TEMPORARY_COMPATIBILITY_DUPLICATION:
- * - Flat positions_dataset = compatibility projection/cache for Export/UI/SAVE
- *   mirror until Phase D (NOT Local Search authority).
- * - family_masters / family_members = optional best-effort shadow (NOT authority).
- * - Hydrated StrategyEntry still carries Master common payload copies for
- *   flat-compatible consumers.
+ * Phase C-2 (2026-09-22): Local persisted flat / shadow compatibility REMOVED.
+ * - positions_dataset = NOT production persist / NOT App load authority
+ * - family_masters / family_members = NOT production dual-write / NOT fallback
+ * - App runtime PositionRecord[] = on-demand rematerialize from normalized_dataset
+ * - stale browser flat/shadow keys are ignored (never promoted to authority)
+ *
+ * Remaining EXTERNAL flat boundaries (until Phase D / E — not Local DB):
+ * - Manual Export DatasetExportPayload schemaVersion 2 (flat records[])
+ * - PublishOperation / PublishFamilyPayload / repository positions.json v2
+ * - Published Search reads repository leaf (unchanged)
+ * - workspace_history may still embed flat snapshot payloads
+ *
+ * Hydrated StrategyEntry may still carry Master common payload copies for
+ * flat-compatible runtime consumers (TEMPORARY_COMPATIBILITY_DUPLICATION on
+ * the rematerialized object — not a durable Local store).
  *
  * Ends fully when:
  * - Phase D Export/Publish leaf schema v3
- * - Published Search normalized
- * - flat projection / two-key shadow removed
+ * - Phase E Published Search normalized
+ * - remaining test/migration flat helpers retired (Phase G)
  *
  * Do not treat copied sysInputs / corrections / ai / str / canonical hpT
  * on SYMMETRY / Derived / Product Members as the final SSOT.

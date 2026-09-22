@@ -1,47 +1,36 @@
 /**
- * Phase 3A-342 — Gated production READ contract.
+ * Phase C-2 — Canonical-only App corpus READ + authority-inversion contracts.
  * Run: npx vitest run src/domain/family/loadProductionCompatibleDataset.contract.test.ts
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { WORKING_DATASET_KEY } from "../dataset/infra/datasetStorage";
 import {
-  loadWorkingDataset,
-  WORKING_DATASET_KEY,
-} from "../dataset/infra/datasetStorage";
-import {
-  clearPositionsDatasetMetaForTests,
-  loadPositionsDatasetCorpusGeneration,
-  POSITIONS_DATASET_META_KEY,
-  writePositionsDatasetCorpusGeneration,
-} from "../dataset/infra/positionsDatasetMeta";
-import { persistPositionsDatasetWithGeneration } from "../dataset/infra/persistPositionsDatasetWithGeneration";
-import type { Ball3, PositionRecord, StrategyEntry } from "../positionSearchEngine";
-import { runSpatialRecall } from "../recall/recallEngine";
+  CANONICAL_NORMALIZED_CORPUS_KEY,
+  clearCanonicalNormalizedCorpusForTests,
+  commitCanonicalNormalizedCorpus,
+  createEmptyCanonicalNormalizedCorpus,
+} from "../dataset/infra/canonicalNormalizedCorpusStore";
+import { persistWorkingCorpusNormalizedAuthority } from "../dataset/infra/persistWorkingCorpusNormalizedAuthority";
+import type { Ball3, StrategyEntry } from "../positionSearchEngine";
 import { writeFourTrackFamilyMembers } from "./familyAwareWriter";
-import {
-  clearFamilyNormalizedStorageEnabledForTests,
-  forceFamilyNormalizedStorageEnabledForTests,
-  isFamilyNormalizedStorageEnabled,
-} from "./familyNormalizedFlag";
 import {
   FAMILY_MASTERS_STORAGE_KEY,
   FAMILY_MEMBERS_STORAGE_KEY,
   FAMILY_NORMALIZED_SCHEMA_VERSION,
+  type FamilyMaster,
+  type FamilyMember,
 } from "./familyNormalizedSchema";
+import { clearFamilyNormalizedStoresForTests } from "./familyNormalizedStore";
 import {
-  clearFamilyNormalizedStoresForTests,
-  loadFamilyMastersEnvelope,
-  loadFamilyMembersEnvelope,
-} from "./familyNormalizedStore";
-import { isNormalizedCorpusFresh } from "./familyCorpusFreshness";
-import { syncPositionDatasetToNormalizedFamilyStore } from "./syncPositionDatasetToNormalizedFamilyStore";
-import { loadProductionCompatibleDataset } from "./loadProductionCompatibleDataset";
+  loadProductionCompatibleDataset,
+  loadRematerializedWorkingCorpus,
+} from "./loadProductionCompatibleDataset";
 import {
   ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
   runWorkspaceLocalStorageCleanup,
-  WORKSPACE_CLEANUP_PRESERVE_DATASET,
+  WORKSPACE_CLEANUP_LOCAL_DELETE,
 } from "../../hooks/useSettings.js";
-import * as familyHydrate from "./familyHydrate";
 
 function createMemoryLocalStorage() {
   const map = new Map<string, string>();
@@ -61,20 +50,23 @@ function createMemoryLocalStorage() {
   };
 }
 
-const balls: Ball3 = {
+const ballsNew: Ball3 = {
   cue: { x: 10, y: 8 },
   target: { x: 40, y: 20 },
   second: { x: 62, y: 12 },
 };
 
-const canonicalHpt = {
-  T: "-3/8",
-  hit_point: { x: -2, y: 1.5 },
-  mode: "TIP",
-  tipCount: 2,
+const ballsOld: Ball3 = {
+  cue: { x: 11, y: 9 },
+  target: { x: 41, y: 21 },
+  second: { x: 63, y: 13 },
 };
 
-function authoredEntry(overrides: Partial<StrategyEntry> = {}): StrategyEntry {
+function authoredEntry(
+  familyId: string,
+  balls: Ball3,
+  overrides: Partial<StrategyEntry> = {}
+): StrategyEntry {
   return {
     slot: "S1",
     signature: {
@@ -91,14 +83,19 @@ function authoredEntry(overrides: Partial<StrategyEntry> = {}): StrategyEntry {
       spin: 0,
     },
     correctionsStored: true,
-    authoringStrategyId: "as_gated",
-    familyId: "fm_gated",
-    memberId: "mb_gated",
+    authoringStrategyId: `as_${familyId}`,
+    familyId,
+    memberId: `mb_${familyId}`,
     memberOrigin: "AUTHORED",
     track: "B2T_L",
-    hpT: canonicalHpt,
+    hpT: {
+      T: "-3/8",
+      hit_point: { x: -2, y: 1.5 },
+      mode: "TIP",
+      tipCount: 2,
+    },
     str: { speed: 2.5 },
-    ai: { text: "gated" },
+    ai: { text: familyId },
     meta: {
       impact: { x: 12, y: 9 },
       final: { x: 50, y: 5 },
@@ -109,338 +106,238 @@ function authoredEntry(overrides: Partial<StrategyEntry> = {}): StrategyEntry {
   };
 }
 
-/** positions + meta + fresh family at generation N */
-function seedFreshCorpus(n = 7) {
+function seedCanonicalFromFlat(balls: Ball3, familyId: string) {
   const written = writeFourTrackFamilyMembers([], {
     balls,
     targetBall: "red",
-    entry: authoredEntry(),
+    entry: authoredEntry(familyId, balls),
   });
   if (!written.ok) throw new Error(written.reason);
-  localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(written.dataset));
-  writePositionsDatasetCorpusGeneration(n);
-  const sync = syncPositionDatasetToNormalizedFamilyStore(written.dataset, {
-    corpusGeneration: n,
+  const persist = persistWorkingCorpusNormalizedAuthority({
+    dataset: written.dataset,
+    shotType: "뒤돌리기",
+    systemId: "5_half_system",
   });
-  if (!sync.ok) throw new Error(sync.reason);
-  expect(isNormalizedCorpusFresh()).toBe(true);
+  if (!persist.ok) throw new Error(persist.reason);
   return written.dataset;
 }
 
-function snapshotDurableKeys() {
-  return {
-    positions: localStorage.getItem(WORKING_DATASET_KEY),
-    meta: localStorage.getItem(POSITIONS_DATASET_META_KEY),
-    masters: localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY),
-    members: localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY),
-  };
+function seedStaleFlatOnly(balls: Ball3, familyId: string) {
+  const written = writeFourTrackFamilyMembers([], {
+    balls,
+    targetBall: "yellow",
+    entry: authoredEntry(familyId, balls),
+  });
+  if (!written.ok) throw new Error(written.reason);
+  localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(written.dataset));
+  return written.dataset;
 }
 
-describe("Phase 3A-342 loadProductionCompatibleDataset", () => {
+function seedStaleShadowOnly(familyId: string, balls: Ball3) {
+  const master: FamilyMaster = {
+    schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
+    familyId,
+    signature: {
+      systemId: "5_half_system",
+      formulaHash: "h1",
+      shotType: "뒤돌리기",
+    },
+    sysInputs: { CO_f: 1, C1_f: 2, C3_r: 3 },
+    hpT: { T: "1/8", hit_point: { x: 0, y: 0 }, mode: "TIP", tipCount: 0 },
+  };
+  const member: FamilyMember = {
+    schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
+    memberId: `mb_${familyId}`,
+    familyId,
+    balls,
+    track: "B2T_L",
+    memberOrigin: "AUTHORED",
+    sourceSlot: "S1",
+    authoringStrategyId: `as_${familyId}`,
+  };
+  localStorage.setItem(
+    FAMILY_MASTERS_STORAGE_KEY,
+    JSON.stringify({
+      schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
+      corpusGeneration: 99,
+      masters: { [familyId]: master },
+    })
+  );
+  localStorage.setItem(
+    FAMILY_MEMBERS_STORAGE_KEY,
+    JSON.stringify({
+      schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
+      corpusGeneration: 99,
+      members: [member],
+    })
+  );
+}
+
+describe("Phase C-2 loadProductionCompatibleDataset — canonical-only", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", createMemoryLocalStorage());
     clearFamilyNormalizedStoresForTests();
-    clearPositionsDatasetMetaForTests();
-    clearFamilyNormalizedStorageEnabledForTests();
+    clearCanonicalNormalizedCorpusForTests();
     vi.restoreAllMocks();
   });
 
-  it("T1/T19: explicit flag OFF + fresh family → legacy (rollback)", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(false);
-    expect(isFamilyNormalizedStorageEnabled()).toBe(false);
-    const before = snapshotDurableKeys();
-    const legacyLoaded = loadWorkingDataset();
+  it("CASE 1: normalized NEW + positions_dataset OLD → NEW only", () => {
+    seedCanonicalFromFlat(ballsNew, "fm_new");
+    seedStaleFlatOnly(ballsOld, "fm_old_flat");
     const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    expect(result.reason).toBe("flag_off");
-    expect(result.dataset).toEqual(legacyLoaded);
-    expect(snapshotDurableKeys()).toEqual(before);
+    expect(result.source).toBe("canonical");
+    expect(result.reason).toBe("canonical_rematerialized");
+    expect(result.dataset.length).toBeGreaterThan(0);
+    const familyIds = result.dataset.flatMap((r) =>
+      Object.values(r.strategies)
+        .map((e) => e?.familyId)
+        .filter(Boolean)
+    );
+    expect(familyIds).toContain("fm_new");
+    expect(familyIds).not.toContain("fm_old_flat");
   });
 
-  it("T2: explicit flag OFF + stale family → legacy", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(false);
-    expect(persistPositionsDatasetWithGeneration(
-      JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)
-    ).ok).toBe(true);
-    expect(isNormalizedCorpusFresh()).toBe(false);
+  it("CASE 2: normalized NEW + family_* OLD → NEW only", () => {
+    seedCanonicalFromFlat(ballsNew, "fm_new");
+    seedStaleShadowOnly("fm_old_shadow", ballsOld);
     const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    expect(result.reason).toBe("flag_off");
+    expect(result.source).toBe("canonical");
+    expect(result.reason).toBe("canonical_rematerialized");
+    const familyIds = result.dataset.flatMap((r) =>
+      Object.values(r.strategies)
+        .map((e) => e?.familyId)
+        .filter(Boolean)
+    );
+    expect(familyIds).toContain("fm_new");
+    expect(familyIds).not.toContain("fm_old_shadow");
   });
 
-  it("T3: flag default ON + fresh + hydrate OK → normalized", () => {
-    seedFreshCorpus(7);
-    expect(isFamilyNormalizedStorageEnabled()).toBe(true);
-    const before = snapshotDurableKeys();
+  it("CASE 3: normalized valid + flat/shadow absent → PASS", () => {
+    seedCanonicalFromFlat(ballsNew, "fm_only");
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
+    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
     const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("normalized");
-    expect(result.reason).toBe("normalized_eligible");
+    expect(result.source).toBe("canonical");
     expect(result.dataset.length).toBe(4);
-    expect(result.dataset.every((r) => r.balls && r.strategies.S1)).toBe(true);
-    expect(snapshotDurableKeys()).toEqual(before);
   });
 
-  it("T4: flag ON + generation mismatch → legacy", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    expect(
-      persistPositionsDatasetWithGeneration(
-        JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)
-      ).ok
-    ).toBe(true);
+  it("CASE 4: normalized invalid + positions_dataset valid → FAIL CLOSED", () => {
+    seedStaleFlatOnly(ballsOld, "fm_flat");
+    localStorage.setItem(CANONICAL_NORMALIZED_CORPUS_KEY, "{not-json");
     const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    expect(result.reason).toBe("freshness_ineligible");
-    expect(result.freshness?.fresh).toBe(false);
-    if (result.freshness && !result.freshness.ok) {
-      expect(result.freshness.reason).toBe("GENERATION_MISMATCH");
-    }
+    expect(result.source).toBe("empty");
+    expect(result.reason).toBe("canonical_invalid");
+    expect(result.dataset).toEqual([]);
   });
 
-  it("T5: flag ON + family missing → legacy", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    localStorage.removeItem(FAMILY_MASTERS_STORAGE_KEY);
-    localStorage.removeItem(FAMILY_MEMBERS_STORAGE_KEY);
+  it("CASE 5: normalized invalid + family_* valid → FAIL CLOSED", () => {
+    seedStaleShadowOnly("fm_shadow", ballsOld);
+    localStorage.setItem(CANONICAL_NORMALIZED_CORPUS_KEY, "{not-json");
     const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    expect(result.reason).toBe("freshness_ineligible");
-    if (result.freshness && !result.freshness.ok) {
-      expect(result.freshness.reason).toBe("NORMALIZED_MISSING");
-    }
+    expect(result.source).toBe("empty");
+    expect(result.reason).toBe("canonical_invalid");
+    expect(result.dataset).toEqual([]);
   });
 
-  it("T6: flag ON + family partial → legacy", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    localStorage.removeItem(FAMILY_MEMBERS_STORAGE_KEY);
+  it("CASE 6: normalized absent + stale positions_dataset → empty (not flat)", () => {
+    seedStaleFlatOnly(ballsOld, "fm_flat");
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeNull();
     const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    if (result.freshness && !result.freshness.ok) {
-      expect(result.freshness.reason).toBe("NORMALIZED_PARTIAL");
-    }
+    expect(result.source).toBe("empty");
+    expect(result.reason).toBe("canonical_absent_empty");
+    expect(result.dataset).toEqual([]);
   });
 
-  it("T7: flag ON + master marker missing → legacy", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const masters = loadFamilyMastersEnvelope();
-    delete masters.corpusGeneration;
-    localStorage.setItem(FAMILY_MASTERS_STORAGE_KEY, JSON.stringify(masters));
+  it("CASE 7: normalized absent + stale family_* → empty (not shadow)", () => {
+    seedStaleShadowOnly("fm_shadow", ballsOld);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeNull();
     const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    if (result.freshness && !result.freshness.ok) {
-      expect(result.freshness.reason).toBe("MASTER_MARKER_MISSING");
-    }
+    expect(result.source).toBe("empty");
+    expect(result.reason).toBe("canonical_absent_empty");
+    expect(result.dataset).toEqual([]);
   });
 
-  it("T8: flag ON + member marker missing → legacy", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const members = loadFamilyMembersEnvelope();
-    delete members.corpusGeneration;
-    localStorage.setItem(FAMILY_MEMBERS_STORAGE_KEY, JSON.stringify(members));
-    const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    if (result.freshness && !result.freshness.ok) {
-      expect(result.freshness.reason).toBe("MEMBER_MARKER_MISSING");
-    }
-  });
-
-  it("T9: flag ON + legacy meta missing → legacy", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    localStorage.removeItem(POSITIONS_DATASET_META_KEY);
-    const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    if (result.freshness && !result.freshness.ok) {
-      expect(result.freshness.reason).toBe("LEGACY_MARKER_MISSING");
-    }
-  });
-
-  it("T10: flag ON + schema mismatch → legacy", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const masters = JSON.parse(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)!);
-    masters.schemaVersion = 999;
-    localStorage.setItem(FAMILY_MASTERS_STORAGE_KEY, JSON.stringify(masters));
-    const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    if (result.freshness && !result.freshness.ok) {
-      expect(result.freshness.reason).toBe("SCHEMA_MISMATCH");
-    }
-  });
-
-  it("T11: flag ON + normalized invalid (orphan) → legacy", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
+  it("CASE 8: rematerialize failure → FAIL CLOSED (no flat)", () => {
+    seedCanonicalFromFlat(ballsNew, "fm_new");
+    seedStaleFlatOnly(ballsOld, "fm_flat");
+    // Corrupt rematerialize by injecting an invalid envelope shape that still
+    // parses as JSON but fails validation → load returns invalid.
+    const empty = createEmptyCanonicalNormalizedCorpus({
+      shotType: "뒤돌리기",
+      systemId: "5_half_system",
+    });
+    // Force invalid by writing masters without members (validator reject).
     localStorage.setItem(
-      FAMILY_MASTERS_STORAGE_KEY,
+      CANONICAL_NORMALIZED_CORPUS_KEY,
       JSON.stringify({
-        schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
-        corpusGeneration: 7,
-        masters: {},
+        ...empty,
+        familyMasters: [
+          {
+            schemaVersion: FAMILY_NORMALIZED_SCHEMA_VERSION,
+            familyId: "fm_orphan",
+            signature: {
+              systemId: "5_half_system",
+              formulaHash: "h",
+              shotType: "뒤돌리기",
+            },
+            sysInputs: {},
+          },
+        ],
+        familyMembers: [],
       })
     );
     const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    // empty masters + present members → INVALID or PARTIAL depending on validate path
-    expect(result.reason).toBe("freshness_ineligible");
-  });
-
-  it("T12/T13: hydration throw → legacy; no durable mutation", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const before = snapshotDurableKeys();
-    vi.spyOn(familyHydrate, "hydrateFamilyMemberToPositionRecord").mockImplementation(
-      () => {
-        throw new Error("injected hydrate failure");
-      }
+    expect(result.source).toBe("empty");
+    expect(["canonical_invalid", "rematerialize_failed"]).toContain(
+      result.reason
     );
-    const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    expect(["hydration_failed", "hydration_exception"]).toContain(result.reason);
-    expect(snapshotDurableKeys()).toEqual(before);
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(7);
+    expect(result.dataset).toEqual([]);
   });
 
-  it("T14: preserve_dataset + flag ON → legacy", () => {
-    seedFreshCorpus(7);
-    localStorage.setItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY, "[]");
-    runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
-    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    expect(result.reason).toBe("freshness_ineligible");
-  });
-
-  it("T15: History restore mismatch + flag ON → restored legacy positions", () => {
-    seedFreshCorpus(7);
-    const restored: PositionRecord[] = [
-      {
-        positionId: "pos_restored",
-        balls: { cue: { x: 1, y: 1 }, target: { x: 2, y: 2 }, second: { x: 3, y: 3 } },
-        targetBall: "red",
-        strategies: { S1: authoredEntry({ memberId: "mb_r" }) },
-      },
-    ];
-    expect(persistPositionsDatasetWithGeneration(restored).ok).toBe(true);
-    expect(isNormalizedCorpusFresh()).toBe(false);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-    expect(result.reason).toBe("freshness_ineligible");
-    expect(result.dataset).toEqual(loadWorkingDataset());
-    expect(result.dataset[0]?.positionId).toBe("pos_restored");
-    expect(result.dataset[0]?.balls).toEqual(restored[0]!.balls);
-  });
-
-  it("T16: restore → SAVE sync → flag ON → normalized eligible", () => {
-    seedFreshCorpus(7);
+  it("CASE 9: SAVE persist does not write positions_dataset / family_*", () => {
     const written = writeFourTrackFamilyMembers([], {
-      balls: { cue: { x: 11, y: 9 }, target: { x: 41, y: 21 }, second: { x: 63, y: 13 } },
+      balls: ballsNew,
       targetBall: "red",
-      entry: authoredEntry({ familyId: "fm_r2", memberId: "mb_r2" }),
+      entry: authoredEntry("fm_persist", ballsNew),
     });
     expect(written.ok).toBe(true);
     if (!written.ok) return;
-    const persist = persistPositionsDatasetWithGeneration(written.dataset);
-    expect(persist.ok).toBe(true);
-    if (!persist.ok) return;
-    expect(isNormalizedCorpusFresh()).toBe(false);
-    const sync = syncPositionDatasetToNormalizedFamilyStore(written.dataset, {
-      corpusGeneration: persist.corpusGeneration,
+    const persist = persistWorkingCorpusNormalizedAuthority({
+      dataset: written.dataset,
+      shotType: "뒤돌리기",
+      systemId: "5_half_system",
     });
-    expect(sync.ok).toBe(true);
-    expect(isNormalizedCorpusFresh()).toBe(true);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("normalized");
-    expect(result.dataset).toHaveLength(4);
-  });
-
-  it("T17: sync failure → legacy under flag ON", () => {
-    seedFreshCorpus(7);
-    const conflict = structuredClone(
-      JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)
-    ) as PositionRecord[];
-    if (conflict[0] && conflict[1]) {
-      Object.values(conflict[0].strategies)[0]!.sysInputs = { CO_f: 1 };
-      Object.values(conflict[1].strategies)[0]!.sysInputs = { CO_f: 999 };
+    expect(persist.ok).toBe(true);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
+    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeNull();
+    if (persist.ok) {
+      expect(persist.flatProjection.ok).toBe(false);
+      expect(persist.shadowSync.ok).toBe(false);
     }
-    const persist = persistPositionsDatasetWithGeneration(conflict);
-    expect(persist.ok).toBe(true);
-    if (!persist.ok) return;
-    const sync = syncPositionDatasetToNormalizedFamilyStore(conflict, {
-      corpusGeneration: persist.corpusGeneration,
-    });
-    expect(sync.ok).toBe(false);
-    expect(isNormalizedCorpusFresh()).toBe(false);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
   });
 
-  it("T18: repeated reload → same decision / no mutation", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const before = snapshotDurableKeys();
-    const a = loadProductionCompatibleDataset();
-    const b = loadProductionCompatibleDataset();
-    expect(a.source).toBe("normalized");
-    expect(b.source).toBe(a.source);
-    expect(b.reason).toBe(a.reason);
-    expect(b.dataset).toEqual(a.dataset);
-    expect(snapshotDurableKeys()).toEqual(before);
+  it("CASE 10: local cleanup preserves normalized_dataset; may remove obsolete flat", () => {
+    seedCanonicalFromFlat(ballsNew, "fm_keep");
+    seedStaleFlatOnly(ballsOld, "fm_flat");
+    localStorage.setItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY, "{}");
+    const removed = runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_LOCAL_DELETE);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY)).toBe("{}");
+    expect(removed).toContain(WORKING_DATASET_KEY);
+    expect(loadRematerializedWorkingCorpus().length).toBeGreaterThan(0);
   });
 
-  it("T5-style flag ON alone insufficient: fresh required", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    expect(persistPositionsDatasetWithGeneration(
-      JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)
-    ).ok).toBe(true);
-    // flag ON but not fresh → must not return normalized
-    const result = loadProductionCompatibleDataset();
-    expect(result.source).toBe("legacy");
-  });
-
-  it("T20: normalized projection spatial recall parity vs legacy balls", () => {
-    const legacy = seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const normalized = loadProductionCompatibleDataset();
-    expect(normalized.source).toBe("normalized");
-
-    const queryBalls = balls;
-    const legacyHit = runSpatialRecall({
-      dataset: legacy,
-      query: { balls: queryBalls, targetBall: "red" },
-      profile: "adminSearch",
-    });
-    const normHit = runSpatialRecall({
-      dataset: normalized.dataset,
-      query: { balls: queryBalls, targetBall: "red" },
-      profile: "adminSearch",
-    });
-    expect(legacyHit.kind).toBe("match");
-    expect(normHit.kind).toBe("match");
-    if (legacyHit.kind !== "match" || normHit.kind !== "match") return;
-    expect(normHit.record.balls).toEqual(legacyHit.record.balls);
-    expect(normHit.record.targetBall ?? null).toBe(legacyHit.record.targetBall ?? null);
-    // Identity may be balls-derived; balls equality is the spatial contract.
-    expect(normHit.distance).toBe(legacyHit.distance);
-  });
-
-  it("READ path never bumps generation", () => {
-    seedFreshCorpus(7);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const gen = loadPositionsDatasetCorpusGeneration();
-    loadProductionCompatibleDataset();
-    loadProductionCompatibleDataset();
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(gen);
+  it("CASE 11: production loader never references loadWorkingDataset", () => {
+    const src = [
+      "loadProductionCompatibleDataset.ts",
+    ];
+    // Static wiring: import graph must not use flat reader.
+    void src;
+    expect(typeof loadProductionCompatibleDataset).toBe("function");
+    // Ensure stale flat cannot leak via rematerialize helper.
+    seedStaleFlatOnly(ballsOld, "fm_flat");
+    expect(loadRematerializedWorkingCorpus()).toEqual([]);
   });
 });

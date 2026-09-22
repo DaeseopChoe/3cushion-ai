@@ -6,6 +6,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SCALE } from "../../utils/physics/ImpactEngine";
 import { WORKING_DATASET_KEY } from "../../domain/dataset/infra/datasetStorage";
+import { CANONICAL_NORMALIZED_CORPUS_KEY } from "../../domain/dataset/infra/canonicalNormalizedCorpusStore";
 import {
   clearPositionsDatasetMetaForTests,
   loadPositionsDatasetCorpusGeneration,
@@ -232,101 +233,56 @@ describe("feature flag / production read", () => {
 });
 
 describe("SAVE dual-write", () => {
-  it("persists positions_dataset and shadow 1 Master + 4 Members", () => {
-    const { ctx, capture } = buildSaveCtx();
+  it("Phase C-2: SAVE writes canonical only (no flat/shadow production mirror)", () => {
+    const { ctx, capture } = buildSaveCtx({
+      saveWorkingDataset: undefined,
+    });
     const result = runSaveStrategy(ctx);
     expect(result.ok).toBe(true);
     expect(result.fourTrackWritten).toBe(true);
-    expect(result.normalizedDualWrite?.ok).toBe(true);
+    expect(result.normalizedDualWrite?.ok).toBe(false);
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
+    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeNull();
     expect(capture.dataset).toHaveLength(4);
-    expect(JSON.parse(localStorage.getItem(WORKING_DATASET_KEY)!)).toHaveLength(4);
-
-    const gen = loadPositionsDatasetCorpusGeneration();
-    expect(gen).toBe(1);
-    expect(loadFamilyMastersEnvelope().corpusGeneration).toBe(1);
-    expect(loadFamilyMembersEnvelope().corpusGeneration).toBe(1);
-    expect(evaluateNormalizedCorpusFreshness()).toMatchObject({
-      ok: true,
-      fresh: true,
-      corpusGeneration: 1,
-    });
-
-    const validation = validateFamilyStore();
-    expect(validation).toMatchObject({
-      ok: true,
-      masterCount: 1,
-      memberCount: 4,
-      orphanCount: 0,
-    });
-    const members = readFamilyMembersByFamilyId(result.familyId!);
-    expect(members.filter((m) => m.memberOrigin === "AUTHORED")).toHaveLength(1);
-    expect(members.filter((m) => m.memberOrigin === "SYMMETRY")).toHaveLength(3);
-    for (const m of members) {
-      expect(memberHasForbiddenCommonPayload(m as unknown as Record<string, unknown>)).toBe(
-        false
-      );
-      for (const key of FAMILY_MASTER_COMMON_FIELD_KEYS) {
-        expect(Object.prototype.hasOwnProperty.call(m, key)).toBe(false);
-      }
-    }
-    const master = readFamilyMaster(result.familyId!);
-    expect(master?.sysInputs).toBeTruthy();
-    expect(master?.hpT).toBeTruthy();
   });
 
-  it("hydrated normalized meaningful fields match legacy SAVE records", () => {
-    const { ctx, capture } = buildSaveCtx();
-    const result = runSaveStrategy(ctx);
-    expect(result.ok && result.normalizedDualWrite?.ok).toBe(true);
-    const loaded = loadFamilyCompatibleDataset();
-    expect(loaded.ok).toBe(true);
-    if (!loaded.ok || !capture.dataset) return;
-    const legacyAuthored = capture.dataset.find((r) =>
-      Object.values(r.strategies).some((e) => e?.memberOrigin === "AUTHORED")
-    )!;
-    const slot = "S1" as const;
-    const hydratedAuthored = loaded.dataset.find(
-      (r) => r.strategies.S1?.memberOrigin === "AUTHORED"
-    )!;
-    expect(familyCompatibilityFingerprint(hydratedAuthored, slot)).toEqual(
-      familyCompatibilityFingerprint(legacyAuthored, slot)
-    );
-  });
-
-  it("keeps legacy corpus when normalized sync fails after positions write", () => {
-    const { ctx, capture } = buildSaveCtx();
+  it("runtime setDataset mirror still receives SAVE result", () => {
+    const { ctx, capture } = buildSaveCtx({
+      saveWorkingDataset: undefined,
+    });
     const result = runSaveStrategy(ctx);
     expect(result.ok).toBe(true);
-    const legacyJson = localStorage.getItem(WORKING_DATASET_KEY);
-    expect(legacyJson).toBeTruthy();
-    const genAfterSave = loadPositionsDatasetCorpusGeneration();
-    expect(genAfterSave).toBe(1);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(capture.dataset).toHaveLength(4);
+    const authored = capture.dataset.find((r) =>
+      Object.values(r.strategies).some((e) => e?.memberOrigin === "AUTHORED")
+    );
+    expect(authored?.strategies.S1?.memberOrigin).toBe("AUTHORED");
+  });
 
-    // Conflicting common payload corpus → sync fail-closed, legacy untouched
-    const conflictDataset = structuredClone(capture.dataset!) as PositionRecord[];
-    const sym = conflictDataset.find((r) =>
-      Object.values(r.strategies).some((e) => e?.memberOrigin === "SYMMETRY")
-    )!;
-    Object.values(sym.strategies)[0]!.sysInputs = { CO_f: 999, C1_f: 1, C3_r: 1 };
-    // Simulate post-SAVE failed resync without advancing gen (same N)
-    const sync = syncPositionDatasetToNormalizedFamilyStore(conflictDataset, {
-      corpusGeneration: genAfterSave!,
-    });
-    expect(sync.ok).toBe(false);
-    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBe(legacyJson);
-    // Previous successful shadow from SAVE still present (persist not called on fail)
-    expect(validateFamilyStore().ok).toBe(true);
+  it("TEST/MIGRATION opt-in can still dual-write flat+shadow via explicit flags", () => {
+    const { ctx } = buildSaveCtx({ saveWorkingDataset: undefined });
+    // First SAVE via production path (canonical only).
+    expect(runSaveStrategy(ctx).ok).toBe(true);
+    // Explicit migration helper path still works.
+    const sync = syncWithBump(ctx.dataset as PositionRecord[]);
+    expect(sync.ok).toBe(true);
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeTruthy();
     expect(isNormalizedCorpusFresh()).toBe(true);
   });
 
-  it("legacy bump without successful sync leaves shadow stale", () => {
-    const { ctx, capture } = buildSaveCtx();
-    expect(runSaveStrategy(ctx).ok).toBe(true);
+  it("legacy bump without successful sync leaves shadow stale (migration helper)", () => {
+    const written = writeFourTrackFamilyMembers([], {
+      balls,
+      targetBall: "red",
+      entry: authoredEntry(),
+    });
+    expect(written.ok).toBe(true);
+    if (!written.ok) return;
+    expect(syncWithBump(written.dataset).ok).toBe(true);
     expect(isNormalizedCorpusFresh()).toBe(true);
 
-    // Newer legacy generation via safe persist of same content, no sync
-    expect(persistPositionsDatasetWithGeneration(capture.dataset!).ok).toBe(true);
+    expect(persistPositionsDatasetWithGeneration(written.dataset).ok).toBe(true);
     expect(loadPositionsDatasetCorpusGeneration()).toBe(2);
     expect(loadFamilyMastersEnvelope().corpusGeneration).toBe(1);
     const freshness = evaluateNormalizedCorpusFreshness();
@@ -338,7 +294,7 @@ describe("SAVE dual-write", () => {
 });
 
 describe("Derived Approval dual-write", () => {
-  it("writes Derived to positions_dataset and family_members; History called once", () => {
+  it("Phase C-2: Approval writes canonical; runtime setDataset; no flat/shadow", () => {
     const written = writeFourTrackFamilyMembers([], {
       balls: collinearBalls(20),
       targetBall: "red",
@@ -361,10 +317,6 @@ describe("Derived Approval dual-write", () => {
     const commit = commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaselineA(),
-      saveWorkingDataset: (updated) => {
-        legacy = updated;
-        localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify(updated));
-      },
       setDataset: (updated) => {
         legacy = updated;
       },
@@ -373,31 +325,13 @@ describe("Derived Approval dual-write", () => {
     });
 
     expect(commitHistory).not.toHaveBeenCalled();
-    expect(commit.normalizedDualWrite.ok).toBe(true);
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(1);
-    expect(isNormalizedCorpusFresh()).toBe(true);
+    expect(commit.canonicalOk).toBe(true);
+    expect(commit.normalizedDualWrite.ok).toBe(false);
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
+    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
     expect(legacy).toBeTruthy();
     const derivedLegacy = persistedCueImpactDerivedCount(legacy!, "fm_family1");
     expect(derivedLegacy).toBe(review.session.members.length);
-
-    const members = readFamilyMembersByFamilyId("fm_family1");
-    const derivedNorm = members.filter((m) => m.memberOrigin === "DERIVED_CUE_IMPACT");
-    expect(derivedNorm).toHaveLength(derivedLegacy);
-    expect(members).toHaveLength(4 + derivedLegacy);
-    expect(validateFamilyStore()).toMatchObject({
-      ok: true,
-      masterCount: 1,
-      orphanCount: 0,
-    });
-
-    for (const m of derivedNorm) {
-      expect(m.generatedFromMemberId).toBeTruthy();
-      expect(m.derivedRule).toBe("CUE_IMPACT_FIRST_30PCT");
-      expect(m.derivedStep?.startsWith("cue_impact:t:")).toBe(true);
-      expect(m.balls.cue).toBeTruthy();
-      expect(m.balls.target).toBeTruthy();
-      expect(m.balls.second).toBeTruthy();
-    }
   });
 
   it("Cancel path: no History and no normalized write (approve-only contract)", () => {
@@ -563,20 +497,19 @@ describe("failure policy", () => {
     }
   });
 
-  it("History restore → SAVE restores freshness", () => {
-    const { ctx } = buildSaveCtx();
+  it("History restore → SAVE restores canonical (flat freshness N/A in C-2)", () => {
+    const { ctx } = buildSaveCtx({ saveWorkingDataset: undefined });
     expect(runSaveStrategy(ctx).ok).toBe(true);
-    expect(isNormalizedCorpusFresh()).toBe(true);
 
+    // Stale flat leftover must not become authority.
     expect(persistPositionsDatasetWithGeneration([]).ok).toBe(true);
-    expect(isNormalizedCorpusFresh()).toBe(false);
 
-    const { ctx: ctx2 } = buildSaveCtx();
+    const { ctx: ctx2, capture } = buildSaveCtx({ saveWorkingDataset: undefined });
     const result = runSaveStrategy(ctx2);
     expect(result.ok).toBe(true);
-    expect(result.normalizedDualWrite?.ok).toBe(true);
-    expect(isNormalizedCorpusFresh()).toBe(true);
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(3);
+    expect(result.normalizedDualWrite?.ok).toBe(false);
+    expect(capture.dataset.length).toBeGreaterThan(0);
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeTruthy(); // leftover flat ignored
   });
 
   it("rejects sync without corpusGeneration", () => {
@@ -590,22 +523,21 @@ describe("failure policy", () => {
     if (!sync.ok) expect(sync.stage).toBe("generation");
   });
 
-  it("preserve_dataset: production cleanup keeps meta, deletes family → NORMALIZED_MISSING", () => {
-    const { ctx } = buildSaveCtx();
+  it("local_delete: preserves normalized_dataset; may remove obsolete flat/shadow", () => {
+    const { ctx } = buildSaveCtx({ saveWorkingDataset: undefined });
     expect(runSaveStrategy(ctx).ok).toBe(true);
-    expect(isNormalizedCorpusFresh()).toBe(true);
-    const gen = loadPositionsDatasetCorpusGeneration();
-    expect(gen).toBe(1);
+    // Seed obsolete flat leftover
+    localStorage.setItem(WORKING_DATASET_KEY, "[]");
+    localStorage.setItem(POSITIONS_DATASET_META_KEY, "{}");
+
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
 
     runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
 
-    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeTruthy();
-    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBeTruthy();
-    expect(loadPositionsDatasetCorpusGeneration()).toBe(gen);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
+    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeNull();
-    const freshness = evaluateNormalizedCorpusFreshness();
-    expect(freshness.ok).toBe(false);
-    if (!freshness.ok) expect(freshness.reason).toBe("NORMALIZED_MISSING");
   });
 });

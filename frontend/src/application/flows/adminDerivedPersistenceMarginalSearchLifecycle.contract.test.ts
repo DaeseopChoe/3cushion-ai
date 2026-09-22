@@ -1246,18 +1246,17 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
     commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: null,
-      saveWorkingDataset: (ds) => {
+      setDataset: (ds) => {
         persistedDataset = ds;
-        saveWorkingDataset(ds);
       },
-      setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: vi.fn(),
       commitWorkspaceHistoryWithStrategyDataset: vi.fn(),
     });
 
     expect(persistedDataset).not.toBeNull();
     expect(persistedDataset!.length).toBeGreaterThanOrEqual(80);
-    expect(loadWorkingDataset().length).toBeGreaterThanOrEqual(80);
+    // Phase C-2: searchable corpus durable SSOT is normalized_dataset.
+    expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
   });
 
   it("TEST 8 — Lightweight Snapshot: workspace history snapshot does NOT embed dataset and maintains < 10 KB size", () => {
