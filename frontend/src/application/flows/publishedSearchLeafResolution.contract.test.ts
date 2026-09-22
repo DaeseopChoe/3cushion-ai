@@ -22,14 +22,18 @@ import {
 } from "../../domain/publishedDatasetStore";
 import { runSpatialRecall } from "../../domain/recall/recallEngine";
 import type { PositionRecord } from "../../domain/positionSearchEngine";
+import { createPositionId } from "../../domain/positionId";
+import { parsePublishedLeafPayload } from "../../domain/datasetLoader";
+
+const sampleBalls = {
+  cue: { x: 19.5, y: 11 },
+  target: { x: 20.4, y: 30.6 },
+  second: { x: 64.9, y: 22.1 },
+};
 
 const sampleRepresentativeRecord: PositionRecord = {
-  positionId: "195110204306649221",
-  balls: {
-    cue: { x: 19.5, y: 11 },
-    target: { x: 20.4, y: 30.6 },
-    second: { x: 64.9, y: 22.1 },
-  },
+  positionId: createPositionId(sampleBalls),
+  balls: sampleBalls,
   strategies: {
     S1: {
       slot: "S1",
@@ -38,14 +42,30 @@ const sampleRepresentativeRecord: PositionRecord = {
         formulaHash: "v1",
         shotType: "옆돌리기",
       },
-      sysInputs: {},
+      sysInputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+      corrections: {
+        slide: 0,
+        curve_ratio: 0,
+        draw: 0,
+        departure: 0,
+        spin: 0,
+      },
+      correctionsStored: true,
       meta: {
         impact: { x: 20.32, y: 28.87 },
         final: { x: 6.53, y: 40 },
         angle_ci: 1.52,
         angle_fs: -0.3,
       },
+      ai: { text: "" },
+      str: { speed: 2.5 },
+      hpT: { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP", tipCount: 0 },
+      thickness: "8/8",
+      authoringStrategyId: "as_open02_sample",
+      familyId: "fm_open02-0000-4000-8000-000000000001",
+      memberId: "mb_open02_sample",
       memberOrigin: "AUTHORED",
+      track: "B2T_L",
     },
   },
 };
@@ -119,7 +139,7 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     expect(calledUrl).not.toContain(encodeURIComponent("뒤돌리기"));
     expect(applyRecallMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        positionId: "195110204306649221",
+        positionId: sampleRepresentativeRecord.positionId,
         balls: sampleRepresentativeRecord.balls,
       })
     );
@@ -266,7 +286,7 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     expect(adminResult.kind).toBe("match");
     if (adminResult.kind === "match") {
       expect(adminResult.distance).toBe(0);
-      expect(adminResult.record.positionId).toBe("195110204306649221");
+      expect(adminResult.record.positionId).toBe(sampleRepresentativeRecord.positionId);
     }
 
     // userStrict
@@ -278,7 +298,7 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     expect(userResult.kind).toBe("match");
     if (userResult.kind === "match") {
       expect(userResult.distance).toBe(0);
-      expect(userResult.record.positionId).toBe("195110204306649221");
+      expect(userResult.record.positionId).toBe(sampleRepresentativeRecord.positionId);
     }
   });
 
@@ -361,16 +381,16 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     const matched = await runUserSearch(ctx);
 
     expect(matched).not.toBeNull();
-    expect(matched?.record.positionId).toBe("195110204306649221");
+    expect(matched?.record.positionId).toBe(sampleRepresentativeRecord.positionId);
     expect(applyRecallMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        positionId: "195110204306649221",
+        positionId: sampleRepresentativeRecord.positionId,
         balls: sampleRepresentativeRecord.balls,
       })
     );
     expect(setLastRecordMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        positionId: "195110204306649221",
+        positionId: sampleRepresentativeRecord.positionId,
         balls: sampleRepresentativeRecord.balls,
       })
     );
@@ -438,10 +458,10 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     const matched = await runUserSearch(ctx);
 
     expect(matched).not.toBeNull();
-    expect(matched?.record.positionId).toBe("195110204306649221");
+    expect(matched?.record.positionId).toBe(sampleRepresentativeRecord.positionId);
     expect(applyRecallMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        positionId: "195110204306649221",
+        positionId: sampleRepresentativeRecord.positionId,
         balls: sampleRepresentativeRecord.balls,
       })
     );
@@ -456,13 +476,14 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
   });
 
   it("USER Search: resolves non-default shotType '비켜치기' dynamically without hardcoded fallback", async () => {
-    const cutShotRecord: PositionRecord = {
-      positionId: "195110204306649999",
-      balls: {
+    const cutBalls = {
         cue: { x: 19.5, y: 11 },
         target: { x: 20.4, y: 30.6 },
         second: { x: 64.9, y: 22.1 },
-      },
+      };
+    const cutShotRecord: PositionRecord = {
+      positionId: createPositionId(cutBalls),
+      balls: cutBalls,
       strategies: {
         S1: {
           slot: "S1",
@@ -471,9 +492,30 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
             formulaHash: "v1",
             shotType: "비켜치기",
           },
-          sysInputs: {},
-          meta: {},
+          sysInputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+          corrections: {
+            slide: 0,
+            curve_ratio: 0,
+            draw: 0,
+            departure: 0,
+            spin: 0,
+          },
+          correctionsStored: true,
+          meta: {
+            impact: { x: 0, y: 0 },
+            final: { x: 0, y: 0 },
+            angle_ci: 0,
+            angle_fs: 0,
+          },
+          ai: { text: "" },
+          str: { speed: 2.5 },
+          hpT: { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP", tipCount: 0 },
+          thickness: "8/8",
+          authoringStrategyId: "as_cut_1",
+          familyId: "fm_open02-0000-4000-8000-0000000000c1",
+          memberId: "mb_cut_1",
           memberOrigin: "AUTHORED",
+          track: "B2T_L",
         },
       },
     };
@@ -527,7 +569,7 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     const matched = await runUserSearch(ctx);
 
     expect(matched).not.toBeNull();
-    expect(matched?.record.positionId).toBe("195110204306649999");
+    expect(matched?.record.positionId).toBe(cutShotRecord.positionId);
     expect(setContextMock).toHaveBeenCalledWith({
       shotType: "비켜치기",
       systemId: "5_half_system",
@@ -587,7 +629,7 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
 
     const matched = await runUserSearch(ctx);
     expect(matched).not.toBeNull();
-    expect(matched?.record.positionId).toBe("195110204306649221");
+    expect(matched?.record.positionId).toBe(sampleRepresentativeRecord.positionId);
     expect(setContextMock).toHaveBeenCalledWith({
       shotType: "옆돌리기",
       systemId: "5_half_system",
@@ -665,9 +707,9 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     const matched = await runUserSearch(ctx);
 
     expect(matched).not.toBeNull();
-    expect(matched?.record.positionId).toBe("195110204306649221");
+    expect(matched?.record.positionId).toBe(sampleRepresentativeRecord.positionId);
     expect(applyRecallMock).toHaveBeenCalledWith(
-      expect.objectContaining({ positionId: "195110204306649221" })
+      expect.objectContaining({ positionId: sampleRepresentativeRecord.positionId })
     );
     expect(setContextMock).toHaveBeenCalledWith({
       shotType: "옆돌리기",
@@ -677,13 +719,14 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
 
   it("T2: History '옆돌리기' Recall → '뒤돌리기' Published exact position → first Search succeeds on first try", async () => {
     refreshPublishedDataset();
-    const behindShotRecord: PositionRecord = {
-      positionId: "205110204306649221",
-      balls: {
+    const behindBalls = {
         cue: { x: 30.0, y: 15.0 },
         target: { x: 25.0, y: 25.0 },
         second: { x: 55.0, y: 10.0 },
-      },
+      };
+    const behindShotRecord: PositionRecord = {
+      positionId: createPositionId(behindBalls),
+      balls: behindBalls,
       strategies: {
         S1: {
           slot: "S1",
@@ -692,9 +735,30 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
             formulaHash: "v1",
             shotType: "뒤돌리기",
           },
-          sysInputs: {},
-          meta: {},
+          sysInputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+          corrections: {
+            slide: 0,
+            curve_ratio: 0,
+            draw: 0,
+            departure: 0,
+            spin: 0,
+          },
+          correctionsStored: true,
+          meta: {
+            impact: { x: 0, y: 0 },
+            final: { x: 0, y: 0 },
+            angle_ci: 0,
+            angle_fs: 0,
+          },
+          ai: { text: "" },
+          str: { speed: 2.5 },
+          hpT: { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP", tipCount: 0 },
+          thickness: "8/8",
+          authoringStrategyId: "as_behind_1",
+          familyId: "fm_open02-0000-4000-8000-0000000000b1",
+          memberId: "mb_behind_1",
           memberOrigin: "AUTHORED",
+          track: "B2T_L",
         },
       },
     };
@@ -755,9 +819,9 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     const matched = await runUserSearch(ctx);
 
     expect(matched).not.toBeNull();
-    expect(matched?.record.positionId).toBe("205110204306649221");
+    expect(matched?.record.positionId).toBe(behindShotRecord.positionId);
     expect(applyRecallMock).toHaveBeenCalledWith(
-      expect.objectContaining({ positionId: "205110204306649221" })
+      expect.objectContaining({ positionId: behindShotRecord.positionId })
     );
     expect(setContextMock).toHaveBeenCalledWith({
       shotType: "뒤돌리기",
@@ -810,43 +874,45 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     refreshPublishedDataset();
     // Parent original is at cue=(19.5, 11), target=(20.4, 30.6), second=(64.9, 22.1)
     // Derived member is at cue=(19.58, 12.79), target=(20.4, 30.6), second=(46.44, 9.61) -> second is ~22 Rg away from parent!
-    const derivedRecord: PositionRecord = {
-      positionId: "196128204306464096",
-      balls: {
+    const derivedBalls = {
         cue: { x: 19.582, y: 12.787 },
         target: { x: 20.4, y: 30.6 },
         second: { x: 46.445, y: 9.613 },
-      },
+      };
+    const derivedRecord: PositionRecord = {
+      positionId: createPositionId(derivedBalls),
+      balls: derivedBalls,
       strategies: {
         S1: {
+          // Master-common fields must match AUTHORED seed (FamilyMaster ownership)
+          ...sampleRepresentativeRecord.strategies.S1!,
           slot: "S1",
-          signature: {
-            systemId: "5_half_system",
-            formulaHash: "C1_f = CO_f - C3_r",
-            shotType: "옆돌리기",
-          },
-          sysInputs: {},
-          meta: {},
-          familyId: "fm_a726ed32-4572-43e4-aac5-aed61e990c2b",
           memberId: "mb_fde190ba-c5fc-4ec9-9051-849eed98f768",
           memberOrigin: "DERIVED_CUE_C3_PRODUCT",
-          generatedFromMemberId: "mb_ee09033d-4957-431a-942b-e65d6c924f9f",
+          derivedRule: "CUE_C3_CARTESIAN_PRODUCT_V1",
+          derivedStep: "cue:0|c3:0",
+          generatedFromMemberId: "mb_open02_sample",
+          track: "B2T_L",
         },
       },
     };
+
+    const leafPayload = {
+      schemaVersion: 2,
+      shotType: "옆돌리기",
+      systemId: "5_half_system",
+      systemLabel: "파이브앤하프",
+      records: [sampleRepresentativeRecord, derivedRecord],
+    };
+    // Phase E-1: v2 leaf must convert in-memory before Search (fail-closed).
+    expect(parsePublishedLeafPayload(leafPayload, "/diag").kind).toBe("ok");
 
     const fetchMock = vi.fn().mockImplementation(async (url: string) => {
       if (url.includes(encodeURIComponent("옆돌리기"))) {
         return {
           status: 200,
           ok: true,
-          json: async () => ({
-            schemaVersion: 2,
-            shotType: "옆돌리기",
-            systemId: "5_half_system",
-            systemLabel: "파이브앤하프",
-            records: [sampleRepresentativeRecord, derivedRecord],
-          }),
+          json: async () => leafPayload,
         };
       }
       return { status: 404, ok: false, json: async () => ({}) };
@@ -881,9 +947,9 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
 
     expect(matched).not.toBeNull();
     // Must match the Derived record specifically as an independent Top-1 candidate!
-    expect(matched?.record.positionId).toBe("196128204306464096");
+    expect(matched?.record.positionId).toBe(derivedRecord.positionId);
     expect(applyRecallMock).toHaveBeenCalledWith(
-      expect.objectContaining({ positionId: "196128204306464096" })
+      expect.objectContaining({ positionId: derivedRecord.positionId })
     );
   });
 
@@ -1001,7 +1067,7 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
 
     expect(adminResult).toBe(true);
     expect(applyPositionRecallMock).toHaveBeenCalledWith(
-      expect.objectContaining({ positionId: "195110204306649221" })
+      expect.objectContaining({ positionId: sampleRepresentativeRecord.positionId })
     );
   });
 

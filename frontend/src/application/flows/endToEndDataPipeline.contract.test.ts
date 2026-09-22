@@ -87,9 +87,10 @@ function makeStrategy(overrides: Partial<StrategyEntry> = {}): StrategyEntry {
     sysInputs: { CO_f: 38.5, C1_f: 12.0, C3_r: 25.0 },
     corrections: { slide: 0, curve_ratio: 0, draw: 0, departure: 0, spin: 0 },
     correctionsStored: true,
-    hpT: { T: "8/8" },
-    str: "MEDIUM",
-    ai: "AI",
+    hpT: { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP", tipCount: 0 },
+    thickness: "8/8",
+    str: { speed: 2.5 },
+    ai: { text: "AI" },
     track: "B2T_L",
     meta: {
       impact: { x: 20.0, y: 28.0 },
@@ -98,7 +99,7 @@ function makeStrategy(overrides: Partial<StrategyEntry> = {}): StrategyEntry {
       angle_fs: -0.8,
     },
     authoringStrategyId: "as_001",
-    familyId: "fam_pipeline_01",
+    familyId: "fm_pipeline-0000-4000-8000-000000000001",
     memberId: "mb_authored_01",
     memberOrigin: "AUTHORED",
     ...overrides,
@@ -183,6 +184,8 @@ describe("Full Lifecycle End-to-End Headless Integration Contract", () => {
     const derivedRecord = makeRecord(derivedProductBalls, "red", {
       memberOrigin: "DERIVED_CUE_C3_PRODUCT",
       derivedRule: "CUE_C3_CARTESIAN_PRODUCT_V1",
+      derivedStep: "cue:0|c3:0",
+      generatedFromMemberId: "mb_01",
       memberId: "mb_derived_01",
     });
 
@@ -232,6 +235,8 @@ describe("Full Lifecycle End-to-End Headless Integration Contract", () => {
     const redTargetRec = makeRecord(redTargetBalls, "red", {
       memberOrigin: "AUTHORED",
       memberId: "mb_red",
+      familyId: "fm_pipeline-0000-4000-8000-0000000000red",
+      authoringStrategyId: "as_red",
     });
 
     const yellowTargetBalls: Ball3 = {
@@ -242,6 +247,8 @@ describe("Full Lifecycle End-to-End Headless Integration Contract", () => {
     const yellowTargetRec = makeRecord(yellowTargetBalls, "yellow", {
       memberOrigin: "AUTHORED",
       memberId: "mb_yellow",
+      familyId: "fm_pipeline-0000-4000-8000-0000000000yel",
+      authoringStrategyId: "as_yellow",
     });
 
     const publishedLeafRecords = [redTargetRec, yellowTargetRec];
@@ -255,6 +262,7 @@ describe("Full Lifecycle End-to-End Headless Integration Contract", () => {
             schemaVersion: 2,
             shotType: "옆돌리기",
             systemId: "5_half_system",
+            systemLabel: "파이브앤하프",
             records: publishedLeafRecords,
           }),
         });

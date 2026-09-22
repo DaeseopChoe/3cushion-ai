@@ -20,6 +20,7 @@ import { calcImpactBall } from "../../data/system/calculator";
 import { applyAdminRecallTargetLockHydrate } from "../system/adminEditSessionContract";
 import { runAdminSearch, type AdminSearchFlowContext } from "../../application/flows/adminSearchFlow";
 import type { PositionRecord } from "../positionSearchEngine";
+import { createPositionId } from "../positionId";
 import { __clearPublishedDatasetStoreForTests } from "../publishedDatasetStore";
 
 const canonicalHpt = {
@@ -273,21 +274,43 @@ describe("ADMIN Published Search target hydration (preserved)", () => {
     vi.restoreAllMocks();
   });
 
+  const pubBalls = {
+    cue: { x: 19.5, y: 11 },
+    target: { x: 20.4, y: 30.6 },
+    second: { x: 64.9, y: 22.1 },
+  };
   const recordWithTarget: PositionRecord = {
-    positionId: "pub_target_hydrate",
+    positionId: createPositionId(pubBalls),
     targetBall: "yellow",
-    balls: {
-      cue: { x: 19.5, y: 11 },
-      target: { x: 20.4, y: 30.6 },
-      second: { x: 64.9, y: 22.1 },
-    },
+    balls: pubBalls,
     strategies: {
       S1: {
         slot: "S1",
         track: "B2T_R",
         memberOrigin: "AUTHORED",
         hpT: canonicalHpt,
+        thickness: "8/8",
         signature: { systemId: "5_half_system", formulaHash: "v1", shotType: "옆돌리기" },
+        sysInputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+        corrections: {
+          slide: 0,
+          curve_ratio: 0,
+          draw: 0,
+          departure: 0,
+          spin: 0,
+        },
+        correctionsStored: true,
+        meta: {
+          impact: { x: 0, y: 0 },
+          final: { x: 0, y: 0 },
+          angle_ci: 0,
+          angle_fs: 0,
+        },
+        ai: { text: "" },
+        str: { speed: 2.5 },
+        authoringStrategyId: "as_hpt_pub",
+        familyId: "fm_hptpub-0000-4000-8000-000000000001",
+        memberId: "mb_hpt_pub_1",
       },
     },
   };
@@ -303,6 +326,7 @@ describe("ADMIN Published Search target hydration (preserved)", () => {
           shotType: "옆돌리기",
           systemId: "5_half_system",
           systemLabel: "파이브앤하프",
+          exportedAt: "2026-03-23T00:00:00.000Z",
           records: [recordWithTarget],
         }),
       })
@@ -344,30 +368,53 @@ describe("ADMIN Published Search target hydration (preserved)", () => {
   it("Target=NONE role permutation: resolved logical target identity reaches patchSlotRuntimeMeta and hydrateAdminRecallTarget identically", async () => {
     // UI layout: object ball A at target slot, object ball B at second slot (Target=NONE).
     // Published record stores logical target = object ball B (record.targetBall = "red").
+    // Table bounds: 80×40 (FAMILY_TABLE_*); centers must stay in-range for normalized parse.
     const uiBalls = {
-      cue: { x: 30, y: 70 },
-      target: { x: 20, y: 50 },
-      second: { x: 15, y: 30 },
+      cue: { x: 30, y: 20 },
+      target: { x: 40, y: 25 },
+      second: { x: 50, y: 15 },
+    };
+    const recordRedBalls = {
+      cue: { x: 30, y: 20 },
+      target: { x: 50, y: 15 },
+      second: { x: 40, y: 25 },
     };
     const recordRedLogicalTarget: PositionRecord = {
-      positionId: "pub_red_logical_target",
+      positionId: createPositionId(recordRedBalls),
       targetBall: "red",
-      balls: {
-        cue: { x: 30, y: 70 },
-        target: { x: 15, y: 30 },
-        second: { x: 20, y: 50 },
-      },
+      balls: recordRedBalls,
       strategies: {
         S1: {
           slot: "S1",
           track: "B2T_R",
           memberOrigin: "AUTHORED",
           hpT: canonicalHpt,
+          thickness: "8/8",
           signature: {
             systemId: "5_half_system",
             formulaHash: "v1",
             shotType: "옆돌리기",
           },
+          sysInputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+          corrections: {
+            slide: 0,
+            curve_ratio: 0,
+            draw: 0,
+            departure: 0,
+            spin: 0,
+          },
+          correctionsStored: true,
+          meta: {
+            impact: { x: 0, y: 0 },
+            final: { x: 0, y: 0 },
+            angle_ci: 0,
+            angle_fs: 0,
+          },
+          ai: { text: "" },
+          str: { speed: 2.5 },
+          authoringStrategyId: "as_hpt_red",
+          familyId: "fm_hptred-0000-4000-8000-000000000001",
+          memberId: "mb_hpt_red_1",
         },
       },
     };
@@ -382,7 +429,19 @@ describe("ADMIN Published Search target hydration (preserved)", () => {
           shotType: "옆돌리기",
           systemId: "5_half_system",
           systemLabel: "파이브앤하프",
-          records: [recordRedLogicalTarget],
+          exportedAt: "2026-03-23T00:00:00.000Z",
+          records: [
+            {
+              ...recordRedLogicalTarget,
+              strategies: {
+                S1: {
+                  ...recordRedLogicalTarget.strategies.S1,
+                  derivedRule: "AUTHORED",
+                  derivedStep: 0,
+                },
+              },
+            },
+          ],
         }),
       })
     );

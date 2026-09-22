@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase E — Native Normalized Published Search (after D-3) |
+| **Next Track** | Phase E-2 — Member-Centric Published Search (after E-1) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -1239,11 +1239,33 @@ PositionRecord[]           = runtime projection KEEP
 - `App.jsx` (wires `onPublish` + `publishInFlight`; no `onExport`)
 
 **What is NOT active:**
-- Native Member-centric Published Search rewrite (Phase E)
+- Native Member-centric Published Search rewrite (Phase E-2)
 - History schema migration / PublishOperation / PublishFamilyPayload schema change
 - D-2 writer / Local SSOT / C-0 / Search architecture change
 
-**Next Track:** Phase E — Native Normalized Published Search Audit/Implementation.
+**Next Track:** Phase E — Native Normalized Published Search (E-1 COMPLETE — see below).
+
+### Phase E-1 — Normalized Published Store / Loader Authority (2026-09-22)
+
+**Authority:** 본 절 · Published load/cache AUTHORITY = NormalizedDatasetEnvelope
+
+**Product rules (fixed):**
+- Published load: **v2 → in-memory** `convertFlatDatasetExportToNormalizedLeaf` (no disk rewrite)
+- Published load: **v3 → native** `parseNormalizedDatasetEnvelope`
+- Invalid v2/v3 → **fail closed** (no v3→flat fallback)
+- Cache authority = normalized envelope / Masters / Members (+ derived `masterByFamilyId`)
+- `records` = **TEMPORARY COMPATIBILITY PROJECTION** via `rematerializeFamilyPartsToPositionRecords` (eager)
+- Existing Published Search still uses flat projection until E-2 (profiles unchanged)
+- Real Interpolation still consumes compatibility `records`
+- No persisted Search Index; no KD rewrite for Published Search
+- Publish pipeline / History / Local SSOT / Local Search **unchanged**
+- No durable dataset/** migration
+
+**Code owners:**
+- `domain/datasetLoader.ts`
+- `domain/publishedDatasetStore.ts`
+
+**Next Track:** Phase E-2 — Member-Centric Published Search + Winner-Only Hydration.
 
 **Production SSOT (검증 완료, 2026-06):**
 

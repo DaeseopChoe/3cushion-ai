@@ -6,6 +6,45 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-22 — Phase E-1 Normalized Published Store / Loader Authority
+
+## Mode
+
+**Agent** · Published load/cache AUTHORITY → NormalizedDatasetEnvelope · Search/RI keep records projection
+
+## Background (E-0 audit)
+
+Published Search rematerialized whole leaf to PositionRecord[] as cache authority.
+v2 production leaves remain; Local already Member-centric. E-1 prepares normalized store without changing Search ranking.
+
+## Delivered
+
+- `datasetLoader`: v2 in-memory convertFlat; v3 native parse; fail-closed; compatibility records projection
+- `publishedDatasetStore`: cache stores envelope + masterByFamilyId + Members + derived records
+- refresh invalidates normalized + projection together
+- Existing Search/RI APIs keep `.records` surface
+- Fixture enrichment for migratable family identity in Search contract tests
+- Docs: MASTER_INDEX E-1 COMPLETE
+
+## Not changed
+
+- Search algorithms / profiles (adminStrict / userStrict)
+- RI algorithm
+- Publish / History / Local SSOT / Local Search
+- dataset/** (no durable migration)
+- product_export ABSENT; incidenceAngle.ts preserved
+
+## Next
+
+Phase E-2 — Member-Centric Published Search + Winner-Only Hydration
+(Do not auto-start; wait for user review.)
+
+## Commit
+
+`refactor(search): make published cache normalized-authoritative`
+
+---
+
 # 2026-09-22 — Phase D-3 History ONE Publish UX
 
 ## Mode

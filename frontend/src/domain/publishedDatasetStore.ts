@@ -1,11 +1,19 @@
 /**
  * Published Dataset lazy cache — keyed by shotType + systemId.
+ *
+ * Phase E-1:
+ *   AUTHORITY = NormalizedDatasetEnvelope (familyMasters + familyMembers)
+ *   masterByFamilyId = derived lookup (same Masters, not a second SSOT)
+ *   records = TEMPORARY COMPATIBILITY PROJECTION for Published Search + RI
+ *     (eager rematerialize at load; not durable; invalidate with envelope)
  */
 
 import {
   fetchPublishedLeaf,
   type PublishedLeafLoadResult,
 } from "./datasetLoader";
+import type { NormalizedDatasetEnvelope } from "./dataset/normalizedDatasetEnvelope";
+import type { FamilyMaster, FamilyMember } from "./family/familyNormalizedSchema";
 import type { PositionRecord } from "./positionSearchEngine";
 
 export type PublishedLeafKey = string;
@@ -15,10 +23,25 @@ export type PublishedLeafCacheEntry = {
   shotType: string;
   systemId: string;
   status: "ready" | "empty" | "error";
-  records: PositionRecord[];
   url: string;
   errorMessage?: string;
   loadedAt: number;
+  /**
+   * Canonical Published leaf authority when status === "ready".
+   * Absent on empty/error.
+   */
+  envelope?: NormalizedDatasetEnvelope;
+  /** Derived from envelope.familyMasters — leaf-scoped. */
+  masterByFamilyId?: Map<string, FamilyMaster>;
+  familyMasters?: FamilyMaster[];
+  familyMembers?: FamilyMember[];
+  /**
+   * TEMPORARY COMPATIBILITY PROJECTION (Search + Real Interpolation).
+   * Derived from envelope only. Not authority.
+   */
+  records: PositionRecord[];
+  /** Source on-disk schema before in-memory normalize (2|3). */
+  sourceSchemaVersion?: 2 | 3;
 };
 
 const leafCache = new Map<PublishedLeafKey, PublishedLeafCacheEntry>();
@@ -37,6 +60,10 @@ export function getPublishedLeafCacheEntry(
   return leafCache.get(buildPublishedLeafKey(shotType, systemId));
 }
 
+/**
+ * Invalidate published leaf cache.
+ * Clears normalized authority + master lookup + compatibility records together.
+ */
 export function refreshPublishedDataset(
   shotType?: string,
   systemId?: string
@@ -61,9 +88,14 @@ function cacheFromLoadResult(
       shotType,
       systemId,
       status: "ready",
-      records: result.records,
       url: result.url,
       loadedAt,
+      envelope: result.envelope,
+      masterByFamilyId: result.masterByFamilyId,
+      familyMasters: result.familyMasters,
+      familyMembers: result.familyMembers,
+      records: result.records,
+      sourceSchemaVersion: result.sourceSchemaVersion,
     };
   }
   if (result.kind === "empty") {
@@ -90,7 +122,17 @@ function cacheFromLoadResult(
 }
 
 export type GetOrLoadPublishedLeafResult =
-  | { kind: "ok"; records: PositionRecord[]; url: string; fromCache: boolean }
+  | {
+      kind: "ok";
+      records: PositionRecord[];
+      url: string;
+      fromCache: boolean;
+      envelope: NormalizedDatasetEnvelope;
+      masterByFamilyId: Map<string, FamilyMaster>;
+      familyMasters: FamilyMaster[];
+      familyMembers: FamilyMember[];
+      sourceSchemaVersion: 2 | 3;
+    }
   | { kind: "empty"; url: string; fromCache: boolean }
   | { kind: "error"; message: string; url: string; fromCache: boolean };
 
@@ -104,23 +146,31 @@ export async function getOrLoadPublishedLeaf(
   if (!options?.force) {
     const cached = leafCache.get(key);
     if (cached) {
-      if (cached.status === "ready") {
+      if (cached.status === "ready" && cached.envelope && cached.masterByFamilyId) {
         return {
           kind: "ok",
           records: cached.records,
           url: cached.url,
           fromCache: true,
+          envelope: cached.envelope,
+          masterByFamilyId: cached.masterByFamilyId,
+          familyMasters: cached.familyMasters ?? cached.envelope.familyMasters,
+          familyMembers: cached.familyMembers ?? cached.envelope.familyMembers,
+          sourceSchemaVersion: cached.sourceSchemaVersion ?? 3,
         };
       }
       if (cached.status === "empty") {
         return { kind: "empty", url: cached.url, fromCache: true };
       }
-      return {
-        kind: "error",
-        message: cached.errorMessage ?? "Unknown load error",
-        url: cached.url,
-        fromCache: true,
-      };
+      if (cached.status === "error") {
+        return {
+          kind: "error",
+          message: cached.errorMessage ?? "Unknown load error",
+          url: cached.url,
+          fromCache: true,
+        };
+      }
+      // Corrupt cache entry (ready without envelope) — treat as miss.
     }
   }
 
@@ -137,6 +187,11 @@ export async function getOrLoadPublishedLeaf(
       records: result.records,
       url: result.url,
       fromCache: false,
+      envelope: result.envelope,
+      masterByFamilyId: result.masterByFamilyId,
+      familyMasters: result.familyMasters,
+      familyMembers: result.familyMembers,
+      sourceSchemaVersion: result.sourceSchemaVersion,
     };
   }
   if (result.kind === "empty") {

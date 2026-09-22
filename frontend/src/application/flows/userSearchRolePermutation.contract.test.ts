@@ -25,19 +25,42 @@ import type { PositionRecord } from "../../domain/positionSearchEngine";
 import { resolveTrajectoryTargetBall, resolveTrajectorySecondBall } from "../../domain/trajectory/trajectoryBuilder";
 import { hydrateBallsStateForUi } from "../../admin/slotAutoRecommend";
 import { runSpatialRecall } from "../../domain/recall/recallEngine";
+import { createPositionId } from "../../domain/positionId";
 import fs from "node:fs";
 import path from "node:path";
 
-const trackedRecord: PositionRecord = {
-  positionId: "188080204306345016",
-  familyId: "fm_a726ed32-4572-43e4-aac5-aed61e990c2b",
-  memberId: "mb_a497d3cc-6d3e-4b64-8e24-17679d1abbfc",
-  memberOrigin: "DERIVED_CUE_C3_PRODUCT",
-  balls: {
-    cue: { x: 18.788, y: 7.952 },
-    target: { x: 20.375, y: 30.625 }, // Stored Target role (Red physical in real table or Yellow)
-    second: { x: 34.461, y: 1.602 },  // Stored Second role
+const STRATEGY_BASE = {
+  sysInputs: { CO_f: 30, C1_f: 10, C3_r: 20 },
+  corrections: {
+    slide: 0,
+    curve_ratio: 0,
+    draw: 0,
+    departure: 0,
+    spin: 0,
   },
+  correctionsStored: true as const,
+  meta: {
+    impact: { x: 0, y: 0 },
+    final: { x: 0, y: 0 },
+    angle_ci: 0,
+    angle_fs: 0,
+  },
+  hpT: { T: "8/8", hit_point: { x: 0, y: 0 }, mode: "TIP" as const, tipCount: 0 },
+  thickness: "8/8",
+  str: { speed: 2.5 },
+  ai: { text: "AI" },
+  track: "B2T_L" as const,
+};
+
+const trackedBalls = {
+  cue: { x: 18.788, y: 7.952 },
+  target: { x: 20.375, y: 30.625 },
+  second: { x: 34.461, y: 1.602 },
+};
+
+const trackedRecord: PositionRecord = {
+  positionId: createPositionId(trackedBalls),
+  balls: trackedBalls,
   targetBall: "red",
   schemaVersion: 1,
   strategies: {
@@ -48,25 +71,24 @@ const trackedRecord: PositionRecord = {
         formulaHash: "test_formula",
         shotType: "옆돌리기",
       },
-      sysInputs: {},
-      hpT: { T: "8/8" },
-      str: "MEDIUM",
-      ai: "AI",
-      track: "B2T_L",
+      ...STRATEGY_BASE,
+      authoringStrategyId: "as_tracked",
+      familyId: "fm_a726ed32-4572-43e4-aac5-aed61e990c2b",
+      memberId: "mb_a497d3cc-6d3e-4b64-8e24-17679d1abbfc",
+      memberOrigin: "AUTHORED",
     },
   },
 };
 
+const yellowBalls = {
+  cue: { x: 18.788, y: 7.952 },
+  target: { x: 34.461, y: 1.602 },
+  second: { x: 20.375, y: 30.625 },
+};
+
 const yellowTargetRecord: PositionRecord = {
-  positionId: "pos_yellow_target_001",
-  familyId: "fam_yellow",
-  memberId: "mb_yellow",
-  memberOrigin: "AUTHORED",
-  balls: {
-    cue: { x: 18.788, y: 7.952 },
-    target: { x: 34.461, y: 1.602 },  // Stored Target role is Yellow physical ball
-    second: { x: 20.375, y: 30.625 }, // Stored Second role is Red physical ball
-  },
+  positionId: createPositionId(yellowBalls),
+  balls: yellowBalls,
   targetBall: "yellow",
   schemaVersion: 1,
   strategies: {
@@ -77,25 +99,24 @@ const yellowTargetRecord: PositionRecord = {
         formulaHash: "test_formula",
         shotType: "옆돌리기",
       },
-      sysInputs: {},
-      hpT: { T: "8/8" },
-      str: "MEDIUM",
-      ai: "AI",
-      track: "B2T_L",
+      ...STRATEGY_BASE,
+      authoringStrategyId: "as_yellow",
+      familyId: "fm_yellow-0000-4000-8000-000000000001",
+      memberId: "mb_yellow_1",
+      memberOrigin: "AUTHORED",
     },
   },
 };
 
+const redBalls = {
+  cue: { x: 25.0, y: 15.0 },
+  target: { x: 45.0, y: 35.0 },
+  second: { x: 65.0, y: 10.0 },
+};
+
 const redTargetRecord: PositionRecord = {
-  positionId: "pos_red_target_001",
-  familyId: "fam_red",
-  memberId: "mb_red",
-  memberOrigin: "AUTHORED",
-  balls: {
-    cue: { x: 25.0, y: 15.0 },
-    target: { x: 45.0, y: 35.0 }, // Physical Red ball is Target
-    second: { x: 65.0, y: 10.0 }, // Physical Yellow ball is Second
-  },
+  positionId: createPositionId(redBalls),
+  balls: redBalls,
   targetBall: "red",
   schemaVersion: 1,
   strategies: {
@@ -106,11 +127,11 @@ const redTargetRecord: PositionRecord = {
         formulaHash: "test_formula",
         shotType: "옆돌리기",
       },
-      sysInputs: {},
-      hpT: { T: "8/8" },
-      str: "MEDIUM",
-      ai: "AI",
-      track: "B2T_L",
+      ...STRATEGY_BASE,
+      authoringStrategyId: "as_red",
+      familyId: "fm_red000-0000-4000-8000-000000000001",
+      memberId: "mb_red_1",
+      memberOrigin: "AUTHORED",
     },
   },
 };
@@ -154,7 +175,7 @@ describe("USER Search Deployment & Role Permutation Contract Tests", () => {
     refreshPublishedDataset();
     const leafRelPath = path.join("dataset", "옆돌리기", "파이브앤하프", "positions.json");
     const sourceFilePath = path.resolve(__dirname, "../../../../", leafRelPath);
-    
+
     expect(fs.existsSync(sourceFilePath)).toBe(true);
     const content = JSON.parse(fs.readFileSync(sourceFilePath, "utf8"));
     expect(content.schemaVersion).toBe(2);
@@ -204,7 +225,7 @@ describe("USER Search Deployment & Role Permutation Contract Tests", () => {
 
     const match = await runUserSearch(ctx);
     expect(match).not.toBeNull();
-    expect(match?.record.positionId).toBe("pos_yellow_target_001");
+    expect(match?.record.positionId).toBe(yellowTargetRecord.positionId);
     expect(match?.matchedBalls.target.x).toBeCloseTo(34.461, 2);
     expect(match?.matchedBalls.second.x).toBeCloseTo(20.375, 2);
 
@@ -247,7 +268,7 @@ describe("USER Search Deployment & Role Permutation Contract Tests", () => {
 
     const match = await runUserSearch(ctx);
     expect(match).not.toBeNull();
-    expect(match?.record.positionId).toBe("pos_red_target_001");
+    expect(match?.record.positionId).toBe(redTargetRecord.positionId);
     // Winner permutation mapped target to Red physical ball (45, 35) and second to Yellow physical ball (65, 10)
     expect(match?.matchedBalls.target.x).toBe(45.0);
     expect(match?.matchedBalls.target.y).toBe(35.0);
@@ -368,7 +389,7 @@ describe("USER Search Deployment & Role Permutation Contract Tests", () => {
 
     const result = await runUserSearch(ctx);
     expect(result).not.toBeNull();
-    expect(result?.record.positionId).toBe("pos_red_target_001");
+    expect(result?.record.positionId).toBe(redTargetRecord.positionId);
     // Pair identity: matchedBalls matches pos_red_target_001, not trackedRecord
     expect(result?.matchedBalls.target).toEqual(redTargetRecord.balls.target);
     expect(result?.matchedBalls.second).toEqual(redTargetRecord.balls.second);
@@ -549,7 +570,7 @@ describe("USER Search Deployment & Role Permutation Contract Tests", () => {
       },
     });
     const matchPass = await runUserSearch(ctxPass);
-    expect(matchPass?.record.positionId).toBe("188080204306345016");
+    expect(matchPass?.record.positionId).toBe(trackedRecord.positionId);
 
     // Beyond coarsePerBall (> 3.0 Rg on cue) -> FAIL
     const { ctx: ctxFail } = createMockSearchContext({
@@ -573,7 +594,7 @@ describe("USER Search Deployment & Role Permutation Contract Tests", () => {
     });
     expect(adminResult.kind).toBe("match");
     if (adminResult.kind === "match") {
-      expect(adminResult.record.positionId).toBe("188080204306345016");
+      expect(adminResult.record.positionId).toBe(trackedRecord.positionId);
       expect(adminResult.distance).toBe(0);
     }
   });
@@ -611,7 +632,7 @@ describe("USER Search Deployment & Role Permutation Contract Tests", () => {
 
     const match = await runUserSearch(ctx);
     expect(match).not.toBeNull();
-    expect(match?.record.positionId).toBe("188080204306345016");
+    expect(match?.record.positionId).toBe(trackedRecord.positionId);
     expect(appliedRecords.length).toBe(1);
 
     // Winning query mapping identified that Red ball (20.375, 30.625) is Target, Yellow ball (34.461, 1.602) is Second!
