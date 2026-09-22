@@ -6,6 +6,51 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-22 — Phase D-1 Normalized Whole-Leaf Publish Mutation
+
+## Mode
+
+**Agent** · Pure domain CREATE/UPDATE mutation only · No UI / publisher / Git / Search / dataset cutover
+
+## Background (Phase D-0)
+
+Read-only audit after C-2:
+- History already has separate Publish + 수동 Export
+- Publish is localhost Vite one-click (write→git→prod verify)
+- Repository leaf still flat DatasetExportPayload v2
+- Recommended first implement step: pure normalized whole-leaf mutation (this entry)
+
+## Delivered
+
+- `publishedNormalizedLeafMutation.ts`:
+  - `createEmptyNormalizedPublishedLeaf`
+  - `convertPublishFamilyPayloadToNormalizedFamily` (via migratePositionRecordsToFamilyParts)
+  - `applyPublishFamilyToNormalizedLeaf` (CREATE / CREATE retry / UPDATE)
+  - `normalizedPublishedLeavesSemanticallyEqual` (D-2 prep)
+- Contract tests: 25 cases (occupancy, identity, ownership, immutability, product member)
+- Docs: MASTER_INDEX D-1 current-state
+
+## Not changed
+
+- repository `positions.json` (still flat v2)
+- History UI / Export / Publish buttons
+- Vite `/api/publish-dataset*` / Git / production verify
+- Published Search reader
+- Local `normalized_dataset` SSOT
+- PublishOperation / PublishFamilyPayload schemas
+- product_export (ABSENT)
+- incidenceAngle.ts (preserved untracked)
+
+## Next
+
+Phase D-2 — Normalized Publisher + Published Read Adapter Cutover
+
+## Commit
+
+`feat(publish): add normalized whole-leaf family mutation`
+
+---
+
 # 2026-09-22 — Phase C-2 Local Persisted Flat Compatibility Removal
 
 ## Mode

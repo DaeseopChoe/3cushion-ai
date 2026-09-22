@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase D — Normalized Export / Publish Cutover (audit first); external flat boundaries remain |
+| **Next Track** | Phase D-2 — Normalized Publisher + Published Read Adapter Cutover (after D-1) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -836,7 +836,7 @@ Position  (Ball3: cue/target/second · 6 logical coords)
 7. **SAVE** = CREATE intent (mints new `familyId`) but **BLOCKED** when preferred Position+Slot is already occupied by another Family (no auto S2/S3; no auto-overwrite). **OVERWRITE** preserves trusted source `familyId` (LOCAL or PUBLISHED) and still must pass corpus occupancy validation. Same Position Key alone never selects UPDATE.
 8. **memberId KEEP** (lineage / validators / Derived·Product). Logical replacement also uses `genericFamilyMemberIdentityKey` (AUTHORED / SYMMETRY / DERIVED axes) — not coordinates.
 9. **Track KEEP** as Member semantic. Symmetry may change Ball3 → different `positionId`; track remains a separate field.
-10. Local WRITE SSOT = `normalized_dataset` (NormalizedDatasetEnvelope). ~~Flat `positions_dataset` = compatibility only~~ — **SUPERSEDED Phase C-2:** Local persisted flat / family_* shadow removed. Repository leaf remains flat until Phase D.
+10. Local WRITE SSOT = `normalized_dataset` (NormalizedDatasetEnvelope). ~~Flat `positions_dataset` = compatibility only~~ — **SUPERSEDED Phase C-2:** Local persisted flat / family_* shadow removed. Repository leaf remains flat v2 until D-2; **D-1 pure normalized whole-leaf mutation ready** (not wired to publisher).
 
 #### Logical Member identity (existing)
 
@@ -1154,14 +1154,39 @@ PositionRecord[]           = runtime projection KEEP
 - canonical absent (fresh) → empty App dataset
 - stale browser flat/shadow keys ignored
 
-#### External flat boundaries (unchanged — Phase D/E)
+#### External flat boundaries (unchanged until D-2/E)
 
-- Manual Export schemaVersion 2
-- PublishOperation / PublishFamilyPayload / repository `positions.json` v2
-- Published Search
+- Manual Export schemaVersion 2 (UI still present — D-3 removes independent Export)
+- PublishOperation / PublishFamilyPayload (History transport — unchanged)
+- repository `positions.json` **still flat v2** (physical leaf not cut over)
+- Published Search still flat reader
 - workspace_history snapshot payloads
 
-**Next Track:** Phase D — Normalized Export / Publish Cutover (audit first). Do not start D until C-2 accepted.
+### Phase D-1 — Normalized Whole-Leaf Publish Mutation (2026-09-22)
+
+**Authority:** 본 절 · Pure domain only · No production cutover
+
+**Code owners:**
+- `domain/publishedNormalizedLeafMutation.ts`
+- `domain/publishedNormalizedLeafMutation.contract.test.ts`
+
+**What is ready:**
+- Pure CREATE / UPDATE mutation:
+  existing NormalizedDatasetEnvelope + PublishOperation + PublishFamilyPayload
+  → validated candidate NormalizedDatasetEnvelope
+- Reuses `migratePositionRecordsToFamilyParts` + `parseNormalizedDatasetEnvelope` (C-0 occupancy)
+- CREATE retry = idempotent same-`destinationFamilyId` replacement
+- Different Family + same Position+Slot = `POSITION_STRATEGY_SLOT_CONFLICT` (BLOCK)
+- Semantic equality helper for D-2 readback prep
+- History UI / Vite publisher / Git / deploy verify / Published Search / `dataset/**` **unchanged**
+
+**What is NOT active:**
+- Actual normalized Publish write to repository
+- Published Search rematerialize adapter
+- History ONE Publish UI
+- Manual Export removal
+
+**Next Track:** Phase D-2 — Normalized Publisher + Published Read Adapter Cutover.
 
 **Production SSOT (검증 완료, 2026-06):**
 
