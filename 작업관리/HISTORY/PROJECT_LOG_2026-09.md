@@ -6,6 +6,57 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-22 — Phase D-2 Normalized Publisher + Published Read Adapter Cutover
+
+## Mode
+
+**Agent** · Production Publish write → NormalizedDatasetEnvelope v3 · Reader v2/v3 adapter · No History UI · No bulk dataset migration
+
+## Background (Phase D-1)
+
+Pure CREATE/UPDATE mutation ready (`publishedNormalizedLeafMutation`).
+Repository leaf still flat v2 until this cutover.
+
+## Delivered
+
+- `publishedLeafPrepare.ts`: detect v2/v3/absent; fail-closed v2→v3 convert; D-1 mutation owner
+- `publishDatasetToRepo` / FS write / Git staged blob / production verify → v3
+- Same-leaf batch: in-memory mutations → single write
+- `datasetLoader.parsePublishedLeafPayload`: v3 rematerialize adapter; invalid v3 no flat fallback
+- Manual Export: block overwrite of existing v3 leaf (`normalized-leaf-manual-export-blocked`)
+- Contracts: prepare/reader + updated Phase 4 publisher/git/verify fixtures
+- Docs: MASTER_INDEX D-2 current-state
+
+## Not changed
+
+- dataset/** (no bulk migration; no real production Publish)
+- History UI (Publish + 수동 Export still present)
+- PublishOperation / PublishFamilyPayload schemas
+- Local `normalized_dataset` SSOT
+- Local Search Member-centric
+- Native Published Search rewrite (Phase E)
+- product_export ABSENT; incidenceAngle.ts preserved
+
+## DatasetExportPayload v2 remaining roles
+
+| Role | Status |
+|------|--------|
+| Production repository write | NO (cut over to v3) |
+| Migration input (existing v2 leaf) | YES |
+| Untouched legacy leaf read | YES |
+| Manual Export temporary | YES until D-3 (with v3 downgrade guard) |
+| Tests | YES |
+
+## Next
+
+Phase D-3 — History ONE Publish UX
+
+## Commit
+
+`refactor(publish): cut over repository leaves to normalized schema`
+
+---
+
 # 2026-09-22 — Phase D-1 Normalized Whole-Leaf Publish Mutation
 
 ## Mode

@@ -645,18 +645,26 @@ describe("R17–R20 — Phase 3/4 path preservation (source + contracts)", () =>
     expect(publish).toContain("validatePublishedExportCandidate");
   });
 
-  it("R20 — Phase 4 write path still gates on validatePublishedExportCandidate", () => {
+  it("R20 — Phase D-2 write path gates on normalized prepare + parseNormalizedDatasetEnvelope", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const writeFs = readFileSync(
       join(here, "../repoPublish/writeVerifiedPublishedLeafFs.ts"),
       "utf8"
     );
-    expect(writeFs).toContain("validatePublishedExportCandidate");
+    expect(writeFs).toContain("parseNormalizedDatasetEnvelope");
+    expect(writeFs).toContain("serializeNormalizedCandidate");
+    expect(writeFs).not.toContain("validatePublishedExportCandidate");
     const publishRepo = readFileSync(
       join(here, "../repoPublish/publishDatasetToRepo.ts"),
       "utf8"
     );
-    expect(publishRepo).toContain("validatePublishedExportCandidate");
-    expect(publishRepo).toContain("buildPublishedFamilyExportCandidate");
+    expect(publishRepo).toContain("prepareNormalizedPublishCandidate");
+    expect(publishRepo).not.toContain("buildPublishedFamilyExportCandidate");
+    const prepare = readFileSync(
+      join(here, "../publishedLeafPrepare.ts"),
+      "utf8"
+    );
+    expect(prepare).toContain("applyPublishFamilyToNormalizedLeaf");
+    expect(prepare).toContain("parseNormalizedDatasetEnvelope");
   });
 });

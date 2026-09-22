@@ -1,23 +1,22 @@
 /**
- * Phase 4-A — Local repo-relative Publish service (Host / Node / Vitest).
+ * Phase 4-A / D-2 — Local repo-relative Publish service (Host / Node / Vitest).
  *
- * Reuses Phase 3 domain: PublishOperation + PublishFamilyPayload →
- * buildPublishedFamilyExportCandidate → verified FS write.
+ * Pipeline:
+ *   existing leaf (v2|v3|absent)
+ *   → prepareNormalizedPublishCandidate (D-1 mutation)
+ *   → verified FS write of NormalizedDatasetEnvelope v3
  *
  * No Git. No client filesystem paths. No shell.
  */
 
 import fs from "node:fs";
-import type { DatasetExportPayload } from "../datasetExport";
-import {
-  DATASET_EXPORT_SCHEMA_VERSION,
-  normalizeDatasetExport,
-} from "../datasetExport";
 import { systemIdToFolderLabel } from "../datasetPath";
+import type { NormalizedDatasetEnvelope } from "../dataset/normalizedDatasetEnvelope";
 import {
-  buildPublishedFamilyExportCandidate,
-  validatePublishedExportCandidate,
-} from "../publishedFamilyPublish";
+  prepareNormalizedPublishCandidate,
+  resolveExistingNormalizedLeafBase,
+} from "../publishedLeafPrepare";
+import { normalizedPublishedLeavesSemanticallyEqual } from "../publishedNormalizedLeafMutation";
 import {
   crossValidateOperationAndPayload,
   validatePublishFamilyPayload,
@@ -27,7 +26,6 @@ import {
   validatePublishOperation,
   type PublishOperation,
 } from "../publishOperation";
-import { publishedExportSemanticEqual } from "../publishedWrite";
 import { resolvePublishedLeafAbsolutePath } from "./resolveRepoLeafPath";
 import { writeVerifiedPublishedLeafFs } from "./writeVerifiedPublishedLeafFs";
 
@@ -79,50 +77,37 @@ function trimStr(raw: unknown): string {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
+function stripVolatile(
+  env: NormalizedDatasetEnvelope
+): NormalizedDatasetEnvelope {
+  const next: NormalizedDatasetEnvelope = {
+    schemaVersion: env.schemaVersion,
+    shotType: env.shotType,
+    systemId: env.systemId,
+    systemLabel: env.systemLabel,
+    familyMasters: env.familyMasters,
+    familyMembers: env.familyMembers,
+  };
+  return next;
+}
+
 function semanticLeafEqual(
-  a: DatasetExportPayload,
-  b: DatasetExportPayload
+  a: NormalizedDatasetEnvelope,
+  b: NormalizedDatasetEnvelope
 ): boolean {
-  try {
-    return publishedExportSemanticEqual(
-      {
-        ...normalizeDatasetExport(a),
-        exportedAt: "COMPARE",
-        sourceSnapshotId: undefined,
-      },
-      {
-        ...normalizeDatasetExport(b),
-        exportedAt: "COMPARE",
-        sourceSnapshotId: undefined,
-      }
-    );
-  } catch {
-    return false;
-  }
+  return normalizedPublishedLeavesSemanticallyEqual(
+    stripVolatile(a),
+    stripVolatile(b)
+  );
 }
 
-function buildIncomingEnvelope(
-  shotType: string,
-  systemId: string,
-  payload: PublishFamilyPayload
-): DatasetExportPayload {
-  return normalizeDatasetExport({
-    schemaVersion: DATASET_EXPORT_SCHEMA_VERSION,
-    shotType,
-    systemId,
-    systemLabel: systemIdToFolderLabel(systemId),
-    exportedAt: new Date().toISOString(),
-    records: payload.records,
-  });
-}
-
-function readExistingLeaf(
+function readExistingLeafRaw(
   absolutePath: string
 ):
-  | { ok: true; payload: DatasetExportPayload | null; originalText: string | null }
+  | { ok: true; raw: unknown | null; originalText: string | null }
   | { ok: false; reason: string; issues: string[] } {
   if (!fs.existsSync(absolutePath)) {
-    return { ok: true, payload: null, originalText: null };
+    return { ok: true, raw: null, originalText: null };
   }
   let originalText: string;
   try {
@@ -135,7 +120,7 @@ function readExistingLeaf(
     };
   }
   if (!originalText.trim()) {
-    return { ok: true, payload: null, originalText };
+    return { ok: true, raw: null, originalText };
   }
   let raw: unknown;
   try {
@@ -147,44 +132,7 @@ function readExistingLeaf(
       issues: [e instanceof Error ? e.message : String(e)],
     };
   }
-  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
-    return {
-      ok: false,
-      reason: "existing-leaf-validation-failed",
-      issues: ["existing:not-object"],
-    };
-  }
-  const rawObj = raw as Record<string, unknown>;
-  if (
-    Object.prototype.hasOwnProperty.call(rawObj, "records") &&
-    rawObj.records != null &&
-    !Array.isArray(rawObj.records)
-  ) {
-    return {
-      ok: false,
-      reason: "existing-leaf-validation-failed",
-      issues: ["existing.records:not-array"],
-    };
-  }
-  let normalized: DatasetExportPayload;
-  try {
-    normalized = normalizeDatasetExport(raw as DatasetExportPayload);
-  } catch (e) {
-    return {
-      ok: false,
-      reason: "existing-leaf-normalize-failed",
-      issues: [e instanceof Error ? e.message : String(e)],
-    };
-  }
-  const validated = validatePublishedExportCandidate(normalized);
-  if (!validated.ok) {
-    return {
-      ok: false,
-      reason: "existing-leaf-validation-failed",
-      issues: validated.issues,
-    };
-  }
-  return { ok: true, payload: normalized, originalText };
+  return { ok: true, raw, originalText };
 }
 
 /**
@@ -220,6 +168,7 @@ export function publishDatasetLeafToRepo(args: {
   const { datasetRoot, request } = args;
   const shotType = trimStr(request.shotType);
   const systemId = trimStr(request.systemId);
+  const systemLabel = systemIdToFolderLabel(systemId);
 
   if (!shotType || !systemId) {
     return {
@@ -271,7 +220,7 @@ export function publishDatasetLeafToRepo(args: {
     };
   }
 
-  const existing = readExistingLeaf(resolved.absolutePath);
+  const existing = readExistingLeafRaw(resolved.absolutePath);
   if (!existing.ok) {
     return {
       ok: false,
@@ -280,26 +229,24 @@ export function publishDatasetLeafToRepo(args: {
     };
   }
 
-  const incoming = buildIncomingEnvelope(
-    shotType,
-    systemId,
-    payloadResult.payload
-  );
-  const candidateResult = buildPublishedFamilyExportCandidate(
-    existing.payload,
-    incoming,
-    opResult.operation
-  );
-  if (!candidateResult.ok) {
+  const leafMeta = { shotType, systemId, systemLabel };
+  const prepared = prepareNormalizedPublishCandidate({
+    existingRaw: existing.raw,
+    operation: opResult.operation,
+    payload: payloadResult.payload,
+    leafMeta,
+    exportedAt: new Date().toISOString(),
+    sourceSnapshotId: request.snapshotId,
+  });
+  if (!prepared.ok) {
     return {
       ok: false,
-      reason: candidateResult.reason,
-      issues: candidateResult.issues,
+      reason: prepared.reason,
+      issues: prepared.issues,
     };
   }
 
-  const candidate = candidateResult.payload;
-  // Guard: no command metadata on envelope
+  const candidate = prepared.candidate;
   for (const key of [
     "publishOperation",
     "publishFamilyPayload",
@@ -316,9 +263,19 @@ export function publishDatasetLeafToRepo(args: {
     }
   }
 
+  const replaceFamilyIds = prepared.purgedFamilyIds.length
+    ? prepared.purgedFamilyIds
+    : prepared.insertedFamilyId
+      ? [prepared.insertedFamilyId]
+      : [];
+
+  const base = resolveExistingNormalizedLeafBase({
+    raw: existing.raw,
+    leafMeta,
+  });
   if (
-    existing.payload &&
-    semanticLeafEqual(existing.payload, candidate)
+    base.ok &&
+    semanticLeafEqual(base.envelope, candidate)
   ) {
     return {
       ok: true,
@@ -327,12 +284,12 @@ export function publishDatasetLeafToRepo(args: {
       leaf: {
         shotType,
         systemId,
-        systemLabel: systemIdToFolderLabel(systemId),
+        systemLabel,
         relativePosix: resolved.relativePosix,
         absolutePath: resolved.absolutePath,
       },
-      purgedFamilyIds: candidateResult.purgedFamilyIds,
-      replaceFamilyIds: candidateResult.replaceFamilyIds,
+      purgedFamilyIds: prepared.purgedFamilyIds,
+      replaceFamilyIds,
     };
   }
 
@@ -359,13 +316,235 @@ export function publishDatasetLeafToRepo(args: {
     leaf: {
       shotType,
       systemId,
-      systemLabel: systemIdToFolderLabel(systemId),
+      systemLabel,
       relativePosix: resolved.relativePosix,
       absolutePath: resolved.absolutePath,
     },
-    purgedFamilyIds: candidateResult.purgedFamilyIds,
-    replaceFamilyIds: candidateResult.replaceFamilyIds,
+    purgedFamilyIds: prepared.purgedFamilyIds,
+    replaceFamilyIds,
   };
+}
+
+/**
+ * Apply multiple ops for one leaf in-memory, then a single verified write.
+ */
+function publishSameLeafGroupInMemory(args: {
+  datasetRoot: string;
+  group: LocalPublishBatchItem[];
+}): LocalPublishBatchItemResult[] {
+  const { datasetRoot, group } = args;
+  if (group.length === 0) return [];
+
+  const first = group[0]!;
+  const shotType = trimStr(first.shotType);
+  const systemId = trimStr(first.systemId);
+  const systemLabel = systemIdToFolderLabel(systemId);
+  const leafMeta = { shotType, systemId, systemLabel };
+
+  const resolved = resolvePublishedLeafAbsolutePath(
+    datasetRoot,
+    shotType,
+    systemId
+  );
+  if (!resolved.ok) {
+    return group.map((item) => ({
+      snapshotId: item.snapshotId,
+      ok: false as const,
+      reason: resolved.reason,
+      issues: resolved.issues,
+    }));
+  }
+
+  const existing = readExistingLeafRaw(resolved.absolutePath);
+  if (!existing.ok) {
+    return group.map((item) => ({
+      snapshotId: item.snapshotId,
+      ok: false as const,
+      reason: existing.reason,
+      issues: existing.issues,
+    }));
+  }
+
+  let currentRaw: unknown | null = existing.raw;
+  const itemOkMeta: Array<{
+    snapshotId: string;
+    purgedFamilyIds: string[];
+    replaceFamilyIds: string[];
+  }> = [];
+
+  for (const item of group) {
+    const opResult = validatePublishOperation(item.publishOperation);
+    if (!opResult.ok) {
+      const failIdx = group.indexOf(item);
+      const out: LocalPublishBatchItemResult[] = itemOkMeta.map((m) => ({
+        snapshotId: m.snapshotId,
+        ok: false,
+        reason: "same-leaf-later-failure-rolled-prep",
+        issues: [`blocked-by:${item.snapshotId}`],
+      }));
+      // Actually we haven't written yet — prior prep successes aren't on disk.
+      // Report current fail + subsequent blocked; earlier items in group that
+      // prepared ok are also not written → mark them blocked by this failure.
+      const results: LocalPublishBatchItemResult[] = [];
+      for (let i = 0; i < failIdx; i++) {
+        results.push({
+          snapshotId: group[i]!.snapshotId,
+          ok: false,
+          reason: "same-leaf-batch-aborted-before-write",
+          issues: [`blocked-by:${item.snapshotId}`],
+        });
+      }
+      results.push({
+        snapshotId: item.snapshotId,
+        ok: false,
+        reason: opResult.reason,
+        issues: opResult.issues,
+      });
+      for (let i = failIdx + 1; i < group.length; i++) {
+        results.push({
+          snapshotId: group[i]!.snapshotId,
+          ok: false,
+          reason: "same-leaf-prior-failure",
+          issues: [`blocked-by:${item.snapshotId}`],
+        });
+      }
+      return results;
+    }
+
+    const payloadResult = validatePublishFamilyPayload(
+      item.publishFamilyPayload
+    );
+    if (!payloadResult.ok) {
+      const failIdx = group.indexOf(item);
+      const results: LocalPublishBatchItemResult[] = [];
+      for (let i = 0; i < failIdx; i++) {
+        results.push({
+          snapshotId: group[i]!.snapshotId,
+          ok: false,
+          reason: "same-leaf-batch-aborted-before-write",
+          issues: [`blocked-by:${item.snapshotId}`],
+        });
+      }
+      results.push({
+        snapshotId: item.snapshotId,
+        ok: false,
+        reason: payloadResult.reason,
+        issues: payloadResult.issues,
+      });
+      for (let i = failIdx + 1; i < group.length; i++) {
+        results.push({
+          snapshotId: group[i]!.snapshotId,
+          ok: false,
+          reason: "same-leaf-prior-failure",
+          issues: [`blocked-by:${item.snapshotId}`],
+        });
+      }
+      return results;
+    }
+
+    const prepared = prepareNormalizedPublishCandidate({
+      existingRaw: currentRaw,
+      operation: opResult.operation,
+      payload: payloadResult.payload,
+      leafMeta,
+      exportedAt: new Date().toISOString(),
+      sourceSnapshotId: item.snapshotId,
+    });
+    if (!prepared.ok) {
+      const failIdx = group.indexOf(item);
+      const results: LocalPublishBatchItemResult[] = [];
+      for (let i = 0; i < failIdx; i++) {
+        results.push({
+          snapshotId: group[i]!.snapshotId,
+          ok: false,
+          reason: "same-leaf-batch-aborted-before-write",
+          issues: [`blocked-by:${item.snapshotId}`],
+        });
+      }
+      results.push({
+        snapshotId: item.snapshotId,
+        ok: false,
+        reason: prepared.reason,
+        issues: prepared.issues,
+      });
+      for (let i = failIdx + 1; i < group.length; i++) {
+        results.push({
+          snapshotId: group[i]!.snapshotId,
+          ok: false,
+          reason: "same-leaf-prior-failure",
+          issues: [`blocked-by:${item.snapshotId}`],
+        });
+      }
+      return results;
+    }
+
+    currentRaw = prepared.candidate;
+    itemOkMeta.push({
+      snapshotId: item.snapshotId,
+      purgedFamilyIds: prepared.purgedFamilyIds,
+      replaceFamilyIds: prepared.purgedFamilyIds.length
+        ? prepared.purgedFamilyIds
+        : prepared.insertedFamilyId
+          ? [prepared.insertedFamilyId]
+          : [],
+    });
+  }
+
+  const finalCandidate = currentRaw as NormalizedDatasetEnvelope;
+  const base = resolveExistingNormalizedLeafBase({
+    raw: existing.raw,
+    leafMeta,
+  });
+  if (base.ok && semanticLeafEqual(base.envelope, finalCandidate)) {
+    return itemOkMeta.map((m) => ({
+      snapshotId: m.snapshotId,
+      ok: true as const,
+      status: "NO_CHANGE" as const,
+      changed: false,
+      leaf: {
+        shotType,
+        systemId,
+        systemLabel,
+        relativePosix: resolved.relativePosix,
+        absolutePath: resolved.absolutePath,
+      },
+      purgedFamilyIds: m.purgedFamilyIds,
+      replaceFamilyIds: m.replaceFamilyIds,
+    }));
+  }
+
+  const writeResult = writeVerifiedPublishedLeafFs({
+    absoluteTargetPath: resolved.absolutePath,
+    candidate: finalCandidate,
+    originalText: existing.originalText,
+    revalidate: true,
+  });
+  if (!writeResult.ok) {
+    return itemOkMeta.map((m) => ({
+      snapshotId: m.snapshotId,
+      ok: false as const,
+      reason: writeResult.reason,
+      issues: writeResult.issues,
+      restored: writeResult.restored,
+      restoreFailed: writeResult.restoreFailed,
+    }));
+  }
+
+  return itemOkMeta.map((m) => ({
+    snapshotId: m.snapshotId,
+    ok: true as const,
+    status: "REPO_WRITTEN" as const,
+    changed: true,
+    leaf: {
+      shotType,
+      systemId,
+      systemLabel,
+      relativePosix: resolved.relativePosix,
+      absolutePath: resolved.absolutePath,
+    },
+    purgedFamilyIds: m.purgedFamilyIds,
+    replaceFamilyIds: m.replaceFamilyIds,
+  }));
 }
 
 function leafKey(shotType: string, systemId: string): string {
@@ -373,7 +552,7 @@ function leafKey(shotType: string, systemId: string): string {
 }
 
 /**
- * Multi-snapshot publish: group by leaf, apply ops in order, one write per leaf.
+ * Multi-snapshot publish: group by leaf, apply all ops in-memory, one write per leaf.
  * Failed leaf does not roll back prior successful leaves.
  */
 export function publishDatasetBatchToRepo(args: {
@@ -397,28 +576,9 @@ export function publishDatasetBatchToRepo(args: {
 
   for (const key of order) {
     const group = groups.get(key)!;
-    // Sequential apply within leaf: each op reads disk after previous write.
-    for (const item of group) {
-      const r = publishDatasetLeafToRepo({
-        datasetRoot,
-        request: item,
-      });
-      results.push({ snapshotId: item.snapshotId, ...r });
-      if (!r.ok) {
-        // Stop remaining items on same leaf; mark them as not-attempted? Spec says
-        // stop-on-first-failure style for export — mark subsequent same-leaf as skipped.
-        const idx = group.indexOf(item);
-        for (let i = idx + 1; i < group.length; i++) {
-          results.push({
-            snapshotId: group[i].snapshotId,
-            ok: false,
-            reason: "same-leaf-prior-failure",
-            issues: [`blocked-by:${item.snapshotId}`],
-          });
-        }
-        break;
-      }
-    }
+    results.push(
+      ...publishSameLeafGroupInMemory({ datasetRoot, group })
+    );
   }
 
   return results;
@@ -455,88 +615,71 @@ export function handleLocalPublishHttpBody(args: {
     };
   }
 
-  // Batch form: { items: [...] }
-  if (Array.isArray(raw.items)) {
-    const items: LocalPublishBatchItem[] = [];
-    for (const it of raw.items) {
-      if (!it || typeof it !== "object") {
-        return {
-          statusCode: 400,
-          body: {
-            ok: false,
-            reason: "batch-item-invalid",
-            issues: ["items:entry-not-object"],
-          },
-        };
-      }
-      const entry = it as Record<string, unknown>;
-      const entryForbidden = rejectClientPathOrCommandFields(entry);
-      if (entryForbidden.length > 0) {
-        return {
-          statusCode: 400,
-          body: {
-            ok: false,
-            reason: "forbidden-client-fields",
-            issues: entryForbidden,
-          },
-        };
-      }
-      const snapshotId = trimStr(entry.snapshotId);
-      if (!snapshotId) {
-        return {
-          statusCode: 400,
-          body: {
-            ok: false,
-            reason: "snapshotId-missing",
-            issues: ["snapshotId:empty"],
-          },
-        };
-      }
-      items.push({
-        snapshotId,
-        shotType: trimStr(entry.shotType),
-        systemId: trimStr(entry.systemId),
-        publishOperation: entry.publishOperation as PublishOperation,
-        publishFamilyPayload:
-          entry.publishFamilyPayload as PublishFamilyPayload,
-      });
-    }
-    const results = publishDatasetBatchToRepo({
-      datasetRoot: args.datasetRoot,
-      items,
-    }).map(sanitizePublishResultForClient);
-    const anyOk = results.some((r) => r.ok);
+  const itemsRaw = raw.items;
+  if (!Array.isArray(itemsRaw) || itemsRaw.length === 0) {
     return {
-      statusCode: anyOk || results.length === 0 ? 200 : 422,
-      body: { ok: anyOk, results },
+      statusCode: 400,
+      body: {
+        ok: false,
+        reason: "items-empty",
+        issues: ["items:empty"],
+      },
     };
   }
 
-  // Single leaf form
-  const result = sanitizePublishResultForClient(
-    publishDatasetLeafToRepo({
-      datasetRoot: args.datasetRoot,
-      request: {
-        shotType: trimStr(raw.shotType),
-        systemId: trimStr(raw.systemId),
-        publishOperation: raw.publishOperation as PublishOperation,
-        publishFamilyPayload: raw.publishFamilyPayload as PublishFamilyPayload,
-        snapshotId: trimStr(raw.snapshotId) || undefined,
-      },
-    })
-  );
-  return {
-    statusCode: result.ok ? 200 : 422,
-    body: result,
-  };
-}
+  const items: LocalPublishBatchItem[] = [];
+  for (const row of itemsRaw) {
+    if (row == null || typeof row !== "object") {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          reason: "item-invalid",
+          issues: ["item:not-object"],
+        },
+      };
+    }
+    const it = row as Record<string, unknown>;
+    const snapshotId = trimStr(it.snapshotId);
+    const shotType = trimStr(it.shotType);
+    const systemId = trimStr(it.systemId);
+    if (!snapshotId || !shotType || !systemId) {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          reason: "item-identity-missing",
+          issues: ["snapshotId|shotType|systemId"],
+        },
+      };
+    }
+    items.push({
+      snapshotId,
+      shotType,
+      systemId,
+      publishOperation: it.publishOperation as PublishOperation,
+      publishFamilyPayload: it.publishFamilyPayload as PublishFamilyPayload,
+    });
+  }
 
-/** Never send absolute filesystem paths to the browser. */
-function sanitizePublishResultForClient<
-  T extends LocalPublishLeafResult | LocalPublishBatchItemResult,
->(result: T): T {
-  if (!result.ok) return result;
-  const leaf = { ...result.leaf };
-  delete (leaf as { absolutePath?: string }).absolutePath;
-  return { ...result, leaf };
+  const results = publishDatasetBatchToRepo({
+    datasetRoot: args.datasetRoot,
+    items,
+  });
+  const allOk = results.length > 0 && results.every((r) => r.ok);
+  return {
+    statusCode: allOk ? 200 : 400,
+    body: {
+      ok: allOk,
+      results,
+      ...(allOk
+        ? {}
+        : {
+            reason: results.find((r) => !r.ok)?.reason ?? "batch-failed",
+            issues: results
+              .filter((r) => !r.ok)
+              .flatMap((r) => ("issues" in r ? r.issues : [])),
+          }),
+    },
+  };
 }

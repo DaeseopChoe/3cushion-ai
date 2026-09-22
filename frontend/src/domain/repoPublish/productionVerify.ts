@@ -5,12 +5,15 @@
  * Expected state = pushed commit blob (not working tree).
  */
 
-import type { DatasetExportPayload } from "../datasetExport";
-import { normalizeDatasetExport } from "../datasetExport";
+import type { NormalizedDatasetEnvelope } from "../dataset/normalizedDatasetEnvelope";
+import {
+  isFlatLegacyDataset,
+  isNormalizedDataset,
+  parseNormalizedDatasetEnvelope,
+} from "../dataset/normalizedDatasetEnvelope";
 import { buildPublishedLeafUrl } from "../datasetLoader";
 import { DATASET_ROOT_DIR } from "../datasetPath";
-import { validatePublishedExportCandidate } from "../publishedFamilyPublish";
-import { verifyPublishedReadBack } from "../publishedWrite";
+import { verifyNormalizedPublishedReadBack } from "../publishedNormalizedWrite";
 import {
   readCommittedBlobText,
   resolveHeadCommitSha,
@@ -236,7 +239,7 @@ async function readResponseTextLimited(
 export async function fetchProductionLeafAttempt(args: {
   url: string;
   origin: ProductionOriginOk;
-  expectedCandidate: DatasetExportPayload;
+  expectedCandidate: NormalizedDatasetEnvelope;
   perRequestTimeoutMs: number;
   maxResponseBytes: number;
   fetchFn?: typeof fetch;
@@ -323,29 +326,37 @@ export async function fetchProductionLeafAttempt(args: {
     };
   }
 
-  let normalized: DatasetExportPayload;
-  try {
-    normalized = normalizeDatasetExport(raw as DatasetExportPayload);
-  } catch (e) {
+  // Phase D-2: production expected leaf is NormalizedDatasetEnvelope v3.
+  if (isFlatLegacyDataset(raw) && !isNormalizedDataset(raw)) {
     return {
-      kind: "invalid_json",
+      kind: "validation_failed",
       httpStatus: response.status,
       retryable: true,
-      issues: [e instanceof Error ? e.message : String(e)],
+      issues: ["PRODUCTION_FLAT_V2_UNEXPECTED"],
     };
   }
-
-  const validated = validatePublishedExportCandidate(normalized);
+  if (!isNormalizedDataset(raw)) {
+    return {
+      kind: "validation_failed",
+      httpStatus: response.status,
+      retryable: true,
+      issues: ["PRODUCTION_NOT_NORMALIZED_V3"],
+    };
+  }
+  const validated = parseNormalizedDatasetEnvelope(raw);
   if (!validated.ok) {
     return {
       kind: "validation_failed",
       httpStatus: response.status,
       retryable: true,
-      issues: validated.issues,
+      issues: validated.issues.map((i) => `${i.code}:${i.reason}`),
     };
   }
 
-  const verified = verifyPublishedReadBack(args.expectedCandidate, body.text);
+  const verified = verifyNormalizedPublishedReadBack(
+    args.expectedCandidate,
+    body.text
+  );
   if (!verified.ok) {
     if (verified.reason === "read-back-mismatch") {
       return {
@@ -377,7 +388,7 @@ async function loadExpectedFromCommitBlob(args: {
   shotType: string;
   systemId: string;
 }): Promise<
-  | { ok: true; candidate: DatasetExportPayload; repoRelativePath: string }
+  | { ok: true; candidate: NormalizedDatasetEnvelope; repoRelativePath: string }
   | { ok: false; reason: string; issues: string[]; fatal: boolean }
 > {
   const leaf = repoRelativePublishedLeafPath(
@@ -423,31 +434,35 @@ async function loadExpectedFromCommitBlob(args: {
       fatal: true,
     };
   }
-  // Keep raw parsed object as expected — verifyPublishedReadBack normalizes once.
-  // Do not pre-normalize (normalize is not always idempotent).
-  let forValidation: DatasetExportPayload;
-  try {
-    forValidation = normalizeDatasetExport(raw as DatasetExportPayload);
-  } catch (e) {
+  // Phase D-2: expected commit blob must be normalized v3.
+  if (isFlatLegacyDataset(raw) && !isNormalizedDataset(raw)) {
     return {
       ok: false,
-      reason: "expected-blob-normalize-failed",
-      issues: [e instanceof Error ? e.message : String(e)],
+      reason: "expected-blob-flat-v2-forbidden",
+      issues: ["commit-blob:flat-v2"],
       fatal: true,
     };
   }
-  const v = validatePublishedExportCandidate(forValidation);
-  if (!v.ok) {
+  if (!isNormalizedDataset(raw)) {
+    return {
+      ok: false,
+      reason: "expected-blob-not-normalized",
+      issues: ["commit-blob:not-v3"],
+      fatal: true,
+    };
+  }
+  const parsed = parseNormalizedDatasetEnvelope(raw);
+  if (!parsed.ok) {
     return {
       ok: false,
       reason: "expected-blob-validation-failed",
-      issues: v.issues,
+      issues: parsed.issues.map((i) => `${i.code}:${i.reason}`),
       fatal: true,
     };
   }
   return {
     ok: true,
-    candidate: raw as DatasetExportPayload,
+    candidate: parsed.envelope,
     repoRelativePath: leaf.repoRelativePath,
   };
 }
@@ -462,12 +477,12 @@ async function verifyOneLeaf(args: {
   poll: ProductionVerifyPollConfig;
   fetchFn?: typeof fetch;
   /** When set, skip blob read (tests inject expected candidate). */
-  expectedCandidate?: DatasetExportPayload;
+  expectedCandidate?: NormalizedDatasetEnvelope;
   skipInitialDelay?: boolean;
 }): Promise<ProductionLeafResult> {
   const shotType = trimStr(args.shotType);
   const systemId = trimStr(args.systemId);
-  let expected: DatasetExportPayload;
+  let expected: NormalizedDatasetEnvelope;
   if (args.expectedCandidate) {
     expected = args.expectedCandidate;
   } else {
@@ -587,7 +602,7 @@ export async function verifyProductionDatasetLeaves(args: {
   poll?: Partial<ProductionVerifyPollConfig>;
   fetchFn?: typeof fetch;
   /** Test-only: map `${shotType}\0${systemId}` → expected payload (skips git blob). */
-  expectedCandidateByKey?: Map<string, DatasetExportPayload>;
+  expectedCandidateByKey?: Map<string, NormalizedDatasetEnvelope>;
   skipInitialDelay?: boolean;
 }): Promise<ProductionVerifyResult> {
   const leaves = Array.isArray(args.leaves) ? args.leaves : [];

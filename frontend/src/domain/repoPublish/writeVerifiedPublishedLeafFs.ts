@@ -1,24 +1,28 @@
 /**
- * Phase 4-A — Failure-safe / verified Node FS write for Published leaves.
+ * Phase 4-A / D-2 — Failure-safe / verified Node FS write for Normalized leaves.
  *
  * Not "guaranteed atomic". Strategy: sibling temp → write → read-back temp →
  * replace target (Windows-safe) → read-back target → semantic verify →
  * best-effort restore from memory backup on failure.
+ *
+ * Candidate type: NormalizedDatasetEnvelope (schemaVersion 3).
  */
 
 import fs from "node:fs";
 import path from "node:path";
-import type { DatasetExportPayload } from "../datasetExport";
-import { validatePublishedExportCandidate } from "../publishedFamilyPublish";
 import {
-  serializePublishedCandidate,
-  verifyPublishedReadBack,
-  type VerifiedWriteResult,
-} from "../publishedWrite";
+  parseNormalizedDatasetEnvelope,
+  type NormalizedDatasetEnvelope,
+} from "../dataset/normalizedDatasetEnvelope";
+import {
+  serializeNormalizedCandidate,
+  verifyNormalizedPublishedReadBack,
+  type VerifiedNormalizedWriteResult,
+} from "../publishedNormalizedWrite";
 
 export type WriteVerifiedPublishedLeafFsArgs = {
   absoluteTargetPath: string;
-  candidate: DatasetExportPayload;
+  candidate: NormalizedDatasetEnvelope;
   /** Prior file contents for best-effort restore; null = new file. */
   originalText?: string | null;
   revalidate?: boolean;
@@ -29,7 +33,6 @@ function bestEffortRestoreFile(
   originalText: string | null | undefined
 ): { restored: boolean; restoreFailed: boolean } {
   if (typeof originalText !== "string") {
-    // New file: try remove corrupt target
     try {
       if (fs.existsSync(absoluteTargetPath)) {
         fs.unlinkSync(absoluteTargetPath);
@@ -52,7 +55,6 @@ function replaceTargetFromTemp(
   absoluteTargetPath: string,
   tempPath: string
 ): void {
-  // Windows: rename onto existing file often fails — unlink then rename.
   if (fs.existsSync(absoluteTargetPath)) {
     fs.unlinkSync(absoluteTargetPath);
   }
@@ -60,12 +62,12 @@ function replaceTargetFromTemp(
 }
 
 /**
- * Verified repo leaf write (Node FS).
+ * Verified repo leaf write (Node FS) for NormalizedDatasetEnvelope.
  * Does NOT claim true OS atomic rename guarantees.
  */
 export function writeVerifiedPublishedLeafFs(
   args: WriteVerifiedPublishedLeafFsArgs
-): VerifiedWriteResult {
+): VerifiedNormalizedWriteResult {
   const {
     absoluteTargetPath,
     candidate,
@@ -86,17 +88,17 @@ export function writeVerifiedPublishedLeafFs(
   }
 
   if (revalidate) {
-    const gate = validatePublishedExportCandidate(candidate);
+    const gate = parseNormalizedDatasetEnvelope(candidate);
     if (!gate.ok) {
       return {
         ok: false,
         reason: "pre-write-validation-failed",
-        issues: gate.issues,
+        issues: gate.issues.map((i) => `${i.code}:${i.reason}`),
       };
     }
   }
 
-  const serialized = serializePublishedCandidate(candidate);
+  const serialized = serializeNormalizedCandidate(candidate);
   if (!serialized.ok) {
     return {
       ok: false,
@@ -127,7 +129,6 @@ export function writeVerifiedPublishedLeafFs(
     };
   }
 
-  // Verify temp before replacing target.
   let tempText: string;
   try {
     tempText = fs.readFileSync(tempPath, "utf8");
@@ -144,7 +145,7 @@ export function writeVerifiedPublishedLeafFs(
     };
   }
 
-  const tempVerified = verifyPublishedReadBack(candidate, tempText);
+  const tempVerified = verifyNormalizedPublishedReadBack(candidate, tempText);
   if (!tempVerified.ok) {
     try {
       fs.unlinkSync(tempPath);
@@ -169,7 +170,7 @@ export function writeVerifiedPublishedLeafFs(
     const restore = bestEffortRestoreFile(absoluteTargetPath, originalText);
     return {
       ok: false,
-      reason: "replace-failed",
+      reason: "replace-target-failed",
       issues: [e instanceof Error ? e.message : String(e)],
       restored: restore.restored,
       restoreFailed: restore.restoreFailed,
@@ -183,14 +184,14 @@ export function writeVerifiedPublishedLeafFs(
     const restore = bestEffortRestoreFile(absoluteTargetPath, originalText);
     return {
       ok: false,
-      reason: "read-back-io-failed",
+      reason: "target-read-back-io-failed",
       issues: [e instanceof Error ? e.message : String(e)],
       restored: restore.restored,
       restoreFailed: restore.restoreFailed,
     };
   }
 
-  const verified = verifyPublishedReadBack(candidate, readBackText);
+  const verified = verifyNormalizedPublishedReadBack(candidate, readBackText);
   if (!verified.ok) {
     const restore = bestEffortRestoreFile(absoluteTargetPath, originalText);
     return {
@@ -204,7 +205,7 @@ export function writeVerifiedPublishedLeafFs(
 
   return {
     ok: true,
-    payload: verified.payload,
+    envelope: verified.envelope,
     restored: false,
   };
 }

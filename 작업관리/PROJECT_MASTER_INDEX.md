@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase D-2 — Normalized Publisher + Published Read Adapter Cutover (after D-1) |
+| **Next Track** | Phase D-3 — History ONE Publish UX (after D-2) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -836,7 +836,7 @@ Position  (Ball3: cue/target/second · 6 logical coords)
 7. **SAVE** = CREATE intent (mints new `familyId`) but **BLOCKED** when preferred Position+Slot is already occupied by another Family (no auto S2/S3; no auto-overwrite). **OVERWRITE** preserves trusted source `familyId` (LOCAL or PUBLISHED) and still must pass corpus occupancy validation. Same Position Key alone never selects UPDATE.
 8. **memberId KEEP** (lineage / validators / Derived·Product). Logical replacement also uses `genericFamilyMemberIdentityKey` (AUTHORED / SYMMETRY / DERIVED axes) — not coordinates.
 9. **Track KEEP** as Member semantic. Symmetry may change Ball3 → different `positionId`; track remains a separate field.
-10. Local WRITE SSOT = `normalized_dataset` (NormalizedDatasetEnvelope). ~~Flat `positions_dataset` = compatibility only~~ — **SUPERSEDED Phase C-2:** Local persisted flat / family_* shadow removed. Repository leaf remains flat v2 until D-2; **D-1 pure normalized whole-leaf mutation ready** (not wired to publisher).
+10. Local WRITE SSOT = `normalized_dataset` (NormalizedDatasetEnvelope). ~~Flat `positions_dataset` = compatibility only~~ — **SUPERSEDED Phase C-2:** Local persisted flat / family_* shadow removed. **Phase D-2:** repository Publish write SSOT = NormalizedDatasetEnvelope v3 (per-leaf cutover; untouched leaves may remain flat v2).
 
 #### Logical Member identity (existing)
 
@@ -1187,6 +1187,33 @@ PositionRecord[]           = runtime projection KEEP
 - Manual Export removal
 
 **Next Track:** Phase D-2 — Normalized Publisher + Published Read Adapter Cutover.
+
+### Phase D-2 — Normalized Publisher + Published Read Adapter Cutover (2026-09-22)
+
+**Authority:** 본 절 · Production repository write SSOT = NormalizedDatasetEnvelope v3
+
+**Code owners:**
+- `domain/publishedLeafPrepare.ts` (v2|v3|absent → D-1 mutation → v3 candidate)
+- `domain/publishedNormalizedWrite.ts` + `repoPublish/writeVerifiedPublishedLeafFs.ts`
+- `repoPublish/publishDatasetToRepo.ts` · `gitPublish.ts` · `productionVerify.ts`
+- `domain/datasetLoader.ts` (v2/v3 reader adapter)
+- Manual Export downgrade guard in `hooks/useSettings.js`
+
+**What is active:**
+- Publish writes **schemaVersion 3** NormalizedDatasetEnvelope to `positions.json`
+- First Publish of a v2 target leaf converts that leaf only (no bulk migration)
+- Mixed repository allowed: some leaves v3, untouched leaves remain v2
+- Published reader: v2 flat parse OR v3 parse + rematerialize → PositionRecord[]
+- Git staged blob + production verify require v3 semantic equality
+- Manual Export blocked from overwriting an existing v3 leaf
+
+**What is NOT active:**
+- Bulk dataset/** migration
+- Native Member-centric Published Search (Phase E)
+- History ONE Publish UX / 수동 Export removal (Phase D-3)
+- Local SSOT change
+
+**Next Track:** Phase D-3 — History ONE Publish UX.
 
 **Production SSOT (검증 완료, 2026-06):**
 

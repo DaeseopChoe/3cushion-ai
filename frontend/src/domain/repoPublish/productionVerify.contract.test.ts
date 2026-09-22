@@ -12,6 +12,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { NormalizedDatasetEnvelope } from "../dataset/normalizedDatasetEnvelope";
+import { convertFlatDatasetExportToNormalizedLeaf } from "../publishedLeafPrepare";
 import type { DatasetExportPayload } from "../datasetExport";
 import type { PositionRecord, StrategyEntry } from "../positionSearchEngine";
 import {
@@ -44,8 +46,9 @@ function mb(): string {
 
 function entry(
   slot: "S1" | "S2" | "S3",
-  opts: { familyId?: string; marker?: string } = {}
+  opts: { familyId?: string; marker?: string; memberId?: string } = {}
 ): StrategyEntry {
+  const memberId = opts.memberId ?? mb();
   const e: StrategyEntry = {
     slot,
     signature: {
@@ -53,7 +56,7 @@ function entry(
       formulaHash: "h1",
       shotType: "뒤돌리기",
     },
-    sysInputs: { CO_f: 40 },
+    sysInputs: { CO_f: 40, C1_f: 10, C3_r: 20 },
     corrections: {
       departure: 0,
       spin: 0,
@@ -61,16 +64,26 @@ function entry(
       draw: 0,
       curve_ratio: 0,
     },
+    correctionsStored: true,
     meta: {
       impact: { x: 0, y: 0 },
       final: { x: 0, y: 0 },
       angle_ci: 0,
       angle_fs: 0,
     },
+    track: "B2T_L",
+    authoringStrategyId: `as_${memberId}`,
+    str: { speed: 2.5 },
+    hpT: {
+      T: "-5/8",
+      hit_point: { x: -1, y: 2 },
+      mode: "TIP",
+      tipCount: 1,
+    },
   };
   if (opts.familyId) {
     e.familyId = opts.familyId;
-    e.memberId = mb();
+    e.memberId = memberId;
     e.memberOrigin = "AUTHORED";
   }
   if (opts.marker) e.ai = { text: opts.marker };
@@ -89,7 +102,7 @@ function position(
   };
 }
 
-function makePayload(
+function makeFlatPayload(
   marker: string,
   familyId = "fm_p4c"
 ): DatasetExportPayload {
@@ -101,10 +114,23 @@ function makePayload(
     exportedAt: "2026-09-17T12:00:00.000Z",
     records: [
       position("p1", {
-        S1: entry("S1", { familyId, marker }),
+        S1: entry("S1", { familyId, marker, memberId: `mb_${familyId}_${marker}` }),
       }),
     ],
   };
+}
+
+function makePayload(
+  marker: string,
+  familyId = "fm_p4c"
+): NormalizedDatasetEnvelope {
+  const converted = convertFlatDatasetExportToNormalizedLeaf(
+    makeFlatPayload(marker, familyId)
+  );
+  if (!converted.ok) {
+    throw new Error(`makePayload convert failed: ${converted.reason}`);
+  }
+  return converted.envelope;
 }
 
 type MockState = {
@@ -167,7 +193,7 @@ function git(cwd: string, args: string[]) {
   });
 }
 
-function makeTempRepoWithLeaf(payload: DatasetExportPayload): {
+function makeTempRepoWithLeaf(payload: NormalizedDatasetEnvelope): {
   root: string;
   work: string;
   datasetRoot: string;
@@ -576,7 +602,9 @@ describe("git blob expected state B1–B5", () => {
     });
     expect(blob.ok).toBe(true);
     if (!blob.ok) return;
-    expect(JSON.parse(blob.text).records[0].strategies.S1.ai.text).toBe("blob");
+    const parsed = JSON.parse(blob.text);
+    expect(parsed.schemaVersion).toBe(3);
+    expect(parsed.familyMasters[0].ai.text).toBe("blob");
   });
 
   it("B2 — working tree modified after commit → expected remains commit blob", async () => {
@@ -648,7 +676,7 @@ describe("git blob expected state B1–B5", () => {
 describe("multi-leaf M1–M4", () => {
   it("M1 — two leaves both verify → overall VERIFIED", async () => {
     const a = makePayload("a");
-    const b: DatasetExportPayload = {
+    const b: NormalizedDatasetEnvelope = {
       ...makePayload("b"),
       shotType: "옆돌리기",
       systemId: "plus2_system",
@@ -755,7 +783,7 @@ describe("multi-leaf M1–M4", () => {
     fs.mkdirSync(path.join(datasetRoot, "옆돌리기", "플러스투"), {
       recursive: true,
     });
-    const bLeaf: DatasetExportPayload = {
+    const bLeaf: NormalizedDatasetEnvelope = {
       ...bWant,
       shotType: "옆돌리기",
       systemId: "plus2_system",

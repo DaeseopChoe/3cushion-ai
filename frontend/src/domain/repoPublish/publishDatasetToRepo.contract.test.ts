@@ -50,6 +50,7 @@ function entry(
     memberId?: string;
     marker?: string;
     sysValue?: number;
+    track?: string;
   } = {}
 ): StrategyEntry {
   const e: StrategyEntry = {
@@ -59,7 +60,7 @@ function entry(
       formulaHash: "h1",
       shotType: "뒤돌리기",
     },
-    sysInputs: { CO_f: opts.sysValue ?? 40 },
+    sysInputs: { CO_f: opts.sysValue ?? 40, C1_f: 10, C3_r: 20 },
     corrections: {
       departure: 0,
       spin: 0,
@@ -67,11 +68,21 @@ function entry(
       draw: 0,
       curve_ratio: 0,
     },
+    correctionsStored: true,
     meta: {
       impact: { x: 0, y: 0 },
       final: { x: 0, y: 0 },
       angle_ci: 0,
       angle_fs: 0,
+    },
+    track: opts.track ?? "B2T_L",
+    authoringStrategyId: `as_${opts.memberId ?? mb()}`,
+    str: { speed: 2.5 },
+    hpT: {
+      T: "-5/8",
+      hit_point: { x: -1, y: 2 },
+      mode: "TIP",
+      tipCount: 1,
     },
   };
   if (opts.familyId) {
@@ -137,6 +148,18 @@ function markers(records: PositionRecord[], familyId: string): string[] {
     }
   }
   return out.sort();
+}
+
+/** Read markers from on-disk leaf (v2 records or v3 Master.ai). */
+function markersFromDisk(disk: Record<string, unknown>, familyId: string): string[] {
+  if (Array.isArray(disk.records)) {
+    return markers(disk.records as PositionRecord[], familyId);
+  }
+  const masters = disk.familyMasters as Array<{ familyId?: string; ai?: { text?: string } }> | undefined;
+  if (!Array.isArray(masters)) return [];
+  const m = masters.find((x) => x.familyId === familyId);
+  if (!m?.ai?.text) return [];
+  return [m.ai.text];
 }
 
 let tempRoots: string[] = [];
@@ -326,11 +349,14 @@ describe("publishDatasetLeafToRepo", () => {
     if (!r.ok) return;
     expect(r.status).toBe("REPO_WRITTEN");
     const disk = JSON.parse(fs.readFileSync(resolved.absolutePath, "utf8"));
+    expect(disk.schemaVersion).toBe(3);
     expect(disk.publishOperation).toBeUndefined();
     expect(disk.publishFamilyPayload).toBeUndefined();
     expect(disk.sourceFamilyId).toBeUndefined();
-    expect(markers(disk.records, "fm_a")).toEqual(["created"]);
-    expect(markers(disk.records, "fm_keep")).toEqual(["keep"]);
+    expect(Array.isArray(disk.familyMasters)).toBe(true);
+    expect(Array.isArray(disk.familyMembers)).toBe(true);
+    expect(markersFromDisk(disk, "fm_a")).toEqual(["created"]);
+    expect(markersFromDisk(disk, "fm_keep")).toEqual(["keep"]);
   });
 
   it("H10/H12/H13 — UPDATE replaces family; unrelated slot preserved", () => {
@@ -374,8 +400,9 @@ describe("publishDatasetLeafToRepo", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const disk = JSON.parse(fs.readFileSync(resolved.absolutePath, "utf8"));
-    expect(markers(disk.records, "fm_a")).toEqual(["new-a"]);
-    expect(markers(disk.records, "fm_b")).toEqual(["keep-b"]);
+    expect(disk.schemaVersion).toBe(3);
+    expect(markersFromDisk(disk, "fm_a")).toEqual(["new-a"]);
+    expect(markersFromDisk(disk, "fm_b")).toEqual(["keep-b"]);
   });
 
   it("H11 — CREATE retry idempotent replace", () => {
@@ -416,7 +443,8 @@ describe("publishDatasetLeafToRepo", () => {
     );
     if (!resolved.ok) return;
     const disk = JSON.parse(fs.readFileSync(resolved.absolutePath, "utf8"));
-    expect(markers(disk.records, "fm_a")).toEqual(["v2"]);
+    expect(disk.schemaVersion).toBe(3);
+    expect(markersFromDisk(disk, "fm_a")).toEqual(["v2"]);
   });
 
   it("H15/H16 — write verify restore path exists on adapter", () => {
@@ -434,34 +462,22 @@ describe("publishDatasetLeafToRepo", () => {
     );
     fs.writeFileSync(target, original, "utf8");
 
-    // Force verify failure by writing then checking restore helper via bad candidate
-    // that fails revalidate before write — instead simulate replace failure by
-    // targeting a path that cannot be created as a file after a dir collision.
-    const dirAsFile = path.join(root, "blocked");
-    fs.mkdirSync(dirAsFile, { recursive: true });
-    // put a subdirectory named positions.json? skip — use verify restore via
-    // writeVerifiedPublishedLeafFs with invalid candidate after disabling revalidate
-    // and corrupt serialize path — covered by writeVerifiedPublishedFile B2.
-    // Here: restore after failed verify by writing invalid JSON then restoring.
-    const badCandidate = envelope([
-      position("p1", {
-        S1: entry("S1", { familyId: "fm_a", marker: "bad" }),
-      }),
-    ]) as DatasetExportPayload & { publishOperation?: unknown };
-    // Inject metadata that passes serialize but fails final validation gate
-    // Use revalidate true with invalid shotType empty after mutate
+    // Invalid normalized candidate — pre-write validation fails; original untouched.
     const broken = {
-      ...badCandidate,
+      schemaVersion: 3,
       shotType: "",
+      systemId: "5_half_system",
+      systemLabel: "파이브앤하프",
+      familyMasters: [],
+      familyMembers: [],
     };
     const wr = writeVerifiedPublishedLeafFs({
       absoluteTargetPath: target,
-      candidate: broken,
+      candidate: broken as never,
       originalText: original,
       revalidate: true,
     });
     expect(wr.ok).toBe(false);
-    // Original untouched because pre-write validation failed
     expect(fs.readFileSync(target, "utf8")).toBe(original);
   });
 
@@ -638,8 +654,9 @@ describe("multi-snapshot", () => {
     );
     if (!resolved.ok) return;
     const disk = JSON.parse(fs.readFileSync(resolved.absolutePath, "utf8"));
-    expect(markers(disk.records, "fm_a")).toEqual(["a"]);
-    expect(markers(disk.records, "fm_b")).toEqual(["b"]);
+    expect(disk.schemaVersion).toBe(3);
+    expect(markersFromDisk(disk, "fm_a")).toEqual(["a"]);
+    expect(markersFromDisk(disk, "fm_b")).toEqual(["b"]);
   });
 
   it("M3 — different leaves", () => {

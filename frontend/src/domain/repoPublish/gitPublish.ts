@@ -5,8 +5,11 @@
 
 import path from "node:path";
 import { DATASET_EXPORT_FILENAME, DATASET_ROOT_DIR } from "../datasetPath";
-import { normalizeDatasetExport } from "../datasetExport";
-import { validatePublishedExportCandidate } from "../publishedFamilyPublish";
+import {
+  isFlatLegacyDataset,
+  isNormalizedDataset,
+  parseNormalizedDatasetEnvelope,
+} from "../dataset/normalizedDatasetEnvelope";
 import { gitExec } from "./gitExec";
 
 export const GIT_PUBLISH_REMOTE = "origin";
@@ -517,22 +520,28 @@ export async function stageCommitAndPush(args: {
         issues: [`metadata-in:${t}`],
       };
     }
-    let normalized;
-    try {
-      normalized = normalizeDatasetExport(raw as never);
-    } catch (e) {
+    // Phase D-2: staged Publish blob must be NormalizedDatasetEnvelope v3.
+    // Flat v2 staged blob is blocked (no durable downgrade / wrong schema).
+    if (isFlatLegacyDataset(raw) && !isNormalizedDataset(raw)) {
       return {
         ok: false,
-        reason: "staged-normalize-failed",
-        issues: [e instanceof Error ? e.message : String(e)],
+        reason: "staged-flat-v2-forbidden",
+        issues: [`flat-v2-not-allowed:${t}`],
       };
     }
-    const v = validatePublishedExportCandidate(normalized);
+    if (!isNormalizedDataset(raw)) {
+      return {
+        ok: false,
+        reason: "staged-not-normalized",
+        issues: [`expected-schemaVersion-3:${t}`],
+      };
+    }
+    const v = parseNormalizedDatasetEnvelope(raw);
     if (!v.ok) {
       return {
         ok: false,
         reason: "staged-dataset-validation-failed",
-        issues: v.issues,
+        issues: v.issues.map((i) => `${i.code}:${i.reason}`),
       };
     }
   }

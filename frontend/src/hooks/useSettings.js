@@ -43,6 +43,7 @@ import { canonicalDebugLog } from "../domain/canonicalPersistAudit";
 import { POSITIONS_DATASET_META_KEY } from "../domain/dataset/infra/positionsDatasetMeta";
 import { CANONICAL_NORMALIZED_CORPUS_KEY } from "../domain/dataset/infra/canonicalNormalizedCorpusStore";
 import { refreshPublishedDataset } from "../domain/publishedDatasetStore";
+import { isNormalizedDataset } from "../domain/dataset/normalizedDatasetEnvelope";
 
 async function getOrCreateDir(parent, name) {
   return parent.getDirectoryHandle(name, { create: true });
@@ -213,7 +214,18 @@ export function useSettings({
           const existingFile = await existingHandle.getFile();
           if (existingFile.size > 0) {
             originalText = await existingFile.text();
-            existingPayload = normalizeDatasetExport(JSON.parse(originalText));
+            const existingRaw = JSON.parse(originalText);
+            // Phase D-2: never downgrade a normalized v3 leaf via Manual Export.
+            if (isNormalizedDataset(existingRaw)) {
+              return {
+                ok: false,
+                reason: "normalized-leaf-manual-export-blocked",
+                issues: [
+                  "Manual Export cannot overwrite NormalizedDatasetEnvelope (schemaVersion 3). Use Publish.",
+                ],
+              };
+            }
+            existingPayload = normalizeDatasetExport(existingRaw);
           }
         } catch (readErr) {
           if (readErr?.name !== "NotFoundError") {

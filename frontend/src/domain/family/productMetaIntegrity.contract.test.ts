@@ -521,7 +521,7 @@ describe("Git Publish diagnostic propagation", () => {
     );
   }
 
-  it("D1/D2 — existing-leaf-validation-failed keeps field-level meta:missing", () => {
+  it("D1/D2 — flat-leaf-validation-failed keeps field-level meta:missing", () => {
     const root = makeTempDatasetRoot();
     writeInvalidExistingLeaf(root);
     const op: PublishOperation = {
@@ -557,7 +557,7 @@ describe("Git Publish diagnostic propagation", () => {
     });
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.reason).toBe("existing-leaf-validation-failed");
+    expect(r.reason).toBe("flat-leaf-validation-failed");
     expect(r.issues.some((i) => i.includes("meta:missing"))).toBe(true);
     expect(
       r.issues.some((i) =>
@@ -620,7 +620,7 @@ describe("Git Publish diagnostic propagation", () => {
     });
     const leafFail = manyIssuesLeaf.find((x) => !x.ok);
     expect(leafFail && !leafFail.ok && leafFail.reason).toBe(
-      "existing-leaf-validation-failed"
+      "flat-leaf-validation-failed"
     );
 
     const result = await publishDatasetBatchWithGit({
@@ -664,7 +664,7 @@ describe("Git Publish diagnostic propagation", () => {
     expect(result.status).toBe("REPO_WRITE_FAILED");
     expect(
       result.issues.some((i) =>
-        i.includes("snap-diag-1:existing-leaf-validation-failed")
+        i.includes("snap-diag-1:flat-leaf-validation-failed")
       )
     ).toBe(true);
     expect(result.issues.some((i) => i.includes("meta:missing"))).toBe(true);

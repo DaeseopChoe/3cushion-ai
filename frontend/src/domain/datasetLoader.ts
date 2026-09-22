@@ -1,10 +1,20 @@
 /**
  * Published Dataset leaf loader — fetch positions.json, normalize, return records.
+ *
+ * Phase D-2: supports mixed repository leaves
+ *   schemaVersion 2 (flat) → PositionRecord[]
+ *   schemaVersion 3 (normalized) → rematerialize → PositionRecord[]
+ * Invalid v3 never falls back to flat (authority inversion forbidden).
  */
 
 import type { DatasetExportPayload } from "./datasetExport";
 import { normalizeDatasetExport } from "./datasetExport";
 import { buildDatasetExportPathSegments } from "./datasetPath";
+import {
+  isNormalizedDataset,
+  parseNormalizedDatasetEnvelope,
+} from "./dataset/normalizedDatasetEnvelope";
+import { rematerializeFamilyPartsToPositionRecords } from "./family/rematerializeFamilyPartsToPositionRecords";
 import { parseManifest } from "./datasetManifest";
 import type { PositionRecord } from "./positionSearchEngine";
 
@@ -27,6 +37,44 @@ export function parsePublishedLeafPayload(
   raw: unknown,
   url: string
 ): PublishedLeafLoadResult {
+  // Phase D-2: normalized v3 leaf first — never require records[] / flat manifest.
+  if (isNormalizedDataset(raw)) {
+    const parsed = parseNormalizedDatasetEnvelope(raw);
+    if (!parsed.ok) {
+      return {
+        kind: "error",
+        message: `Invalid normalized published leaf (${
+          parsed.issues[0]?.code ?? "validation"
+        }: ${parsed.issues[0]?.reason ?? "unknown"})`,
+        url,
+      };
+    }
+    const env = parsed.envelope;
+    if (
+      env.familyMasters.length === 0 &&
+      env.familyMembers.length === 0
+    ) {
+      return { kind: "empty", url };
+    }
+    const remat = rematerializeFamilyPartsToPositionRecords({
+      masters: env.familyMasters,
+      members: env.familyMembers,
+    });
+    if (!remat.ok) {
+      return {
+        kind: "error",
+        message: `Normalized leaf rematerialize failed (${
+          remat.issues[0]?.code ?? "rematerialize"
+        }: ${remat.issues[0]?.reason ?? "unknown"})`,
+        url,
+      };
+    }
+    if (!remat.dataset.length) {
+      return { kind: "empty", url };
+    }
+    return { kind: "ok", records: remat.dataset, url };
+  }
+
   const manifestResult = parseManifest(raw);
   if (manifestResult.kind === "invalid") {
     return {

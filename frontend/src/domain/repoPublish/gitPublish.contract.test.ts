@@ -51,6 +51,7 @@ function entry(
   } = {}
 ): StrategyEntry {
   const shotType = opts.shotType ?? "뒤돌리기";
+  const memberId = opts.memberId ?? mb();
   const e: StrategyEntry = {
     slot,
     signature: {
@@ -58,7 +59,7 @@ function entry(
       formulaHash: "h1",
       shotType,
     },
-    sysInputs: { CO_f: 40 },
+    sysInputs: { CO_f: 40, C1_f: 10, C3_r: 20 },
     corrections: {
       departure: 0,
       spin: 0,
@@ -66,16 +67,26 @@ function entry(
       draw: 0,
       curve_ratio: 0,
     },
+    correctionsStored: true,
     meta: {
       impact: { x: 0, y: 0 },
       final: { x: 0, y: 0 },
       angle_ci: 0,
       angle_fs: 0,
     },
+    track: "B2T_L",
+    authoringStrategyId: `as_${memberId}`,
+    str: { speed: 2.5 },
+    hpT: {
+      T: "-5/8",
+      hit_point: { x: -1, y: 2 },
+      mode: "TIP",
+      tipCount: 1,
+    },
   };
   if (opts.familyId) {
     e.familyId = opts.familyId;
-    e.memberId = opts.memberId ?? mb();
+    e.memberId = memberId;
     e.memberOrigin = "AUTHORED";
   }
   if (opts.marker) e.ai = { text: opts.marker };
