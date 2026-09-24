@@ -98,10 +98,11 @@ describe("Phase D-3 — History ONE Publish UX", () => {
     );
   });
 
-  it("internal Manual Export helper may remain unwired (not user-facing)", () => {
-    // Classification: USER UI DEAD wiring; INTERNAL path kept for migration/tests
-    expect(settings).toContain("handleExportSnapshots");
-    expect(settings).toContain("saveDatasetExportToFile");
+  it("internal Manual Export helpers are removed (Publish-only)", () => {
+    expect(settings).not.toContain("handleExportSnapshots");
+    expect(settings).not.toContain("saveDatasetExportToFile");
+    expect(settings).not.toContain("resolveExportRootDir");
+    expect(settings).not.toContain("showDirectoryPicker");
     expect(app).not.toContain("onExport=");
     expect(modal).not.toContain("onExport");
   });

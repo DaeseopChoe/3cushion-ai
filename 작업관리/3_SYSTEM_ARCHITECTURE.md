@@ -462,7 +462,8 @@ createStrategyEntry
    ↓
 upsertPositionRecord(dataset, balls, strategy) [positionMergeEngine]
    ↓
-dataset (App.jsx state) → localStorage "positions_dataset"
+dataset (App.jsx state) ← rematerialize from localStorage "normalized_dataset"
+(obsolete flat key "positions_dataset" is not production App authority)
 
 ※ Position 병합: ε=0.5 grid, 6축(cue/target/second) 비교, 동일 slot+signature 시 덮어쓰기
 
@@ -528,8 +529,9 @@ table 관련 상수는 config/tableConfig 단일 출처
 
 1️⃣1️⃣ 데이터 관리 방식
 
-- localStorage = 관리자 입력 임시 저장 (positions_dataset)
-- dataset.json = 실제 운영 데이터셋 (관리자 수동 export, 미구현)
+- localStorage durable SSOT = `normalized_dataset` (NormalizedDatasetEnvelope)
+- obsolete flat key `positions_dataset` is not production App authority
+- Published Dataset = `dataset/{공략}/{시스템}/positions.json` (Git → Vercel)
 
 1️⃣2️⃣ Slot Architecture (S1 / S2 / S3)
 
@@ -537,11 +539,11 @@ S1 / S2 / S3는 **동일한 테이블**을 공유하고, **서로 다른 전략*
 
 ### Rules
 
-- **balls (테이블 공 위치)**  
-  → 전역 단일 SSOT (`ballsState`). Position LOCK 시 스냅샷이 S1/S2/S3 각 `slots[*].balls`에 동일하게 저장된다.  
+- **balls (테이블 공 위치)**
+  → 전역 단일 SSOT (`ballsState`). Position LOCK 시 스냅샷이 S1/S2/S3 각 `slots[*].balls`에 동일하게 저장된다.
   → `syncBallsToAllSlots`는 **balls만 deep copy**하며, 각 슬롯의 `draft` / `applied`는 변경하지 않는다.
 
-- **strategy (sys / hpt / str / ai)**  
+- **strategy (sys / hpt / str / ai)**
   → 슬롯 로컬: `shotEditor.slots[S1|S2|S3].draft` 및 `.applied`.
 
 ### Position LOCK
@@ -595,11 +597,11 @@ S1 / S2 / S3는 **동일한 테이블**을 공유하고, **서로 다른 전략*
 
 ## Data Flow
 
-resolvedSlotSys  
-→ resolvedSlotSysValues  
-→ getAnchorsForRendering  
-→ pathNodesRaw  
-→ adjustedNodes (spin 적용)  
+resolvedSlotSys
+→ resolvedSlotSysValues
+→ getAnchorsForRendering
+→ pathNodesRaw
+→ adjustedNodes (spin 적용)
 → pathNodes (렌더링)
 
 ---

@@ -1,9 +1,9 @@
 /**
- * Phase 3A-333 — Legacy corpus generation authority (side-channel meta).
+ * Phase 3A-333 — Legacy corpus generation meta (obsolete Local flat path).
  *
- * Production SSOT remains positions_dataset (PositionRecord[]).
- * This key only stores durable generation identity for freshness proofs.
- * Does NOT embed generation into PositionRecord rows.
+ * Phase C-2+: Local durable SSOT is `normalized_dataset`, not positions_dataset.
+ * This key remains only for migration/test helpers that still mention generation
+ * freshness against historical flat stores. Not production App authority.
  */
 
 export const POSITIONS_DATASET_META_KEY = "positions_dataset_meta";

@@ -543,7 +543,8 @@ describe("publishedWrite — restore contracts", () => {
 
 describe("publishedWrite — multi-snapshot sequencing (orchestration unit)", () => {
   /**
-   * Mirrors handleExportSnapshots stop-on-first-failure + successfulExportIds policy.
+   * Historical Manual Export policy mirrored here as a pure sequencing unit.
+   * Production owner is History Publish (PRODUCTION_VERIFIED → successfulIds).
    */
   async function runBatch(
     snaps: { id: string; pass: boolean }[]
@@ -597,13 +598,16 @@ describe("publishedWrite — multi-snapshot sequencing (orchestration unit)", ()
 });
 
 describe("publishedWrite — useSettings wiring", () => {
-  it("Export owner uses writeVerifiedPublishedFile and successfulExportIds", () => {
+  it("Publish owner marks exported only after PRODUCTION_VERIFIED (no Manual Export write)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "../hooks/useSettings.js"), "utf8");
-    expect(src).toContain("writeVerifiedPublishedFile");
-    expect(src).toContain("successfulExportIds");
-    expect(src).toContain("updateSnapshotsExported(successfulExportIds)");
-    expect(src).toContain("verifiedWrite");
+    expect(src).toContain("handlePublishSnapshots");
+    expect(src).toContain("publishDatasetToLocalRepoWithGit");
+    expect(src).toContain('result.status === "PRODUCTION_VERIFIED"');
+    expect(src).toContain("updateSnapshotsExported(successfulIds)");
+    expect(src).not.toContain("writeVerifiedPublishedFile");
+    expect(src).not.toContain("handleExportSnapshots");
+    expect(src).not.toContain("saveDatasetExportToFile");
     // Must not set exported from full selected ids blindly after unverified write.
     expect(src).not.toMatch(/updateSnapshotsExported\(\s*ids\s*\)/);
   });

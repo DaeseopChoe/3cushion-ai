@@ -1,8 +1,10 @@
 /**
  * Phase 4-C — Production dataset read-back contracts.
  * Uses mock HTTP + temp Git only. Never hits www.3cushionai.com / Vercel / GitHub.
+ *
+ * Phase F-1: file-local timeout — each test may spawn temp git init/add/commit.
+ * Vitest default 5s is infra-tight under load; poll intervals / production logic unchanged.
  */
-
 import { createServer, type Server } from "node:http";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -250,6 +252,9 @@ const fastPoll = {
   maxResponseBytes: 5_000_000,
 };
 
+// Phase F-1: suite-local timeout only — temp git + mock HTTP under load exceeds Vitest 5s.
+// Production poll timeouts / verify semantics unchanged. 20s ≈ 4× default headroom.
+describe("productionVerify contracts", { timeout: 20_000 }, () => {
 describe("productionOrigin SSOT", () => {
   it("canonical origin is https www.3cushionai.com", () => {
     expect(CANONICAL_PRODUCTION_ORIGIN).toBe("https://www.3cushionai.com");
@@ -888,3 +893,4 @@ describe("attempt classifier", () => {
     expect(outcome.retryable).toBe(true);
   });
 });
+}); // productionVerify contracts (file-local timeout)

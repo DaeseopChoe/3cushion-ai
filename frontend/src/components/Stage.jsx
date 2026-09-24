@@ -505,7 +505,7 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         type="button"
         data-stage-build={STAGE_BUILD_ID}
         data-user-info-btn="SEARCH"
-        title="로컬 작업 DB 검색 (positions_dataset)"
+        title="로컬 DB 검색"
         onClick={() => {
           adminSearchHandlerRef.current?.();
         }}

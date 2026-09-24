@@ -460,12 +460,14 @@ describe("publishOperation — explicit CREATE/UPDATE publish", () => {
 });
 
 describe("publishOperation — wiring", () => {
-  it("useSettings reads History publishOperation into Export candidate", () => {
+  it("useSettings reads History publishOperation into Publish items", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "../hooks/useSettings.js"), "utf8");
     expect(src).toContain("readPublishOperationFromSnapshot");
     expect(src).toContain("publishOperation");
-    expect(src).toContain("buildPublishedFamilyExportCandidate");
+    expect(src).toContain("readPublishFamilyPayloadFromSnapshot");
+    expect(src).toContain("publishDatasetToLocalRepoWithGit");
+    expect(src).not.toContain("buildPublishedFamilyExportCandidate");
   });
 
   it("historyFlow forwards SaveFlowResult.publishOperation", () => {

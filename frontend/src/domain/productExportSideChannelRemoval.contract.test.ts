@@ -107,11 +107,12 @@ function authoredEntry(): StrategyEntry {
 }
 
 describe("Phase B-0 — product_export side-channel removal", () => {
-  it("CASE 1–2: Manual Export path never creates product_export or export_request.json", () => {
+  it("CASE 1–2: Publish path never creates product_export or export_request.json", () => {
     const src = readUtf8(settingsPath);
-    expect(src).toContain("handleExportSnapshots");
-    expect(src).toContain("saveDatasetExportToFile");
-    expect(src).toContain("writeVerifiedPublishedFile");
+    expect(src).toContain("handlePublishSnapshots");
+    expect(src).toContain("publishDatasetToLocalRepoWithGit");
+    expect(src).not.toContain("handleExportSnapshots");
+    expect(src).not.toContain("saveDatasetExportToFile");
     expect(src).not.toContain("saveProductExportRequestToFile");
     expect(src).not.toContain("PRODUCT_EXPORT_ROOT_DIR");
     expect(src).not.toContain("export_request.json");
@@ -205,10 +206,11 @@ describe("Phase B-0 — product_export side-channel removal", () => {
     }
   });
 
-  it("Export success alert no longer mentions Product Export Request", () => {
+  it("Publish success alert never mentions Product Export Request", () => {
     const src = readUtf8(settingsPath);
     expect(src).not.toMatch(/Product Export Request/i);
-    expect(src).toContain("Dataset Export 완료");
-    expect(src).toContain("positions.json");
+    expect(src).not.toContain("Dataset Export 완료");
+    expect(src).toContain("Publish 완료");
+    expect(src).toContain("Published 데이터 검증까지 완료되었습니다");
   });
 });

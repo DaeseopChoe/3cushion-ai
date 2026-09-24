@@ -529,11 +529,14 @@ describe("publishedFamilyPublish — integration vs old merge path", () => {
     );
   });
 
-  it("useSettings Export write owner calls family publish orchestrator (not mergePublishedExport)", () => {
+  it("useSettings Publish owner uses Git Publish path (not flat Manual Export merge)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "../hooks/useSettings.js"), "utf8");
-    expect(src).toContain("buildPublishedFamilyExportCandidate");
-    expect(src).toContain("familyAwarePublish");
+    expect(src).toContain("handlePublishSnapshots");
+    expect(src).toContain("publishDatasetToLocalRepoWithGit");
+    expect(src).toContain("readPublishFamilyPayloadFromSnapshot");
+    expect(src).not.toContain("buildPublishedFamilyExportCandidate");
+    expect(src).not.toContain("handleExportSnapshots");
     // Published write path must not call mergePublishedExport directly.
     expect(src).not.toMatch(
       /mergedPayload\s*=\s*mergePublishedExport/

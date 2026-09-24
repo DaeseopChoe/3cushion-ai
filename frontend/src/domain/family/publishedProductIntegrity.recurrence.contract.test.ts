@@ -630,10 +630,11 @@ describe("R17–R20 — Phase 3/4 path preservation (source + contracts)", () =>
     expect(countIdentity(records, FID, "mb_x")).toBe(1);
   });
 
-  it("R18/R19 — family publish uses replace; Export owner not raw merge", () => {
+  it("R18/R19 — family publish uses replace; Publish owner not raw merge", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const settings = readFileSync(join(here, "../../hooks/useSettings.js"), "utf8");
-    expect(settings).toContain("buildPublishedFamilyExportCandidate");
+    expect(settings).toContain("publishDatasetToLocalRepoWithGit");
+    expect(settings).not.toContain("buildPublishedFamilyExportCandidate");
     expect(settings).not.toMatch(/mergedPayload\s*=\s*mergePublishedExport/);
     expect(settings).not.toContain('from "../domain/datasetExportMerge"');
 

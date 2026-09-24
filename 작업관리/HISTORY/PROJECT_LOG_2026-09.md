@@ -6,6 +6,53 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-24 — Phase F-1 Final Legacy Cleanup / SSOT Drift Repair
+
+## Mode
+
+**Agent** · Dead Manual Export cleanup · stale flat-authority docs/UI · productionVerify test-infra timeout only
+
+## Background (F-0)
+
+Architecture migration COMPLETE (A–E). Remaining: dead Manual Export · stale SSOT comments/docs · productionVerify Vitest infra flake. No architecture rewrite.
+
+## Delivered
+
+- Removed dead Manual Export production surface from `useSettings.js`:
+  `resolveExportRootDir` · `showDirectoryPicker` · `saveDatasetExportToFile` · `handleExportSnapshots` (+ related dir-handle state)
+- History remains Publish-only (no Export button)
+- Contracts updated: `historyOnePublishUx` · `productExportSideChannelRemoval` assert helpers **absent** (product_export absence invariant kept)
+- Stage 로컬DB title: no longer implies `positions_dataset` authority
+- Stale CURRENT authority comments/docs repaired (`familyNormalizedSchema` · `normalizedDatasetEnvelope` · `positionsDatasetMeta` · `familyMigrationDebt` · MASTER_INDEX CURRENT · `3_SYSTEM_ARCHITECTURE` Local storage note)
+- `productionVerify.contract.test.ts`: file-local `describe.configure({ timeout: 20_000 })` — production poll/verify logic **unchanged**
+- PROJECT_MASTER_INDEX: Phase F-1 COMPLETE · CURRENT architecture block · F-2 NEXT (wait for user)
+
+## Intentionally retained
+
+- DatasetExportPayload v2 · v2→v3 converter · first-touch Publish migration
+- PublishFamilyPayload transport
+- PositionRecord runtime roles (Search winner / RI on-demand / UI / Publish transport / v2 input)
+- rematerialize / familyHydrate helpers
+- product_export **ABSENT** negative contracts
+
+## Not changed
+
+- Search / RI / Publish / Local SSOT / C-0 / Product / trajectory / calculation
+- dataset/** (no leaf migration; leaves remain 2×v2 / 0×v3)
+- real Publish not executed
+- incidenceAngle.ts · .tmp.driveupload untouched
+
+## Next
+
+Phase F-2 — Real Publish / Production E2E
+Do **not** auto-start. WAIT for user approval of test Family/leaf.
+
+## Commit
+
+`chore(cleanup): finalize normalized architecture cleanup`
+
+---
+
 # 2026-09-24 — Phase E-3 RI / Published Flat Compatibility Cleanup
 
 ## Mode

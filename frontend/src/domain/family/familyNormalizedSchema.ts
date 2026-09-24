@@ -4,12 +4,10 @@
  * Ownership SSOT (2026-09-20): Family owns strategy; Member owns geometry/identity/
  * provenance. See PROJECT_MASTER_INDEX — Family MASTER / MEMBER Ownership Contract.
  *
- * Shadow stores (`family_masters` / `family_members`) are dual-written from
- * positions_dataset (SAVE / Approval / Import). WRITE SSOT remains positions_dataset.
- * Phase 3A-349: gated production READ may use rematerialized projection when eligible.
+ * Production Local WRITE/READ SSOT = normalized_dataset (Phase B-1 / C-2).
+ * Shadow keys `family_masters` / `family_members` are obsolete leftovers (not App authority).
  * Flat StrategyEntry common-payload duplication remains TEMPORARY_COMPATIBILITY_DUPLICATION
- * (compatibility copy ≠ authoritative Member ownership).
- * SearchIndex is not required for normalized READ.
+ * on rematerialized runtime objects only (compatibility copy ≠ durable Member ownership).
  */
 
 import type {
@@ -86,9 +84,9 @@ export type FamilyMember = {
   track: string;
   memberOrigin: MemberOrigin;
   /**
-   * Phase 3A-345 — which PositionRecord.strategies slot this member occupied
-   * on positions_dataset at dual-write time. Required for invertible rematerialize.
-   * Not UI activeSlot; not inferred from memberOrigin/order.
+   * Which PositionRecord.strategies slot this member occupies when rematerialized.
+   * Required for invertible rematerialize. Not UI activeSlot; not inferred from
+   * memberOrigin/order.
    */
   sourceSlot: FamilySourceSlot;
   generatedFromMemberId?: string;
@@ -106,14 +104,14 @@ export function isFamilySourceSlot(value: unknown): value is FamilySourceSlot {
 
 export type FamilyMastersEnvelope = {
   schemaVersion: number;
-  /** Shared with positions_dataset_meta + family_members when shadow is fresh. */
+  /** Optional generation marker when shadow envelopes were used historically. */
   corpusGeneration?: number;
   masters: Record<string, FamilyMaster>;
 };
 
 export type FamilyMembersEnvelope = {
   schemaVersion: number;
-  /** Shared with positions_dataset_meta + family_masters when shadow is fresh. */
+  /** Optional generation marker when shadow envelopes were used historically. */
   corpusGeneration?: number;
   members: Record<string, FamilyMember>;
 };

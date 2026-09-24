@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.20
-Last Updated: 2026-09-22
+Version: 2.21
+Last Updated: 2026-09-24
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -51,7 +51,9 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase F — Closure / legacy cleanup / operational E2E (Phase E COMPLETE) |
+| **Next Track** | Phase F-2 — Real Publish / Production E2E (**WAIT for user Family/leaf approval**; F-1 COMPLETE) |
+| **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
+| **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -726,7 +728,7 @@ Phase 3에서 Search 품질·성능 Enhancement Engine을 구현하고 Runtime�
 4. **전략 혼합 금지** — `signature = systemId + formulaHash + shotType`; 동일 signature 내에서만 search/merge.
 5. **Recall** — 저장 `sysInputs` 기준; draft에 `outputs.result` 없으면 `buildDraftsFromRecord` 등에서 expr 재실행해 result 채움.
 6. **표기** — UI/데이터는 C1, C3, CO_f … (`1C`, `3C` 역표기 금지).
-7. **저장** — Working: localStorage `positions_dataset`; Published: `dataset/{공략}/{시스템}/positions.json`. **ADMIN 로컬DB** → working; **ADMIN Search · USER Search** → published (동일 Published Search).
+7. **저장** — Local durable SSOT: localStorage `normalized_dataset` (NormalizedDatasetEnvelope). Published: `dataset/{공략}/{시스템}/positions.json` (writer = v3; untouched leaves may remain v2 until first-touch Publish). **ADMIN 로컬DB** → Local Member-centric Search; **ADMIN Search · USER Search** → Published Member-centric Search.
 
 ### 계산 3계층 (파일 기준)
 
@@ -762,18 +764,21 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 
 ## Dataset Architecture
 
-**상태:** Phase 1~3-1 완료 · **UI 용어 (OPEN-02C~E, 2026-06):** ADMIN **로컬DB** = Local Dataset Search (`positions_dataset`); ADMIN **Search** = USER **Search** = Published Search (`dataset/{공략}/{시스템}/positions.json`). UI에서 Recall 라벨 제거 · published Search active state `isAdminPublishedSearchMatched` · CSS `.published-search-btn`. 내부 handler명(`handlePositionRecall` 등)·profile ID·trace는 2차 정리 예정.
-**이관 문서:** `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`
+**상태 (CURRENT):** Local = `normalized_dataset` · Published runtime = NormalizedDatasetEnvelope (v2 leaf → in-memory convert; v3 native) · Local + Published Search = FamilyMember-centric · RI = normalized + on-demand rematerialize · PositionRecord = runtime projection only · Publish writer = v3 · checked-in leaves may remain v2 until first-touch Publish.
+
+**UI 용어:** ADMIN **로컬DB** = Local Dataset Search; ADMIN **Search** = USER **Search** = Published Search. UI에서 Recall 라벨 제거 · published Search active state `isAdminPublishedSearchMatched` · CSS `.published-search-btn`.
+
+**이관 문서 (historical):** `SESSION_TRANSFER/SESSION_TRANSFER_2026-06_DATASET_ARCHITECTURE.md`
 **월별 로그:** `HISTORY/PROJECT_LOG_2026-06.md` §14 (Phase 1) · §15 (Phase 2~3-1)
 
-**Export ≠ History (2026-08-17 · refreshed 2026-08-20):** History UI snapshot 개수와 `dataset/{공략}/{시스템}/positions.json` record 수는 동일 개념이 아니다. Family 설계는 이 3계층 위에 올라간다 (`FAMILY_DATA_ARCHITECTURE_DRAFT.md` · shadow dual-write **IMPLEMENTED** · production SSOT still `positions_dataset`).
+**Export ≠ History:** History UI snapshot 개수와 `positions.json` record/member 수는 동일 개념이 아니다. History user-facing path = **Publish only** (Manual Export UI removed D-3/F-1).
 
 ### 데이터 3계층
 
 | 계층 | SSOT | 용도 | 현재 소비자 |
 |------|------|------|-------------|
-| **Working Dataset** | `positions_dataset` (localStorage) | ADMIN 작업·누적 | **ADMIN 로컬DB** (UI; profile `adminSearch`) |
-| **Workspace History** | `workspace_history` (localStorage) | SAVE 스냅샷·작업 이력 | History UI (Load / Delete / Export) |
+| **Local Dataset** | `normalized_dataset` (localStorage) | ADMIN 작업·누적 | **ADMIN 로컬DB** (UI; profile `adminSearch`) |
+| **Workspace History** | `workspace_history` (localStorage) | SAVE 스냅샷·작업 이력 | History UI (Load / Delete / **Publish**) |
 | **Published Dataset** | `dataset/{공략}/{시스템}/positions.json` | 배포·사용자 검색 | **ADMIN Search**, **USER Search** (profile `adminStrict` / `userStrict`) |
 
 ### Save Intent / Source Ownership SSOT (2026-09-20)
@@ -786,7 +791,7 @@ SysOverlay 입력 → draft.sys → applyDraftSys → applied.sys
 | Source kind | How set | OVERWRITE target |
 |-------------|---------|------------------|
 | **NONE** | New input / reset / cleared session | Blocked |
-| **LOCAL** | ADMIN 로컬DB recall (`editingLocalFamilyId`) | Local Family UPDATE in `positions_dataset` |
+| **LOCAL** | ADMIN 로컬DB recall (`editingLocalFamilyId`) | Local Family UPDATE in `normalized_dataset` |
 | **PUBLISHED** | ADMIN Search recall (`editingPublishedFamilyId`) | Published Source Family UPDATE intent |
 
 Rules:
@@ -1154,12 +1159,13 @@ PositionRecord[]           = runtime projection KEEP
 - canonical absent (fresh) → empty App dataset
 - stale browser flat/shadow keys ignored
 
-#### External flat boundaries (unchanged until D-2/E)
+#### External flat boundaries (kept intentionally)
 
-- Manual Export schemaVersion 2 (UI removed in D-3; internal helper may remain unwired)
+- Manual Export UI **removed** (D-3); dead helpers removed (F-1)
+- DatasetExportPayload schemaVersion **2** retained for legacy leaf / first-touch Publish
 - PublishOperation / PublishFamilyPayload (History transport — unchanged)
-- repository `positions.json` **still flat v2** (physical leaf not cut over)
-- Published Search still flat reader
+- repository `positions.json` may remain physical **v2** until first-touch Publish (writer = v3)
+- Published runtime read/cache = NormalizedDatasetEnvelope (E-1…E-3)
 - workspace_history snapshot payloads
 
 ### Phase D-1 — Normalized Whole-Leaf Publish Mutation (2026-09-22)
@@ -1197,7 +1203,7 @@ PositionRecord[]           = runtime projection KEEP
 - `domain/publishedNormalizedWrite.ts` + `repoPublish/writeVerifiedPublishedLeafFs.ts`
 - `repoPublish/publishDatasetToRepo.ts` · `gitPublish.ts` · `productionVerify.ts`
 - `domain/datasetLoader.ts` (v2/v3 reader adapter)
-- Manual Export downgrade guard in `hooks/useSettings.js`
+- v3 leaf protection via `isNormalizedDataset` / leaf-kind detect (no Manual Export path)
 
 **What is active:**
 - Publish writes **schemaVersion 3** NormalizedDatasetEnvelope to `positions.json`
@@ -1313,7 +1319,47 @@ PositionRecord[]           = runtime projection KEEP
 
 **Phase E COMPLETE:** YES
 
-**Next Track:** Phase F — Closure / legacy cleanup / operational E2E (do not auto-start).
+**Next Track:** Phase F — Closure (F-1 COMPLETE · F-2 Real Publish E2E **WAIT for user approval**).
+
+### Phase F-1 — Final Legacy Cleanup / SSOT Drift Repair (2026-09-24)
+
+**Authority:** 본 절 · No architecture rewrite · cleanup only
+
+**What changed:**
+- Dead Manual Export production handlers removed (`handleExportSnapshots` / folder picker / `saveDatasetExportToFile`)
+- History remains Publish-only (Delete / Publish / Close)
+- Stale CURRENT `positions_dataset` / flat-authority / Published-records-authority docs & UI strings repaired
+- `productionVerify.contract.test.ts` file-local timeout (20s) for temp-git infra flake — production verify semantics **unchanged**
+- DatasetExportPayload v2 · v2→v3 converter · PublishFamilyPayload · PositionRecord runtime roles · rematerialize helpers **retained**
+- No `dataset/**` migration · no real Publish · no Search/RI/Publish/Local SSOT rewrite
+
+**CURRENT architecture (post F-1):**
+
+```text
+LOCAL:
+  normalized_dataset → NormalizedDatasetEnvelope
+  → FamilyMaster / FamilyMember → Member-centric Search
+  → winner hydrate → Runtime PositionRecord
+
+PUBLISHED:
+  repository v2/v3 → ONE normalized read path
+  → NormalizedDatasetEnvelope cache → FamilyMember Search
+  → winner-only hydrate → Runtime PositionRecord
+
+RI:
+  Normalized Masters/Members → on-demand rematerialization → existing RI algorithm
+
+PUBLISH:
+  History ONE Publish → normalized candidate → atomic repository write
+  → Git → push → production semantic verification
+  → PRODUCTION_VERIFIED only on SUCCESS
+
+Repository leaves: writer = v3; checked-in leaves may remain v2 until first-touch Publish.
+```
+
+**Phase F-1 COMPLETE:** YES
+
+**Next Track:** Phase F-2 — Real Publish / Production E2E (do not auto-start; user must approve test Family/leaf).
 
 **Production SSOT (검증 완료, 2026-06):**
 
@@ -1325,14 +1371,14 @@ PositionRecord[]           = runtime projection KEEP
 > **`dataset/`은 작업용 데이터가 아니라 Production Search가 사용하는 Published Corpus SSOT이다.**
 > 절대 `.gitignore` 대상이 되어서는 안 된다.
 
-### Dataset Export (legacy internal — UI removed Phase D-3)
+### Dataset Export (legacy schema retained — UI removed)
 
-- History user-facing Manual Export **removed** (D-3). Official path = Publish only.
-- Internal helper `handleExportSnapshots` / `saveDatasetExportToFile` may remain unwired for migration/tests.
-- Publish path uses D-2 normalized repository writer (not this Manual Export path).
+- History user-facing Manual Export **removed** (D-3); dead helpers removed (F-1). Official path = Publish only.
+- DatasetExportPayload schemaVersion **2** retained for legacy leaf read / first-touch Publish conversion.
+- Publish path uses D-2 normalized repository writer (v3).
 - 경로 (Publish auto-resolve): `dataset/{공략명}/{시스템명}/positions.json`
 - Legacy Envelope reader: `schemaVersion: 2` still supported for untouched leaves
-- 코드 SSOT: `domain/datasetExport.ts`, `domain/datasetPath.ts`, `hooks/useSettings.js`
+- 코드 SSOT: `domain/datasetExport.ts`, `domain/datasetPath.ts`, `domain/publishedLeafPrepare.ts`
 
 ### Published Dataset Loader (Phase 2 — 완료)
 
@@ -1393,9 +1439,9 @@ Production Search 장애 발생 시 점검 순서:
 
 | UI 기능 | 데이터 | Profile | 상태 |
 |---------|--------|---------|------|
-| ADMIN **로컬DB** (Stage rail) | `positions_dataset` | `adminSearch` | ✅ |
-| ADMIN **Search** (우측 패널) | Published Dataset | `adminStrict` | ✅ |
-| USER **Search** | Published Dataset | `userStrict` | ✅ |
+| ADMIN **로컬DB** (Stage rail) | Local `normalized_dataset` Members | `adminSearch` | ✅ |
+| ADMIN **Search** (우측 패널) | Published Normalized Members | `adminStrict` | ✅ |
+| USER **Search** | Published Normalized Members | `userStrict` | ✅ |
 | USER **Reset** | 공 위치만 유지 · 검색 결과/공략/오버레이/타겟 상태 초기화 | — | ✅ (Search 성공 시 Reset 버튼으로 전환) |
 
 ### 예정
@@ -1877,8 +1923,8 @@ USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Run
 
 | 버튼 | 오버레이 | 비고 |
 |------|----------|------|
-| **로컬DB** (Stage rail) | — | local `positions_dataset` · profile `adminSearch` |
-| **Search** (우측 패널) | — | published · profile `adminStrict` (= USER Search와 동일 corpus) |
+| **로컬DB** (Stage rail) | — | Local `normalized_dataset` · profile `adminSearch` |
+| **Search** (우측 패널) | — | published normalized Members · profile `adminStrict` (= USER Search와 동일 corpus) |
 | S1/S2/S3 | — | slot 전환, hydrate |
 | SYS | `overlayState` SYS | 편집·Apply |
 | HP/T | HPT | 편집 |

@@ -1,6 +1,7 @@
 /**
  * Phase D-2 — Serialize / read-back verify for NormalizedDatasetEnvelope leaves.
- * Parallel to publishedWrite.ts (flat Manual Export path). No filesystem.
+ * Companion to publishedWrite.ts (legacy flat DatasetExportPayload serializer).
+ * No filesystem.
  */
 
 import {

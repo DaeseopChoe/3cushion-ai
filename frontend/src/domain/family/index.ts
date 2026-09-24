@@ -1,8 +1,8 @@
 /**
  * Family domain (Phase 1B identity + Phase 2B 4-track generation).
- * Phase 3A-321 Phase A adds physical FamilyMaster/Member stores + hydrate/split.
- * Shadow dual-write is flag-independent; production READ uses
- * loadProductionCompatibleDataset gate (Phase 3A-342; default ON since 3A-349).
+ * Physical FamilyMaster/Member schema + hydrate/split live here.
+ * Local durable SSOT = `normalized_dataset` (Phase B-1/C/C-2).
+ * Production App load uses loadProductionCompatibleDataset (normalized only).
  */
 
 export * from "./familyIdentity";

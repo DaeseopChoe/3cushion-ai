@@ -20,10 +20,10 @@
  * - App runtime PositionRecord[] = on-demand rematerialize from normalized_dataset
  * - stale browser flat/shadow keys are ignored (never promoted to authority)
  *
- * Remaining EXTERNAL flat boundaries (until Phase D / E — not Local DB):
- * - Manual Export DatasetExportPayload schemaVersion 2 (flat records[])
- * - PublishOperation / PublishFamilyPayload / repository positions.json v2
- * - Published Search reads repository leaf (unchanged)
+ * Remaining EXTERNAL flat / transport boundaries (kept intentionally):
+ * - DatasetExportPayload schemaVersion 2 (legacy leaf / v2→v3 first-touch Publish)
+ * - PublishOperation / PublishFamilyPayload (History Publish transport)
+ * - repository positions.json may still be physical v2 until first-touch Publish
  * - workspace_history may still embed flat snapshot payloads
  *
  * Hydrated StrategyEntry may still carry Master common payload copies for
@@ -31,9 +31,8 @@
  * the rematerialized object — not a durable Local store).
  *
  * Ends fully when:
- * - Phase D Export/Publish leaf schema v3
- * - Phase E Published Search normalized
- * - remaining test/migration flat helpers retired (Phase G)
+ * - remaining physical v2 leaves cut over via first-touch Publish (F-2+)
+ * - remaining test/migration flat helpers retired (later cleanup)
  *
  * Do not treat copied sysInputs / corrections / ai / str / canonical hpT
  * on SYMMETRY / Derived / Product Members as the final SSOT.
