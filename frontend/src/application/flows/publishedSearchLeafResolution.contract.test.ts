@@ -264,7 +264,7 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     const cachedEntry = getPublishedLeafCacheEntry("옆돌리기", "5_half_system");
     expect(cachedEntry).toBeDefined();
     expect(cachedEntry?.status).toBe("ready");
-    expect(cachedEntry?.records.length).toBe(1);
+    expect(cachedEntry?.familyMembers?.length).toBe(1);
   });
 
   it("CASE E: Exact Ball3 Match produces distance 0 and MATCH for adminStrict and userStrict", () => {
@@ -472,7 +472,7 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
 
     const readyCache = getPublishedLeafCacheEntry("옆돌리기", "5_half_system");
     expect(readyCache?.status).toBe("ready");
-    expect(readyCache?.records.length).toBe(1);
+    expect(readyCache?.familyMembers?.length).toBe(1);
   });
 
   it("USER Search: resolves non-default shotType '비켜치기' dynamically without hardcoded fallback", async () => {

@@ -91,7 +91,7 @@ const HARD_THRESHOLD_L1 = 14;
 /**
  * ADMIN Published Search Flow (SRCH-002).
  * Phase E-2: FamilyMember corpus → Position-level rank → winner-only hydrate.
- * Does NOT use loadResult.records as Search authority (records remain RI TEMP COMPAT).
+ * Does NOT use loadResult.records as Search authority (E-3: records cache removed).
  * appMode guard는 App.jsx 호출 전에 수행.
  * @returns true when a published record was applied.
  */

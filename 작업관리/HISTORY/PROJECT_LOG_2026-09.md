@@ -6,6 +6,43 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-24 — Phase E-3 RI / Published Flat Compatibility Cleanup
+
+## Mode
+
+**Agent** · RI on-demand rematerialize from normalized Masters/Members · remove whole-leaf records cache
+
+## Background (E-2)
+
+Published Search already Member-centric. Remaining debt: eager whole-leaf `entry.records` for RI.
+
+## Delivered
+
+- `rematerializePublishedLeafForRi`: on-demand whole-leaf rematerialize for RI knot corpus (Cue-1D)
+- `App.jsx` RI path: Masters/Members → rematerialize (no `cached.records`)
+- `datasetLoader` / `publishedDatasetStore`: remove eager projection + `records` cache field
+- Parity: rematerialize output ≡ prior whole-leaf remat; RI engine identical on same corpus
+- Docs: MASTER_INDEX E-3 + Phase E COMPLETE
+
+## Not changed
+
+- RI formulas / neighbor / weights / thresholds
+- Published Search ranking/profiles (E-2)
+- Publish / History / Local SSOT / Local Search
+- dataset/** ; product_export ABSENT; incidenceAngle.ts preserved
+- Manual Export dead helpers (Phase F)
+
+## Phase E closure
+
+PHASE E COMPLETE: YES
+Next: Phase F closure/legacy cleanup/operational E2E (wait for user).
+
+## Commit
+
+`refactor(search): remove published flat compatibility projection`
+
+---
+
 # 2026-09-22 — Phase E-2 Member-Centric Published Search + Winner-Only Hydration
 
 ## Mode

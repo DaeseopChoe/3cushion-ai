@@ -124,7 +124,7 @@ describe("datasetLoader", () => {
     }
   });
 
-  it("fetchPublishedLeaf returns normalized authority + compatibility records", async () => {
+  it("fetchPublishedLeaf returns normalized authority without whole-leaf records", async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       status: 200,
       ok: true,
@@ -133,14 +133,15 @@ describe("datasetLoader", () => {
     const result = await fetchPublishedLeaf("옆돌리기", "5_half_system", fetchFn);
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
-      expect(result.records).toHaveLength(1);
       expect(result.envelope.schemaVersion).toBe(
         NORMALIZED_DATASET_SCHEMA_VERSION
       );
       expect(result.familyMembers.length).toBeGreaterThan(0);
+      expect(result.familyMasters.length).toBeGreaterThan(0);
       expect(result.masterByFamilyId.get(FM)?.familyId).toBe(FM);
       expect(result.sourceSchemaVersion).toBe(2);
-      expect(result.records[0]!.strategies.S1!.familyId).toBe(FM);
+      expect(result.familyMembers[0]!.familyId).toBe(FM);
+      expect("records" in result).toBe(false);
     }
   });
 
@@ -200,12 +201,12 @@ describe("datasetLoader", () => {
   });
 });
 
-describe("publishedDatasetStore Phase E-1", () => {
+describe("publishedDatasetStore Phase E-3", () => {
   afterEach(() => {
     __clearPublishedDatasetStoreForTests();
   });
 
-  it("getOrLoadPublishedLeaf caches successful loads with envelope authority", async () => {
+  it("getOrLoadPublishedLeaf caches successful loads with envelope authority only", async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       status: 200,
       ok: true,
@@ -224,7 +225,8 @@ describe("publishedDatasetStore Phase E-1", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
     if (first.kind === "ok") {
       expect(first.envelope.familyMasters.length).toBeGreaterThan(0);
-      expect(first.records.length).toBe(1);
+      expect(first.familyMembers.length).toBeGreaterThan(0);
+      expect("records" in first).toBe(false);
     }
     const entry = getPublishedLeafCacheEntry("옆돌리기", "5_half_system");
     expect(entry?.status).toBe("ready");
@@ -232,11 +234,11 @@ describe("publishedDatasetStore Phase E-1", () => {
       NORMALIZED_DATASET_SCHEMA_VERSION
     );
     expect(entry?.masterByFamilyId?.get(FM)?.familyId).toBe(FM);
-    // records are derived projection, not a second durable authority
-    expect(entry?.records?.length).toBe(1);
+    expect(entry?.familyMembers?.length).toBeGreaterThan(0);
+    expect(entry && "records" in entry).toBe(false);
   });
 
-  it("refresh clears normalized authority and records together", async () => {
+  it("refresh clears normalized authority", async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       status: 200,
       ok: true,
@@ -250,7 +252,7 @@ describe("publishedDatasetStore Phase E-1", () => {
     expect(getPublishedLeafCacheEntry("옆돌리기", "5_half_system")).toBeUndefined();
   });
 
-  it("v2→normalized→records parity with convertFlat rematerialize path", () => {
+  it("v2→normalized authority parity with convertFlat (no eager records)", () => {
     const leaf = v2Leaf([sampleRecord()]);
     const converted = convertFlatDatasetExportToNormalizedLeaf(leaf);
     expect(converted.ok).toBe(true);
@@ -261,9 +263,10 @@ describe("publishedDatasetStore Phase E-1", () => {
     expect(parsed.envelope.familyMasters.map((m) => m.familyId)).toEqual(
       converted.envelope.familyMasters.map((m) => m.familyId)
     );
-    expect(parsed.records[0]!.strategies.S1!.familyId).toBe(FM);
-    expect(parsed.records[0]!.strategies.S1!.memberId).toBe(MB);
-    expect(parsed.records[0]!.strategies.S1!.track).toBe("B2T_L");
+    expect(parsed.familyMembers[0]!.familyId).toBe(FM);
+    expect(parsed.familyMembers[0]!.memberId).toBe(MB);
+    expect(parsed.familyMembers[0]!.track).toBe("B2T_L");
     expect(parsed.sourceSchemaVersion).toBe(2);
+    expect("records" in parsed).toBe(false);
   });
 });

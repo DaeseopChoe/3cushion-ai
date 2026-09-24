@@ -1,12 +1,12 @@
 /**
  * Published Dataset leaf loader — fetch positions.json → normalized authority.
  *
- * Phase E-1:
+ * Phase E-1 / E-3:
  *   v2 → in-memory convertFlatDatasetExportToNormalizedLeaf (no disk rewrite)
  *   v3 → parseNormalizedDatasetEnvelope
  *   AUTHORITY = NormalizedDatasetEnvelope (Masters + Members)
- *   PositionRecord[] = TEMPORARY COMPATIBILITY PROJECTION for Search / RI
- *     (derived via rematerializeFamilyPartsToPositionRecords; not durable SSOT)
+ *   NO eager whole-leaf PositionRecord[] projection (removed E-3).
+ *   RI rematerializes on-demand via rematerializePublishedLeafForRi.
  * Invalid v3 never falls back to flat (authority inversion forbidden).
  */
 
@@ -19,28 +19,20 @@ import {
   type NormalizedDatasetEnvelope,
 } from "./dataset/normalizedDatasetEnvelope";
 import type { FamilyMaster, FamilyMember } from "./family/familyNormalizedSchema";
-import { rematerializeFamilyPartsToPositionRecords } from "./family/rematerializeFamilyPartsToPositionRecords";
 import { parseManifest } from "./datasetManifest";
 import {
   convertFlatDatasetExportToNormalizedLeaf,
   detectPublishedLeafKind,
 } from "./publishedLeafPrepare";
-import type { PositionRecord } from "./positionSearchEngine";
 
 export type PublishedLeafLoadOk = {
   kind: "ok";
-  /** Canonical load authority (Phase E-1). */
+  /** Canonical load authority. */
   envelope: NormalizedDatasetEnvelope;
   /** Derived lookup — not a separate authority. */
   masterByFamilyId: Map<string, FamilyMaster>;
   familyMasters: FamilyMaster[];
   familyMembers: FamilyMember[];
-  /**
-   * TEMPORARY COMPATIBILITY PROJECTION for existing Published Search + RI.
-   * Derived only from `envelope` via rematerializeFamilyPartsToPositionRecords.
-   * Not Published durable/search authority (E-2 will search Members directly).
-   */
-  records: PositionRecord[];
   url: string;
   /** Disk/source schema before in-memory normalize (debug/tests only; not Search branch). */
   sourceSchemaVersion: 2 | 3;
@@ -67,34 +59,15 @@ function buildMasterByFamilyId(
   return new Map(masters.map((m) => [m.familyId, m]));
 }
 
-/**
- * Eager whole-leaf rematerialize — TEMPORARY COMPATIBILITY PROJECTION owner.
- * Single rematerialization site for Published load (Search/RI until E-2/E-3).
- */
-function projectCompatibilityRecords(
+function okFromEnvelope(
   envelope: NormalizedDatasetEnvelope,
-  url: string
+  url: string,
+  sourceSchemaVersion: 2 | 3
 ): PublishedLeafLoadResult {
   if (
     envelope.familyMasters.length === 0 &&
     envelope.familyMembers.length === 0
   ) {
-    return { kind: "empty", url };
-  }
-  const remat = rematerializeFamilyPartsToPositionRecords({
-    masters: envelope.familyMasters,
-    members: envelope.familyMembers,
-  });
-  if (!remat.ok) {
-    return {
-      kind: "error",
-      message: `Normalized leaf rematerialize failed (${
-        remat.issues[0]?.code ?? "rematerialize"
-      }: ${remat.issues[0]?.reason ?? "unknown"})`,
-      url,
-    };
-  }
-  if (!remat.dataset.length) {
     return { kind: "empty", url };
   }
   return {
@@ -103,9 +76,8 @@ function projectCompatibilityRecords(
     masterByFamilyId: buildMasterByFamilyId(envelope.familyMasters),
     familyMasters: envelope.familyMasters,
     familyMembers: envelope.familyMembers,
-    records: remat.dataset,
     url,
-    sourceSchemaVersion: 3,
+    sourceSchemaVersion,
   };
 }
 
@@ -123,11 +95,7 @@ function parseV3NormalizedLeaf(
       url,
     };
   }
-  const projected = projectCompatibilityRecords(parsed.envelope, url);
-  if (projected.kind === "ok") {
-    return { ...projected, sourceSchemaVersion: 3 };
-  }
-  return projected;
+  return okFromEnvelope(parsed.envelope, url, 3);
 }
 
 function parseV2FlatLeaf(raw: unknown, url: string): PublishedLeafLoadResult {
@@ -160,15 +128,11 @@ function parseV2FlatLeaf(raw: unknown, url: string): PublishedLeafLoadResult {
     };
   }
 
-  const projected = projectCompatibilityRecords(converted.envelope, url);
-  if (projected.kind === "ok") {
-    return { ...projected, sourceSchemaVersion: 2 };
-  }
-  return projected;
+  return okFromEnvelope(converted.envelope, url, 2);
 }
 
 /**
- * Parse published leaf JSON into normalized authority + compatibility records.
+ * Parse published leaf JSON into normalized authority only.
  * v2/v3 branching stays at this load boundary only.
  */
 export function parsePublishedLeafPayload(

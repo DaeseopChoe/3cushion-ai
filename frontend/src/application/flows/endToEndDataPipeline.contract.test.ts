@@ -219,9 +219,9 @@ describe("Full Lifecycle End-to-End Headless Integration Contract", () => {
     const parsed = parsePublishedLeafPayload(exportPayload, "/dataset/옆돌리기/파이브앤하프/positions.json");
     expect(parsed.kind).toBe("ok");
     if (parsed.kind === "ok") {
-      expect(parsed.records.length).toBe(2);
-      expect(parsed.records[0].balls).toEqual(authoredRecord.balls);
-      expect(parsed.records[1].balls).toEqual(derivedRecord.balls);
+      expect(parsed.familyMembers.length).toBe(2);
+      expect(parsed.familyMembers[0].balls).toEqual(authoredRecord.balls);
+      expect(parsed.familyMembers[1].balls).toEqual(derivedRecord.balls);
     }
   });
 

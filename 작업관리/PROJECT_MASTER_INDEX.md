@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase E-2 — Member-Centric Published Search (after E-1) |
+| **Next Track** | Phase F — Closure / legacy cleanup / operational E2E (Phase E COMPLETE) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -1288,7 +1288,32 @@ PositionRecord[]           = runtime projection KEEP
 - `application/flows/adminSearchFlow.ts`
 - `application/flows/userSearchFlow.ts`
 
-**Next Track:** Phase E-3 — RI / Remaining Published Flat Compatibility Cleanup.
+**Next Track:** Phase E-3 — RI / Remaining Published Flat Compatibility Cleanup (COMPLETE — see below).
+
+### Phase E-3 — Real Interpolation / Remaining Published Flat Compatibility Cleanup (2026-09-24)
+
+**Authority:** 본 절 · Phase E COMPLETE — Published flat whole-leaf cache removed
+
+**Product rules (fixed):**
+- RI reads normalized Masters/Members from Published cache
+- RI knot corpus: on-demand `rematerializePublishedLeafForRi` (whole-leaf; Cue-1D brackets)
+- RI formulas / neighbor / weights / thresholds **unchanged**
+- Published cache: **no** `records: PositionRecord[]` field
+- Loader: **no** eager whole-leaf rematerialization
+- Search remains Member-centric (E-2)
+- Runtime PositionRecord only at Search winner / RI on-demand / UI boundaries
+- No persisted Search/RI Index; no KD rewrite
+- Publish / History / Local SSOT / Local Search **unchanged**
+
+**Code owners:**
+- `domain/realInterpolation/rematerializePublishedLeafForRi.ts`
+- `domain/datasetLoader.ts`
+- `domain/publishedDatasetStore.ts`
+- `App.jsx` (RI wiring)
+
+**Phase E COMPLETE:** YES
+
+**Next Track:** Phase F — Closure / legacy cleanup / operational E2E (do not auto-start).
 
 **Production SSOT (검증 완료, 2026-06):**
 

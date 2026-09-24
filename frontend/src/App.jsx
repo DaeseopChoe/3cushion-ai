@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Suspense } from "react";
 import { flushSync } from "react-dom";
 import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
 import { useAdminEditHistory } from "./hooks/useAdminEditHistory";
@@ -3017,7 +3017,8 @@ export default function App({
               userLastSearchRecord != null
                 ? [userLastSearchRecord, matchedRecord].filter(Boolean)
                 : [matchedRecord];
-            // Prefer full leaf corpus when cache holds it.
+            // Prefer full leaf knot corpus from normalized Masters/Members
+            // (on-demand rematerialize — no cached whole-leaf PositionRecord[]).
             const hintShot =
               userPublishedSearchContext?.shotType ??
               matchedRecord?.strategies?.S1?.signature?.shotType;
@@ -3029,9 +3030,22 @@ export default function App({
               const { getPublishedLeafCacheEntry } = await import(
                 "./domain/publishedDatasetStore"
               );
+              const { rematerializePublishedLeafForRi } = await import(
+                "./domain/realInterpolation/rematerializePublishedLeafForRi"
+              );
               const cached = getPublishedLeafCacheEntry(hintShot, hintSys);
-              if (cached?.status === "ready" && cached.records?.length) {
-                positionRecords = cached.records;
+              if (
+                cached?.status === "ready" &&
+                cached.familyMasters &&
+                cached.familyMembers?.length
+              ) {
+                const remat = rematerializePublishedLeafForRi({
+                  familyMasters: cached.familyMasters,
+                  familyMembers: cached.familyMembers,
+                });
+                if (remat.ok && remat.records.length) {
+                  positionRecords = remat.records;
+                }
               }
             }
             const { results } = runRealInterpolationSearchFlow({

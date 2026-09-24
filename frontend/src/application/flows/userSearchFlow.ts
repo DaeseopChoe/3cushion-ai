@@ -69,7 +69,7 @@ export type UserSearchFlowContext = {
  * USER Published Search Flow (SRCH-003).
  * Phase E-2: FamilyMember corpus → Position-level rank → winner-only hydrate.
  * Multi-leaf: leaf-local Member search; cross-leaf best by distance < only (ties keep earlier leaf).
- * Does NOT use loadResult.records as Search authority (records remain RI TEMP COMPAT).
+ * Does NOT use loadResult.records as Search authority (E-3: records cache removed).
  * appMode guard 및 in-flight guard는 App.jsx 호출 전에 수행.
  * @returns { record, matchedBalls } on success; null on no-match / load error
  */

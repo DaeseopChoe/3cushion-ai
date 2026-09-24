@@ -1,11 +1,11 @@
 /**
  * Published Dataset lazy cache — keyed by shotType + systemId.
  *
- * Phase E-1:
+ * Phase E-1 / E-3:
  *   AUTHORITY = NormalizedDatasetEnvelope (familyMasters + familyMembers)
  *   masterByFamilyId = derived lookup (same Masters, not a second SSOT)
- *   records = TEMPORARY COMPATIBILITY PROJECTION for Published Search + RI
- *     (eager rematerialize at load; not durable; invalidate with envelope)
+ *   NO whole-leaf PositionRecord[] cache field (removed E-3).
+ *   RI: rematerializePublishedLeafForRi on demand from Masters/Members.
  */
 
 import {
@@ -14,7 +14,6 @@ import {
 } from "./datasetLoader";
 import type { NormalizedDatasetEnvelope } from "./dataset/normalizedDatasetEnvelope";
 import type { FamilyMaster, FamilyMember } from "./family/familyNormalizedSchema";
-import type { PositionRecord } from "./positionSearchEngine";
 
 export type PublishedLeafKey = string;
 
@@ -35,11 +34,6 @@ export type PublishedLeafCacheEntry = {
   masterByFamilyId?: Map<string, FamilyMaster>;
   familyMasters?: FamilyMaster[];
   familyMembers?: FamilyMember[];
-  /**
-   * TEMPORARY COMPATIBILITY PROJECTION (Search + Real Interpolation).
-   * Derived from envelope only. Not authority.
-   */
-  records: PositionRecord[];
   /** Source on-disk schema before in-memory normalize (2|3). */
   sourceSchemaVersion?: 2 | 3;
 };
@@ -62,7 +56,7 @@ export function getPublishedLeafCacheEntry(
 
 /**
  * Invalidate published leaf cache.
- * Clears normalized authority + master lookup + compatibility records together.
+ * Clears normalized authority + master lookup together.
  */
 export function refreshPublishedDataset(
   shotType?: string,
@@ -94,7 +88,6 @@ function cacheFromLoadResult(
       masterByFamilyId: result.masterByFamilyId,
       familyMasters: result.familyMasters,
       familyMembers: result.familyMembers,
-      records: result.records,
       sourceSchemaVersion: result.sourceSchemaVersion,
     };
   }
@@ -104,7 +97,6 @@ function cacheFromLoadResult(
       shotType,
       systemId,
       status: "empty",
-      records: [],
       url: result.url,
       loadedAt,
     };
@@ -114,7 +106,6 @@ function cacheFromLoadResult(
     shotType,
     systemId,
     status: "error",
-    records: [],
     url: result.url,
     errorMessage: result.message,
     loadedAt,
@@ -124,7 +115,6 @@ function cacheFromLoadResult(
 export type GetOrLoadPublishedLeafResult =
   | {
       kind: "ok";
-      records: PositionRecord[];
       url: string;
       fromCache: boolean;
       envelope: NormalizedDatasetEnvelope;
@@ -149,7 +139,6 @@ export async function getOrLoadPublishedLeaf(
       if (cached.status === "ready" && cached.envelope && cached.masterByFamilyId) {
         return {
           kind: "ok",
-          records: cached.records,
           url: cached.url,
           fromCache: true,
           envelope: cached.envelope,
@@ -184,7 +173,6 @@ export async function getOrLoadPublishedLeaf(
   if (result.kind === "ok") {
     return {
       kind: "ok",
-      records: result.records,
       url: result.url,
       fromCache: false,
       envelope: result.envelope,

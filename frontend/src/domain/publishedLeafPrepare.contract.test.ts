@@ -20,6 +20,7 @@ import type { DatasetExportPayload } from "./datasetExport";
 import type { PublishOperation } from "./publishOperation";
 import type { PublishFamilyPayload } from "./publishFamilyPayload";
 import { isNormalizedDataset } from "./dataset/normalizedDatasetEnvelope";
+import { rematerializePublishedLeafForRi } from "./realInterpolation/rematerializePublishedLeafForRi";
 
 const LEAF_META = {
   shotType: "뒤돌리기",
@@ -274,7 +275,7 @@ describe("Phase D-2 publishedLeafPrepare", () => {
 });
 
 describe("Phase D-2 Published reader adapter", () => {
-  it("v2 leaf loads as before", () => {
+  it("v2 leaf loads as normalized Members/Masters (no eager records)", () => {
     const raw = flatLeaf([
       position(ballsP1, {
         S1: entry("S1", { familyId: FM_A, memberId: "mb_a1", marker: "flat" }),
@@ -283,11 +284,13 @@ describe("Phase D-2 Published reader adapter", () => {
     const result = parsePublishedLeafPayload(raw, "/dataset/x/positions.json");
     expect(result.kind).toBe("ok");
     if (result.kind !== "ok") return;
-    expect(result.records[0]!.strategies.S1!.familyId).toBe(FM_A);
-    expect(result.records[0]!.strategies.S1!.ai).toEqual({ text: "flat" });
+    expect("records" in result).toBe(false);
+    expect(result.familyMembers[0]!.familyId).toBe(FM_A);
+    expect(result.masterByFamilyId.get(FM_A)?.ai).toEqual({ text: "flat" });
+    expect(result.sourceSchemaVersion).toBe(2);
   });
 
-  it("v3 leaf rematerializes to PositionRecord[]", () => {
+  it("v3 leaf loads normalized; on-demand rematerialize yields PositionRecord[]", () => {
     const converted = convertFlatDatasetExportToNormalizedLeaf(
       flatLeaf([
         position(ballsP1, {
@@ -308,11 +311,23 @@ describe("Phase D-2 Published reader adapter", () => {
     );
     expect(result.kind).toBe("ok");
     if (result.kind !== "ok") return;
-    expect(result.records[0]!.strategies.S1!.familyId).toBe(FM_A);
-    expect(result.records[0]!.strategies.S1!.memberId).toBe("mb_a1");
-    expect(result.records[0]!.strategies.S1!.ai).toEqual({ text: "norm" });
-    expect(result.records[0]!.strategies.S1!.sysInputs?.CO_f).toBe(40);
-    expect(result.records[0]!.strategies.S1!.track).toBe("B2T_L");
+    expect("records" in result).toBe(false);
+    expect(result.familyMembers[0]!.memberId).toBe("mb_a1");
+    expect(result.familyMembers[0]!.track).toBe("B2T_L");
+    expect(result.masterByFamilyId.get(FM_A)?.ai).toEqual({ text: "norm" });
+    expect(result.masterByFamilyId.get(FM_A)?.sysInputs?.CO_f).toBe(40);
+
+    const remat = rematerializePublishedLeafForRi({
+      familyMasters: result.familyMasters,
+      familyMembers: result.familyMembers,
+    });
+    expect(remat.ok).toBe(true);
+    if (!remat.ok) return;
+    expect(remat.records[0]!.strategies.S1!.familyId).toBe(FM_A);
+    expect(remat.records[0]!.strategies.S1!.memberId).toBe("mb_a1");
+    expect(remat.records[0]!.strategies.S1!.ai).toEqual({ text: "norm" });
+    expect(remat.records[0]!.strategies.S1!.sysInputs?.CO_f).toBe(40);
+    expect(remat.records[0]!.strategies.S1!.track).toBe("B2T_L");
   });
 
   it("invalid v3 fails closed (no flat fallback)", () => {
