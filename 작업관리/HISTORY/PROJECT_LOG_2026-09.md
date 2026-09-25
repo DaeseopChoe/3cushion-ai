@@ -6,6 +6,51 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-25 — Phase F-2E Publish-Time Occupancy Confirmation + Family Replacement
+
+## Mode
+
+**Agent** · CASE A overwrite UX · no real Publish retry
+
+## Evidence (F-2D-2)
+
+Unexported History CREATE `fm_2a1440b5…` AUTHORED
+`200160600200200200` S1 matches existing Published `fm_3c75c038…`.
+4 conflicts; single existing Family; classification RESOLVABLE_PUBLISH_OVERWRITE.
+
+## Delivered
+
+- `domain/publishOccupancy.ts` — Map occupancy index + classifier
+- `remapPublishFamilyPayloadFamilyId` — execution-time remap (History immutable)
+- `prepareNormalizedPublishCandidate` — resolvable conflict / confirmed UPDATE / stale guard
+- Repo + Git publish plumbing for `confirmedOverwrite` + `leafRevision`
+- UI confirm/cancel in `handlePublishSnapshots`
+- Contracts: resolvable, confirm, cancel semantics, derived-only hard fail, multi-Family,
+  stale, normal CREATE/UPDATE, 10k occupancy structure
+
+## Product contracts recorded
+
+A–O (Local vs Publish occupancy · no auto overwrite · no auto slot move · C-0 strict ·
+derived index · existing familyId survives · History immutable · stale revalidate)
+
+## Intentionally NOT done
+
+- Real History Publish retry
+- ADMIN_OPERATION_MANUAL
+- Dataset / History mutation
+- Storage redesign
+
+## Next
+
+User retries SAME Unexported History Publish.
+F-2 remains incomplete until PRODUCTION_VERIFIED.
+
+## Commit
+
+`fix(publish): confirm same-slot family replacement`
+
+---
+
 # 2026-09-25 — Phase F-2C Discard Unrecoverable Orphan Product Family
 
 ## Mode

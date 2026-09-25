@@ -5,6 +5,7 @@
 
 import type { PublishFamilyPayload } from "../publishFamilyPayload";
 import type { PublishOperation } from "../publishOperation";
+import type { ConfirmedPublishOverwrite } from "../publishedLeafPrepare";
 
 export const LOCAL_PUBLISH_ENDPOINT = "/api/publish-dataset";
 
@@ -14,6 +15,7 @@ export type LocalPublishClientItem = {
   systemId: string;
   publishOperation: PublishOperation;
   publishFamilyPayload: PublishFamilyPayload;
+  confirmedOverwrite?: ConfirmedPublishOverwrite | null;
 };
 
 export type LocalPublishClientLeafResult =
@@ -106,6 +108,9 @@ export async function publishDatasetToLocalRepo(
           systemId: it.systemId,
           publishOperation: it.publishOperation,
           publishFamilyPayload: it.publishFamilyPayload,
+          ...(it.confirmedOverwrite
+            ? { confirmedOverwrite: it.confirmedOverwrite }
+            : {}),
         })),
       }),
     });

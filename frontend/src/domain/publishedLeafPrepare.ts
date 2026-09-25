@@ -29,17 +29,40 @@ import {
   type NormalizedLeafMeta,
   type PublishNormalizedLeafFailCode,
 } from "./publishedNormalizedLeafMutation";
-import type { PublishFamilyPayload } from "./publishFamilyPayload";
+import {
+  remapPublishFamilyPayloadFamilyId,
+  type PublishFamilyPayload,
+} from "./publishFamilyPayload";
 import type { PublishOperation } from "./publishOperation";
+import {
+  classifyResolvablePublishOverwrite,
+  type ResolvablePublishOverwriteConflict,
+} from "./publishOccupancy";
 
 export type PublishedLeafKind = "absent" | "v2" | "v3" | "invalid";
 
+/** Execution-time confirmed overwrite (History snapshot unchanged). */
+export type ConfirmedPublishOverwrite = {
+  targetFamilyId: string;
+  expectedLeafRevision: string;
+};
+
 export type PrepareNormalizedPublishFail = {
   ok: false;
-  code: PublishNormalizedLeafFailCode | "EXISTING_LEAF_INVALID" | "V2_CONVERSION_FAILED";
+  code:
+    | PublishNormalizedLeafFailCode
+    | "EXISTING_LEAF_INVALID"
+    | "V2_CONVERSION_FAILED"
+    | "RESOLVABLE_PUBLISH_OVERWRITE"
+    | "STALE_LEAF_REVISION"
+    | "CONFIRMED_OVERWRITE_INVALID";
   reason: string;
   issues: string[];
   validationIssues?: NormalizedDatasetIssue[];
+  /** Present when CREATE occupancy is user-confirmable Family replacement. */
+  conflict?: ResolvablePublishOverwriteConflict;
+  /** SHA-256 of current leaf file bytes (or empty leaf sentinel). */
+  leafRevision?: string;
 };
 
 export type PrepareNormalizedPublishOk = {
@@ -49,6 +72,8 @@ export type PrepareNormalizedPublishOk = {
   createRetryReplaced: boolean;
   purgedFamilyIds: string[];
   insertedFamilyId: string;
+  /** True when execution used confirmed Family replacement remap. */
+  confirmedOverwriteApplied?: boolean;
 };
 
 export type PrepareNormalizedPublishResult =
@@ -67,9 +92,21 @@ function fail(
   code: PrepareNormalizedPublishFail["code"],
   reason: string,
   issues: string[] = [],
-  validationIssues?: NormalizedDatasetIssue[]
+  validationIssues?: NormalizedDatasetIssue[],
+  extra?: {
+    conflict?: ResolvablePublishOverwriteConflict;
+    leafRevision?: string;
+  }
 ): PrepareNormalizedPublishFail {
-  return { ok: false, code, reason, issues, validationIssues };
+  return {
+    ok: false,
+    code,
+    reason,
+    issues,
+    validationIssues,
+    ...(extra?.conflict ? { conflict: extra.conflict } : {}),
+    ...(extra?.leafRevision != null ? { leafRevision: extra.leafRevision } : {}),
+  };
 }
 
 /**
@@ -321,6 +358,10 @@ export function resolveExistingNormalizedLeafBase(args: {
 
 /**
  * Full prepare: existing raw + PublishOperation + PublishFamilyPayload → v3 candidate.
+ *
+ * Phase F-2E:
+ * - CREATE with resolvable same-slot occupancy → RESOLVABLE_PUBLISH_OVERWRITE (no write)
+ * - confirmedOverwrite → remap to existing familyId + UPDATE, with stale revision guard
  */
 export function prepareNormalizedPublishCandidate(args: {
   existingRaw: unknown | null | undefined;
@@ -329,12 +370,124 @@ export function prepareNormalizedPublishCandidate(args: {
   leafMeta: NormalizedLeafMeta;
   exportedAt?: string;
   sourceSnapshotId?: string;
+  /** SHA-256 of current leaf file bytes; required for conflict token / stale check. */
+  leafRevision?: string;
+  /** User-confirmed Family replacement (History snapshot not mutated). */
+  confirmedOverwrite?: ConfirmedPublishOverwrite | null;
 }): PrepareNormalizedPublishResult {
   const base = resolveExistingNormalizedLeafBase({
     raw: args.existingRaw,
     leafMeta: args.leafMeta,
   });
   if (!base.ok) return base;
+
+  const leafRevision = trimStr(args.leafRevision);
+
+  // Confirmed overwrite path: execution-time UPDATE against surviving familyId.
+  if (args.confirmedOverwrite) {
+    const targetFamilyId = trimStr(args.confirmedOverwrite.targetFamilyId);
+    const expected = trimStr(args.confirmedOverwrite.expectedLeafRevision);
+    if (!targetFamilyId || !expected) {
+      return fail("CONFIRMED_OVERWRITE_INVALID", "confirmed-overwrite-incomplete", [
+        !targetFamilyId ? "targetFamilyId:empty" : "",
+        !expected ? "expectedLeafRevision:empty" : "",
+      ].filter(Boolean));
+    }
+    if (!leafRevision || leafRevision !== expected) {
+      return fail(
+        "STALE_LEAF_REVISION",
+        "leaf-revision-mismatch",
+        [
+          `expected:${expected}`,
+          `actual:${leafRevision || "missing"}`,
+        ],
+        undefined,
+        { leafRevision: leafRevision || undefined }
+      );
+    }
+
+    // Re-classify against CURRENT base before write.
+    const classified = classifyResolvablePublishOverwrite({
+      base: base.envelope,
+      operation: args.operation,
+      payload: args.payload,
+    });
+    if (classified.kind !== "RESOLVABLE_PUBLISH_OVERWRITE") {
+      return fail(
+        "CONFIRMED_OVERWRITE_INVALID",
+        "confirmed-overwrite-no-longer-resolvable",
+        [
+          `classify:${classified.kind}`,
+          classified.kind === "HARD_OCCUPANCY_CONFLICT"
+            ? `reason:${classified.reason}`
+            : "no-cross-family-conflict",
+        ],
+        undefined,
+        { leafRevision }
+      );
+    }
+    if (classified.conflict.existingFamilyId !== targetFamilyId) {
+      return fail(
+        "STALE_LEAF_REVISION",
+        "overwrite-target-family-changed",
+        [
+          `expected-target:${targetFamilyId}`,
+          `actual-target:${classified.conflict.existingFamilyId}`,
+        ],
+        undefined,
+        { leafRevision, conflict: classified.conflict }
+      );
+    }
+
+    const remapped = remapPublishFamilyPayloadFamilyId(
+      args.payload,
+      targetFamilyId
+    );
+    if (!remapped.ok) {
+      return fail(
+        "CONFIRMED_OVERWRITE_INVALID",
+        remapped.reason,
+        remapped.issues,
+        undefined,
+        { leafRevision }
+      );
+    }
+
+    const updateOperation: PublishOperation = {
+      schemaVersion: 1,
+      intent: "UPDATE",
+      sourceFamilyId: targetFamilyId,
+      destinationFamilyId: targetFamilyId,
+    };
+
+    const applied = applyPublishFamilyToNormalizedLeaf({
+      existing: base.envelope,
+      operation: updateOperation,
+      payload: remapped.payload,
+      leafMeta: args.leafMeta,
+      exportedAt: args.exportedAt,
+      sourceSnapshotId: args.sourceSnapshotId,
+    });
+    if (!applied.ok) {
+      return fail(
+        applied.code,
+        applied.reason,
+        applied.issues,
+        applied.validationIssues,
+        { leafRevision }
+      );
+    }
+
+    return {
+      ok: true,
+      candidate: applied.envelope,
+      existingKind: base.kind,
+      createRetryReplaced: applied.createRetryReplaced,
+      purgedFamilyIds: applied.purgedFamilyIds,
+      insertedFamilyId: applied.insertedFamilyId,
+      confirmedOverwriteApplied: true,
+    };
+  }
 
   const applied = applyPublishFamilyToNormalizedLeaf({
     existing: base.envelope,
@@ -345,11 +498,39 @@ export function prepareNormalizedPublishCandidate(args: {
     sourceSnapshotId: args.sourceSnapshotId,
   });
   if (!applied.ok) {
+    if (
+      applied.code === "POSITION_STRATEGY_SLOT_CONFLICT" &&
+      args.operation.intent === "CREATE"
+    ) {
+      const classified = classifyResolvablePublishOverwrite({
+        base: base.envelope,
+        operation: args.operation,
+        payload: args.payload,
+      });
+      if (classified.kind === "RESOLVABLE_PUBLISH_OVERWRITE") {
+        return fail(
+          "RESOLVABLE_PUBLISH_OVERWRITE",
+          "resolvable-publish-overwrite",
+          [
+            `existingFamilyId:${classified.conflict.existingFamilyId}`,
+            `incomingFamilyId:${classified.conflict.incomingFamilyId}`,
+            `authored:${classified.conflict.authoredPositionId}|${classified.conflict.authoredSourceSlot}`,
+            `conflicts:${classified.conflict.conflictCount}`,
+          ],
+          applied.validationIssues,
+          {
+            conflict: classified.conflict,
+            leafRevision: leafRevision || undefined,
+          }
+        );
+      }
+    }
     return fail(
       applied.code,
       applied.reason,
       applied.issues,
-      applied.validationIssues
+      applied.validationIssues,
+      { leafRevision: leafRevision || undefined }
     );
   }
 

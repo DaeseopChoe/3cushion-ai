@@ -69,6 +69,18 @@ export type GitPublishClientResult =
       gitStatus?: "PUSHED" | "VERIFIED_NO_CHANGE";
       commit?: string;
       production?: ProductionClientResult;
+      conflict?: {
+        code: "RESOLVABLE_PUBLISH_OVERWRITE";
+        incomingFamilyId: string;
+        existingFamilyId: string;
+        authoredPositionId: string;
+        authoredSourceSlot: string;
+        conflictCount: number;
+        uniquePositionIds: string[];
+        slots: string[];
+        originPairCounts: Record<string, number>;
+      };
+      leafRevision?: string;
     };
 
 function isLocalDevRuntime(): boolean {
@@ -136,6 +148,9 @@ export async function publishDatasetToLocalRepoWithGit(
           systemId: it.systemId,
           publishOperation: it.publishOperation,
           publishFamilyPayload: it.publishFamilyPayload,
+          ...(it.confirmedOverwrite
+            ? { confirmedOverwrite: it.confirmedOverwrite }
+            : {}),
         })),
       }),
     });
@@ -226,6 +241,15 @@ export async function publishDatasetToLocalRepoWithGit(
     gitStatus,
     commit: typeof body.commit === "string" ? body.commit : undefined,
     production,
+    conflict:
+      body.conflict && typeof body.conflict === "object"
+        ? (body.conflict as GitPublishClientResult & {
+            ok: false;
+            hostAvailable: true;
+          })["conflict"]
+        : undefined,
+    leafRevision:
+      typeof body.leafRevision === "string" ? body.leafRevision : undefined,
   };
 }
 

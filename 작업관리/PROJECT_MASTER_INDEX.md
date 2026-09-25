@@ -51,11 +51,12 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase F-2 Real Publish E2E — user retries SAME History Publish (Unexported); F-2C orphan discard COMPLETE · first-touch dry-run PASS |
+| **Next Track** | Phase F-2 real Publish verification — user retries SAME Unexported History after F-2E overwrite UX |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
 | **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict |
 | **Phase F-2C** | ✅ **ORPHAN DISCARD** — Policy D: remove unrecoverable Product-only Family `fm_668fe281…` from 뒤돌리기 v2 leaf · no fake AUTHORED · leaf stays v2 · first-touch dry-run PASS · real Publish still pending |
+| **Phase F-2E** | ✅ **PUBLISH OVERWRITE UX** — resolvable same AUTHORED Position+Slot → user confirm → Family-level replacement; existing Published familyId survives; History immutable; C-0 strict |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -1424,6 +1425,38 @@ v2 → legacy meta repair → strict flat validate → migrate → normalize →
 
 **Phase F-2C COMPLETE:** YES
 **F-2 COMPLETE:** NO (real production E2E still pending)
+
+**Next Track:** User manually retries the **SAME** Unexported History Publish item.
+
+### Phase F-2E — Publish-Time Occupancy Confirmation + Family Replacement (2026-09-25)
+
+**Authority:** 본 절 · CASE A (RESOLVABLE_PUBLISH_OVERWRITE) from F-2D-2 diagnostic
+
+**Evidence (F-2D-2):**
+- Unexported History `0600c4f9…` CREATE `fm_2a1440b5…`
+- AUTHORED `200160600200200200` S1 matches existing `fm_3c75c038…`
+- 4 conflicts (1 AUTHORED↔AUTHORED + 3 SYMMETRY↔SYMMETRY); single existing Family
+
+**Delivered:**
+- `publishOccupancy.ts` — Map `(positionId|sourceSlot)` index; resolvable classifier
+- `prepareNormalizedPublishCandidate` returns `RESOLVABLE_PUBLISH_OVERWRITE` (no write)
+- User confirm → remap payload to existing familyId + UPDATE; History snapshot immutable
+- Stale leaf revision (SHA-256 of leaf bytes) revalidated before confirmed write
+- Cancel → zero write / Unexported
+- Hard fail for derived-only / multi-Family / corruption (no overwrite dialog)
+- UI: `window.confirm` Korean overwrite prompt in `handlePublishSnapshots`
+
+**Contracts:**
+- Local SAVE ≠ Published occupancy authority
+- C-0 remains strict for all Members
+- Occupancy index derived/rebuildable — not SSOT
+- Existing Published familyId survives confirmed replacement
+- No auto S1→S2; no auto overwrite without confirm
+
+**Not done:** real History Publish retry · ADMIN_OPERATION_MANUAL · F-2 COMPLETE
+
+**Phase F-2E COMPLETE:** YES (implementation)
+**F-2 COMPLETE:** NO (awaits real Publish verification)
 
 **Next Track:** User manually retries the **SAME** Unexported History Publish item.
 

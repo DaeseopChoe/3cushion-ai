@@ -223,7 +223,7 @@ describe("Phase D-2 publishedLeafPrepare", () => {
     expect(converted.code).toBe("V2_CONVERSION_FAILED");
   });
 
-  it("C-0 collision on CREATE after v2 convert → REJECT", () => {
+  it("C-0 collision on CREATE after v2 convert → RESOLVABLE_PUBLISH_OVERWRITE", () => {
     const existing = flatLeaf([
       position(ballsP1, {
         S1: entry("S1", { familyId: FM_A, memberId: "mb_a1" }),
@@ -238,10 +238,13 @@ describe("Phase D-2 publishedLeafPrepare", () => {
         }),
       ]),
       leafMeta: LEAF_META,
+      leafRevision: "rev-test",
     });
     expect(prepared.ok).toBe(false);
     if (prepared.ok) return;
-    expect(prepared.code).toBe("POSITION_STRATEGY_SLOT_CONFLICT");
+    expect(prepared.code).toBe("RESOLVABLE_PUBLISH_OVERWRITE");
+    expect(prepared.conflict?.existingFamilyId).toBe(FM_A);
+    expect(prepared.conflict?.incomingFamilyId).toBe(FM_B);
   });
 
   it("native v3 → v3 UPDATE path (no flat rematerialize)", () => {

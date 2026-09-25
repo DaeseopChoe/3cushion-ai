@@ -68,6 +68,21 @@ describe("Phase D-3 — History ONE Publish UX", () => {
     expect(body).not.toContain("개 Git Publish");
   });
 
+  it("F-2E resolvable overwrite: confirm dialog; cancel leaves Unexported; no History mutate", () => {
+    const fnStart = settings.indexOf("const handlePublishSnapshots");
+    const fnEnd = settings.indexOf("const handleRepoOnlyPublishSnapshots");
+    const body = settings.slice(fnStart, fnEnd);
+    expect(body).toContain("resolvable-publish-overwrite");
+    expect(body).toContain("window.confirm");
+    expect(body).toContain("덮어쓰시겠습니까");
+    expect(body).toContain("confirmedOverwrite");
+    expect(body).toContain("publish-overwrite-cancelled");
+    expect(body).toContain("expectedLeafRevision");
+    // Snapshot fields are not rewritten for overwrite
+    expect(body).not.toContain("publishOperation.intent =");
+    expect(body).not.toContain("snap.publishOperation");
+  });
+
   it("in-flight lock prevents duplicate Publish invocation", () => {
     expect(settings).toContain("publishInFlightRef");
     expect(settings).toContain('reason: "publish-in-flight"');

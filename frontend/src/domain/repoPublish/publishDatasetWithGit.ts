@@ -9,12 +9,14 @@ import path from "node:path";
 import { DATASET_ROOT_DIR } from "../datasetPath";
 import type { PublishFamilyPayload } from "../publishFamilyPayload";
 import type { PublishOperation } from "../publishOperation";
+import type { ConfirmedPublishOverwrite } from "../publishedLeafPrepare";
 import {
   rejectClientPathOrCommandFields,
   publishDatasetBatchToRepo,
   type LocalPublishBatchItem,
   type LocalPublishBatchItemResult,
 } from "./publishDatasetToRepo";
+import type { ResolvablePublishOverwriteConflict } from "../publishOccupancy";
 import { resolvePublishedLeafAbsolutePath } from "./resolveRepoLeafPath";
 import {
   buildGitCommitMessage,
@@ -36,6 +38,7 @@ export type GitPublishItem = {
   systemId: string;
   publishOperation: PublishOperation;
   publishFamilyPayload: PublishFamilyPayload;
+  confirmedOverwrite?: ConfirmedPublishOverwrite | null;
 };
 
 export type GitPublishOrchestrationOk = {
@@ -63,6 +66,8 @@ export type GitPublishOrchestrationFail = {
   gitStatus?: "PUSHED" | "VERIFIED_NO_CHANGE";
   commit?: string;
   production?: ProductionVerifyResult;
+  conflict?: ResolvablePublishOverwriteConflict;
+  leafRevision?: string;
 };
 
 export type GitPublishOrchestrationResult =
@@ -229,6 +234,7 @@ export async function publishDatasetBatchWithGit(args: {
     systemId: it.systemId,
     publishOperation: it.publishOperation,
     publishFamilyPayload: it.publishFamilyPayload,
+    confirmedOverwrite: it.confirmedOverwrite ?? null,
   }));
   const results = publishDatasetBatchToRepo({
     datasetRoot,
@@ -238,8 +244,12 @@ export async function publishDatasetBatchWithGit(args: {
   const anyFail = results.some((r) => !r.ok);
   if (anyFail) {
     const issues: string[] = [];
+    let resolvable: LocalPublishBatchItemResult | undefined;
     for (const r of results) {
       if (r.ok !== false) continue;
+      if (r.reason === "resolvable-publish-overwrite") {
+        resolvable = r;
+      }
       issues.push(`${r.snapshotId}:${r.reason}`);
       if (Array.isArray(r.issues)) {
         for (const detail of r.issues) {
@@ -247,6 +257,24 @@ export async function publishDatasetBatchWithGit(args: {
           if (s) issues.push(s);
         }
       }
+    }
+    if (
+      resolvable &&
+      resolvable.ok === false &&
+      resolvable.reason === "resolvable-publish-overwrite"
+    ) {
+      return {
+        ok: false,
+        reason: "resolvable-publish-overwrite",
+        issues,
+        status: "RESOLVABLE_PUBLISH_OVERWRITE",
+        results,
+        repoWritten: false,
+        conflict:
+          "conflict" in resolvable ? resolvable.conflict : undefined,
+        leafRevision:
+          "leafRevision" in resolvable ? resolvable.leafRevision : undefined,
+      };
     }
     return {
       ok: false,
@@ -441,6 +469,23 @@ export async function handleGitPublishHttpBody(args: {
         },
       };
     }
+    let confirmedOverwrite: ConfirmedPublishOverwrite | null = null;
+    if (
+      entry.confirmedOverwrite != null &&
+      typeof entry.confirmedOverwrite === "object" &&
+      !Array.isArray(entry.confirmedOverwrite)
+    ) {
+      const co = entry.confirmedOverwrite as Record<string, unknown>;
+      const targetFamilyId =
+        typeof co.targetFamilyId === "string" ? co.targetFamilyId.trim() : "";
+      const expectedLeafRevision =
+        typeof co.expectedLeafRevision === "string"
+          ? co.expectedLeafRevision.trim()
+          : "";
+      if (targetFamilyId && expectedLeafRevision) {
+        confirmedOverwrite = { targetFamilyId, expectedLeafRevision };
+      }
+    }
     items.push({
       snapshotId,
       shotType:
@@ -450,6 +495,7 @@ export async function handleGitPublishHttpBody(args: {
       publishOperation: entry.publishOperation as PublishOperation,
       publishFamilyPayload:
         entry.publishFamilyPayload as PublishFamilyPayload,
+      confirmedOverwrite,
     });
   }
 

@@ -10,11 +10,13 @@
  */
 
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import { systemIdToFolderLabel } from "../datasetPath";
 import type { NormalizedDatasetEnvelope } from "../dataset/normalizedDatasetEnvelope";
 import {
   prepareNormalizedPublishCandidate,
   resolveExistingNormalizedLeafBase,
+  type ConfirmedPublishOverwrite,
 } from "../publishedLeafPrepare";
 import { normalizedPublishedLeavesSemanticallyEqual } from "../publishedNormalizedLeafMutation";
 import {
@@ -26,6 +28,7 @@ import {
   validatePublishOperation,
   type PublishOperation,
 } from "../publishOperation";
+import type { ResolvablePublishOverwriteConflict } from "../publishOccupancy";
 import { resolvePublishedLeafAbsolutePath } from "./resolveRepoLeafPath";
 import { writeVerifiedPublishedLeafFs } from "./writeVerifiedPublishedLeafFs";
 
@@ -38,6 +41,8 @@ export type LocalPublishLeafRequest = {
   publishFamilyPayload: PublishFamilyPayload;
   /** Optional correlation id (History snapshot). Never written to disk. */
   snapshotId?: string;
+  /** User-confirmed Family replacement (execution-time only). */
+  confirmedOverwrite?: ConfirmedPublishOverwrite | null;
 };
 
 export type LocalPublishLeafOk = {
@@ -61,6 +66,8 @@ export type LocalPublishLeafFail = {
   issues: string[];
   restored?: boolean;
   restoreFailed?: boolean;
+  conflict?: ResolvablePublishOverwriteConflict;
+  leafRevision?: string;
 };
 
 export type LocalPublishLeafResult = LocalPublishLeafOk | LocalPublishLeafFail;
@@ -75,6 +82,13 @@ export type LocalPublishBatchItemResult = {
 
 function trimStr(raw: unknown): string {
   return typeof raw === "string" ? raw.trim() : "";
+}
+
+/** Stable leaf content revision for stale-overwrite guard (file bytes). */
+export function hashLeafRevision(originalText: string | null | undefined): string {
+  return createHash("sha256")
+    .update(originalText ?? "", "utf8")
+    .digest("hex");
 }
 
 function stripVolatile(
@@ -230,6 +244,7 @@ export function publishDatasetLeafToRepo(args: {
   }
 
   const leafMeta = { shotType, systemId, systemLabel };
+  const leafRevision = hashLeafRevision(existing.originalText);
   const prepared = prepareNormalizedPublishCandidate({
     existingRaw: existing.raw,
     operation: opResult.operation,
@@ -237,12 +252,18 @@ export function publishDatasetLeafToRepo(args: {
     leafMeta,
     exportedAt: new Date().toISOString(),
     sourceSnapshotId: request.snapshotId,
+    leafRevision,
+    confirmedOverwrite: request.confirmedOverwrite ?? null,
   });
   if (!prepared.ok) {
     return {
       ok: false,
       reason: prepared.reason,
       issues: prepared.issues,
+      ...(prepared.conflict ? { conflict: prepared.conflict } : {}),
+      ...(prepared.leafRevision
+        ? { leafRevision: prepared.leafRevision }
+        : { leafRevision }),
     };
   }
 
@@ -449,6 +470,9 @@ function publishSameLeafGroupInMemory(args: {
       leafMeta,
       exportedAt: new Date().toISOString(),
       sourceSnapshotId: item.snapshotId,
+      // Stale guard is against on-disk leaf bytes at batch start.
+      leafRevision: hashLeafRevision(existing.originalText),
+      confirmedOverwrite: item.confirmedOverwrite ?? null,
     });
     if (!prepared.ok) {
       const failIdx = group.indexOf(item);
@@ -466,6 +490,9 @@ function publishSameLeafGroupInMemory(args: {
         ok: false,
         reason: prepared.reason,
         issues: prepared.issues,
+        ...(prepared.conflict ? { conflict: prepared.conflict } : {}),
+        leafRevision:
+          prepared.leafRevision ?? hashLeafRevision(existing.originalText),
       });
       for (let i = failIdx + 1; i < group.length; i++) {
         results.push({
@@ -653,12 +680,26 @@ export function handleLocalPublishHttpBody(args: {
         },
       };
     }
+    let confirmedOverwrite: ConfirmedPublishOverwrite | null = null;
+    if (
+      it.confirmedOverwrite != null &&
+      typeof it.confirmedOverwrite === "object" &&
+      !Array.isArray(it.confirmedOverwrite)
+    ) {
+      const co = it.confirmedOverwrite as Record<string, unknown>;
+      const targetFamilyId = trimStr(co.targetFamilyId);
+      const expectedLeafRevision = trimStr(co.expectedLeafRevision);
+      if (targetFamilyId && expectedLeafRevision) {
+        confirmedOverwrite = { targetFamilyId, expectedLeafRevision };
+      }
+    }
     items.push({
       snapshotId,
       shotType,
       systemId,
       publishOperation: it.publishOperation as PublishOperation,
       publishFamilyPayload: it.publishFamilyPayload as PublishFamilyPayload,
+      confirmedOverwrite,
     });
   }
 

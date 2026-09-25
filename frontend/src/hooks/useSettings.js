@@ -477,6 +477,109 @@ export function useSettings({
       }
 
       const result = await publishDatasetToLocalRepoWithGit(items);
+
+      // Phase F-2E: resolvable same-slot occupancy → user confirmation → Family replacement.
+      if (
+        !result.ok &&
+        result.hostAvailable &&
+        (result.reason === "resolvable-publish-overwrite" ||
+          result.status === "RESOLVABLE_PUBLISH_OVERWRITE")
+      ) {
+        const conflict = result.conflict;
+        const leafRevision = result.leafRevision;
+        const slot = conflict?.authoredSourceSlot || "S1";
+        const confirmed = window.confirm(
+          `컴퓨터에 저장된 데이터에 동일한 Position의 ${slot} 전략이 이미 있습니다.\n\n` +
+            `덮어쓰면 기존 Published Family가 현재 데이터로 교체됩니다.\n\n` +
+            `기존 ${slot} 전략을 현재 데이터로 덮어쓰시겠습니까?`
+        );
+        if (!confirmed) {
+          // Cancel: zero write / History remains Unexported / Local intact.
+          return {
+            ok: false,
+            successfulIds: [],
+            reason: "publish-overwrite-cancelled",
+          };
+        }
+        if (!conflict?.existingFamilyId || !leafRevision) {
+          alert(
+            `Publish가 완료되지 않았습니다.\n` +
+              `덮어쓰기 확인에 필요한 정보가 부족합니다.\n` +
+              `Published 완료로 표시하지 않았습니다.`
+          );
+          return {
+            ok: false,
+            successfulIds: [],
+            reason: "confirmed-overwrite-incomplete",
+          };
+        }
+
+        const retryItems = items.map((it) => ({
+          ...it,
+          confirmedOverwrite: {
+            targetFamilyId: conflict.existingFamilyId,
+            expectedLeafRevision: leafRevision,
+          },
+        }));
+        const retry = await publishDatasetToLocalRepoWithGit(retryItems);
+        if (retry.ok && retry.status === "PRODUCTION_VERIFIED") {
+          /** @type {string[]} */
+          const successfulIds = retryItems.map((it) => it.snapshotId);
+          for (const it of retryItems) {
+            refreshPublishedDataset(it.shotType, it.systemId);
+          }
+          refreshPublishedDataset();
+          updateSnapshotsExported(successfulIds);
+          setWorkspaceHistoryVersion((v) => v + 1);
+          const sha = retry.commit ? `HEAD: ${retry.commit.slice(0, 7)}\n` : "";
+          if (retry.gitStatus === "VERIFIED_NO_CHANGE") {
+            alert(
+              `Publish 완료\n` +
+                `기존 전략을 덮어썼습니다.\n` +
+                `저장소에 추가 변경은 없었습니다.\n` +
+                `Published 데이터 검증까지 완료되었습니다.\n` +
+                sha
+            );
+          } else {
+            alert(
+              `Publish 완료\n` +
+                `기존 전략을 덮어썼습니다.\n` +
+                `Published 데이터 검증까지 완료되었습니다.\n` +
+                sha
+            );
+          }
+          return { ok: true, successfulIds };
+        }
+
+        const retryStatus =
+          retry.production?.status ?? retry.status ?? retry.reason ?? "";
+        const retryStage = formatPublishFailureStage(retry);
+        const retryHint = formatPublishRetryHint(retry);
+        alert(
+          [
+            "Publish가 완료되지 않았습니다.",
+            "덮어쓰기 확인 후 재시도에서 실패했습니다.",
+            retryStage,
+            retry.reason ? `원인: ${retry.reason}` : "",
+            Array.isArray(retry.issues) && retry.issues.length > 0
+              ? retry.issues.slice(0, 12).join("\n")
+              : "",
+            retryStatus && retryStatus !== retry.reason
+              ? `상태: ${retryStatus}`
+              : "",
+            "Published 완료로 표시하지 않았습니다.",
+            retryHint,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        );
+        return {
+          ok: false,
+          successfulIds: [],
+          reason: String(retry.reason ?? retry.status ?? "publish-failed"),
+        };
+      }
+
       if (!result.hostAvailable) {
         alert(
           `Publish가 완료되지 않았습니다.\n` +

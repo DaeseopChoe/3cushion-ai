@@ -224,6 +224,42 @@ export function readPublishFamilyPayloadFromSnapshot(
   return validatePublishFamilyPayload(snapshot.publishFamilyPayload);
 }
 
+/**
+ * Phase F-2E — remap snapshot-bound payload to surviving Published familyId
+ * for confirmed Family-level replacement. Does not mutate input.
+ * History snapshot remains unchanged; remap is Publish-execution only.
+ */
+export function remapPublishFamilyPayloadFamilyId(
+  payload: PublishFamilyPayload,
+  survivingFamilyId: string
+): ValidatePublishFamilyPayloadResult {
+  const surviving = trimId(survivingFamilyId);
+  if (!isValidFamilyId(surviving)) {
+    return {
+      ok: false,
+      reason: "surviving-family-invalid",
+      issues: ["survivingFamilyId:invalid"],
+    };
+  }
+  const validated = validatePublishFamilyPayload(payload);
+  if (!validated.ok) return validated;
+
+  const records = deepCloneRecords(validated.payload.records);
+  for (const rec of records) {
+    for (const slot of SLOT_IDS) {
+      const entry = rec.strategies?.[slot];
+      if (!entry) continue;
+      entry.familyId = surviving;
+    }
+  }
+
+  return validatePublishFamilyPayload({
+    schemaVersion: PUBLISH_FAMILY_PAYLOAD_SCHEMA_VERSION,
+    familyId: surviving,
+    records,
+  });
+}
+
 export function crossValidateOperationAndPayload(
   operation: PublishOperation,
   payload: PublishFamilyPayload
