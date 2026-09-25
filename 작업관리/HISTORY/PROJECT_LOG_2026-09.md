@@ -6,6 +6,43 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-25 — Phase F-2G-2 Reconcile Partial Publish + assume-unchanged Visibility
+
+## Mode
+
+**Agent** · recover already-written confirmed-overwrite WT · no user Publish retry
+
+## Facts
+
+Failed Publish had already written WT candidate (v3) for snapshot
+`0600c4f9…` remapped onto surviving `fm_3c75c038…`.
+`assume-unchanged` hid dirty from porcelain → `expected-target-not-dirty`.
+
+## Delivered
+
+- Semantic+byte validation of WT vs reconstructed prepare candidate: PASS
+- Target-scoped `git update-index --no-assume-unchanged`
+- Data commit + push: `data(admin): publish 뒤돌리기/파이브앤하프`
+- PRODUCTION_VERIFIED against www.3cushionai.com
+- Pipeline prevention: `clearAssumeUnchangedForTargets` inside
+  `verifyPostWriteWorkingTree` (no restore; obsolete flag)
+
+## History
+
+Browser `workspace_history` exported flag NOT mutated from Agent
+(Chrome LS is outside Cursor). Remains Unexported until UI reconciliation.
+
+## Local UX
+
+Still frozen (S1/S2/S3 / overwrite eligibility) — separate phase.
+
+## Commits
+
+- data: `data(admin): publish 뒤돌리기/파이브앤하프`
+- fix: target-scoped assume-unchanged visibility for Publish
+
+---
+
 # 2026-09-25 — Phase F-2F Preserve Publish Overwrite Conflict Through Local Git Client
 
 ## Mode

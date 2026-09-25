@@ -345,6 +345,16 @@ export async function verifyPostWriteWorkingTree(args: {
   baselineDirtyPaths: string[];
   changedTargets: string[];
 }): Promise<{ ok: true } | GitFail> {
+  // F-2G-2: assume-unchanged hides WT changes from porcelain and falsely
+  // trips expected-target-not-dirty after a real verified write.
+  // Clear ONLY the Publish changedTargets (never global). Do not restore —
+  // no project policy intentionally keeps dataset leaves assume-unchanged.
+  const visibility = await clearAssumeUnchangedForTargets(
+    args.repoRoot,
+    args.changedTargets
+  );
+  if (!visibility.ok) return visibility;
+
   const statusRes = await gitExec(args.repoRoot, ["status", "--porcelain"]);
   if (!statusRes.ok) {
     return {
@@ -377,6 +387,46 @@ export async function verifyPostWriteWorkingTree(args: {
         issues: [`missing-dirty:${t}`],
       };
     }
+  }
+  return { ok: true };
+}
+
+/**
+ * Target-scoped: clear assume-unchanged (and skip-worktree) so porcelain
+ * can observe Publish writes. Paths must already be dataset leaf targets.
+ */
+export async function clearAssumeUnchangedForTargets(
+  repoRoot: string,
+  targets: string[]
+): Promise<{ ok: true } | GitFail> {
+  const list = uniqSorted(targets.map(toPosix).filter(Boolean));
+  if (list.length === 0) return { ok: true };
+  for (const t of list) {
+    if (
+      !t.startsWith(`${DATASET_ROOT_DIR}/`) ||
+      t.includes("..") ||
+      t.includes(":")
+    ) {
+      return {
+        ok: false,
+        reason: "assume-unchanged-clear-path-invalid",
+        issues: [`path:unsafe:${t}`],
+      };
+    }
+  }
+  const res = await gitExec(repoRoot, [
+    "update-index",
+    "--no-assume-unchanged",
+    "--no-skip-worktree",
+    "--",
+    ...list,
+  ]);
+  if (!res.ok) {
+    return {
+      ok: false,
+      reason: "assume-unchanged-clear-failed",
+      issues: res.issues,
+    };
   }
   return { ok: true };
 }

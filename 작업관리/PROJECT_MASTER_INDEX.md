@@ -51,13 +51,14 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase F-2 real Publish verification — user retries SAME Unexported History after F-2F conflict-preserve fix |
+| **Next Track** | Phase F-2 History exported reconciliation + Local UX (slot/overwrite) — Publish leaf PRODUCTION_VERIFIED |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
 | **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict |
 | **Phase F-2C** | ✅ **ORPHAN DISCARD** — Policy D: remove unrecoverable Product-only Family `fm_668fe281…` from 뒤돌리기 v2 leaf · no fake AUTHORED · leaf stays v2 · first-touch dry-run PASS · real Publish still pending |
 | **Phase F-2E** | ✅ **PUBLISH OVERWRITE UX** — resolvable same AUTHORED Position+Slot → user confirm → Family-level replacement; existing Published familyId survives; History immutable; C-0 strict |
 | **Phase F-2F** | ✅ **CLIENT CONFLICT PRESERVE** — Git browser client keeps top-level `conflict` + `leafRevision` (nested `["conflict"]` parse bug fixed) |
+| **Phase F-2G-2** | ✅ **PARTIAL PUBLISH RECOVERED** — WT v3 candidate validated · assume-unchanged cleared target-scoped · data commit/push · PRODUCTION_VERIFIED · History exported pending UI reconcile |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -1477,6 +1478,23 @@ No useSettings fallback reconstruction. History/dataset untouched.
 **F-2 COMPLETE:** NO (awaits real Publish verification)
 
 **Next Track:** User manually retries SAME Unexported History Publish → 확인.
+
+### Phase F-2G-2 — Reconcile Partial Publish Candidate + assume-unchanged Visibility (2026-09-25)
+
+**Authority:** 본 절 · F-2G-1 exact Git truth
+
+**Cause:** Confirmed overwrite wrote WT v3 candidate; `assume-unchanged` hid porcelain dirty → `expected-target-not-dirty`. Not a C-0 failure.
+
+**Recovery:** Semantic+byte match to reconstructed prepare candidate → clear target flag → commit/push leaf → PRODUCTION_VERIFIED.
+
+**Prevention:** `clearAssumeUnchangedForTargets` in `verifyPostWriteWorkingTree` (target-scoped; no restore; no project policy for permanent assume-unchanged on dataset leaves).
+
+**History:** exported still false in browser LS (Agent cannot safely mutate Chrome localStorage). Reconcile via UI helper after PRODUCTION_VERIFIED — do not re-Publish.
+
+**Phase F-2G-2 COMPLETE:** YES (repo/production)
+**F-2 COMPLETE:** NO until History exported reconciled + Local UX phase
+
+**Next Track:** Mark snapshot `0600c4f9…` exported via supported post-PRODUCTION_VERIFIED path; then Local S1/S2/S3 UX.
 
 **Production SSOT (검증 완료, 2026-06):**
 

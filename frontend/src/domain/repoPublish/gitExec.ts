@@ -39,6 +39,8 @@ const ALLOWED_GIT_SUBCOMMANDS = new Set([
   "log",
   "symbolic-ref",
   "merge-base",
+  /** F-2G-2 — target-scoped assume-unchanged clear for Publish dirty visibility */
+  "update-index",
 ]);
 
 /**

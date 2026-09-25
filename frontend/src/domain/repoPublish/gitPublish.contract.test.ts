@@ -16,10 +16,12 @@ import type { PublishOperation } from "../publishOperation";
 import type { PublishFamilyPayload } from "../publishFamilyPayload";
 import {
   buildGitCommitMessage,
+  clearAssumeUnchangedForTargets,
   parsePorcelainStatus,
   runGitPreflight,
   stageCommitAndPush,
   validateGitTargetPaths,
+  verifyPostWriteWorkingTree,
 } from "./gitPublish";
 import { publishDatasetBatchWithGit } from "./publishDatasetWithGit";
 import { handleGitPublishHttpBody } from "./publishDatasetWithGit";
@@ -603,6 +605,99 @@ describe("gitPublish temp-repo integration", () => {
     expect(headNow).not.toBe(headBefore);
   },
     60_000
+  );
+
+  it(
+    "F-2G-2 — assume-unchanged target becomes visible after clear; unrelated flag preserved",
+    async () => {
+      const env = makeTempGitEnv();
+      const leafRel = "dataset/뒤돌리기/파이브앤하프/positions.json";
+      const otherRel = "dataset/other/leaf/positions.json";
+      const leafAbs = path.join(env.work, ...leafRel.split("/"));
+      const otherDir = path.join(env.work, "dataset", "other", "leaf");
+      fs.mkdirSync(otherDir, { recursive: true });
+      const otherAbs = path.join(otherDir, "positions.json");
+      fs.writeFileSync(otherAbs, '{"schemaVersion":2,"records":[]}\n', "utf8");
+      git(env.work, ["add", "--", otherRel]);
+      git(env.work, ["commit", "-m", "add other leaf"]);
+      git(env.work, ["push", "origin", "main"]);
+
+      git(env.work, ["update-index", "--assume-unchanged", "--", leafRel]);
+      git(env.work, ["update-index", "--assume-unchanged", "--", otherRel]);
+      expect(
+        git(env.work, ["ls-files", "-v", "--", leafRel]).trim().startsWith("h")
+      ).toBe(true);
+      expect(
+        git(env.work, ["ls-files", "-v", "--", otherRel]).trim().startsWith("h")
+      ).toBe(true);
+
+      const beforeHash = git(env.work, ["hash-object", "--", leafRel]).trim();
+      fs.writeFileSync(
+        leafAbs,
+        fs.readFileSync(leafAbs, "utf8") + "\n",
+        "utf8"
+      );
+      const afterHash = git(env.work, ["hash-object", "--", leafRel]).trim();
+      expect(afterHash).not.toBe(beforeHash);
+
+      const hidden = git(env.work, [
+        "status",
+        "--porcelain",
+        "--",
+        leafRel,
+      ]).trim();
+      expect(hidden).toBe("");
+
+      const cleared = await clearAssumeUnchangedForTargets(env.work, [leafRel]);
+      expect(cleared.ok).toBe(true);
+      expect(
+        git(env.work, ["ls-files", "-v", "--", leafRel]).trim().startsWith("H")
+      ).toBe(true);
+      expect(
+        git(env.work, ["ls-files", "-v", "--", otherRel]).trim().startsWith("h")
+      ).toBe(true);
+
+      const post = await verifyPostWriteWorkingTree({
+        repoRoot: env.work,
+        baselineDirtyPaths: [],
+        changedTargets: [leafRel],
+      });
+      expect(post.ok).toBe(true);
+
+      // Target-only stage (no broad add) — same contract as Publish pipeline
+      git(env.work, ["add", "--", leafRel]);
+      const stagedNames = git(env.work, [
+        "diff",
+        "--cached",
+        "--name-only",
+      ])
+        .split(/\r?\n/)
+        .map((l) => l.trim().replace(/\\/g, "/"))
+        .filter(Boolean);
+      expect(stagedNames).toEqual([leafRel]);
+      expect(stagedNames).not.toContain(otherRel);
+    },
+    60_000
+  );
+
+  it(
+    "F-2G-2 — expected-target-not-dirty still fires when claimed write did not dirty",
+    async () => {
+      const env = makeTempGitEnv();
+      const leafRel = "dataset/뒤돌리기/파이브앤하프/positions.json";
+      const post = await verifyPostWriteWorkingTree({
+        repoRoot: env.work,
+        baselineDirtyPaths: [],
+        changedTargets: [leafRel],
+      });
+      expect(post.ok).toBe(false);
+      if (post.ok) return;
+      expect(post.reason).toBe("expected-target-not-dirty");
+      expect(post.issues?.some((i) => i.startsWith("missing-dirty:"))).toBe(
+        true
+      );
+    },
+    30_000
   );
 });
 

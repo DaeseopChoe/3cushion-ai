@@ -571,33 +571,37 @@ describe("real leaf dry-run (read-only; no dataset write)", () => {
     return normalizeDatasetExport(raw);
   }
 
-  it("뒤돌리기 — F-2C orphan discarded; meta repair + convert PASS (5 Families)", () => {
-    const flat = loadLeaf(path.join("뒤돌리기", "파이브앤하프"));
-    expect(flat.schemaVersion).toBe(2);
-    expect(flat.records.length).toBe(1892);
-    const beforeMissing = countLegacyV2MissingMeta(flat);
-    expect(beforeMissing).toBe(548);
-
-    const repaired = repairLegacyV2MissingMeta(flat);
-    expect(repaired.ok).toBe(true);
-    if (!repaired.ok) return;
-    expect(repaired.repairedCount).toBe(548);
-    expect(countLegacyV2MissingMeta(repaired.payload)).toBe(0);
-
-    const validated = validatePublishedExportCandidate(repaired.payload);
-    expect(validated.ok).toBe(true);
-
-    // F-2C: unrecoverable Product-only Family removed — first-touch now completes.
-    const converted = convertFlatDatasetExportToNormalizedLeaf(flat);
-    expect(converted.ok).toBe(true);
-    if (!converted.ok) return;
-    expect(converted.envelope.schemaVersion).toBe(3);
-    expect(converted.envelope.familyMasters.length).toBe(5);
-    expect(converted.envelope.familyMembers.length).toBe(1896);
-    const authored = converted.envelope.familyMembers.filter(
-      (m) => m.memberOrigin === "AUTHORED"
+  it("뒤돌리기 — F-2G-2 leaf is normalized v3; surviving Families intact (no v2 repair path)", () => {
+    const abs = path.join(
+      repoRoot,
+      "dataset",
+      "뒤돌리기",
+      "파이브앤하프",
+      "positions.json"
     );
-    expect(authored.length).toBe(5);
+    const raw = JSON.parse(fs.readFileSync(abs, "utf8"));
+    expect(raw.schemaVersion).toBe(3);
+    expect(raw.sourceSnapshotId).toBe(
+      "0600c4f9-6e14-4132-8e57-cabbf09bbb34"
+    );
+    expect(Array.isArray(raw.familyMasters)).toBe(true);
+    expect(Array.isArray(raw.familyMembers)).toBe(true);
+    expect(raw.familyMasters.length).toBe(5);
+    expect(raw.familyMembers.length).toBe(1460);
+    const surviving = "fm_3c75c038-dbd9-42b9-b8e2-2a10fd20c1f5";
+    const incoming = "fm_2a1440b5-6c93-40b5-a797-b10ef12aac99";
+    expect(raw.familyMasters.some((m: { familyId: string }) => m.familyId === surviving)).toBe(
+      true
+    );
+    expect(raw.familyMasters.some((m: { familyId: string }) => m.familyId === incoming)).toBe(
+      false
+    );
+    const authored = raw.familyMembers.filter(
+      (m: { memberOrigin?: string; familyId?: string }) =>
+        m.familyId === surviving && m.memberOrigin === "AUTHORED"
+    );
+    expect(authored.length).toBe(1);
+    expect(authored[0].sourceSlot).toBe("S1");
   });
 
   it("옆돌리기 — 252 missing meta → repair + convert PASS · C-0 clean", () => {
