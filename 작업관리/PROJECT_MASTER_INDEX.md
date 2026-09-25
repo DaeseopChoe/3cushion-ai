@@ -51,10 +51,11 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase F-2C — first-touch `NO_AUTHORED_SEED` blocker (뒤돌리기 Product-only family); F-2B meta repair COMPLETE · real Publish still pending |
+| **Next Track** | Phase F-2 Real Publish E2E — user retries SAME History Publish (Unexported); F-2C orphan discard COMPLETE · first-touch dry-run PASS |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
-| **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict · 뒤돌리기 next: `NO_AUTHORED_SEED` |
+| **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict |
+| **Phase F-2C** | ✅ **ORPHAN DISCARD** — Policy D: remove unrecoverable Product-only Family `fm_668fe281…` from 뒤돌리기 v2 leaf · no fake AUTHORED · leaf stays v2 · first-touch dry-run PASS · real Publish still pending |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -1391,10 +1392,40 @@ Repository leaves: writer = v3; checked-in leaves may remain v2 until first-touc
 - F-2 COMPLETE
 
 **Phase F-2B (meta gate) COMPLETE:** YES
-**First-touch fully unblocked for 뒤돌리기:** NO (`NO_AUTHORED_SEED`)
+**First-touch fully unblocked for 뒤돌리기:** NO (`NO_AUTHORED_SEED` → resolved in F-2C)
 
 **Next Track:** Phase F-2C — resolve Product-only family AUTHORED-seed migration
 (or offline leaf disposition) before user retries same History Publish.
+
+### Phase F-2C — Discard Unrecoverable Orphan Product Family (2026-09-25)
+
+**Authority:** 본 절 · Policy D (user chose discard orphan Product-only Family) · no architecture change
+
+**Target:** `dataset/뒤돌리기/파이브앤하프/positions.json` (schemaVersion **2** kept on purpose)
+
+**Orphan:** `fm_668fe281-7b09-4a97-b7c3-594315ea104d`
+- 336 StrategyEntry · DERIVED_CUE_C3_PRODUCT only · AUTHORED/SYMMETRY/CUE_IMPACT/C3_PLUS = 0
+- `generatedFromMemberId` → 4 missing parents · true upstream AUTHORED unrecoverable
+- current producer cannot create this structure · historical incomplete / obsolete test corpus
+
+**Disposition:**
+- deleted by `familyId` only (336 entries / empty PositionRecords pruned)
+- **no** Product→AUTHORED fabrication · **no** identity rewrite · **no** validator weaken
+- F-2B meta repair remains **in-memory** first-touch only (not persisted into v2 leaf)
+- healthy 5 Families preserved (each exactly one AUTHORED)
+
+**Counts:** PositionRecords 2228→1892 · StrategyEntries 2232→1896 · Families 6→5
+
+**In-memory first-touch after edit:**
+v2 → legacy meta repair → strict flat validate → migrate → normalize → parse → **PASS**
+(Masters=5 · Members=1896 · AUTHORED=5 · C-0 PASS · generatedFrom PASS)
+
+**Not done:** real History Publish · repo v3 write · Git deploy · PRODUCTION_VERIFIED · Published Search smoke
+
+**Phase F-2C COMPLETE:** YES
+**F-2 COMPLETE:** NO (real production E2E still pending)
+
+**Next Track:** User manually retries the **SAME** Unexported History Publish item.
 
 **Production SSOT (검증 완료, 2026-06):**
 

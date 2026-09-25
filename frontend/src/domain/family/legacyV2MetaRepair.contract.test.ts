@@ -571,30 +571,33 @@ describe("real leaf dry-run (read-only; no dataset write)", () => {
     return normalizeDatasetExport(raw);
   }
 
-  it("뒤돌리기 — meta gate cleared; next blocker NO_AUTHORED_SEED (do not expand)", () => {
+  it("뒤돌리기 — F-2C orphan discarded; meta repair + convert PASS (5 Families)", () => {
     const flat = loadLeaf(path.join("뒤돌리기", "파이브앤하프"));
-    expect(flat.records.length).toBe(2228);
+    expect(flat.schemaVersion).toBe(2);
+    expect(flat.records.length).toBe(1892);
     const beforeMissing = countLegacyV2MissingMeta(flat);
-    expect(beforeMissing).toBe(884);
+    expect(beforeMissing).toBe(548);
 
     const repaired = repairLegacyV2MissingMeta(flat);
     expect(repaired.ok).toBe(true);
     if (!repaired.ok) return;
-    expect(repaired.repairedCount).toBe(884);
+    expect(repaired.repairedCount).toBe(548);
     expect(countLegacyV2MissingMeta(repaired.payload)).toBe(0);
 
-    // Strict flat validation now PASSES after meta repair.
     const validated = validatePublishedExportCandidate(repaired.payload);
     expect(validated.ok).toBe(true);
 
-    // Next hidden blocker (out of F-2B meta scope): Product-only family lacks AUTHORED seed.
+    // F-2C: unrecoverable Product-only Family removed — first-touch now completes.
     const converted = convertFlatDatasetExportToNormalizedLeaf(flat);
-    expect(converted.ok).toBe(false);
-    if (converted.ok) return;
-    expect(converted.reason).toBe("flat-migrate-failed");
-    expect(
-      converted.issues.some((i) => i.includes("NO_AUTHORED_SEED"))
-    ).toBe(true);
+    expect(converted.ok).toBe(true);
+    if (!converted.ok) return;
+    expect(converted.envelope.schemaVersion).toBe(3);
+    expect(converted.envelope.familyMasters.length).toBe(5);
+    expect(converted.envelope.familyMembers.length).toBe(1896);
+    const authored = converted.envelope.familyMembers.filter(
+      (m) => m.memberOrigin === "AUTHORED"
+    );
+    expect(authored.length).toBe(5);
   });
 
   it("옆돌리기 — 252 missing meta → repair + convert PASS · C-0 clean", () => {

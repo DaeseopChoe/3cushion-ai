@@ -6,6 +6,58 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-25 — Phase F-2C Discard Unrecoverable Orphan Product Family
+
+## Mode
+
+**Agent** · Policy D discard · dataset leaf edit only · no real Publish retry
+
+## Decision
+
+User chose Policy D: discard orphan Product-only Family (do not fabricate AUTHORED).
+
+## Target
+
+- Leaf: `dataset/뒤돌리기/파이브앤하프/positions.json`
+- schemaVersion: **2** (intentionally remains v2 so real Publish exercises first-touch v2→v3)
+- familyId: `fm_668fe281-7b09-4a97-b7c3-594315ea104d`
+
+## Why discard is justified
+
+- AUTHORED = 0 · PRODUCT = 336 · all other origins = 0
+- parent memberIds referenced by `generatedFromMemberId` absent
+- true upstream AUTHORED not recoverable
+- current producer cannot create this structure
+- historical incomplete / obsolete test Product corpus
+
+## Delivered
+
+- Removed exactly 336 StrategyEntry by familyId; pruned empty PositionRecords
+- PositionRecords 2228→1892 · StrategyEntries 2232→1896 · Families 6→5
+- Healthy 5 Families: each AUTHORED=1 · identity/provenance/payload unchanged
+- 옆돌리기 leaf untouched
+- No production code change
+- In-memory: F-2B meta repair → strict flat → migrate → normalize → **PASS**
+  (Masters=5 · Members=1896 · AUTHORED=5 · C-0 PASS · generatedFrom PASS)
+
+## Intentionally NOT done
+
+- Product→AUTHORED conversion / familyId reassignment
+- Persisting F-2B meta repair into the v2 file
+- Converting checked-in leaf to v3 in this phase
+- Real History Publish retry
+
+## Next
+
+User retries the SAME Unexported History Publish item.
+F-2 remains incomplete until PRODUCTION_VERIFIED + Published Search smoke.
+
+## Commit
+
+`fix(dataset): remove unrecoverable legacy product family`
+
+---
+
 # 2026-09-25 — Phase F-2B First-Touch Legacy v2 Canonical Meta Repair
 
 ## Mode
