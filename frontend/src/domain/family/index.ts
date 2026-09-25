@@ -26,6 +26,7 @@ export * from "./c3PlusFourTrackConsistency";
 export * from "./unifiedDerivedReview";
 export * from "./buildCueC3ProductMembers";
 export * from "./rebuildCanonicalMemberMeta";
+export * from "./legacyV2MetaRepair";
 export * from "./legacyProductMetaMigration";
 export * from "./legacyProductTwinDedupe";
 export * from "./productCoverageFromDataset";

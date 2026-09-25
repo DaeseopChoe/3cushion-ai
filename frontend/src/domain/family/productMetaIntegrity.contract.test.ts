@@ -471,7 +471,7 @@ describe("Git Publish diagnostic propagation", () => {
     };
   }
 
-  function writeInvalidExistingLeaf(datasetRoot: string) {
+  function writeUnrepairableExistingLeaf(datasetRoot: string) {
     const resolved = resolvePublishedLeafAbsolutePath(
       datasetRoot,
       "뒤돌리기",
@@ -480,7 +480,56 @@ describe("Git Publish diagnostic propagation", () => {
     expect(resolved.ok).toBe(true);
     if (!resolved.ok) return;
     fs.mkdirSync(path.dirname(resolved.absolutePath), { recursive: true });
-    // Valid shape except StrategyEntry.meta omitted (legacy Product failure mode).
+    // Missing meta AND missing track → cannot rebuild; must fail closed.
+    fs.writeFileSync(
+      resolved.absolutePath,
+      JSON.stringify({
+        schemaVersion: 2,
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+        systemLabel: "파이브앤하프",
+        exportedAt: "2026-08-27T00:00:00.000Z",
+        records: [
+          {
+            positionId: "p0",
+            balls: {
+              cue: { x: 10, y: 10 },
+              target: { x: 50, y: 25 },
+              second: { x: 40, y: 20 },
+            },
+            strategies: {
+              S1: {
+                slot: "S1",
+                signature: {
+                  systemId: "5_half_system",
+                  formulaHash: "h1",
+                  shotType: "뒤돌리기",
+                },
+                sysInputs: { CO_f: 40 },
+                corrections: { ...CORRECTIONS },
+                familyId: "fm_legacy",
+                memberId: "mb_legacy",
+                memberOrigin: "AUTHORED",
+                // track omitted — unrepairable
+              },
+            },
+            schemaVersion: 1,
+          },
+        ],
+      }),
+      "utf8"
+    );
+  }
+
+  function writeRepairableExistingLeaf(datasetRoot: string) {
+    const resolved = resolvePublishedLeafAbsolutePath(
+      datasetRoot,
+      "뒤돌리기",
+      "5_half_system"
+    );
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    fs.mkdirSync(path.dirname(resolved.absolutePath), { recursive: true });
     fs.writeFileSync(
       resolved.absolutePath,
       JSON.stringify({
@@ -511,6 +560,7 @@ describe("Git Publish diagnostic propagation", () => {
                 memberId: "mb_legacy",
                 memberOrigin: "AUTHORED",
                 track: "B2T_L",
+                // meta omitted — repairable at first-touch
               },
             },
             schemaVersion: 1,
@@ -521,9 +571,9 @@ describe("Git Publish diagnostic propagation", () => {
     );
   }
 
-  it("D1/D2 — flat-leaf-validation-failed keeps field-level meta:missing", () => {
+  it("D1/D2 — unrepairable legacy missing meta remains fail-closed", () => {
     const root = makeTempDatasetRoot();
-    writeInvalidExistingLeaf(root);
+    writeUnrepairableExistingLeaf(root);
     const op: PublishOperation = {
       schemaVersion: 1,
       intent: "CREATE",
@@ -557,13 +607,47 @@ describe("Git Publish diagnostic propagation", () => {
     });
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.reason).toBe("flat-leaf-validation-failed");
-    expect(r.issues.some((i) => i.includes("meta:missing"))).toBe(true);
+    expect(r.reason).toBe("legacy-v2-meta-unrepairable");
     expect(
-      r.issues.some((i) =>
-        /records\[\d+\]\.strategies\.S1\.meta:missing/.test(i)
-      )
+      r.issues.some((i) => i.includes("unrepairable-missing-inputs"))
     ).toBe(true);
+  });
+
+  it("D1b — repairable existing v2 missing meta allows first-touch Publish write", () => {
+    const root = makeTempDatasetRoot();
+    writeRepairableExistingLeaf(root);
+    const op: PublishOperation = {
+      schemaVersion: 1,
+      intent: "CREATE",
+      sourceFamilyId: null,
+      destinationFamilyId: "fm_new",
+    };
+    const payload: PublishFamilyPayload = {
+      schemaVersion: 1,
+      familyId: "fm_new",
+      records: [
+        {
+          positionId: "p_new",
+          balls: {
+            cue: { x: 12, y: 12 },
+            target: { x: 52, y: 27 },
+            second: { x: 42, y: 22 },
+          },
+          strategies: { S1: validNewEntry("fm_new") },
+          schemaVersion: 1,
+        },
+      ],
+    };
+    const r = publishDatasetLeafToRepo({
+      datasetRoot: root,
+      request: {
+        shotType: "뒤돌리기",
+        systemId: "5_half_system",
+        publishOperation: op,
+        publishFamilyPayload: payload,
+      },
+    });
+    expect(r.ok).toBe(true);
   });
 
   it("D3/D7 — batch Git result preserves full issues (UI truncates separately)", async () => {
@@ -580,7 +664,7 @@ describe("Git Publish diagnostic propagation", () => {
     git(work, ["remote", "add", "origin", remote]);
 
     const datasetRoot = path.join(work, "dataset");
-    writeInvalidExistingLeaf(datasetRoot);
+    writeUnrepairableExistingLeaf(datasetRoot);
     fs.writeFileSync(path.join(work, "README.md"), "# diag\n", "utf8");
     git(work, ["add", "--", "README.md", "dataset"]);
     git(work, ["commit", "-m", "seed"]);
@@ -620,7 +704,7 @@ describe("Git Publish diagnostic propagation", () => {
     });
     const leafFail = manyIssuesLeaf.find((x) => !x.ok);
     expect(leafFail && !leafFail.ok && leafFail.reason).toBe(
-      "flat-leaf-validation-failed"
+      "legacy-v2-meta-unrepairable"
     );
 
     const result = await publishDatasetBatchWithGit({
@@ -664,10 +748,12 @@ describe("Git Publish diagnostic propagation", () => {
     expect(result.status).toBe("REPO_WRITE_FAILED");
     expect(
       result.issues.some((i) =>
-        i.includes("snap-diag-1:flat-leaf-validation-failed")
+        i.includes("snap-diag-1:legacy-v2-meta-unrepairable")
       )
     ).toBe(true);
-    expect(result.issues.some((i) => i.includes("meta:missing"))).toBe(true);
+    expect(
+      result.issues.some((i) => i.includes("unrepairable-missing-inputs"))
+    ).toBe(true);
     // Domain keeps full issues; UI may slice(0,12) for alert only.
     expect(result.issues.length).toBeGreaterThanOrEqual(2);
 
@@ -677,7 +763,9 @@ describe("Git Publish diagnostic propagation", () => {
       result.reason,
       ...result.issues.slice(0, 12),
     ].filter(Boolean);
-    expect(alertLines.some((l) => l.includes("meta:missing"))).toBe(true);
+    expect(
+      alertLines.some((l) => l.includes("unrepairable-missing-inputs"))
+    ).toBe(true);
     expect(alertLines.some((l) => l.includes("REPO_WRITE_FAILED"))).toBe(true);
 
     const settingsSrc = fs.readFileSync(

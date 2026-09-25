@@ -21,6 +21,7 @@ import {
   type NormalizedDatasetIssue,
 } from "./dataset/normalizedDatasetEnvelope";
 import { migratePositionRecordsToFamilyParts } from "./family/migratePositionRecordsToFamilyParts";
+import { repairLegacyV2MissingMeta } from "./family/legacyV2MetaRepair";
 import { validatePublishedExportCandidate } from "./publishedFamilyPublish";
 import {
   applyPublishFamilyToNormalizedLeaf,
@@ -86,6 +87,10 @@ export function detectPublishedLeafKind(raw: unknown): PublishedLeafKind {
 /**
  * Fail-closed flat DatasetExportPayload → NormalizedDatasetEnvelope.
  * Silent skip of legacy StrategyEntries is rejected (skippedLegacySlots > 0).
+ *
+ * Phase F-2B: EXISTING legacy v2 only — repair missing-but-derivable StrategyEntry.meta
+ * via rebuildCanonicalMemberMeta BEFORE strict flat validation. New payloads that
+ * never enter this converter remain subject to strict meta-required validation.
  */
 export function convertFlatDatasetExportToNormalizedLeaf(
   flat: DatasetExportPayload
@@ -100,6 +105,13 @@ export function convertFlatDatasetExportToNormalizedLeaf(
       e instanceof Error ? e.message : String(e),
     ]);
   }
+
+  // Migration boundary only: repair historical meta omission deterministically.
+  const repaired = repairLegacyV2MissingMeta(normalized);
+  if (!repaired.ok) {
+    return fail("V2_CONVERSION_FAILED", repaired.reason, repaired.issues);
+  }
+  normalized = repaired.payload;
 
   const validated = validatePublishedExportCandidate(normalized);
   if (!validated.ok) {

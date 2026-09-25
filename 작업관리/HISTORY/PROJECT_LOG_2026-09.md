@@ -6,6 +6,56 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-25 — Phase F-2B First-Touch Legacy v2 Canonical Meta Repair
+
+## Mode
+
+**Agent** · EXISTING v2 migration-boundary meta repair only · no real Publish retry
+
+## Background (F-2A)
+
+First real 뒤돌리기/파이브앤하프 Publish → REPO_WRITE_FAILED /
+`flat-leaf-validation-failed` / `meta:missing` on legacy DERIVED* (884).
+Strict flat validation ran **before** migration. New Family not at fault.
+
+## Delivered
+
+- `frontend/src/domain/family/legacyV2MetaRepair.ts`
+  - `repairLegacyV2MissingMeta` / `countLegacyV2MissingMeta`
+  - rebuild via `rebuildCanonicalMemberMeta` only
+  - fail-closed when inputs insufficient
+  - input immutable (deep clone)
+- Wired into `convertFlatDatasetExportToNormalizedLeaf` **before**
+  `validatePublishedExportCandidate`
+- Contracts: unit A–H · origin PRODUCT/C3_PLUS/CUE_IMPACT · new-data strictness ·
+  real-leaf dry-run (read-only)
+- productMetaIntegrity: unrepairable vs repairable existing-leaf cases updated
+
+## Dry-run (dataset unmodified)
+
+| Leaf | before missing meta | after repair | convert |
+|------|---------------------|--------------|---------|
+| 옆돌리기 | 252 | 0 | PASS (1 master / 256 members) |
+| 뒤돌리기 | 884 | 0 | FAIL next: `NO_AUTHORED_SEED` |
+
+## Intentionally NOT expanded
+
+- Do not invent AUTHORED Master for Product-only legacy families
+- Do not weaken CANONICAL meta requirement for new payloads
+- Do not rewrite dataset/**
+- Do not retry real History Publish
+
+## Next
+
+Phase F-2C — `NO_AUTHORED_SEED` first-touch migration policy / leaf disposition
+WAIT for user review before real Publish retry.
+
+## Commit
+
+`fix(publish): repair legacy v2 meta during first-touch migration`
+
+---
+
 # 2026-09-24 — Phase F-1 Final Legacy Cleanup / SSOT Drift Repair
 
 ## Mode

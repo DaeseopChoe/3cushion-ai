@@ -51,9 +51,10 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase F-2 — Real Publish / Production E2E (**WAIT for user Family/leaf approval**; F-1 COMPLETE) |
+| **Next Track** | Phase F-2C — first-touch `NO_AUTHORED_SEED` blocker (뒤돌리기 Product-only family); F-2B meta repair COMPLETE · real Publish still pending |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
+| **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict · 뒤돌리기 next: `NO_AUTHORED_SEED` |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -1360,6 +1361,40 @@ Repository leaves: writer = v3; checked-in leaves may remain v2 until first-touc
 **Phase F-1 COMPLETE:** YES
 
 **Next Track:** Phase F-2 — Real Publish / Production E2E (do not auto-start; user must approve test Family/leaf).
+
+### Phase F-2B — First-Touch Legacy v2 Canonical Meta Repair (2026-09-25)
+
+**Authority:** 본 절 · EXISTING v2 migration boundary only · no validator weakening
+
+**Root cause (F-2A):** first real 뒤돌리기 Publish failed at
+`convertFlatDatasetExportToNormalizedLeaf` → `validatePublishedExportCandidate`
+→ `flat-leaf-validation-failed` / `meta:missing` on legacy DERIVED* entries
+(PRODUCT / C3_PLUS / CUE_IMPACT). Migration never started. New Family not at fault.
+
+**Fix:**
+- `repairLegacyV2MissingMeta` — pure in-memory; semantic eligibility (missing meta +
+  complete rebuild inputs); calls `rebuildCanonicalMemberMeta` only; no placeholders
+- Wired **only** into `convertFlatDatasetExportToNormalizedLeaf` (existing v2 /
+  Published reader first-touch path)
+- Strict `validatePublishedExportCandidate` / CANONICAL meta required **unchanged**
+  for new flat payloads
+
+**Dry-run (no dataset write):**
+- 옆돌리기: 252 missing meta → repaired → convert PASS (masters=1, members=256)
+- 뒤돌리기: 884 missing meta → repaired → flat validate PASS → migrate FAILS
+  `NO_AUTHORED_SEED` (Product-only family `fm_668fe281…` has no AUTHORED Master seed)
+  — **next blocker; do not invent AUTHORED in F-2B**
+
+**Not done:**
+- real History Publish retry
+- dataset/** rewrite
+- F-2 COMPLETE
+
+**Phase F-2B (meta gate) COMPLETE:** YES
+**First-touch fully unblocked for 뒤돌리기:** NO (`NO_AUTHORED_SEED`)
+
+**Next Track:** Phase F-2C — resolve Product-only family AUTHORED-seed migration
+(or offline leaf disposition) before user retries same History Publish.
 
 **Production SSOT (검증 완료, 2026-06):**
 
