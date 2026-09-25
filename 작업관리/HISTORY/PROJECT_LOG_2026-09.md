@@ -6,6 +6,42 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-25 — Phase F-2F Preserve Publish Overwrite Conflict Through Local Git Client
+
+## Mode
+
+**Agent** · browser client parse fix only · no real Publish · no dataset/History mutation
+
+## Root cause
+
+`publishDatasetToLocalRepoGit.ts` treated `body.conflict` (already
+`ResolvablePublishOverwriteConflict`) as a nested client result and read
+`["conflict"]` again → always `undefined`. UI then failed with
+"덮어쓰기 확인에 필요한 정보가 부족합니다."
+
+## Delivered
+
+- Preserve `body.conflict` as the conflict payload (+ unchanged `leafRevision`)
+- Guarded parser + confirm→retry helper
+- Parser / confirm→retry contract regressions
+
+## Intentionally NOT done
+
+- Real Publish retry
+- useSettings familyId fallback reconstruction
+- Dataset / History / ADMIN_OPERATION_MANUAL
+
+## Next
+
+User retries SAME Unexported History Publish → 확인 → report result.
+F-2 remains incomplete until PRODUCTION_VERIFIED.
+
+## Commit
+
+`fix(publish): preserve overwrite conflict context`
+
+---
+
 # 2026-09-25 — Phase F-2E Publish-Time Occupancy Confirmation + Family Replacement
 
 ## Mode

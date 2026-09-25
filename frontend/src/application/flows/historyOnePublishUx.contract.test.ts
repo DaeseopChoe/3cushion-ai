@@ -83,6 +83,19 @@ describe("Phase D-3 — History ONE Publish UX", () => {
     expect(body).not.toContain("snap.publishOperation");
   });
 
+  it("F-2F confirm→retry uses conflict.existingFamilyId + leafRevision (no History rewrite)", () => {
+    const fnStart = settings.indexOf("const handlePublishSnapshots");
+    const fnEnd = settings.indexOf("const handleRepoOnlyPublishSnapshots");
+    const body = settings.slice(fnStart, fnEnd);
+    expect(body).toContain("conflict?.existingFamilyId");
+    expect(body).toContain("confirmed-overwrite-incomplete");
+    expect(body).toMatch(
+      /confirmedOverwrite:\s*\{[\s\S]*?targetFamilyId:\s*conflict\.existingFamilyId[\s\S]*?expectedLeafRevision:\s*leafRevision/
+    );
+    expect(body).not.toContain("results[].conflict");
+    expect(body).not.toContain("guessFamilyId");
+  });
+
   it("in-flight lock prevents duplicate Publish invocation", () => {
     expect(settings).toContain("publishInFlightRef");
     expect(settings).toContain('reason: "publish-in-flight"');

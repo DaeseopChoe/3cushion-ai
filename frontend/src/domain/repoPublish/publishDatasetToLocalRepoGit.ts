@@ -4,6 +4,7 @@
  */
 
 import type { LocalPublishClientItem } from "./publishDatasetToLocalRepo";
+import type { ResolvablePublishOverwriteConflict } from "../publishOccupancy";
 
 export const LOCAL_GIT_PUBLISH_ENDPOINT = "/api/publish-dataset-git";
 export const LOCAL_PRODUCTION_VERIFY_ENDPOINT =
@@ -69,17 +70,7 @@ export type GitPublishClientResult =
       gitStatus?: "PUSHED" | "VERIFIED_NO_CHANGE";
       commit?: string;
       production?: ProductionClientResult;
-      conflict?: {
-        code: "RESOLVABLE_PUBLISH_OVERWRITE";
-        incomingFamilyId: string;
-        existingFamilyId: string;
-        authoredPositionId: string;
-        authoredSourceSlot: string;
-        conflictCount: number;
-        uniquePositionIds: string[];
-        slots: string[];
-        originPairCounts: Record<string, number>;
-      };
+      conflict?: ResolvablePublishOverwriteConflict;
       leafRevision?: string;
     };
 
@@ -103,6 +94,148 @@ function parseProduction(
     leaves: Array.isArray(p.leaves)
       ? (p.leaves as ProductionClientLeaf[])
       : undefined,
+  };
+}
+
+/**
+ * Phase F-2F — body.conflict IS the ResolvablePublishOverwriteConflict payload.
+ * Must not read a nested ["conflict"] (that always yields undefined).
+ */
+export function parseResolvablePublishOverwriteConflict(
+  raw: unknown
+): ResolvablePublishOverwriteConflict | undefined {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    return undefined;
+  }
+  const c = raw as Record<string, unknown>;
+  if (c.code !== "RESOLVABLE_PUBLISH_OVERWRITE") return undefined;
+  const incomingFamilyId =
+    typeof c.incomingFamilyId === "string" ? c.incomingFamilyId.trim() : "";
+  const existingFamilyId =
+    typeof c.existingFamilyId === "string" ? c.existingFamilyId.trim() : "";
+  const authoredPositionId =
+    typeof c.authoredPositionId === "string"
+      ? c.authoredPositionId.trim()
+      : "";
+  const authoredSourceSlot = c.authoredSourceSlot;
+  if (
+    !incomingFamilyId ||
+    !existingFamilyId ||
+    !authoredPositionId ||
+    (authoredSourceSlot !== "S1" &&
+      authoredSourceSlot !== "S2" &&
+      authoredSourceSlot !== "S3")
+  ) {
+    return undefined;
+  }
+  const conflictCount =
+    typeof c.conflictCount === "number" && Number.isFinite(c.conflictCount)
+      ? c.conflictCount
+      : 0;
+  const uniquePositionIds = Array.isArray(c.uniquePositionIds)
+    ? c.uniquePositionIds.map(String)
+    : [];
+  const slots = Array.isArray(c.slots)
+    ? c.slots.filter(
+        (s): s is "S1" | "S2" | "S3" =>
+          s === "S1" || s === "S2" || s === "S3"
+      )
+    : [];
+  const originPairCounts =
+    c.originPairCounts &&
+    typeof c.originPairCounts === "object" &&
+    !Array.isArray(c.originPairCounts)
+      ? Object.fromEntries(
+          Object.entries(c.originPairCounts as Record<string, unknown>).map(
+            ([k, v]) => [k, typeof v === "number" ? v : 0]
+          )
+        )
+      : {};
+
+  return {
+    code: "RESOLVABLE_PUBLISH_OVERWRITE",
+    incomingFamilyId,
+    existingFamilyId,
+    authoredPositionId,
+    authoredSourceSlot,
+    conflictCount,
+    uniquePositionIds,
+    slots,
+    originPairCounts,
+  };
+}
+
+/**
+ * Parse Git Publish HTTP JSON body into client result fields for fail path.
+ * Exported for F-2F parser regression (no localhost / fetch required).
+ */
+export function parseGitPublishClientFailBody(raw: unknown): {
+  reason: string;
+  issues?: string[];
+  status?: string;
+  results?: unknown[];
+  localCommit?: string;
+  repoWritten?: boolean;
+  gitStatus?: "PUSHED" | "VERIFIED_NO_CHANGE";
+  commit?: string;
+  production?: ProductionClientResult;
+  conflict?: ResolvablePublishOverwriteConflict;
+  leafRevision?: string;
+} | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const body = raw as Record<string, unknown>;
+  if (body.ok === true) return null;
+  const production = parseProduction(body.production);
+  const gitStatus =
+    body.gitStatus === "VERIFIED_NO_CHANGE"
+      ? "VERIFIED_NO_CHANGE"
+      : body.gitStatus === "PUSHED"
+        ? "PUSHED"
+        : undefined;
+  return {
+    reason: String(body.reason ?? "git-publish-failed"),
+    issues: Array.isArray(body.issues) ? body.issues.map(String) : undefined,
+    status: typeof body.status === "string" ? body.status : undefined,
+    results: Array.isArray(body.results) ? body.results : undefined,
+    localCommit:
+      typeof body.localCommit === "string" ? body.localCommit : undefined,
+    repoWritten: body.repoWritten === true,
+    gitStatus,
+    commit: typeof body.commit === "string" ? body.commit : undefined,
+    production,
+    conflict: parseResolvablePublishOverwriteConflict(body.conflict),
+    leafRevision:
+      typeof body.leafRevision === "string" ? body.leafRevision : undefined,
+  };
+}
+
+/**
+ * Build confirmedOverwrite retry fields from a preserved client fail result.
+ * Mirrors useSettings handlePublishSnapshots contract (History unchanged).
+ */
+export function buildConfirmedOverwriteRetryFromResult(args: {
+  conflict?: ResolvablePublishOverwriteConflict;
+  leafRevision?: string;
+}):
+  | {
+      ok: true;
+      confirmedOverwrite: {
+        targetFamilyId: string;
+        expectedLeafRevision: string;
+      };
+    }
+  | { ok: false; reason: "confirmed-overwrite-incomplete" } {
+  const existingFamilyId = args.conflict?.existingFamilyId?.trim() ?? "";
+  const leafRevision = args.leafRevision?.trim() ?? "";
+  if (!existingFamilyId || !leafRevision) {
+    return { ok: false, reason: "confirmed-overwrite-incomplete" };
+  }
+  return {
+    ok: true,
+    confirmedOverwrite: {
+      targetFamilyId: existingFamilyId,
+      expectedLeafRevision: leafRevision,
+    },
   };
 }
 
@@ -228,28 +361,21 @@ export async function publishDatasetToLocalRepoWithGit(
     };
   }
 
+  const fail = parseGitPublishClientFailBody(body);
   return {
     ok: false,
     hostAvailable: true,
-    reason: String(body.reason ?? "git-publish-failed"),
-    issues: Array.isArray(body.issues) ? body.issues.map(String) : undefined,
-    status: typeof body.status === "string" ? body.status : undefined,
-    results: Array.isArray(body.results) ? body.results : undefined,
-    localCommit:
-      typeof body.localCommit === "string" ? body.localCommit : undefined,
-    repoWritten: body.repoWritten === true,
-    gitStatus,
-    commit: typeof body.commit === "string" ? body.commit : undefined,
-    production,
-    conflict:
-      body.conflict && typeof body.conflict === "object"
-        ? (body.conflict as GitPublishClientResult & {
-            ok: false;
-            hostAvailable: true;
-          })["conflict"]
-        : undefined,
-    leafRevision:
-      typeof body.leafRevision === "string" ? body.leafRevision : undefined,
+    reason: fail?.reason ?? String(body.reason ?? "git-publish-failed"),
+    issues: fail?.issues,
+    status: fail?.status,
+    results: fail?.results,
+    localCommit: fail?.localCommit,
+    repoWritten: fail?.repoWritten,
+    gitStatus: fail?.gitStatus ?? gitStatus,
+    commit: fail?.commit,
+    production: fail?.production ?? production,
+    conflict: fail?.conflict,
+    leafRevision: fail?.leafRevision,
   };
 }
 

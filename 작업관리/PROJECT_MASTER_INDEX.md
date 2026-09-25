@@ -51,12 +51,13 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase F-2 real Publish verification — user retries SAME Unexported History after F-2E overwrite UX |
+| **Next Track** | Phase F-2 real Publish verification — user retries SAME Unexported History after F-2F conflict-preserve fix |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
 | **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict |
 | **Phase F-2C** | ✅ **ORPHAN DISCARD** — Policy D: remove unrecoverable Product-only Family `fm_668fe281…` from 뒤돌리기 v2 leaf · no fake AUTHORED · leaf stays v2 · first-touch dry-run PASS · real Publish still pending |
 | **Phase F-2E** | ✅ **PUBLISH OVERWRITE UX** — resolvable same AUTHORED Position+Slot → user confirm → Family-level replacement; existing Published familyId survives; History immutable; C-0 strict |
+| **Phase F-2F** | ✅ **CLIENT CONFLICT PRESERVE** — Git browser client keeps top-level `conflict` + `leafRevision` (nested `["conflict"]` parse bug fixed) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -1459,6 +1460,23 @@ v2 → legacy meta repair → strict flat validate → migrate → normalize →
 **F-2 COMPLETE:** NO (awaits real Publish verification)
 
 **Next Track:** User manually retries the **SAME** Unexported History Publish item.
+
+### Phase F-2F — Preserve Publish Overwrite Conflict Through Local Git Client (2026-09-25)
+
+**Authority:** 본 절 · F-2F Ask root cause
+
+**Bug:** `publishDatasetToLocalRepoGit` nested `body.conflict["conflict"]` → always undefined;
+`leafRevision` was fine. UI incomplete after confirm.
+
+**Fix:** Parse `body.conflict` as `ResolvablePublishOverwriteConflict`; keep `leafRevision`.
+No useSettings fallback reconstruction. History/dataset untouched.
+
+**Contracts:** parser regression + confirm→retry (`targetFamilyId` / `expectedLeafRevision`).
+
+**Phase F-2F COMPLETE:** YES (implementation)
+**F-2 COMPLETE:** NO (awaits real Publish verification)
+
+**Next Track:** User manually retries SAME Unexported History Publish → 확인.
 
 **Production SSOT (검증 완료, 2026-06):**
 
