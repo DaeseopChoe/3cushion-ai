@@ -15,7 +15,7 @@ Status : Active Project Log
 ## Session closure
 
 - Completed in this session: **F-3B** (`48726f4`) · **F-3B.2** (`67d67fd`) · **F-3C** (`58ef947`) · **F-3C.2** (`4e89dca`) · **F-3D** (`b39b676`) — entries below.
-- Baseline for the next session: `b39b676fafb8805f706496f57df88c7fd2ec5f1d` (HEAD == origin/main before this docs commit).
+- Code baseline for the next session: `b39b676fafb8805f706496f57df88c7fd2ec5f1d`. The handoff docs commits sit on top of it (docs only); HEAD == origin/main.
 - Final verification (F-3D): full 187 files / 2155 tests PASS · build PASS · manual browser NOT RUN (browser Local DB = user's real authoring store).
 - No schema migration · no dataset modification · no History data modification · no Publish executed.
 

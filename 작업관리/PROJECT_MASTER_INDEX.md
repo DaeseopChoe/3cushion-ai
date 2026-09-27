@@ -99,7 +99,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | Field | Value |
 |-------|-------|
 | **As of** | 2026-09-27 |
-| **Baseline** | `b39b676fafb8805f706496f57df88c7fd2ec5f1d` — fix(overwrite): preserve published family identity graph (HEAD == origin/main) |
+| **Baseline** | Code baseline `b39b676fafb8805f706496f57df88c7fd2ec5f1d` — fix(overwrite): preserve published family identity graph. Docs-only handoff commits (`docs(project): …session handoff…`) sit on top; expected HEAD == origin/main with no code change after `b39b676` |
 | **Last verification (F-3D)** | full 187 files / 2155 tests PASS · `npm run build` PASS · manual browser NOT RUN (browser Local DB = user's real authoring store) |
 | **Schema / migration / dataset / History data / Publish** | unchanged through F-3B … F-3D |
 
@@ -135,7 +135,7 @@ Items 3–5 are not promoted to priority features until a real need appears.
 
 **Protected untracked (never modify / delete / stage / commit — not project changes):** `frontend/src/domain/trajectory/incidenceAngle.ts` · `.tmp.driveupload/`
 
-**New session start:** (1) this file (2) latest entry of `HISTORY/PROJECT_LOG_2026-09.md` (3) Git HEAD == origin/main == baseline (4) protected untracked unchanged (5) one open issue at a time. **Next candidates (user decides):** A. USER C2 Display Boundary Ask · B. HP/T Derived opposite-handed display Ask · C. other Stage 1 work.
+**New session start:** (1) this file (2) latest entry of `HISTORY/PROJECT_LOG_2026-09.md` (3) Git HEAD == origin/main; `git diff --stat b39b676 HEAD` shows only `작업관리/` docs (4) protected untracked unchanged (5) one open issue at a time. **Next candidates (user decides):** A. USER C2 Display Boundary Ask · B. HP/T Derived opposite-handed display Ask · C. other Stage 1 work.
 
 ### USER Display Runtime HPT (2026-09-02)
 

@@ -477,7 +477,8 @@ SearchResult
 
 ```text
 Session ID     : 2026-09-27 — Session Handoff Finalization after F-3D
-Baseline       : main · b39b676 fix(overwrite): preserve published family identity graph
+Baseline       : main · code b39b676 fix(overwrite): preserve published family identity graph
+                 (+ docs-only handoff commits on top; HEAD == origin/main)
 Current Status : F-3B · F-3B.2 · F-3C · F-3C.2 · F-3D COMPLETE
 Next Session   : PROJECT_MASTER_INDEX.md → Current Session Handoff (2026-09-27)
                  + HISTORY/PROJECT_LOG_2026-09.md latest entry · one open issue at a time
