@@ -27,9 +27,11 @@ import {
   FAMILY_TRACKS,
   mapFamilyTrack,
   transformBall3,
+  transformReflectionOverride,
   transformTrajectoryExtensions,
   type FamilyTrack,
 } from "./trackSymmetry";
+import type { ReflectionOverride } from "../trajectory/c2ReflectionOverride";
 import {
   computeRecallPositionDifference,
   formatRecallPositionDifferenceNotice,
@@ -166,6 +168,7 @@ function seedFamily(
     balls?: Ball3;
     shotType?: string;
     extensions?: StrategyEntry["trajectoryExtensions"];
+    c2?: ReflectionOverride;
   } = {}
 ): string {
   const slot = opts.slot ?? "S1";
@@ -188,6 +191,7 @@ function seedFamily(
         [slot]: { draft: layer, applied: layer },
       },
       trajectoryExtensionPayload: opts.extensions ?? null,
+      reflectionOverridePayload: opts.c2 ?? null,
     })
   );
   expect(r.ok, r.reason).toBe(true);
@@ -266,18 +270,39 @@ function persistLocal(h: Harness, shotType = "뒤돌리기") {
   expect(r.ok, r.ok ? "" : `${r.stage}: ${r.reason}`).toBe(true);
 }
 
-/** Add one DERIVED_CUE_IMPACT Member generated from `base` at `derivedBalls`. */
-function addDerived(h: Harness, familyId: string, base: FamilyLoc, derivedBalls: Ball3, n = 1) {
+type DerivedOrigin = "DERIVED_CUE_IMPACT" | "DERIVED_C3_PLUS" | "DERIVED_CUE_C3_PRODUCT";
+const DERIVED_RULE: Record<DerivedOrigin, StrategyEntry["derivedRule"]> = {
+  DERIVED_CUE_IMPACT: "CUE_IMPACT_FIRST_30PCT",
+  DERIVED_C3_PLUS: "C3_PLUS_SCORING_LINE_v1",
+  DERIVED_CUE_C3_PRODUCT: "CUE_C3_CARTESIAN_PRODUCT_V1",
+};
+
+/**
+ * Add one Derived Member generated from `base` at `derivedBalls`, following the generation
+ * rules: C3+ / Product copy the same-track base C2 + Extension; Cue→Impact carries neither.
+ */
+function addDerived(
+  h: Harness,
+  familyId: string,
+  base: FamilyLoc,
+  derivedBalls: Ball3,
+  n = 1,
+  origin: DerivedOrigin = "DERIVED_CUE_IMPACT"
+) {
   const entry: StrategyEntry = {
     ...structuredClone(base.entry),
     memberId: `mb_derived_${n}`,
-    memberOrigin: "DERIVED_CUE_IMPACT",
+    memberOrigin: origin,
     generatedFromMemberId: base.entry.memberId,
-    derivedRule: "CUE_IMPACT_FIRST_30PCT",
+    derivedRule: DERIVED_RULE[origin],
     derivedStep: `step:000${n}`,
     authoringStrategyId: `as_derived_${n}`,
   };
   delete entry.symmetryOp;
+  if (origin === "DERIVED_CUE_IMPACT") {
+    delete entry.reflectionOverride;
+    delete entry.trajectoryExtensions;
+  }
   const candidate = familyWriteCandidateFromEntry({ balls: derivedBalls, entry })!;
   expect(candidate).toBeTruthy();
   const w = writeFamilyMembers(h.dataset, { familyId, members: [candidate] });
@@ -425,6 +450,8 @@ type EditOptions = {
   inputs?: Record<string, number>;
   hpt?: unknown;
   extensions?: StrategyEntry["trajectoryExtensions"] | null;
+  /** C2 on the screen at OVERWRITE/SAVE (default: the recalled slot's C2, as App hydrates it). */
+  c2?: ReflectionOverride | null;
   shotType?: string;
 };
 
@@ -473,6 +500,10 @@ function pressAfterRecall(
       edit.extensions !== undefined
         ? edit.extensions
         : ((draft.trajectoryExtensions as StrategyEntry["trajectoryExtensions"]) ?? null),
+    reflectionOverridePayload:
+      edit.c2 !== undefined
+        ? edit.c2
+        : ((draft.reflectionOverride as ReflectionOverride | undefined) ?? null),
     patchSlotFamilyIdentity: patchIdentity,
   } as Partial<SaveFlowContext>);
   const result = runSaveStrategy(ctx);
@@ -860,6 +891,296 @@ describe("F-3C — Published trusted Family root", () => {
     expect(r.ok).toBe(false);
     expect(r.reason).toMatch(/OVERWRITE_FAMILY_ROOT_MISSING/);
     expect(h.dataset).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase F-3C.2 — C2 reflectionOverride Family-common canonicalization
+// ---------------------------------------------------------------------------
+
+describe("F-3C.2 — C2 reflection is Family-common (AUTHORED canonical + projections)", () => {
+  const canonicalC2: ReflectionOverride = { rail: "LEFT", t: 0.3 };
+  const ext = (x: number, y: number): StrategyEntry["trajectoryExtensions"] =>
+    ({
+      extensionSchemaVersion: 1,
+      origin: { kind: "path_node", source: "corrected" },
+      items: [
+        { id: "EXT-S1-01", index: 1, endpoint: { x, y }, userEdited: true, createdAt: "t0", updatedAt: "t0" },
+      ],
+    }) as StrategyEntry["trajectoryExtensions"];
+
+  function rootC2(dataset: PositionRecord[], familyId: string) {
+    return locByOp(dataset, familyId, "AUTHORED").entry.reflectionOverride;
+  }
+
+  /** AUTHORED = `canonical`; every SYMMETRY Member = deterministic projection of it. */
+  function expectFamilyC2(dataset: PositionRecord[], familyId: string, canonical: ReflectionOverride | null) {
+    const root = rootC2(dataset, familyId);
+    if (canonical == null) {
+      for (const l of fourTrack(dataset, familyId)) expect(l.entry.reflectionOverride).toBeUndefined();
+      return;
+    }
+    expect(root).toEqual(canonical);
+    for (const op of ["H", "V", "RPI"] as const) {
+      expect(locByOp(dataset, familyId, op).entry.reflectionOverride).toEqual(
+        transformReflectionOverride(op, canonical)
+      );
+    }
+  }
+
+  function derivedLoc(dataset: PositionRecord[], familyId: string, memberId: string) {
+    return entriesOfFamily(dataset, familyId).find((l) => l.entry.memberId === memberId)!;
+  }
+
+  function derivedIdentity(l: FamilyLoc) {
+    return {
+      balls: l.balls,
+      positionId: l.positionId,
+      slot: l.slot,
+      track: l.entry.track,
+      memberId: l.entry.memberId,
+      memberOrigin: l.entry.memberOrigin,
+      generatedFromMemberId: l.entry.generatedFromMemberId,
+      derivedRule: l.entry.derivedRule,
+      derivedStep: l.entry.derivedStep,
+    };
+  }
+
+  it("TEST C2-1 — AUTHORED Recall → edit C2 → OVERWRITE: root updated, 3 Tracks projected", async () => {
+    const h = harness();
+    const familyId = seedFamily(h, { c2: canonicalC2 });
+    expectFamilyC2(h.dataset, familyId, canonicalC2);
+    const before = geometrySnapshot(fourTrack(h.dataset, familyId));
+    const rc = await localRecall(positionA);
+    expect(rc.drafts.S1.reflectionOverride).toEqual(canonicalC2);
+
+    const edited: ReflectionOverride = { rail: "LEFT", t: 0.62 };
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", { c2: edited });
+    expect(result.ok, result.reason).toBe(true);
+    expectFamilyC2(h.dataset, familyId, edited);
+    expect(geometrySnapshot(fourTrack(h.dataset, familyId))).toEqual(before);
+  });
+
+  it.each<[string, "H" | "V" | "RPI"]>([
+    ["TEST C2-2", "H"],
+    ["TEST C2-3", "V"],
+    ["TEST C2-4", "RPI"],
+  ])("%s — %s Recall shows the projection; edited C2 is inverse-transformed to the root", async (_l, op) => {
+    const h = harness();
+    const familyId = seedFamily(h, { c2: canonicalC2 });
+    const before = geometrySnapshot(fourTrack(h.dataset, familyId));
+    const loc = locByOp(h.dataset, familyId, op);
+    const rc = await localRecall(loc.balls);
+    const shown = transformReflectionOverride(op, canonicalC2)!;
+    expect(rc.drafts.S1.reflectionOverride).toEqual(shown);
+
+    const edited: ReflectionOverride = { rail: shown.rail, t: 0.2 };
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", { c2: edited });
+    expect(result.ok, result.reason).toBe(true);
+    const canonical = transformReflectionOverride(op, edited)!;
+    expect(rootC2(h.dataset, familyId)).not.toEqual(edited);
+    expectFamilyC2(h.dataset, familyId, canonical);
+    expect(locByOp(h.dataset, familyId, op).entry.reflectionOverride!.rail).toBe(edited.rail);
+    expect(locByOp(h.dataset, familyId, op).entry.reflectionOverride!.t).toBeCloseTo(edited.t, 12);
+    expect(geometrySnapshot(fourTrack(h.dataset, familyId))).toEqual(before);
+  });
+
+  it("non-B2T_L root: AUTHORED T2B_R, V (B2T_L) Recall edit → canonical in the T2B_R frame", async () => {
+    const h = harness();
+    const c2: ReflectionOverride = { rail: "TOP", t: 0.35 };
+    const familyId = seedFamily(h, { track: "T2B_R", c2 });
+    expect(locByOp(h.dataset, familyId, "AUTHORED").entry.track).toBe("T2B_R");
+    expectFamilyC2(h.dataset, familyId, c2);
+    const vLoc = locByOp(h.dataset, familyId, "V");
+    expect(vLoc.entry.track).toBe("B2T_L");
+    const rc = await localRecall(vLoc.balls);
+    expect(rc.drafts.S1.reflectionOverride).toEqual({ rail: "BOTTOM", t: 0.35 });
+
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", { c2: { rail: "BOTTOM", t: 0.8 } });
+    expect(result.ok, result.reason).toBe(true);
+    expectFamilyC2(h.dataset, familyId, { rail: "TOP", t: 0.8 });
+    expect(locByOp(h.dataset, familyId, "AUTHORED").entry.track).toBe("T2B_R");
+  });
+
+  it.each<[string, DerivedOrigin, "H" | "V"]>([
+    ["TEST C2-5", "DERIVED_C3_PLUS", "H"],
+    ["TEST C2-6", "DERIVED_CUE_C3_PRODUCT", "V"],
+  ])("%s — %s Recall (base %s) → edit C2 → root canonical; Derived stays Derived", async (_l, origin, op) => {
+    const h = harness();
+    const familyId = seedFamily(h, { c2: canonicalC2 });
+    const base = locByOp(h.dataset, familyId, op);
+    const dBalls = shift(base.balls, { cue: [op === "H" ? -4 : 4, 2] });
+    const derived = addDerived(h, familyId, base, dBalls, 1, origin);
+    const shown = transformReflectionOverride(op, canonicalC2)!;
+    expect(derived.entry.reflectionOverride).toEqual(shown);
+    const before4 = geometrySnapshot(fourTrack(h.dataset, familyId));
+    const identityBefore = derivedIdentity(derived);
+
+    const rc = await localRecall(dBalls, derived.slot);
+    expect(rc.record?.strategies[derived.slot]?.memberOrigin).toBe(origin);
+    expect(rc.drafts[derived.slot].reflectionOverride).toEqual(shown);
+
+    const edited: ReflectionOverride = { rail: shown.rail, t: 0.15 };
+    const { result } = pressAfterRecall(h, rc, derived.slot, "OVERWRITE", { c2: edited });
+    expect(result.ok, result.reason).toBe(true);
+    const canonical = transformReflectionOverride(op, edited)!;
+    expectFamilyC2(h.dataset, familyId, canonical);
+    expect(geometrySnapshot(fourTrack(h.dataset, familyId))).toEqual(before4);
+    const after = derivedLoc(h.dataset, familyId, "mb_derived_1");
+    expect(derivedIdentity(after)).toEqual(identityBefore);
+    expect(after.entry.reflectionOverride).toEqual(locByOp(h.dataset, familyId, op).entry.reflectionOverride);
+    expect(entriesOfFamily(h.dataset, familyId).filter((l) => l.entry.memberOrigin === "AUTHORED")).toHaveLength(1);
+  });
+
+  it("TEST C2-7 — unchanged C2 → root payload kept exactly (no round-trip drift)", async () => {
+    const h = harness();
+    const c2: ReflectionOverride = { rail: "TOP", t: 0.3700000000000001 };
+    const familyId = seedFamily(h, { c2 });
+    for (const op of ["H", "V", "RPI"] as const) {
+      const rc = await localRecall(locByOp(h.dataset, familyId, op).balls);
+      const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", { ai: `${op} 유지` });
+      expect(result.ok, result.reason).toBe(true);
+      expect(rootC2(h.dataset, familyId)).toStrictEqual(c2);
+      expectFamilyC2(h.dataset, familyId, c2);
+    }
+  });
+
+  it("TEST C2-8 — cleared C2 → removed Family-wide (4 Tracks + C3+/Product); Cue→Impact stays without", async () => {
+    const h = harness();
+    const familyId = seedFamily(h, { c2: canonicalC2 });
+    const hLoc = locByOp(h.dataset, familyId, "H");
+    addDerived(h, familyId, hLoc, shift(hLoc.balls, { cue: [-4, 2] }), 1, "DERIVED_C3_PLUS");
+    const vLoc = locByOp(h.dataset, familyId, "V");
+    addDerived(h, familyId, vLoc, shift(vLoc.balls, { cue: [4, 2] }), 2, "DERIVED_CUE_C3_PRODUCT");
+    const a = locByOp(h.dataset, familyId, "AUTHORED");
+    addDerived(h, familyId, a, shift(positionA, { cue: [4, 2] }), 3, "DERIVED_CUE_IMPACT");
+
+    const rc = await localRecall(hLoc.balls);
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", { c2: null });
+    expect(result.ok, result.reason).toBe(true);
+    expectFamilyC2(h.dataset, familyId, null);
+    for (const id of ["mb_derived_1", "mb_derived_2", "mb_derived_3"]) {
+      expect(derivedLoc(h.dataset, familyId, id).entry.reflectionOverride).toBeUndefined();
+    }
+  });
+
+  it("TEST C2-9 — SAVE from a B2T_R screen (H Recall, approximate) → B2T_R is AUTHORED; raw C2 canonical", async () => {
+    const h = harness();
+    const familyA = seedFamily(h, { c2: canonicalC2 });
+    const hLoc = locByOp(h.dataset, familyA, "H");
+    const q = shift(hLoc.balls, { cue: [1.5, 1] });
+    const rc = await localRecall(q);
+    expect((rc.drafts.S1.sys as { track: string }).track).toBe("B2T_R");
+    const screenC2: ReflectionOverride = { rail: "RIGHT", t: 0.44 };
+
+    const { result } = pressAfterRecall(h, rc, "S1", "SAVE", { ai: "새 공략", c2: screenC2 });
+    expect(result.ok, result.reason).toBe(true);
+    expect(result.saveIntent).toBe("CREATE");
+    const familyB = result.familyId!;
+    expect(familyB).not.toBe(familyA);
+    expectFourTrackFamily(h.dataset, familyB, "S1", q, "B2T_R");
+    expectFamilyC2(h.dataset, familyB, screenC2);
+    expectFamilyC2(h.dataset, familyA, canonicalC2);
+  });
+
+  it("TEST C2-10 — SAVE CREATE with a T2B_L screen → T2B_L AUTHORED keeps the raw C2", () => {
+    const h = harness();
+    const c2: ReflectionOverride = { rail: "BOTTOM", t: 0.61 };
+    const familyId = seedFamily(h, { track: "T2B_L", c2 });
+    expectFourTrackFamily(h.dataset, familyId, "S1", positionA, "T2B_L");
+    expectFamilyC2(h.dataset, familyId, c2);
+    expect(locByOp(h.dataset, familyId, "RPI").entry.track).toBe("B2T_L");
+    const rpi = locByOp(h.dataset, familyId, "RPI").entry.reflectionOverride!;
+    expect(rpi.rail).toBe("TOP");
+    expect(rpi.t).toBeCloseTo(0.39, 12);
+  });
+
+  it("Derived matrix — C3+/Product follow their same-track base; Cue→Impact carries no C2 / Extension", async () => {
+    const h = harness();
+    const familyId = seedFamily(h, { c2: canonicalC2, extensions: ext(70, 30) });
+    const hLoc = locByOp(h.dataset, familyId, "H");
+    const vLoc = locByOp(h.dataset, familyId, "V");
+    const a = locByOp(h.dataset, familyId, "AUTHORED");
+    const c3 = addDerived(h, familyId, hLoc, shift(hLoc.balls, { cue: [-4, 2] }), 1, "DERIVED_C3_PLUS");
+    const prod = addDerived(h, familyId, vLoc, shift(vLoc.balls, { cue: [4, 2] }), 2, "DERIVED_CUE_C3_PRODUCT");
+    const cueImpact = addDerived(h, familyId, a, shift(positionA, { cue: [4, 2] }), 3, "DERIVED_CUE_IMPACT");
+    const identities = [c3, prod, cueImpact].map(derivedIdentity);
+
+    const rc = await localRecall(positionA);
+    const editedC2: ReflectionOverride = { rail: "LEFT", t: 0.55 };
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", { c2: editedC2, extensions: ext(66, 28) });
+    expect(result.ok, result.reason).toBe(true);
+    expectFamilyC2(h.dataset, familyId, editedC2);
+
+    const c3After = derivedLoc(h.dataset, familyId, "mb_derived_1");
+    const prodAfter = derivedLoc(h.dataset, familyId, "mb_derived_2");
+    const cueAfter = derivedLoc(h.dataset, familyId, "mb_derived_3");
+    expect(c3After.entry.reflectionOverride).toEqual(locByOp(h.dataset, familyId, "H").entry.reflectionOverride);
+    expect(c3After.entry.trajectoryExtensions).toEqual(locByOp(h.dataset, familyId, "H").entry.trajectoryExtensions);
+    expect(prodAfter.entry.reflectionOverride).toEqual(locByOp(h.dataset, familyId, "V").entry.reflectionOverride);
+    expect(prodAfter.entry.trajectoryExtensions).toEqual(locByOp(h.dataset, familyId, "V").entry.trajectoryExtensions);
+    expect(cueAfter.entry.reflectionOverride).toBeUndefined();
+    expect(cueAfter.entry.trajectoryExtensions).toBeUndefined();
+    expect([c3After, prodAfter, cueAfter].map(derivedIdentity)).toEqual(identities);
+  });
+
+  it("Extension sync never gives DERIVED_CUE_IMPACT an Extension (generation rule)", async () => {
+    const h = harness();
+    const familyId = seedFamily(h, { extensions: ext(70, 30) });
+    const a = locByOp(h.dataset, familyId, "AUTHORED");
+    addDerived(h, familyId, a, shift(positionA, { cue: [4, 2] }), 1, "DERIVED_CUE_IMPACT");
+    const rc = await localRecall(positionA);
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", { extensions: ext(66, 28) });
+    expect(result.ok, result.reason).toBe(true);
+    expect(locByOp(h.dataset, familyId, "AUTHORED").entry.trajectoryExtensions).toEqual(ext(66, 28));
+    expect(derivedLoc(h.dataset, familyId, "mb_derived_1").entry.trajectoryExtensions).toBeUndefined();
+  });
+
+  it("Cue→Impact Recall → OVERWRITE (no C2 / Extension shown by rule) keeps the Family C2 and Extension", async () => {
+    const h = harness();
+    const familyId = seedFamily(h, { c2: canonicalC2, extensions: ext(70, 30) });
+    const a = locByOp(h.dataset, familyId, "AUTHORED");
+    const dBalls = shift(positionA, { cue: [4, 2] });
+    const cueImpact = addDerived(h, familyId, a, dBalls, 1, "DERIVED_CUE_IMPACT");
+    const rc = await localRecall(dBalls, cueImpact.slot);
+    expect(rc.drafts[cueImpact.slot].reflectionOverride).toBeUndefined();
+    expect(rc.drafts[cueImpact.slot].trajectoryExtensions).toBeUndefined();
+
+    const { result } = pressAfterRecall(h, rc, cueImpact.slot, "OVERWRITE", { ai: "파생에서 수정" });
+    expect(result.ok, result.reason).toBe(true);
+    expectFamilyC2(h.dataset, familyId, canonicalC2);
+    expect(locByOp(h.dataset, familyId, "AUTHORED").entry.trajectoryExtensions).toEqual(ext(70, 30));
+    expect(derivedLoc(h.dataset, familyId, "mb_derived_1").entry.reflectionOverride).toBeUndefined();
+  });
+
+  it("Published SYMMETRY Recall → edit C2 → OVERWRITE stores the canonical C2 at the Published root", async () => {
+    const dry = harness();
+    const familyId = seedFamily(dry, { shotType: "옆돌리기", c2: canonicalC2 });
+    const records = dry.dataset;
+    storage.clear();
+    const rpi = locByOp(records, familyId, "RPI");
+    const rc = await publishedRecall(records, rpi.balls);
+    expect(rc.matched).toBe(true);
+    const shown = transformReflectionOverride("RPI", canonicalC2)!;
+    expect(rc.drafts.S1.reflectionOverride).toEqual(shown);
+
+    const h = harness([]);
+    const edited: ReflectionOverride = { rail: shown.rail, t: 0.9 };
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", { c2: edited, shotType: "옆돌리기" });
+    expect(result.ok, result.reason).toBe(true);
+    expectFamilyC2(h.dataset, familyId, transformReflectionOverride("RPI", edited));
+  });
+
+  it("thickness edit keeps OVERWRITE eligibility and the C2 (T is not a C2 dependency)", async () => {
+    expect(shouldClearOverwriteEligibilityOnBallEdit("impact")).toBe(false);
+    const h = harness();
+    const familyId = seedFamily(h, { c2: canonicalC2 });
+    const rc = await localRecall(locByOp(h.dataset, familyId, "V").balls);
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", {
+      hpt: { ...seedHpt, T: "+6/8" },
+    });
+    expect(result.ok, result.reason).toBe(true);
+    expectFamilyC2(h.dataset, familyId, canonicalC2);
   });
 });
 

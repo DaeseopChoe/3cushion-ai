@@ -640,8 +640,15 @@ Drag 중에는 transition을 끈다.
 | Display XY ≡ `c2HandleRgRef` ≡ pointer-down seed (단일 owner) | 모드별 장기 handle state 복제 |
 | Click / zero-movement → **C2 mutation 없음** · 실제 move 후 override | pointer-down 즉시 setOverride |
 | 1D Rail Drag (`projectPointToRail`) | 2D 자유 Drag |
-| Persist: `StrategyEntry.reflectionOverride = { rail, t }` | 절대좌표 저장 |
+| Persist: `StrategyEntry.reflectionOverride = { rail, t }` (Family-common · AUTHORED canonical · Track projection — F-3C.2) | 절대좌표 저장 |
 | Builder: `anchors.C2` 있으면 Reflection **skip** | Reflection Engine / `detectRail` 수식 변경 |
+
+> **Family-common persistence (Phase F-3C.2, 2026-09-27):** `reflectionOverride`는 Family 공용 C2 공략이다.
+> AUTHORED Member 값 = canonical (AUTHORED track frame) · SYMMETRY Member = H/V/RPI projection (4-Track write마다 재생성) ·
+> C3+ / Product Derived = same-track base projection · Cue→Impact Derived = 없음.
+> 어느 방향에서 수정해도 OVERWRITE 시 AUTHORED 방향으로 환산 (`trackSymmetry.transformReflectionOverride`) —
+> MASTER INDEX **F-3C.2 C2 Reflection Family-Common**. Display 범위는 변경 없음: **ADMIN only**, USER는 계산된 Reflection 유지
+> (USER 적용 여부는 별도 Display Boundary 결정).
 
 > **Ownership (2026-09-09):** `C2 HANDLE OWNER = ACTIVE TRAJECTORY C2`.  
 > `resolveActiveC2HandleRg`가 display + drag seed를 지배한다.  

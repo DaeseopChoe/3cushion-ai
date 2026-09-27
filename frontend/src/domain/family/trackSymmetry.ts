@@ -8,6 +8,14 @@
  */
 
 import type { Ball3, Point, StrategyMeta } from "../positionSearchEngine";
+import type { Rail } from "../reflectionEngine";
+import {
+  clampRailT,
+  normalizeReflectionOverride,
+  railPointFromT,
+  railTFromPoint,
+  type ReflectionOverride,
+} from "../trajectory/c2ReflectionOverride";
 import type { TrajectoryExtensionPayload } from "../trajectoryExtension/model";
 import type { SymmetryOp } from "./familyIdentity";
 
@@ -146,6 +154,29 @@ export function transformTrajectoryExtensions(
       updatedAt: item.updatedAt,
     })),
   };
+}
+
+/** Rail each cushion lands on under H (x mirror) / V (y mirror) / RPI (both). */
+const RAIL_SYMMETRY_MAP: Record<SymmetryOp, Record<Rail, Rail>> = {
+  H: { TOP: "TOP", BOTTOM: "BOTTOM", LEFT: "RIGHT", RIGHT: "LEFT" },
+  V: { TOP: "BOTTOM", BOTTOM: "TOP", LEFT: "LEFT", RIGHT: "RIGHT" },
+  RPI: { TOP: "BOTTOM", BOTTOM: "TOP", LEFT: "RIGHT", RIGHT: "LEFT" },
+};
+
+/**
+ * Project a C2 reflectionOverride `{ rail, t }` onto a SYMMETRY track.
+ * The rail point is moved by the same transformPoint as the balls; the destination
+ * rail is mapped explicitly (never re-detected from the point near a corner).
+ */
+export function transformReflectionOverride(
+  op: SymmetryOp,
+  override: ReflectionOverride | null | undefined
+): ReflectionOverride | null {
+  const source = normalizeReflectionOverride(override);
+  if (!source) return null;
+  const rail = RAIL_SYMMETRY_MAP[op][source.rail];
+  const point = transformPoint(op, railPointFromT(source.rail, source.t));
+  return { rail, t: clampRailT(rail, railTFromPoint(point, rail)) };
 }
 
 export function isValidBallCenter(point: Point): boolean {

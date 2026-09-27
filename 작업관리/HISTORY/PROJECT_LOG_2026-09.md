@@ -6,6 +6,60 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-27 — Phase F-3C.2 C2 Reflection Family-Common Canonicalization + 4-Track Projection
+
+## Mode
+
+**Agent** · 4-Track generator / OVERWRITE canonicalization / Derived sync · no schema / migration / dataset / History / Publish · USER C2 behavior unchanged
+
+## Rule
+
+- C2 reflectionOverride는 Family 공용 공략이다. Family A에는 하나의 C2가 있고 4 Track은 그 C2를 각 방향에 맞게 표현한다.
+  Family-common semantic ≠ identical raw JSON on every Member.
+- AUTHORED Member `reflectionOverride` = canonical authority · SYMMETRY = deterministic H/V/RPI projection ·
+  C3+ / Product Derived = same-track base projection · Cue→Impact Derived = none.
+
+## User operation flow
+
+- 관리자가 어느 방향(원본·대칭·파생)에서 C2를 수정하더라도, 그 방향의 Member 하나만 바꾸는 것이 아니라 Family의 C2 공략을 수정한다.
+  프로그램은 현재 방향의 C2를 AUTHORED 방향 기준으로 환산하고, 그 값을 Family의 canonical C2로 저장한다.
+  나머지 3방향은 canonical C2에서 H/V/RPI 대칭으로 다시 생성한다.
+- 예: Family A 원본 = B2T_L. 관리자가 H(B2T_R)를 Search하면 화면에는 C2의 H 표현이 보인다. C2를 옮기고 덮어쓰기 →
+  원본 C2는 H 대칭으로 환산된 값으로 바뀌고, V/RPI와 H 모두 새 원본에서 다시 만들어진다.
+- C2를 바꾸지 않고 다른 내용만 덮어쓰기 → 원본 C2는 그대로(소수점 오차 없이) 유지된다.
+- C2를 지우고 덮어쓰기 → Family 전체(4방향 + C3+/Product 파생)에서 C2가 사라진다.
+- SAVE → 현재 화면 방향이 새 Family의 원본(AUTHORED) 방향이 되고, 화면 C2가 그대로 원본 C2가 된다.
+- USER 화면은 변경 없음 (C2 override는 ADMIN 전용 표시).
+
+## Transform
+
+`{rail, t}` → table point → Family `transformPoint` → explicitly mapped rail → t (existing clamp band).
+H: TOP/BOTTOM 1−t · LEFT↔RIGHT t. V: TOP↔BOTTOM t · LEFT/RIGHT 1−t. RPI: all rails swap · 1−t.
+Involutions; H∘V = RPI; works for any AUTHORED track.
+
+## Root cause / fixes
+
+- `generateFourTrackMembers` dropped C2 on AUTHORED and SYMMETRY → AUTHORED keeps canonical C2; SYMMETRY gets projections.
+- OVERWRITE stored the screen C2 raw → `resolveOverwriteRootReflectionOverride` (unchanged → root exact · cleared → null · edited → inverse to root track).
+- Derived C2 sync (C3+ / Product from base) with the same rule as Extension.
+- Latent (F-3C.1 audit): Extension sync gave DERIVED_CUE_IMPACT an Extension → skipped.
+- Latent (found while testing): OVERWRITE from a Cue→Impact Recall wiped the Family Extension (the Member carries none by rule) →
+  "unchanged" now includes a recalled Member carrying none (Extension and C2).
+
+## Tests
+
+- Pre-fix: transform 19/19 fail (missing); generator + contract 19 fail (C2 dropped on AUTHORED / SYMMETRY);
+  after the generator fix 13 fail (raw SYMMETRY edit stored as AUTHORED · round-trip drift · Derived C2 not synced / not cleared ·
+  Cue→Impact Extension leak · Cue→Impact Recall wipes Family C2).
+- Post-fix: focused 3 files / 77 · family + flows + trajectory 68 files / 925 · full 186 files / 2117 · build PASS.
+- Manual browser: NOT RUN (the browser Local DB is the user's authoring store; no isolated fixture).
+
+## Status
+
+Phase F-3C COMPLETE. Schema / migration / dataset / History / Publish unchanged.
+
+---
+
 # 2026-09-27 — Phase F-3C Trusted Family OVERWRITE + Recall Position Difference Notice
 
 ## Mode
@@ -58,6 +112,7 @@ Derived Members kept stale Family-common payload → `COMMON_PAYLOAD_CONFLICT` a
 
 - **C2 reflectionOverride (STOP C):** four-track generator persists C2 on neither AUTHORED nor
   SYMMETRY; no `{rail, t}` symmetry transform exists. Needs a direction-rule decision (Ask).
+  → **RESOLVED** by Phase F-3C.2 (entry above).
 - Published Family absent from Local: symmetry memberIds are minted on the first Local write
   (pre-existing writer lineage behavior; AUTHORED memberId preserved).
 

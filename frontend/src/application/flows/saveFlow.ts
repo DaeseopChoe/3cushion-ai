@@ -45,6 +45,7 @@ import {
   resolveOverwriteFamilyRoot,
   resolveOverwriteRecallMemberFrame,
   resolveOverwriteRootExtensions,
+  resolveOverwriteRootReflectionOverride,
   syncFamilyCommonPayloadToDerivedMembers,
   type FamilyAuthoredRoot,
   type FamilyRecallMemberFrame,
@@ -510,6 +511,19 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     !!overwriteRoot &&
     JSON.stringify(trajectoryExtensionsForWrite ?? null) !==
       JSON.stringify(overwriteRoot.trajectoryExtensions ?? null);
+  // SAVE (CREATE): the screen track becomes AUTHORED, so the screen C2 is already canonical.
+  const reflectionOverrideForWrite =
+    overwriteRoot && recallFrame
+      ? resolveOverwriteRootReflectionOverride({
+          edited: ctx.reflectionOverridePayload ?? null,
+          frame: recallFrame,
+          root: overwriteRoot,
+        })
+      : (ctx.reflectionOverridePayload ?? null);
+  const rootReflectionOverrideChanged =
+    !!overwriteRoot &&
+    JSON.stringify(reflectionOverrideForWrite ?? null) !==
+      JSON.stringify(overwriteRoot.reflectionOverride ?? null);
 
   const canonicalDraft = normalizeCanonicalSaveDraft(
     toCanonicalStrategyEntry({
@@ -573,7 +587,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       memberOrigin: canonicalDraft.memberOrigin,
       evaluateStrategy: evalForSave,
       trajectoryExtensions: trajectoryExtensionsForWrite,
-      reflectionOverride: ctx.reflectionOverridePayload ?? null,
+      reflectionOverride: reflectionOverrideForWrite,
     });
     strategy = attachCanonicalFieldsToStrategyEntry(baseEntry, canonicalDraft);
     console.log("[SAVE] strategy JSON check:", JSON.stringify(strategy));
@@ -642,6 +656,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     if (overwriteRoot) {
       updated = syncFamilyCommonPayloadToDerivedMembers(updated, overwriteRoot.familyId, {
         syncDerivedExtensions: rootExtensionsChanged,
+        syncDerivedReflectionOverride: rootReflectionOverrideChanged,
       });
     }
   } else {

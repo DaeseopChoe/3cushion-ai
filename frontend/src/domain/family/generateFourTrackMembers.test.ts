@@ -12,7 +12,12 @@ import {
   generateFourTrackMembers,
 } from "./generateFourTrackMembers";
 import { resolveFamilyHpt } from "./hptResolver";
-import { parseFamilyTrack } from "./trackSymmetry";
+import {
+  FAMILY_TRACKS,
+  mapFamilyTrack,
+  parseFamilyTrack,
+  transformReflectionOverride,
+} from "./trackSymmetry";
 
 const authoredBalls = {
   cue: { x: 10, y: 8 },
@@ -117,15 +122,53 @@ describe("generateFourTrackMembers", () => {
       expect(member.targetBall).toBe("red");
       expect(member.entry.sysInputs).toEqual({ CO_f: 30, C1_f: 10, C3_r: 20 });
       expect(member.entry.signature.systemId).toBe("5_half_system");
-      expect(member.entry.reflectionOverride).toBeUndefined();
+      expect(member.entry.reflectionOverride).toEqual(
+        transformReflectionOverride(op, { rail: "TOP", t: 0.4 })
+      );
       expect(member.entry.trajectoryExtensions).toBeUndefined();
     }
+    expect(set.authored.entry.reflectionOverride).toEqual({ rail: "TOP", t: 0.4 });
 
     expect(set.authored.track).toBe("B2T_L");
     expect(set.symmetry.H.track).toBe("B2T_R");
     expect(set.symmetry.V.track).toBe("T2B_R");
     expect(set.symmetry.RPI.track).toBe("T2B_L");
     expect(FAMILY_MASTER_MIGRATION_DEBT).toContain("TEMPORARY");
+  });
+
+  it.each(FAMILY_TRACKS)(
+    "C2: AUTHORED %s keeps canonical reflectionOverride; H/V/RPI get projections",
+    (authoredTrack) => {
+      const canonical = { rail: "LEFT" as const, t: 0.3 };
+      const result = generateFourTrackMembers({
+        balls: authoredBalls,
+        entry: authoredEntry({ track: authoredTrack, reflectionOverride: canonical }),
+      });
+      if (!result.ok) throw new Error(result.reason);
+      expect(result.set.authored.track).toBe(authoredTrack);
+      expect(result.set.authored.entry.reflectionOverride).toEqual(canonical);
+      for (const op of ["H", "V", "RPI"] as const) {
+        const member = result.set.symmetry[op];
+        expect(member.track).toBe(mapFamilyTrack(authoredTrack, op));
+        expect(member.entry.reflectionOverride).toEqual(
+          transformReflectionOverride(op, canonical)
+        );
+      }
+      expect(result.set.symmetry.H.entry.reflectionOverride).toEqual({ rail: "RIGHT", t: 0.3 });
+      expect(result.set.symmetry.V.entry.reflectionOverride?.rail).toBe("LEFT");
+      expect(result.set.symmetry.V.entry.reflectionOverride?.t).toBeCloseTo(0.7, 12);
+      expect(result.set.symmetry.RPI.entry.reflectionOverride?.rail).toBe("RIGHT");
+      expect(result.set.symmetry.RPI.entry.reflectionOverride?.t).toBeCloseTo(0.7, 12);
+    }
+  );
+
+  it("C2: no AUTHORED reflectionOverride → no Member carries one", () => {
+    const result = generateFourTrackMembers({
+      balls: authoredBalls,
+      entry: authoredEntry({ reflectionOverride: undefined }),
+    });
+    if (!result.ok) throw new Error(result.reason);
+    for (const m of result.set.members) expect(m.entry.reflectionOverride).toBeUndefined();
   });
 
   it("creates positionId from transformed balls", () => {

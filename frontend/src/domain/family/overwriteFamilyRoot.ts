@@ -13,6 +13,10 @@
  *   - Current screen balls → SAVE (CREATE) only.
  */
 import type { Ball3, PositionRecord, StrategyEntry } from "../positionSearchEngine";
+import {
+  normalizeReflectionOverride,
+  type ReflectionOverride,
+} from "../trajectory/c2ReflectionOverride";
 import { listFamilyMemberLocations } from "./familyAwareWriter";
 import { parseMemberOrigin, parseSymmetryOp } from "./familyIdentity";
 import {
@@ -28,6 +32,7 @@ import {
   mapFamilyTrack,
   parseFamilyTrack,
   symmetryOpBetweenTracks,
+  transformReflectionOverride,
   transformTrajectoryExtensions,
 } from "./trackSymmetry";
 
@@ -42,6 +47,8 @@ export type FamilyAuthoredRoot = {
   track: string;
   slot: Slot;
   trajectoryExtensions?: Extensions;
+  /** Canonical Family C2 (AUTHORED frame). */
+  reflectionOverride?: ReflectionOverride;
 };
 
 /** The Member that won Recall (AUTHORED, SYMMETRY or DERIVED) — the edit frame. */
@@ -55,6 +62,8 @@ export type FamilyRecallMemberFrame = {
   balls: Ball3;
   slot: Slot;
   trajectoryExtensions?: Extensions;
+  /** C2 as stored on the recalled Member (its own track frame). */
+  reflectionOverride?: ReflectionOverride;
 };
 
 export type OverwriteRecallContext = {
@@ -81,6 +90,11 @@ function targetBallOf(raw: unknown): "red" | "yellow" | undefined {
   return raw === "red" || raw === "yellow" ? raw : undefined;
 }
 
+function reflectionOverridePatch(raw: unknown): { reflectionOverride?: ReflectionOverride } {
+  const c2 = normalizeReflectionOverride(raw);
+  return c2 ? { reflectionOverride: c2 } : {};
+}
+
 export function findLocalFamilyAuthoredRoot(
   dataset: PositionRecord[] | null | undefined,
   familyId: string
@@ -104,6 +118,7 @@ export function findLocalFamilyAuthoredRoot(
     ...(found.entry.trajectoryExtensions
       ? { trajectoryExtensions: cloneJson(found.entry.trajectoryExtensions) }
       : {}),
+    ...reflectionOverridePatch(found.entry.reflectionOverride),
   };
 }
 
@@ -127,6 +142,7 @@ export function findPublishedFamilyAuthoredRoot(
     track: m.track,
     slot: m.sourceSlot,
     ...(m.trajectoryExtensions ? { trajectoryExtensions: cloneJson(m.trajectoryExtensions) } : {}),
+    ...reflectionOverridePatch(m.reflectionOverride),
   };
 }
 
@@ -148,6 +164,7 @@ export function recallMemberFrameFromRecord(
     balls: cloneBall3(record.balls),
     slot,
     ...(entry.trajectoryExtensions ? { trajectoryExtensions: cloneJson(entry.trajectoryExtensions) } : {}),
+    ...reflectionOverridePatch(entry.reflectionOverride),
   };
 }
 
@@ -258,6 +275,7 @@ export function resolveOverwriteRecallMemberFrame(args: {
           ...(loc.entry.trajectoryExtensions
             ? { trajectoryExtensions: cloneJson(loc.entry.trajectoryExtensions) }
             : {}),
+          ...reflectionOverridePatch(loc.entry.reflectionOverride),
         };
       }
     } catch {
@@ -303,10 +321,17 @@ function extensionShape(payload: Extensions | null | undefined): string | null {
   });
 }
 
+function frameToRootOp(frame: FamilyRecallMemberFrame, root: FamilyAuthoredRoot) {
+  const from = parseFamilyTrack(frame.track);
+  const to = parseFamilyTrack(root.track);
+  return from && to ? symmetryOpBetweenTracks(from, to) : null;
+}
+
 /**
- * Extension edits are Family-canonical. Unchanged vs the recalled Member → keep
- * the root's stored payload exactly; edited → transform from the recalled frame
- * to the root frame (H/V/RPI are exact involutions on table coordinates).
+ * Extension edits are Family-canonical. Unchanged vs the recalled Member (including a
+ * Member that carries none by its generation rule) → keep the root's stored payload
+ * exactly; cleared → null; edited → transform from the recalled frame to the root frame
+ * (H/V/RPI are exact involutions on table coordinates).
  */
 export function resolveOverwriteRootExtensions(args: {
   edited: Extensions | null | undefined;
@@ -314,14 +339,41 @@ export function resolveOverwriteRootExtensions(args: {
   root: FamilyAuthoredRoot;
 }): Extensions | null {
   const { edited, frame, root } = args;
-  if (!edited) return null;
   if (extensionShape(edited) === extensionShape(frame.trajectoryExtensions)) {
-    return root.trajectoryExtensions ? cloneJson(root.trajectoryExtensions) : cloneJson(edited);
+    return cloneJson(root.trajectoryExtensions ?? edited ?? null);
   }
-  const from = parseFamilyTrack(frame.track);
-  const to = parseFamilyTrack(root.track);
-  const op = from && to ? symmetryOpBetweenTracks(from, to) : null;
+  if (!edited) return null;
+  const op = frameToRootOp(frame, root);
   return op ? transformTrajectoryExtensions(op, edited) : cloneJson(edited);
+}
+
+function sameReflectionOverride(
+  a: ReflectionOverride | null,
+  b: ReflectionOverride | null
+): boolean {
+  if (!a || !b) return a === b;
+  return a.rail === b.rail && a.t === b.t;
+}
+
+/**
+ * C2 edits are Family-canonical (AUTHORED frame). Unchanged vs the recalled Member
+ * (including a Member that carries none by its generation rule) → keep the root's C2
+ * exactly (no projection round trip); cleared → null; edited → transform from the
+ * recalled Member's track to the root track.
+ */
+export function resolveOverwriteRootReflectionOverride(args: {
+  edited: unknown;
+  frame: FamilyRecallMemberFrame;
+  root: FamilyAuthoredRoot;
+}): ReflectionOverride | null {
+  const { frame, root } = args;
+  const edited = normalizeReflectionOverride(args.edited);
+  if (sameReflectionOverride(edited, normalizeReflectionOverride(frame.reflectionOverride))) {
+    return cloneJson(root.reflectionOverride ?? edited ?? null);
+  }
+  if (!edited) return null;
+  const op = frameToRootOp(frame, root);
+  return op ? transformReflectionOverride(op, edited) : edited;
 }
 
 function isFourTrackOrigin(entry: StrategyEntry): boolean {
@@ -329,17 +381,32 @@ function isFourTrackOrigin(entry: StrategyEntry): boolean {
   return origin === "AUTHORED" || origin === "SYMMETRY" || origin == null;
 }
 
+/** C3+ / Product Derived copy their base's C2 + Extension; Cue→Impact carries neither. */
+function derivedCarriesBaseProjection(entry: StrategyEntry): boolean {
+  return parseMemberOrigin(entry.memberOrigin) !== "DERIVED_CUE_IMPACT";
+}
+
+function copyBaseField(
+  next: StrategyEntry,
+  base: StrategyEntry,
+  key: "trajectoryExtensions" | "reflectionOverride"
+): void {
+  if (base[key]) (next as Record<string, unknown>)[key] = cloneJson(base[key]);
+  else delete next[key];
+}
+
 /**
  * After a 4-Track UPDATE, bring same-family Derived Members' Family-common payload
  * (FamilyMaster common keys) in line with the AUTHORED Member. Derived balls,
  * Position, track, slot, identity/lineage and meta are untouched. With
- * `syncDerivedExtensions`, a Derived Member's Extension follows its same-track
- * base Member (the Derived generation rule).
+ * `syncDerivedExtensions` / `syncDerivedReflectionOverride`, a C3+ / Product Derived
+ * Member's Extension / C2 follows its same-track base Member (the Derived generation
+ * rule); Cue→Impact never receives either.
  */
 export function syncFamilyCommonPayloadToDerivedMembers(
   dataset: PositionRecord[],
   familyId: string,
-  options: { syncDerivedExtensions?: boolean } = {}
+  options: { syncDerivedExtensions?: boolean; syncDerivedReflectionOverride?: boolean } = {}
 ): PositionRecord[] {
   const authored = findAuthoredFamilyEntry(dataset, familyId);
   if (!authored) return dataset;
@@ -355,15 +422,12 @@ export function syncFamilyCommonPayloadToDerivedMembers(
       if (source[key] === undefined) delete target[key];
       else target[key] = cloneJson(source[key]);
     }
-    if (options.syncDerivedExtensions) {
-      const base = locations.find((l) => l.entry.memberId === loc.entry.generatedFromMemberId);
-      if (base) {
-        if (base.entry.trajectoryExtensions) {
-          next.trajectoryExtensions = cloneJson(base.entry.trajectoryExtensions);
-        } else {
-          delete next.trajectoryExtensions;
-        }
-      }
+    const base = derivedCarriesBaseProjection(loc.entry)
+      ? locations.find((l) => l.entry.memberId === loc.entry.generatedFromMemberId)
+      : undefined;
+    if (base) {
+      if (options.syncDerivedExtensions) copyBaseField(next, base.entry, "trajectoryExtensions");
+      if (options.syncDerivedReflectionOverride) copyBaseField(next, base.entry, "reflectionOverride");
     }
     if (JSON.stringify(next) === JSON.stringify(loc.entry)) continue;
     out ??= [...dataset];

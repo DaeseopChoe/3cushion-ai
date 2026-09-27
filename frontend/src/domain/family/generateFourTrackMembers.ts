@@ -8,7 +8,8 @@
  * System-specific routes are not FamilyTrack values.
  *
  * Common payload (sys/hpt/…) is TEMPORARY compatibility duplication.
- * reflectionOverride stays Member-specific (omitted on SYMMETRY).
+ * reflectionOverride (C2) is Family-common strategy: the AUTHORED value is canonical and
+ * every SYMMETRY Member stores its H/V/RPI projection, regenerated on each write (F-3C.2).
  * trajectoryExtensions are transformed onto SYMMETRY tracks (Phase 3A-359H).
  */
 
@@ -35,11 +36,13 @@ import {
   mapFamilyTrack,
   parseFamilyTrack,
   transformBall3,
+  transformReflectionOverride,
   transformStrategyMeta,
   transformTrajectoryExtensions,
   validateBall3Centers,
   type FamilyTrack,
 } from "./trackSymmetry";
+import { normalizeReflectionOverride } from "../trajectory/c2ReflectionOverride";
 import type { TrajectoryExtensionPayload } from "../trajectoryExtension/model";
 
 export type AuthoredFamilyMemberInput = {
@@ -108,8 +111,8 @@ function lineageMap(
  *
  * TEMPORARY_COMPATIBILITY_DUPLICATION — not Family Master SSOT.
  * hpT is the AUTHORED canonical snapshot (not handedness-mirrored).
- * reflectionOverride is Member-specific and omitted.
- * trajectoryExtensions are NOT in this common blob — applied per-member via transform.
+ * reflectionOverride and trajectoryExtensions are NOT in this common blob — their raw
+ * values differ per Track, so they are applied per-member via transform.
  */
 function copyTemporaryCommonPayload(source: StrategyEntry): Pick<
   StrategyEntry,
@@ -203,6 +206,7 @@ export function generateFourTrackMembers(
   const common = copyTemporaryCommonPayload(authored.entry);
   const targetBall = authored.targetBall;
   const authoredExtensions = cloneExtensions(authored.entry.trajectoryExtensions);
+  const authoredReflection = normalizeReflectionOverride(authored.entry.reflectionOverride);
 
   const authoredEntry: StrategyEntry = {
     slot: authored.entry.slot,
@@ -214,6 +218,7 @@ export function generateFourTrackMembers(
     authoringStrategyId: authoredAsid,
     meta: cloneJson(authored.entry.meta),
     ...(authoredExtensions ? { trajectoryExtensions: authoredExtensions } : {}),
+    ...(authoredReflection ? { reflectionOverride: authoredReflection } : {}),
   };
 
   const authoredMember: FourTrackMember = {
@@ -240,6 +245,7 @@ export function generateFourTrackMembers(
       authoredExtensions != null
         ? transformTrajectoryExtensions(op, authoredExtensions)
         : undefined;
+    const mirroredReflection = transformReflectionOverride(op, authoredReflection);
     const entry: StrategyEntry = {
       slot: authored.entry.slot,
       ...copyTemporaryCommonPayload(authored.entry),
@@ -252,6 +258,7 @@ export function generateFourTrackMembers(
       authoringStrategyId: ids.authoringStrategyId,
       meta: transformStrategyMeta(op, authored.entry.meta, transformed),
       ...(mirroredExtensions ? { trajectoryExtensions: mirroredExtensions } : {}),
+      ...(mirroredReflection ? { reflectionOverride: mirroredReflection } : {}),
     };
 
     symmetry[op] = {
