@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase F-3C — OVERWRITE self/cross Family C-0 diagnosis + fix (F-2 COMPLETE · F-3B COMPLETE) |
+| **Next Track** | Phase F-3C — OVERWRITE self/cross Family C-0 diagnosis + fix (F-2 COMPLETE · F-3B COMPLETE · F-3B.2 COMPLETE) |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
 | **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict |
@@ -60,6 +60,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase F-2F** | ✅ **CLIENT CONFLICT PRESERVE** — Git browser client keeps top-level `conflict` + `leafRevision` (nested `["conflict"]` parse bug fixed) |
 | **Phase F-2G-2** | ✅ **PARTIAL PUBLISH RECOVERED** — WT v3 candidate validated · assume-unchanged cleared target-scoped · data commit/push · PRODUCTION_VERIFIED · History exported pending UI reconcile |
 | **Phase F-3B** | ✅ **ADMIN DESTINATION SLOT** — S1/S2/S3 during editing = SAVE destination; edit draft preserved across slot select + failed SAVE; OVERWRITE only on recalled source slot; C-0 unchanged |
+| **Phase F-3B.2** | ✅ **4-TRACK FAMILY STRATEGY SLOT INVARIANT** — AUTHORED + H/V/RPI SYMMETRY Members of one Family share the selected S1/S2/S3; no first-empty fallback; any collision fails the whole CREATE; C-0 unchanged; Derived slot semantics not decided |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -905,7 +906,7 @@ Member가 다른 위치에 있다고 해서 별도의 SYS / correction / AI / ST
 | Category | Fields | Notes |
 |----------|--------|-------|
 | **MASTER** | `familyId`, `signature`, `sysInputs`, `corrections?`, `correctionsStored?`, `ai?`, `str?`, canonical `hpT?` (thickness = `hpT.T`) | Authoritative Family-common strategy payload. Optional semantics follow existing `FamilyMaster` type. |
-| **MEMBER** | `memberId`, `familyId` (FK), `balls`, `track`, `memberOrigin`, `generatedFromMemberId?`, `symmetryOp?`, `derivedRule?`, `derivedStep?`, `authoringStrategyId?`, `sourceSlot`, `targetBall?`, `reflectionOverride?`, `trajectoryExtensions?` | Geometry / Track / provenance / packing. `positionId` = `createPositionId(balls)` (derivable; retained on PositionRecord). |
+| **MEMBER** | `memberId`, `familyId` (FK), `balls`, `track`, `memberOrigin`, `generatedFromMemberId?`, `symmetryOp?`, `derivedRule?`, `derivedStep?`, `authoringStrategyId?`, `sourceSlot`, `targetBall?`, `reflectionOverride?`, `trajectoryExtensions?` | Geometry / Track / provenance / packing. `positionId` = `createPositionId(balls)` (derivable; retained on PositionRecord). AUTHORED + SYMMETRY `sourceSlot` = the Family Strategy Slot (identical on all four Tracks — see **4-TRACK FAMILY STRATEGY SLOT INVARIANT**, Phase F-3B.2). |
 | **DERIVABLE** | `meta` (impact/final/angles), runtime/display mirrored HPT & thickness, `positionId` from balls | Not Family Master. Not Member strategy authority. Rebuild via existing calculation owner. |
 | **COMPATIBILITY DUPLICATE** | Flat `StrategyEntry` copies of MASTER common payload | `TEMPORARY_COMPATIBILITY_DUPLICATION` on **rematerialized runtime** objects only — **not** a durable Local store. ~~Production WRITE SSOT still flat `positions_dataset` / `positions.json`.~~ **SUPERSEDED:** Local WRITE = `normalized_dataset` (B-1); Local flat persist removed (C-2). External Export/Publish/`positions.json` remain flat until Phase D. |
 
@@ -1087,6 +1088,7 @@ Families per Position: 0..3
 - `familyId` / `memberId` formats unchanged (`fm_` / `mb_` UUID). Position+Slot is **occupancy only**, never Family ID.
 - Same Family across many Positions (AUTHORED + SYMMETRY + Derived + Product) remains **LEGAL**.
 - **SAVE** to occupied preferred Slot → **BLOCK** (clear Korean reason; no auto S2/S3; no auto-overwrite).
+  - Phase F-3B.2: the required slot applies to **every** AUTHORED + H/V/RPI SYMMETRY Member Position of the 4-Track set (no first-empty fallback for symmetry Members).
 - **OVERWRITE** same Family on its Slot → **PASS**; collision with another Family's occupied Slot → **BLOCK**; failed overwrite preserves prior corpus.
 - schemaVersion **3** retained (validator strengthen; no bump).
 - Local Search / Published Search / Export / Publish / dataset leaves / Product / trajectory: **UNCHANGED**.
@@ -1517,6 +1519,27 @@ Selecting a slot keeps the current edit draft (SYS · HP/T · STR · AI · corre
 
 **Phase F-3B COMPLETE:** YES
 **Next Track:** F-3C — exact OVERWRITE self/cross Family conflict diagnosis and fix.
+
+### Phase F-3B.2 — 4-TRACK FAMILY STRATEGY SLOT INVARIANT (2026-09-27)
+
+**Authority:** 본 절 · F-3B.1 sourceSlot audit
+
+> A 4-Track set is not four independent strategies. It is one real billiards Position/strategy represented in four screen orientations. Therefore all AUTHORED + H/V/RPI symmetry Members of one Family MUST share the same S1/S2/S3 strategy slot.
+
+- Coordinates / Track differ per Member (B2T_L · B2T_R · T2B_L · T2B_R); `familyId`, strategy slot and Family-common values (SYS · HP/T · STR · AI · corrections) are the **same**.
+- The Family Strategy Slot = the slot selected at SAVE (`preferredAuthoredSlot`). Without a selection: the existing Family AUTHORED slot, else the lowest slot free at all four Positions.
+- **No first-empty fallback** for AUTHORED / SYMMETRY Members.
+- Any required `(positionId, slot)` held by another Family → **whole CREATE fails** (`POSITION_STRATEGY_SLOT_CONFLICT`): dataset unchanged · no partial Family · no orphan familyId · no S1/S3 fallback.
+- C-0 `(positionId, sourceSlot) → at most one familyId` **unchanged**. No automatic slot movement.
+- Same-Family rewrite (same familyId + same member identity) stays in place.
+- **Derived Member (Cue→Impact · C3+ · Unified Review) slot semantics are NOT decided by this Phase** (writer keeps existing first-free placement for Derived).
+- `FamilyMember.sourceSlot` for AUTHORED + SYMMETRY is the Family Strategy Slot, **not** arbitrary per-Position packing provenance. (Earlier wording “packing provenance only” is superseded for 4-Track Members.)
+- No schema change · no new FamilyMaster field · no migration. Published audit (2026-09-27): 6 Families · 6 complete 4-Track · 0 mixed-slot · 0 C-0 violations. Local corpus: UNKNOWN (browser localStorage, not audited).
+
+**Code SSOT:** `familyAwareWriter.ts` — `resolveFourTrackFamilyStrategySlot` (one slot per 4-Track set) → `FamilyWriteOptions.familyStrategySlot` → `resolveInsertSlot` strict for AUTHORED/SYMMETRY · tests `fourTrackStrategySlotInvariant.contract.test.ts`
+
+**Phase F-3B.2 COMPLETE:** YES
+**Next Track:** F-3C — reproduce exact Local OVERWRITE case and fix non-AUTHORED/Family self-conflict without changing the 4-Track strategy-slot invariant.
 
 **Production SSOT (검증 완료, 2026-06):**
 

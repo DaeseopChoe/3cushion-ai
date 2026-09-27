@@ -6,6 +6,43 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-27 — Phase F-3B.2 4-TRACK FAMILY STRATEGY SLOT INVARIANT
+
+## Mode
+
+**Agent** · Family writer only · no schema / migration / dataset / History / Publish
+
+## Rule
+
+> A 4-Track set is not four independent strategies. It is one real billiards Position/strategy represented in four screen orientations. Therefore all AUTHORED + H/V/RPI symmetry Members of one Family MUST share the same S1/S2/S3 strategy slot.
+
+- Coordinates / Track differ; familyId, slot and Family-common values are the same
+- No first-empty fallback for AUTHORED / SYMMETRY Members
+- Any required (positionId, slot) held by another Family → whole CREATE fails (dataset unchanged, no partial Family, no orphan familyId)
+- C-0 `(positionId, sourceSlot) → at most one familyId` unchanged · no automatic slot movement
+- Derived Member slot semantics NOT decided by this Phase
+- 4-Track `sourceSlot` = Family Strategy Slot, not arbitrary packing provenance (schema doc comment corrected)
+
+## Root cause (F-3B.1)
+
+`resolveInsertSlot` applied the selected slot only to AUTHORED; H/V/RPI took `emptySlots()[0]`
+(or `"S1"` when the Position had no record). Even an empty-corpus SAVE into S2/S3 produced
+AUTHORED=S2/S3 + symmetry=S1; a free-slot hole produced mixed slots instead of failing.
+
+## Delivered
+
+- `familyAwareWriter.ts` — `resolveFourTrackFamilyStrategySlot` (selected slot → existing
+  AUTHORED slot → lowest slot free at all four Positions) passed explicitly as
+  `FamilyWriteOptions.familyStrategySlot`; `resolveInsertSlot` strict for AUTHORED/SYMMETRY;
+  conflict reason names the blocked Position + required slot. Derived path unchanged.
+- `fourTrackStrategySlotInvariant.contract.test.ts` — 20 tests (TEST 1–14: SAVE S1/S2/S3,
+  search in all 4 orientations, atomic symmetry-collision failure, same-Family rewrite, C-0,
+  F-3B regressions, coordinates/sys invariant, all four authored Tracks, Derived unchanged,
+  USER profiles). 16/20 fail on the pre-fix writer.
+- Published audit: 6 Families · 6 complete 4-Track · 0 mixed-slot · 0 C-0. Local: UNKNOWN.
+
+---
+
 # 2026-09-27 — Phase F-3B ADMIN Strategy Destination Slot + Edit Draft Preservation
 
 ## Mode

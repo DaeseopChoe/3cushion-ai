@@ -360,9 +360,8 @@ describe("F-3B ADMIN destination slot — edit draft preservation", () => {
     // TEST 4: S1 Family untouched
     expect(entriesOfFamily(h.dataset, familyA)).toEqual(familyABefore);
 
-    // TEST 5: generated Family Members placed in S2 (writer contract: AUTHORED at the
-    // preferred slot; symmetry members at the first free slot of their Position —
-    // S1 is held by Family A's members, so S2)
+    // TEST 5: generated Family Members placed in S2 (4-Track Family Strategy Slot
+    // Invariant: AUTHORED + H/V/RPI all take the selected slot)
     const familyBEntries = entriesOfFamily(h.dataset, familyB);
     expect(familyBEntries.length).toBeGreaterThan(1);
     for (const m of familyBEntries) expect(m.slot).toBe("S2");

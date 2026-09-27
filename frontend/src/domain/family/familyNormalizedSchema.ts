@@ -67,12 +67,16 @@ export type FamilyMaster = {
   hpT?: unknown;
 };
 
-/** Slot key on PositionRecord.strategies — packing provenance only (not UI activeSlot). */
+/**
+ * Slot key on PositionRecord.strategies (not UI activeSlot).
+ * For AUTHORED + H/V/RPI SYMMETRY Members this is the Family Strategy Slot,
+ * identical across all four Tracks. Derived Member slot semantics are not fixed here.
+ */
 export type FamilySourceSlot = StrategyEntry["slot"];
 
 /**
  * FamilyMember delta — one row per memberId.
- * Owns balls + track + provenance + packing provenance (sourceSlot).
+ * Owns balls + track + provenance + strategy slot (sourceSlot).
  * No family-common writable payload.
  */
 export type FamilyMember = {
@@ -86,7 +90,7 @@ export type FamilyMember = {
   /**
    * Which PositionRecord.strategies slot this member occupies when rematerialized.
    * Required for invertible rematerialize. Not UI activeSlot; not inferred from
-   * memberOrigin/order.
+   * memberOrigin/order. 4-Track Members share the Family Strategy Slot.
    */
   sourceSlot: FamilySourceSlot;
   generatedFromMemberId?: string;

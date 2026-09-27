@@ -2,7 +2,9 @@
  * Family-aware PositionRecord writer.
  *
  * Does NOT use upsertPositionRecord. Exact coordinates are not Family identity.
- * Slot S1–S3 = max 3 strategies per Exact position, not Family / track / Member.
+ * Slot S1–S3 = max 3 strategies per Exact position.
+ * 4-Track Family Strategy Slot Invariant: AUTHORED + H/V/RPI SYMMETRY Members of one
+ * Family share one slot (same real Position shown in four screen orientations).
  *
  * Phase 3A-2:
  * - generic logical Family Member write plan
@@ -48,40 +50,52 @@ import { cloneBall3 } from "./trackSymmetry";
 export type FamilyWriteOptions = {
   /** AUTHORED insert prefers this slot when empty or already ours. */
   preferredAuthoredSlot?: StrategyEntry["slot"];
+  /**
+   * 4-Track Family Strategy Slot Invariant: AUTHORED + H/V/RPI SYMMETRY Members
+   * all require exactly this slot (no first-empty fallback). Derived Members ignore it.
+   */
+  familyStrategySlot?: StrategyEntry["slot"];
 };
 
 const SLOTS: StrategyEntry["slot"][] = ["S1", "S2", "S3"];
 
+function isFourTrackMemberOrigin(origin: unknown): boolean {
+  return origin === "AUTHORED" || origin === "SYMMETRY";
+}
+
 function resolveInsertSlot(args: {
   isAuthored: boolean;
+  isFourTrack: boolean;
   destRecord: PositionRecord | undefined;
   available: StrategyEntry["slot"][];
   preferredAuthoredSlot?: StrategyEntry["slot"];
+  familyStrategySlot?: StrategyEntry["slot"];
   familyId: string;
   identityKey: string;
 }):
   | { ok: true; slot: StrategyEntry["slot"] }
-  | { ok: false; reason: "PREFERRED_SLOT_OCCUPIED" | "NO_FREE_SLOT" } {
-  const { isAuthored, destRecord, available, preferredAuthoredSlot, familyId, identityKey } = args;
+  | {
+      ok: false;
+      reason: "PREFERRED_SLOT_OCCUPIED" | "NO_FREE_SLOT";
+      slot?: StrategyEntry["slot"];
+    } {
+  const { isAuthored, isFourTrack, destRecord, available, familyId, identityKey } = args;
+  const requiredSlot =
+    (isFourTrack ? args.familyStrategySlot : undefined) ??
+    (isAuthored ? args.preferredAuthoredSlot : undefined);
   if (!destRecord) {
-    return {
-      ok: true,
-      slot:
-        isAuthored && preferredAuthoredSlot
-          ? preferredAuthoredSlot
-          : "S1",
-    };
+    return { ok: true, slot: requiredSlot ?? "S1" };
   }
-  if (isAuthored && preferredAuthoredSlot) {
-    const occupant = destRecord.strategies[preferredAuthoredSlot];
-    if (!occupant) return { ok: true, slot: preferredAuthoredSlot };
+  if (requiredSlot) {
+    const occupant = destRecord.strategies[requiredSlot];
+    if (!occupant) return { ok: true, slot: requiredSlot };
     const occ = entryIdentity(occupant, destRecord.positionId);
     if (occ?.familyId === familyId && occ.identityKey === identityKey) {
-      return { ok: true, slot: preferredAuthoredSlot };
+      return { ok: true, slot: requiredSlot };
     }
-    // Phase C-0: preferred Strategy Slot occupied by another Family → BLOCK.
+    // Phase C-0: required Strategy Slot occupied by another Family → BLOCK.
     // Do NOT auto-fallback to S2/S3; admin must choose the slot explicitly.
-    return { ok: false, reason: "PREFERRED_SLOT_OCCUPIED" };
+    return { ok: false, reason: "PREFERRED_SLOT_OCCUPIED", slot: requiredSlot };
   }
   if (available[0]) return { ok: true, slot: available[0] };
   return { ok: false, reason: "NO_FREE_SLOT" };
@@ -582,15 +596,17 @@ export function preflightFamilyMemberWrite(
     const available = emptySlots(destRecord);
     const picked = resolveInsertSlot({
       isAuthored: member.memberOrigin === "AUTHORED",
+      isFourTrack: isFourTrackMemberOrigin(member.memberOrigin),
       destRecord,
       available,
       preferredAuthoredSlot: options?.preferredAuthoredSlot,
+      familyStrategySlot: options?.familyStrategySlot,
       familyId: set.familyId,
       identityKey,
     });
     if (!picked.ok) {
       if (picked.reason === "PREFERRED_SLOT_OCCUPIED") {
-        const slot = options?.preferredAuthoredSlot ?? "S1";
+        const slot = picked.slot ?? options?.preferredAuthoredSlot ?? "S1";
         return {
           ok: false,
           code: "POSITION_STRATEGY_SLOT_CONFLICT",
@@ -686,11 +702,62 @@ export function preflightGeneratedSet(
       )
       .filter((member): member is LogicalFamilyMemberCandidate => member != null),
   };
-  const preflight = preflightFamilyMemberWrite(dataset, candidateSet, options);
+  const familyStrategySlot = resolveFourTrackFamilyStrategySlot(
+    dataset,
+    candidateSet,
+    options
+  );
+  if (!familyStrategySlot) {
+    return {
+      ok: false,
+      code: "SLOT_CAPACITY",
+      reason: `no Strategy Slot is free at all four Track positions for family ${set.familyId}`,
+      set,
+    };
+  }
+  const preflight = preflightFamilyMemberWrite(dataset, candidateSet, {
+    ...options,
+    familyStrategySlot,
+  });
   if (!preflight.ok) {
     return { ok: false, code: preflight.code, reason: preflight.reason, set };
   }
   return { ok: true, plans: preflight.plans, set };
+}
+
+/**
+ * One Family Strategy Slot for the whole 4-Track set (explicit, never per-Position).
+ * 1. caller-selected slot (SAVE destination)
+ * 2. existing Family AUTHORED slot (idempotent rewrite / partial fill)
+ * 3. lowest slot free at every 4-Track Position (callers without a selection)
+ */
+function resolveFourTrackFamilyStrategySlot(
+  dataset: PositionRecord[],
+  set: FamilyMemberCandidateSet,
+  options?: FamilyWriteOptions
+): StrategyEntry["slot"] | null {
+  if (options?.preferredAuthoredSlot) return options.preferredAuthoredSlot;
+  const existingAuthored = listFamilyMemberLocations(dataset, set.familyId).find(
+    (loc) => loc.entry.memberOrigin === "AUTHORED"
+  );
+  if (existingAuthored) return existingAuthored.slot;
+  const fourTrack = set.members.filter((m) => isFourTrackMemberOrigin(m.memberOrigin));
+  for (const slot of SLOTS) {
+    const freeEverywhere = fourTrack.every((member) => {
+      const recordIndex = findRecordIndexByBalls(dataset, member.balls);
+      if (recordIndex < 0) return true;
+      const record = dataset[recordIndex];
+      const occupant = record.strategies[slot];
+      if (!occupant) return true;
+      const occ = entryIdentity(occupant, record.positionId);
+      return (
+        occ?.familyId === set.familyId &&
+        occ.identityKey === candidateIdentityKey(member)
+      );
+    });
+    if (freeEverywhere) return slot;
+  }
+  return null;
 }
 
 function applyPlans(
