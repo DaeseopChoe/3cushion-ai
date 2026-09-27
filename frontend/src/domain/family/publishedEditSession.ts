@@ -74,6 +74,42 @@ export function canOverwriteTrustedSourceFamily(args: {
   return resolveTrustedOverwriteSourceFamilyId(args) != null;
 }
 
+/** Slot familyId as read by OVERWRITE (applied wins over draft). */
+export function readSlotFamilyIdForOverwrite(
+  slot:
+    | {
+        draft?: { familyId?: unknown } | null;
+        applied?: { familyId?: unknown } | null;
+      }
+    | null
+    | undefined
+): string | null {
+  const familyId =
+    trimId(slot?.applied?.familyId) || trimId(slot?.draft?.familyId);
+  return familyId || null;
+}
+
+/**
+ * OVERWRITE may target the active slot only when that slot still carries the
+ * trusted source Family identity (i.e. it is the recalled source slot).
+ * A destination slot selected for a new SAVE never matches.
+ */
+export function isOverwriteSourceAlignedWithSlot(args: {
+  editingPublishedFamilyId?: string | null;
+  editingLocalFamilyId?: string | null;
+  slot:
+    | {
+        draft?: { familyId?: unknown } | null;
+        applied?: { familyId?: unknown } | null;
+      }
+    | null
+    | undefined;
+}): boolean {
+  const trusted = resolveTrustedOverwriteSourceFamilyId(args);
+  if (!trusted) return false;
+  return readSlotFamilyIdForOverwrite(args.slot) === trusted;
+}
+
 /**
  * @deprecated Prefer canOverwriteTrustedSourceFamily (LOCAL | PUBLISHED).
  * Kept for older imports — Published-only check.
@@ -144,3 +180,7 @@ export function clearEditingPublishedFamilyId(): null {
  */
 export const OVERWRITE_MISSING_SOURCE_USER_MESSAGE =
   "덮어쓸 기존 작업을 확인할 수 없습니다.\n기존 작업을 먼저 불러오거나 새 공략은 SAVE로 저장하세요.";
+
+/** OVERWRITE while a different destination slot (not the recalled source slot) is selected. */
+export const OVERWRITE_SLOT_MISMATCH_USER_MESSAGE =
+  "현재 선택한 슬롯은 불러온 기존 공략의 슬롯이 아닙니다.\n새 공략으로 저장하려면 SAVE를 사용하고, 기존 공략을 덮어쓰려면 원래 슬롯을 선택하세요.";

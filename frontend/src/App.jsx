@@ -311,7 +311,10 @@ import { runSaveStrategy } from "./application/flows/saveFlow";
 import { runCanonicalSave } from "./application/flows/historyFlow";
 import {
   canOverwriteTrustedSourceFamily,
+  isOverwriteSourceAlignedWithSlot,
+  OVERWRITE_SLOT_MISMATCH_USER_MESSAGE,
 } from "./domain/family/publishedEditSession";
+import { resolveAdminStrategySlotSelection } from "./domain/adminStrategyDestinationSlot";
 import { commitDerivedApprovalDataset } from "./application/flows/derivedApprovalFlow";
 import {
   DERIVED_REVIEW_MARKER_HIT_RADIUS_RG,
@@ -1250,6 +1253,12 @@ export default function App({
     editingPublishedFamilyId,
     editingLocalFamilyId,
   });
+  const isOverwriteSlotAligned = isOverwriteSourceAlignedWithSlot({
+    editingPublishedFamilyId,
+    editingLocalFamilyId,
+    slot: shotEditor.slots[shotEditor.activeSlot],
+  });
+  const canOverwriteActiveSlot = canOverwriteTrustedSource && isOverwriteSlotAligned;
   const [isSaved, setIsSaved] = useState(false);
   const [targetColor, setTargetColor] = useState(null);
 
@@ -2578,6 +2587,10 @@ export default function App({
     if (!canOverwriteTrustedSource) {
       return;
     }
+    if (!isOverwriteSlotAligned) {
+      alert(OVERWRITE_SLOT_MISMATCH_USER_MESSAGE);
+      return;
+    }
     const result = runCanonicalSave({
       dataset,
       ballsState,
@@ -3487,19 +3500,32 @@ function handleJoyPadPointerCancel(e) {
   ]);
 
   // ============================================
-  // S1/S2/S3: navigation only (no runAutoRecommend)
+  // S1/S2/S3: ADMIN editing = SAVE destination (carry edit draft);
+  // otherwise navigation only (no runAutoRecommend)
   // ============================================
   useEffect(() => {
     const slotIds = ["S1", "S2", "S3"];
     if (!slotIds.includes(currentButtonId)) return;
 
-    const prevSlotButton = lastSlotNavButtonRef.current;
-    const isCrossSlotNavigation =
-      prevSlotButton != null &&
-      prevSlotButton !== currentButtonId &&
-      slotIds.includes(prevSlotButton);
-
-    actions.switchSlot(currentButtonId);
+    const fromSlot = shotEditorRef.current.activeSlot;
+    const selection = resolveAdminStrategySlotSelection({
+      appMode,
+      fromSlot,
+      toSlot: currentButtonId,
+      fromSlotContainer: shotEditorRef.current.slots[fromSlot],
+      derivedReviewPending: isDerivedReviewSessionPending,
+    });
+    const isSlotButtonClick = lastSlotNavButtonRef.current !== currentButtonId;
+    if (selection === "CARRY_EDIT_DRAFT" && isSlotButtonClick) {
+      actions.selectDestinationSlotWithEditDraft(currentButtonId, {
+        trajectoryExtensions: trajectoryExtensionDraft
+          ? draftToPayload(trajectoryExtensionDraft)
+          : null,
+        reflectionOverride: c2ReflectionOverrideRef.current ?? null,
+      });
+    } else {
+      actions.switchSlot(currentButtonId);
+    }
     setOverlayContent(null);
     setOverlayState({ open: false, type: null });
 
@@ -7309,7 +7335,7 @@ function handlePointerCancel(e) {
               disabled={
                 !canUseSystemControls ||
                 isDerivedReviewSessionPending ||
-                !canOverwriteTrustedSource
+                !canOverwriteActiveSlot
               }
               className="control-button"
               onClick={() => {
@@ -7322,17 +7348,21 @@ function handlePointerCancel(e) {
                 opacity:
                   canUseSystemControls &&
                   !isDerivedReviewSessionPending &&
-                  canOverwriteTrustedSource
+                  canOverwriteActiveSlot
                     ? 1
                     : 0.45,
                 cursor:
                   canUseSystemControls &&
                   !isDerivedReviewSessionPending &&
-                  canOverwriteTrustedSource
+                  canOverwriteActiveSlot
                     ? "pointer"
                     : "not-allowed",
               }}
-              title="불러온 기존 작업을 덮어씁니다 (로컬DB 또는 Search)"
+              title={
+                canOverwriteTrustedSource && !isOverwriteSlotAligned
+                  ? OVERWRITE_SLOT_MISMATCH_USER_MESSAGE
+                  : "불러온 기존 작업을 덮어씁니다 (로컬DB 또는 Search)"
+              }
             >
               덮어쓰기
             </button>

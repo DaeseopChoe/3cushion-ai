@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase F-2 History exported reconciliation + Local UX (slot/overwrite) — Publish leaf PRODUCTION_VERIFIED |
+| **Next Track** | Phase F-3C — OVERWRITE self/cross Family C-0 diagnosis + fix (F-2 COMPLETE · F-3B COMPLETE) |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
 | **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict |
@@ -59,6 +59,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase F-2E** | ✅ **PUBLISH OVERWRITE UX** — resolvable same AUTHORED Position+Slot → user confirm → Family-level replacement; existing Published familyId survives; History immutable; C-0 strict |
 | **Phase F-2F** | ✅ **CLIENT CONFLICT PRESERVE** — Git browser client keeps top-level `conflict` + `leafRevision` (nested `["conflict"]` parse bug fixed) |
 | **Phase F-2G-2** | ✅ **PARTIAL PUBLISH RECOVERED** — WT v3 candidate validated · assume-unchanged cleared target-scoped · data commit/push · PRODUCTION_VERIFIED · History exported pending UI reconcile |
+| **Phase F-3B** | ✅ **ADMIN DESTINATION SLOT** — S1/S2/S3 during editing = SAVE destination; edit draft preserved across slot select + failed SAVE; OVERWRITE only on recalled source slot; C-0 unchanged |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -1495,6 +1496,27 @@ No useSettings fallback reconstruction. History/dataset untouched.
 **F-2 COMPLETE:** NO until History exported reconciled + Local UX phase
 
 **Next Track:** Mark snapshot `0600c4f9…` exported via supported post-PRODUCTION_VERIFIED path; then Local S1/S2/S3 UX.
+
+> **F-2 status update:** History snapshot `0600c4f9…` marked exported (F-2G-3). **F-2 COMPLETE.**
+
+### Phase F-3B — ADMIN Strategy Destination Slot + Edit Draft Preservation (2026-09-27)
+
+**Authority:** 본 절 · F-3A audit
+
+**Rule:** During ADMIN editing, **S1/S2/S3 = SAVE destination selection**, not navigation into stored slot data.
+Selecting a slot keeps the current edit draft (SYS · HP/T · STR · AI · corrections · trajectory · Extension · C2 override · balls).
+
+- SAVE = CREATE (new familyId) into the selected destination slot — unchanged
+- SAVE conflict (C-0) preserves current work → user may select another empty slot → SAVE
+- No automatic overwrite · no automatic slot move · C-0 unchanged
+- OVERWRITE only when the active slot still carries the trusted recalled familyId (`isOverwriteSourceAlignedWithSlot`); a different destination slot disables OVERWRITE
+- Ball Position change = new Position / new Family candidate → existing Family OVERWRITE disabled (existing `clearPublishedEditSession` on ball move); current content reusable for new Position SAVE
+- Carry is runtime-only: no Local write · no History · no familyId mint
+
+**Code SSOT:** `domain/adminStrategyDestinationSlot.ts` · `useShotSlots.selectDestinationSlotWithEditDraft` · App slot effect · `publishedEditSession.isOverwriteSourceAlignedWithSlot`
+
+**Phase F-3B COMPLETE:** YES
+**Next Track:** F-3C — exact OVERWRITE self/cross Family conflict diagnosis and fix.
 
 **Production SSOT (검증 완료, 2026-06):**
 

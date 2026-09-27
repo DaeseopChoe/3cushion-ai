@@ -23,6 +23,11 @@ import {
   shouldClearReflectionOverrideOnTrackChange,
   stripReflectionOverrideFromLayer,
 } from '../domain/trajectory/c2ReflectionOverride';
+import {
+  carryEditDraftToDestinationSlot,
+  type DestinationSlotsShape,
+  type LiveEditRuntime,
+} from '../domain/adminStrategyDestinationSlot';
 
 export { resolveSlotSysForRender, hasRenderableOutputsResult };
 
@@ -389,6 +394,28 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       ...prev,
       activeSlot: slotId
     }));
+  };
+
+  /**
+   * ADMIN destination slot 선택 — 현재 edit draft를 목적지 슬롯으로 carry + activeSlot 변경 (단일 setState).
+   * Durable write / familyId mint 없음.
+   */
+  const selectDestinationSlotWithEditDraft = (
+    toSlot: SlotId,
+    live?: LiveEditRuntime
+  ) => {
+    setShotEditor((prev) => {
+      if (prev.activeSlot === toSlot) return prev;
+      return {
+        activeSlot: toSlot,
+        slots: carryEditDraftToDestinationSlot(
+          prev.slots as unknown as DestinationSlotsShape,
+          prev.activeSlot,
+          toSlot,
+          live
+        ) as unknown as ShotEditorState["slots"],
+      };
+    });
   };
 
   /**
@@ -1033,6 +1060,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     shotEditor,
     actions: {
       switchSlot,
+      selectDestinationSlotWithEditDraft,
       duplicateSlot,
       updateDraftSys,
       commitDraftSys,

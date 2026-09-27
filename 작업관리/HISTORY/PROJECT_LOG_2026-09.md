@@ -6,6 +6,50 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-27 — Phase F-3B ADMIN Strategy Destination Slot + Edit Draft Preservation
+
+## Mode
+
+**Agent** · Local ADMIN UX only · F-2 Publish untouched · no dataset / History / Publish
+
+## Root cause (F-3A)
+
+ADMIN S1/S2/S3 behaved as navigation: `switchSlot` → `hydrateSlotRuntime(activeSlot)`
+→ empty destination → `createEmptySlotRuntime` → live adminState / trajectory wiped.
+SAVE failure itself never cleared draft or session; the wipe was the following slot click.
+
+## Delivered
+
+- `domain/adminStrategyDestinationSlot.ts` — `resolveAdminStrategySlotSelection` +
+  `carryEditDraftToDestinationSlot` (runtime only; destination keeps its own Family identity)
+- `useShotSlots.selectDestinationSlotWithEditDraft` — atomic carry + activeSlot change
+- App slot effect: ADMIN editing (non-empty source, not derived review) → carry current edit
+  draft (+ live Extension / C2 override) into destination; USER / empty / review → `switchSlot` as before
+- OVERWRITE gate `isOverwriteSourceAlignedWithSlot` — active slot must carry the trusted source
+  familyId; S2 selected after S1 recall → OVERWRITE disabled + mismatch message
+- `adminStrategyDestinationSlot.contract.test.ts` (11 tests: draft preservation, failed-SAVE
+  recovery, new S2 Family, C-0 unchanged, no durable mutation on click, ball-move new Position SAVE)
+
+## Rules recorded
+
+- ADMIN S1/S2/S3 = SAVE destination selection during active editing
+- Destination change preserves the current edit draft
+- SAVE conflict preserves current work; user may pick another empty slot → SAVE
+- SAVE remains CREATE · no automatic overwrite · no automatic slot move
+- Ball Position change = new Position / new Family candidate; disables existing Family OVERWRITE;
+  current content may be reused as basis for the new Position SAVE
+
+## Not touched
+
+C-0 · familyAwareWriter · saveFlow · Publish F-2 · dataset/** · schema.
+OVERWRITE self/cross C-0 (F-3A ISSUE C) → F-3C.
+
+## Tests
+
+Focused 37 files / 493 PASS · Full 183 files / 2032 PASS · build PASS
+
+---
+
 # 2026-09-25 — Phase F-2G-2 Reconcile Partial Publish + assume-unchanged Visibility
 
 ## Mode
