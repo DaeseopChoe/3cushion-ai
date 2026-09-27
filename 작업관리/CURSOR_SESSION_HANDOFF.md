@@ -22,6 +22,8 @@ Rule      : Fact only ·
 
 > 본 문서는 `작업관리/GLOSSARY_SSOT.md`의 공식 용어·Official Pipeline 표현을 따른다.
 
+> **CURRENT (2026-09-27):** 현재 상태 · baseline (`b39b676`) · open issues · 새 세션 시작 순서는 `PROJECT_MASTER_INDEX.md` **Current Session Handoff (2026-09-27)** 절이 기준이다. 아래 §1 Current Status · §3 Next Track · §6 Session Card는 2026-08-28 시점 기록(historical)이다.
+
 ---
 
 ## 0. 새 세션 — 필수 읽기 순서
@@ -159,6 +161,8 @@ Use official terminology and cite the relevant Glossary section.
 
 ## 1. Current Status
 
+> Historical (2026-08-28). Current → `PROJECT_MASTER_INDEX.md` **Current Session Handoff (2026-09-27)**.
+
 ```text
 Current Status
   Phase 3 Complete — Search Engine Architecture Complete
@@ -249,6 +253,8 @@ Official Pipeline 이름: **Search Enhancement Pipeline** — see `GLOSSARY_SSOT
 ---
 
 ## 3. 다음 작업 — Next Track
+
+> Historical (2026-08-28). Current next candidates (user decides, one at a time) → `PROJECT_MASTER_INDEX.md` **Current Session Handoff (2026-09-27)**.
 
 ### Primary — MUST START AS ASK
 
@@ -470,6 +476,19 @@ SearchResult
 ## 6. Current Session Card
 
 ```text
+Session ID     : 2026-09-27 — Session Handoff Finalization after F-3D
+Baseline       : main · b39b676 fix(overwrite): preserve published family identity graph
+Current Status : F-3B · F-3B.2 · F-3C · F-3C.2 · F-3D COMPLETE
+Next Session   : PROJECT_MASTER_INDEX.md → Current Session Handoff (2026-09-27)
+                 + HISTORY/PROJECT_LOG_2026-09.md latest entry · one open issue at a time
+Guardrail      : Protected untracked (never modify / delete / stage / commit):
+                 frontend/src/domain/trajectory/incidenceAngle.ts · .tmp.driveupload/
+                 Selective staging only · no force push
+```
+
+Previous card (historical):
+
+```text
 Session ID     : 2026-08-28 — ADMIN Workspace History Overlay UX & Documentation Sync
 Baseline       : main · ADMIN History Overlay UX 브라우저 검증 완료 · user datasets dirty/untracked 보존
 Current Status : ADMIN Workspace History Overlay UX COMPLETE
@@ -490,4 +509,4 @@ Guardrail      : Do not use `git add .` or `git add -A` (selective staging only)
 
 ---
 
-*End of CURSOR_SESSION_HANDOFF.md — 2026-08-28 · ADMIN Workspace History Overlay UX & Docs Sync COMPLETE*
+*End of CURSOR_SESSION_HANDOFF.md — 2026-09-27 · Session Handoff after F-3D (current state → MASTER Current Session Handoff)*

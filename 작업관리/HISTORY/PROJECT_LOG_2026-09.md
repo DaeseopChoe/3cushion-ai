@@ -6,6 +6,40 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-27 — Session Handoff Finalization after F-3D
+
+## Mode
+
+**Agent** · documentation only · no source code / schema / migration / dataset / History data / Publish change
+
+## Session closure
+
+- Completed in this session: **F-3B** (`48726f4`) · **F-3B.2** (`67d67fd`) · **F-3C** (`58ef947`) · **F-3C.2** (`4e89dca`) · **F-3D** (`b39b676`) — entries below.
+- Baseline for the next session: `b39b676fafb8805f706496f57df88c7fd2ec5f1d` (HEAD == origin/main before this docs commit).
+- Final verification (F-3D): full 187 files / 2155 tests PASS · build PASS · manual browser NOT RUN (browser Local DB = user's real authoring store).
+- No schema migration · no dataset modification · no History data modification · no Publish executed.
+
+## Documentation
+
+- `PROJECT_MASTER_INDEX.md`: new **Current Session Handoff (2026-09-27)** section (baseline · phase/commit table · frozen product meaning pointers · open issues · protected untracked · new session start). Status rows Current Mission / Next Track updated. F-3C Rules: Recall does not snap screen balls to the stored Member. F-3D: explicit atomicity line. ADMIN MANUAL TODO: full manual checklist. P0 Next Track points to the handoff section.
+- `CURSOR_SESSION_HANDOFF.md`: stale Current Status / Next Track / Session Card (2026-08-28) marked historical, pointing to the MASTER handoff section (no duplicated SSOT).
+
+## Open issues carried forward (not solved)
+
+1. USER C2 Display Boundary decision
+2. HP/T Derived opposite-handed display audit
+3. Local ↔ Published divergent graph reconciliation — future architecture
+4. Recall / Published concurrency / versioning — future architecture
+5. Legacy stale Published SYMMETRY repair policy — only if real cases appear
+
+## Next session
+
+Begin from `PROJECT_MASTER_INDEX.md` (**Current Session Handoff**) + this log. One open issue at a time; candidates A. USER C2 Display Boundary Ask · B. HP/T Derived opposite-handed display Ask · C. other Stage 1 work — the user decides.
+
+Protected untracked (not project changes): `frontend/src/domain/trajectory/incidenceAngle.ts` · `.tmp.driveupload/`.
+
+---
+
 # 2026-09-27 — Phase F-3D Preserve Complete Published Family Identity Graph on First Local OVERWRITE
 
 ## Mode

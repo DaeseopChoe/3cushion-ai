@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.21
-Last Updated: 2026-09-24
+Version: 2.22
+Last Updated: 2026-09-27
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -50,8 +50,8 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Optional Display Boundary Ask — saved ADMIN C2 on USER? · F-3C COMPLETE (F-2 · F-3B · F-3B.2 · F-3C · F-3C.2 · F-3D COMPLETE) |
+| **Current Mission** | **Session handoff after F-3D** — baseline `b39b676` · see **Current Session Handoff (2026-09-27)** below |
+| **Next Track** | Choose **one** open issue from **Current Session Handoff** (USER C2 Display Boundary Ask · HP/T Derived opposite-handed display Ask · other Stage 1 work) — not auto-decided · F-2 · F-3B · F-3B.2 · F-3C · F-3C.2 · F-3D COMPLETE |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
 | **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict |
@@ -91,6 +91,51 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Mission 02 Published Package Builder** | ✅ **COMPLETED** · **RETIRED Phase B-0** (offline package builder removed with `product/`) |
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** · **RETIRED Phase B-0** (offline deploy CLI removed with `product/`) |
 | **Mission 04 Authoring Integration** | ✅ **ABSORBED** · offline `product pipeline` **RETIRED Phase B-0** |
+
+### Current Session Handoff (2026-09-27)
+
+**Authority:** 본 절 = 새 세션 시작 기준점 (current state pointer). 상세 규칙은 각 Phase 절이 SSOT이며 여기서 재정의하지 않는다.
+
+| Field | Value |
+|-------|-------|
+| **As of** | 2026-09-27 |
+| **Baseline** | `b39b676fafb8805f706496f57df88c7fd2ec5f1d` — fix(overwrite): preserve published family identity graph (HEAD == origin/main) |
+| **Last verification (F-3D)** | full 187 files / 2155 tests PASS · `npm run build` PASS · manual browser NOT RUN (browser Local DB = user's real authoring store) |
+| **Schema / migration / dataset / History data / Publish** | unchanged through F-3B … F-3D |
+
+| Phase | Status | Commit | Section |
+|-------|--------|--------|---------|
+| F-3B | COMPLETE | `48726f4` fix(admin): preserve edit draft across strategy slot selection | Phase F-3B |
+| F-3B.2 | COMPLETE | `67d67fd` fix(family): keep strategy slot invariant across four tracks | Phase F-3B.2 |
+| F-3C | COMPLETE | `58ef947` fix(admin): preserve family root on overwrite recall | Phase F-3C |
+| F-3C.2 | COMPLETE | `4e89dca` fix(family): canonicalize c2 reflection across four tracks | F-3C.2 C2 Reflection Family-Common |
+| F-3D | COMPLETE | `b39b676` fix(overwrite): preserve published family identity graph | F-3D Full Family Identity Preservation |
+
+**Frozen product meaning (one line each — detail in the cited sections):**
+
+- **SAVE** = CREATE: current screen Position → new Family (new familyId / memberIds); existing Family untouched — also after a Recall. Blocked by C-0; no auto overwrite, no auto slot move. (Save Intent SSOT · F-3C)
+- **C-0:** `(positionId, sourceSlot) → at most one familyId`. (Phase C-0)
+- **OVERWRITE** = UPDATE of the trusted recalled Family: whichever Member was recalled (AUTHORED / SYMMETRY / DERIVED), the existing Family's Member identity / geometry / Position / Track / Slot / origin / lineage stay; only Family-common strategy values change. (F-3C · F-3D)
+- **Published-only first OVERWRITE:** the recalled Family's full normalized graph (FamilyMaster + every FamilyMember) is seeded into the in-memory Local working dataset → existing OVERWRITE path → one atomic persist. Local already holds any Member of that familyId → no seed, Local is the authority, no automatic merge / reconcile. (F-3D)
+- **4 Tracks** (B2T_L · B2T_R · T2B_L · T2B_R) = one real Position / strategy / Family shown in four screen orientations → one S1/S2/S3 on all four Tracks; coordinates differ by symmetry. (F-3B.2)
+- **Ownership:** FamilyMaster common (SYS inputs · corrections · AI · STR · canonical HP/T incl. thickness) · Track-projected Family-common (`reflectionOverride` C2 · `trajectoryExtensions`: stored per Member, AUTHORED canonical, SYMMETRY projection, C3+ / Product same-track base, Cue→Impact none) · Member identity preserved on OVERWRITE · `meta` derivable. (Field Ownership Matrix)
+- **Search / Recall:** approximate Search allowed; the screen is not snapped to the stored Member; notice "유사한 공략을 찾았습니다." with 내공 / 앞공 / 뒷공 differences vs the winning Member (SYMMETRY / DERIVED compared as themselves); no similarity %; informational only. (F-3C Rules)
+- **Ball move:** moving 내공 / 앞공 / 뒷공 after Recall clears OVERWRITE eligibility (draft kept, SAVE possible); impact point / thickness edit keeps it. (F-3B · F-3C)
+- **Fail closed, never auto-repair:** `POSITION_STRATEGY_SLOT_CONFLICT` · `OVERWRITE_PUBLISHED_SEED_CONFLICT` · `OVERWRITE_PUBLISHED_SEED_INVALID` · `OVERWRITE_FAMILY_GEOMETRY_MISMATCH` · `OVERWRITE_FAMILY_ROOT_MISMATCH` / `_MISSING`. (F-3C · F-3D)
+
+**Open issues (record only — one at a time, each starts as Ask):**
+
+1. **USER C2 Display Boundary** — saved C2 `reflectionOverride` is used by the ADMIN trajectory only; whether USER applies it is undecided.
+2. **HP/T Derived opposite-handed display** — possible pre-existing display quirk: a Derived Member recalled on an opposite-handed Track may show canonical HP/T without mirroring. OVERWRITE inverse canonicalization keeps data consistent; display needs its own Ask.
+3. **Local ↔ Published divergent graph reconciliation** — same familyId with different graphs is not merged automatically (future architecture).
+4. **Recall / Published concurrency / versioning** — no version check when Published changes after Recall (future architecture).
+5. **Legacy stale Published SYMMETRY geometry** — OVERWRITE fails closed (`OVERWRITE_FAMILY_GEOMETRY_MISMATCH`); a repair policy only if real cases appear.
+
+Items 3–5 are not promoted to priority features until a real need appears.
+
+**Protected untracked (never modify / delete / stage / commit — not project changes):** `frontend/src/domain/trajectory/incidenceAngle.ts` · `.tmp.driveupload/`
+
+**New session start:** (1) this file (2) latest entry of `HISTORY/PROJECT_LOG_2026-09.md` (3) Git HEAD == origin/main == baseline (4) protected untracked unchanged (5) one open issue at a time. **Next candidates (user decides):** A. USER C2 Display Boundary Ask · B. HP/T Derived opposite-handed display Ask · C. other Stage 1 work.
 
 ### USER Display Runtime HPT (2026-09-02)
 
@@ -1619,6 +1664,7 @@ Selecting a slot keeps the current edit draft (SYS · HP/T · STR · AI · corre
 - **Edit frame → root frame:** HP/T edited on an opposite-handedness Member is mirrored back (exact inverse of Recall hydrate). Extension unchanged → root payload kept exactly; edited → transformed from the Recall track to the root track (H/V/RPI involution) and regenerated on all 4 Tracks.
 - **Derived Family-common sync:** after a 4-Track UPDATE, same-family Derived Members receive the AUTHORED FamilyMaster common keys (signature · sysInputs · corrections · correctionsStored · ai · str · hpT); when the root Extension / C2 changed, a C3+ / Product Derived Extension / C2 follows its same-track base Member (DERIVED_CUE_IMPACT never receives either — F-3C.2). Derived balls · Position · track · slot · memberId · origin · generatedFromMemberId · derivedRule · derivedStep · meta untouched. Fixes `COMMON_PAYLOAD_CONFLICT` on OVERWRITE when Derived Members exist. No second durable authority.
 - **Slot identity after OVERWRITE:** the active slot keeps the recalled Member identity (SYMMETRY / DERIVED stay as shown).
+- **Recall screen balls:** Recall does not snap the screen balls to the stored Member coordinates — the screen keeps the Search query balls (current screen Position, role permutation only); the difference notice compares them with the winning stored Member.
 - **Eligibility:** physical cue/target/target_center/second move clears it (`shouldClearOverwriteEligibilityOnBallEdit`); the temporary impact (thickness T) handle keeps it. Approximate-query difference alone never clears the session. No extra confirmation at OVERWRITE.
 - **Difference notice:** per-ball Euclidean distance `sqrt(dx²+dy²)` in ball grid coordinates (cueDifference · targetDifference · secondDifference) vs the **winning** Member (SYMMETRY / DERIVED member, not always AUTHORED). 1 decimal display; no internal rounding; exact (every ball < 0.05 = half the positionId 0.1 quantum) → no notice. Informational only (no SAVE/OVERWRITE choice). No similarity % · no weighted score · no grades · no Fg/Rg mapping · no "Rg" unit. Existing low-similarity warning is appended to the same alert.
 - **C2 reflectionOverride — Family-common (Phase F-3C.2):** see **F-3C.2 C2 Reflection Family-Common** below.
@@ -1633,6 +1679,8 @@ Future chapter **「불러오기 · SAVE · 덮어쓰기」** must include: exac
 Future **C2 section** must explain: 관리자가 AUTHORED / 대칭 / 파생 중 어느 방향에서 C2를 수정하더라도 Family의 하나의 C2 공략을 수정한다. SAVE: 현재 화면 방향이 새 Family의 canonical 기준 방향이 된다. OVERWRITE: 수정값은 기존 Family의 AUTHORED 방향 기준으로 환산된다. USER 화면의 C2 동작은 별도 정책이며 현재 변경되지 않는다 (ADMIN 전용 표시).
 
 Future **덮어쓰기 보존 section** (Phase F-3D) must state: "AUTHORED / SYMMETRY / DERIVED 중 어느 Member를 Recall해도 덮어쓰기는 기존 Family의 Member identity, 좌표, Position, Track, Slot, origin 및 lineage를 변경하지 않는다. Family 공용 전략값만 갱신한다. C2/Extension처럼 방향별 표현이 필요한 Family 공용값은 기존 Member 위에서 projection만 갱신한다." · Published에만 있는 Family를 처음 덮어쓰면 Family 전체(파생 포함)가 같은 ID로 Local에 이어진다 · Local에 같은 Family가 이미 있으면 Local 내용이 기준이다 · 다른 공략이 같은 위치·Slot을 쓰고 있거나 기존 Member 위치가 달라지게 되면 덮어쓰기가 중단된다.
+
+**Full manual checklist (handoff 2026-09-27 — every item needs a user-operation explanation):** S1/S2/S3 · Search · exact / approximate Search · Recall · 내공/앞공/뒷공 차이 알림 · SAVE · OVERWRITE · Local vs Published · Published-only 첫 OVERWRITE · Family identity 보존 · AUTHORED / SYMMETRY / DERIVED Recall · 공 이동 후 덮어쓰기 자격 해제 · C-0 duplicate · 4 Track same strategy slot · C2 · Extension · HP/T · thickness · AI · STR · History · Publish · 로컬 삭제 · Grid / 기준선 / 궤적 연장 · 오류/복구 흐름 (`POSITION_STRATEGY_SLOT_CONFLICT` · `OVERWRITE_FAMILY_GEOMETRY_MISMATCH` · seed conflict/invalid · root mismatch/missing) · Local/Published conflict handling (Local authority · no automatic merge · Publish overwrite confirm).
 
 #### F-3D Full Family Identity Preservation on OVERWRITE (2026-09-27)
 
@@ -1649,6 +1697,7 @@ OVERWRITE = EXISTING FAMILY CONTENT UPDATE ≠ Family / Member / Position re-cre
 - **Then unchanged path:** `resolveOverwriteFamilyRoot` → `writeFourTrackFamilyMembers` (lineage now read from the seeded rows → same memberIds + authoringStrategyIds) → `syncFamilyCommonPayloadToDerivedMembers` (base found by generatedFromMemberId) → one `persistWorkingCorpusNormalizedAuthority`. No second OVERWRITE algorithm.
 - **authoringStrategyId:** preserved identity on OVERWRITE (Local-existing and Published-only). A new asid may be assigned only where a legacy Member had none.
 - **meta:** derivable cache — may rebuild with identical balls when Family-common values change; tests must not freeze it.
+- **Atomicity:** seed (in-memory only) → validation → C-0 → OVERWRITE write → Derived sync → preservation guard → **ONE persist**. Any failure → Local durable dataset unchanged · UI dataset unchanged.
 
 **Fail closed (nothing persisted, UI dataset unchanged):**
 
@@ -3073,6 +3122,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 
 ### P0 — Next Track
 
+- **Current (2026-09-27):** see **Current Session Handoff (2026-09-27)** at the top — one open issue at a time, user decides. Items below are historical.
 - **Ball Fine Position Controller** — ✅ **COMPLETE** (`1eaf76c` · Desktop / Mobile Production / Admin/User PASS)
 - **Family Data Architecture Phase 1** — **NEXT** · **Ask** · `FAMILY_DATA_ARCHITECTURE_DRAFT.md`
 - Phase 5 Mission 02 Dead Code Cleanup: ✅ COMPLETE (`8bf90b6` · EXIT-AFTER-#4 · COMPLETE WITH DEFERRED ITEMS)
