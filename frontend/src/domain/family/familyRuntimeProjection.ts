@@ -108,6 +108,26 @@ export function hydrateFamilyMemberRuntimeHpt(
 }
 
 /**
+ * Inverse of hydrateFamilyMemberRuntimeHpt for the same (entry, dataset):
+ * runtime HPT edited on the recalled Member → AUTHORED canonical HPT.
+ * The handedness mirror is an involution, so projecting back uses swapped tracks.
+ */
+export function canonicalizeFamilyMemberRuntimeHpt(
+  entry: Pick<StrategyEntry, "track" | "memberOrigin" | "symmetryOp" | "familyId"> | null | undefined,
+  runtimeHpt: unknown,
+  dataset?: PositionRecord[]
+): unknown {
+  if (!entry) return runtimeHpt;
+  const tracks = resolveAuthoredTrackForFamilyMember(entry as StrategyEntry, dataset);
+  if (!tracks) return runtimeHpt;
+  return resolveFamilyHpt({
+    authoredTrack: tracks.requestedTrack,
+    requestedTrack: tracks.authoredTrack,
+    canonicalHpt: runtimeHpt,
+  }).hpt;
+}
+
+/**
  * Display Runtime HPT for visual consumers (modal, table impact, ADMIN overlay viz).
  * Separate hydrate entry point from physics runtime — same mirror primitive today.
  */

@@ -170,6 +170,17 @@ export function resolvePublishedEditSaveIntent(args: {
   return resolveOverwriteSaveIntent(args);
 }
 
+const PHYSICAL_BALL_IDS = new Set(["cue", "target", "target_center", "second"]);
+
+/**
+ * A physical cue/target/second move after Recall ends OVERWRITE eligibility
+ * (draft kept; SAVE still possible). The temporary "impact" handle edits
+ * thickness T (Family-common) and keeps eligibility.
+ */
+export function shouldClearOverwriteEligibilityOnBallEdit(ballId: unknown): boolean {
+  return typeof ballId === "string" && PHYSICAL_BALL_IDS.has(ballId);
+}
+
 /** When starting a fresh CREATE session (reset / new input). */
 export function clearEditingPublishedFamilyId(): null {
   return null;

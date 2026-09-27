@@ -11,6 +11,11 @@ import type { Ball3, PositionRecord } from "../../domain/positionSearchEngine";
 import { readFamilyIdFromRecordSlot } from "../../domain/family/publishedEditSession";
 import { normalizeTargetBallForKey } from "../../domain/positionMergeEngine";
 import { ADMIN_SEARCH_SOFT_DISTANCE_WARN } from "../../domain/recall/recallProfiles";
+import { resolveRecallNoticeMessage } from "../../domain/recall/recallPositionDifference";
+import {
+  buildOverwriteRecallContext,
+  type OverwriteRecallContext,
+} from "../../domain/family/overwriteFamilyRoot";
 import {
   resolveAdminRecallTargetMeta,
   type AdminTargetBall,
@@ -41,6 +46,8 @@ export type AdminLocalDbFlowContext = {
   setEditingPublishedFamilyId?: (familyId: string | null) => void;
   /** Set Local UPDATE ownership from trusted Local recall. */
   setEditingLocalFamilyId?: (familyId: string | null) => void;
+  /** Recalled Member frame for OVERWRITE (root itself is resolved from Local at write). */
+  setOverwriteRecallContext?: (context: OverwriteRecallContext | null) => void;
   setAdminTableLayersVisible: (value: boolean) => void;
   setShowCoaching: (value: boolean) => void;
   /** Load success → editable session (Undo/Recall model; no Reset gate). */
@@ -110,6 +117,7 @@ export async function runAdminLocalDbRecall(
 ): Promise<boolean> {
   // 이전 recall display 초기화
   ctx.clearAdminSearchDisplayRuntime();
+  ctx.setOverwriteRecallContext?.(null);
 
   // Build query
   const currentBalls = normalizeBallsToBall3(
@@ -287,9 +295,21 @@ export async function runAdminLocalDbRecall(
     result.hits.find((h) => h.sourceSlot === ctx.activeSlot)?.familyId ??
     null;
   ctx.setEditingLocalFamilyId?.(localFamilyId);
+  ctx.setOverwriteRecallContext?.(
+    buildOverwriteRecallContext({
+      source: "LOCAL",
+      record: result.record,
+      slot: ctx.activeSlot,
+    })
+  );
 
-  if (result.distance > SOFT_DISTANCE_WARN) {
-    alert("유사도 낮음");
+  const recallNotice = resolveRecallNoticeMessage({
+    screenBalls: bestMatchQueryBalls,
+    storedMemberBalls: result.record?.balls,
+    lowSimilarity: result.distance > SOFT_DISTANCE_WARN,
+  });
+  if (recallNotice) {
+    alert(recallNotice);
   }
 
   if (!ctx.beginAdminInputSession()) {

@@ -313,6 +313,7 @@ import {
   canOverwriteTrustedSourceFamily,
   isOverwriteSourceAlignedWithSlot,
   OVERWRITE_SLOT_MISMATCH_USER_MESSAGE,
+  shouldClearOverwriteEligibilityOnBallEdit,
 } from "./domain/family/publishedEditSession";
 import { resolveAdminStrategySlotSelection } from "./domain/adminStrategyDestinationSlot";
 import { commitDerivedApprovalDataset } from "./application/flows/derivedApprovalFlow";
@@ -1244,10 +1245,13 @@ export default function App({
   const [editingPublishedFamilyId, setEditingPublishedFamilyId] = useState(null);
   /** Local DB recall family being edited (null = not a local UPDATE session). */
   const [editingLocalFamilyId, setEditingLocalFamilyId] = useState(null);
+  /** Recalled Member frame (+ Published AUTHORED root) — OVERWRITE root, never screen balls. */
+  const [overwriteRecallContext, setOverwriteRecallContext] = useState(null);
   const clearPublishedEditSession = useCallback(() => {
     setIsAdminPublishedSearchMatched(false);
     setEditingPublishedFamilyId(null);
     setEditingLocalFamilyId(null);
+    setOverwriteRecallContext(null);
   }, []);
   const canOverwriteTrustedSource = canOverwriteTrustedSourceFamily({
     editingPublishedFamilyId,
@@ -2609,6 +2613,7 @@ export default function App({
       editSource: editSourceContext,
       editingPublishedFamilyId,
       editingLocalFamilyId,
+      overwriteRecallContext,
       saveCommand: "OVERWRITE",
       setDataset,
       setUserPublishedSearchContext,
@@ -2646,6 +2651,7 @@ export default function App({
       setIsAdminPublishedSearchMatched,
       setEditingPublishedFamilyId,
       setEditingLocalFamilyId,
+      setOverwriteRecallContext,
       setAdminTableLayersVisible,
       setShowCoaching,
       applyPositionRecall: actions.applyPositionRecall,
@@ -2810,6 +2816,7 @@ export default function App({
       setIsAdminPublishedSearchMatched,
       setEditingPublishedFamilyId,
       setEditingLocalFamilyId,
+      setOverwriteRecallContext,
       setAdminTableLayersVisible,
       setShowCoaching,
       setIsAdminInputSessionActive,
@@ -3199,7 +3206,9 @@ export default function App({
     if (!ballId) return;
     if (["cue", "target", "target_center", "second", "impact"].includes(ballId)) {
       setIsSaved(false);
-      clearPublishedEditSession();
+      if (shouldClearOverwriteEligibilityOnBallEdit(ballId)) {
+        clearPublishedEditSession();
+      }
     }
   }
 
@@ -5309,7 +5318,6 @@ function handlePointerUp(e) {
   if (dragState.ballId === "impact") {
     setBallsState((prev) => stripAuthoredImpactBall(prev) ?? prev);
     setIsSaved(false);
-    clearPublishedEditSession();
     if (appMode === "ADMIN") {
       adminEditHistory.commitTransaction(
         {
@@ -5396,7 +5404,9 @@ function handlePointerUp(e) {
     )
   ) {
     setIsSaved(false);
-    clearPublishedEditSession();
+    if (shouldClearOverwriteEligibilityOnBallEdit(dragState.ballId)) {
+      clearPublishedEditSession();
+    }
     // targetColor / isTargetSelected: pointerUp에서 건드리지 않음 (조이스틱=후보, Target으로만 확정/무효화는 뷰/복원 등에서)
   }
 

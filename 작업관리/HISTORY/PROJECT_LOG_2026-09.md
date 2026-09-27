@@ -6,6 +6,63 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-27 — Phase F-3C Trusted Family OVERWRITE + Recall Position Difference Notice
+
+## Mode
+
+**Agent** · saveFlow UPDATE / Recall flows / App wiring · no schema / migration / dataset / History / Publish
+
+## Rule (F-3C SSOT)
+
+- OVERWRITE: "Recall entry Member is only the entry point to a trusted Family. OVERWRITE targets the trusted Family's existing AUTHORED root, not the Recall entry Member's coordinates."
+- SAVE: "SAVE uses current screen ball coordinates as the new Position and creates a new Family subject to C-0."
+- Search: "Approximate Search may Recall an existing Member even when current screen coordinates differ. Immediately after successful Recall, show the actual individual ball-position differences between current screen and the winning stored Member."
+- Family-common: "AUTHORED / SYMMETRY / DERIVED Recall all have equal eligibility to modify Family-common strategy data, provided trusted identity remains valid."
+
+## User operation flow (what the admin sees / does)
+
+- 관리자가 대칭 방향에서 Family A를 Search한다. 공을 Recall 이후 움직이지 않고 공략 내용을 수정한다.
+  덮어쓰기를 누르면 대칭 Member를 새 원본으로 만드는 것이 아니라 기존 Family A의 공용 내용을 수정한다.
+  Family A의 원래 공 위치와 4 Track은 그대로 유지된다.
+- 저장 위치와 조금 다른 배치에서 Search하면 "유사한 공략을 찾았습니다." 와 함께 내공/앞공/뒷공 차이가 표시된다.
+  이 상태에서 덮어쓰기 → 기존 Family 위치 그대로 수정 · SAVE → 현재 화면 위치에 새 Family 생성.
+- Recall 후 내공/앞공/뒷공을 실제로 움직이면 덮어쓰기는 꺼지고(편집 내용은 유지) SAVE만 가능하다.
+  두께(T) 변경은 Family 공용 값이므로 덮어쓰기 자격을 유지한다.
+
+## Root cause (F-3C.0)
+
+OVERWRITE rebuilt the AUTHORED Member at the **current screen balls** with the recalled track
+and active slot: SYMMETRY / DERIVED exact Recall collided with its own Member
+(`POSITION_STRATEGY_SLOT_CONFLICT`); approximate Recall silently relocated the whole Family;
+Derived Members kept stale Family-common payload → `COMMON_PAYLOAD_CONFLICT` at persist.
+
+## Delivered
+
+- `domain/family/overwriteFamilyRoot.ts` — Local / Published AUTHORED root, Recall Member frame,
+  HP/T + Extension canonicalization to the root frame, Derived Family-common sync.
+- `familyRuntimeProjection.canonicalizeFamilyMemberRuntimeHpt` — exact inverse of Recall hydrate.
+- `saveFlow.ts` UPDATE — geometry / track / slot / memberId / targetBall from the trusted root;
+  fail closed `OVERWRITE_FAMILY_ROOT_MISSING` / `OVERWRITE_FAMILY_ROOT_MISMATCH`; slot keeps the
+  recalled Member identity.
+- `domain/recall/recallPositionDifference.ts` + both Recall flows — informational notice
+  (내공/앞공/뒷공, Euclidean, 1 decimal, none when exact); Recall context capture.
+- `publishedEditSession.shouldClearOverwriteEligibilityOnBallEdit` + App — impact (thickness)
+  drag keeps eligibility; physical ball move still clears it.
+- `trustedFamilyOverwrite.contract.test.ts` — 25 tests (TEST 1–15, 17, 18, 21, 22, difference
+  per origin, Published notice, fail-closed, slot identity, App wiring). 22/25 failed before the fix
+  for the expected reasons (self-conflict · relocation · COMMON_PAYLOAD_CONFLICT · not implemented).
+- Docs: Behavior Documentation user-flow rule · 내공/앞공/뒷공 terminology rule · F-3C SSOT ·
+  C-0 OVERWRITE target clarification · ADMIN MANUAL TODO (「불러오기 · SAVE · 덮어쓰기」).
+
+## Pending
+
+- **C2 reflectionOverride (STOP C):** four-track generator persists C2 on neither AUTHORED nor
+  SYMMETRY; no `{rail, t}` symmetry transform exists. Needs a direction-rule decision (Ask).
+- Published Family absent from Local: symmetry memberIds are minted on the first Local write
+  (pre-existing writer lineage behavior; AUTHORED memberId preserved).
+
+---
+
 # 2026-09-27 — Phase F-3B.2 4-TRACK FAMILY STRATEGY SLOT INVARIANT
 
 ## Mode

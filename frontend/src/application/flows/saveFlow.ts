@@ -41,6 +41,16 @@ import {
 } from "../../domain/publishOperation";
 import { writeFourTrackFamilyMembers } from "../../domain/family/familyAwareWriter";
 import {
+  canonicalizeRecallHptForRoot,
+  resolveOverwriteFamilyRoot,
+  resolveOverwriteRecallMemberFrame,
+  resolveOverwriteRootExtensions,
+  syncFamilyCommonPayloadToDerivedMembers,
+  type FamilyAuthoredRoot,
+  type FamilyRecallMemberFrame,
+  type OverwriteRecallContext,
+} from "../../domain/family/overwriteFamilyRoot";
+import {
   type NormalizedDualWriteResult,
 } from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
 import {
@@ -188,6 +198,11 @@ export type SaveFlowContext = {
    * Mutually exclusive with editingPublishedFamilyId.
    */
   editingLocalFamilyId?: string | null;
+  /**
+   * Captured at Recall: recalled Member frame (+ Published AUTHORED root).
+   * OVERWRITE geometry = trusted Family root, never the current screen balls.
+   */
+  overwriteRecallContext?: OverwriteRecallContext | null;
 
   /**
    * @deprecated Phase C-2 — ignored. Flat positions_dataset is not production-written.
@@ -416,7 +431,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     editingPublishedFamilyId: ctx.editingPublishedFamilyId ?? null,
     editingLocalFamilyId: ctx.editingLocalFamilyId ?? null,
   });
-  const familyIdentity = resolveFamilyIdentityForSave({
+  let familyIdentity = resolveFamilyIdentityForSave({
     saveIntent: saveIntent === "LEGACY" ? "CREATE" : saveIntent,
     explicitIdentity: explicitSlotFamilyIdentity,
     authoringStrategyId,
@@ -426,12 +441,75 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     console.warn("[SAVE] missing explicit Family identity for UPDATE");
     return { ok: false, reason: "family-save:update-missing-identity" };
   }
-  console.log("[SAVE] familyIdentity:", familyIdentity);
 
-  const datasetTargetBall =
+  // OVERWRITE (UPDATE): write the trusted Family at its AUTHORED root.
+  let overwriteRoot: FamilyAuthoredRoot | null = null;
+  let recallFrame: FamilyRecallMemberFrame | null = null;
+  if (saveIntent === "UPDATE" && familyIdentity) {
+    const rootResult = resolveOverwriteFamilyRoot({
+      dataset: ctx.dataset,
+      familyId: familyIdentity.familyId,
+      sourceKind: overwriteSourceKind,
+      recallContext: ctx.overwriteRecallContext ?? null,
+    });
+    if (!rootResult.ok) {
+      console.warn("[SAVE] OVERWRITE blocked:", rootResult.code);
+      return { ok: false, reason: rootResult.reason };
+    }
+    overwriteRoot = rootResult.root;
+    recallFrame = resolveOverwriteRecallMemberFrame({
+      dataset: ctx.dataset,
+      root: overwriteRoot,
+      slotIdentity: explicitSlotFamilyIdentity,
+      recallContext: ctx.overwriteRecallContext ?? null,
+    });
+    familyIdentity = {
+      familyId: familyIdentity.familyId,
+      memberId: overwriteRoot.memberId,
+      memberOrigin: "AUTHORED",
+    };
+  }
+  console.log("[SAVE] familyIdentity:", familyIdentity, {
+    overwriteRoot,
+    recallMemberId: recallFrame?.memberId ?? null,
+  });
+
+  const writeBalls: Ball3 = overwriteRoot ? overwriteRoot.balls : ball3ForDataset;
+  const cleanWriteBalls = overwriteRoot
+    ? ((safe(writeBalls) ?? writeBalls) as Record<string, unknown>)
+    : cleanBall3;
+  const screenTargetBall =
     ctx.targetColor === "red" || ctx.targetColor === "yellow"
       ? ctx.targetColor
       : undefined;
+  const datasetTargetBall = overwriteRoot?.targetBall ?? screenTargetBall;
+
+  const canonicalRuntimeHpt =
+    overwriteRoot && recallFrame
+      ? canonicalizeRecallHptForRoot(recallFrame, appliedForSave.hpt)
+      : appliedForSave.hpt;
+  const appliedForWrite: Record<string, unknown> = overwriteRoot
+    ? {
+        ...appliedForSave,
+        hpt: canonicalRuntimeHpt,
+        sys: { ...((appliedForSave.sys as Record<string, unknown>) ?? {}), track: overwriteRoot.track },
+      }
+    : appliedForSave;
+  const adminSysForWrite = overwriteRoot
+    ? { ...((ctx.adminState?.sys as Record<string, unknown>) ?? {}), track: overwriteRoot.track }
+    : ctx.adminState?.sys;
+  const trajectoryExtensionsForWrite =
+    overwriteRoot && recallFrame
+      ? resolveOverwriteRootExtensions({
+          edited: ctx.trajectoryExtensionPayload ?? null,
+          frame: recallFrame,
+          root: overwriteRoot,
+        })
+      : (ctx.trajectoryExtensionPayload ?? null);
+  const rootExtensionsChanged =
+    !!overwriteRoot &&
+    JSON.stringify(trajectoryExtensionsForWrite ?? null) !==
+      JSON.stringify(overwriteRoot.trajectoryExtensions ?? null);
 
   const canonicalDraft = normalizeCanonicalSaveDraft(
     toCanonicalStrategyEntry({
@@ -441,8 +519,8 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       familyId: familyIdentity?.familyId,
       memberId: familyIdentity?.memberId,
       memberOrigin: familyIdentity?.memberOrigin,
-      applied: appliedForSave,
-      adminSys: ctx.adminState?.sys,
+      applied: appliedForWrite,
+      adminSys: adminSysForWrite,
     })
   );
   console.log("[CANONICAL_SAVE]", canonicalDraft);
@@ -450,6 +528,14 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   const cleanHpt = safe(canonicalDraft.hpT);
   const cleanStr = safe(canonicalDraft.str);
   const cleanAi = safe(ctx.aiOverride ?? canonicalDraft.ai);
+
+  const screenEvalT =
+    (ctx.adminState?.hpt as Record<string, unknown> | undefined)?.T ?? "8/8";
+  const evalT =
+    overwriteRoot && recallFrame && typeof screenEvalT === "string"
+      ? ((canonicalizeRecallHptForRoot(recallFrame, { T: screenEvalT }) as { T?: unknown })?.T ??
+        screenEvalT)
+      : screenEvalT;
 
   // evalForSave 인라인 — AD-B3-03 예외: 순수 계산이지만 컨텍스트 의존으로 flow 내부 클로저로 유지
   const evalForSave = (args: Record<string, unknown>) =>
@@ -464,9 +550,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       anchorsData: ctx.resolveAnchorsData(
         (args.signature as Record<string, unknown>).systemId as string
       ),      hpT: {
-        T:
-          (ctx.adminState?.hpt as Record<string, unknown> | undefined)?.T ??
-          "8/8",
+        T: evalT,
       },
       trackId: (args.track as string | undefined) ?? "B2T_L",
     });
@@ -481,14 +565,14 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       hpT: cleanHpt,
       str: cleanStr,
       ai: cleanAi,
-      balls: cleanBall3,
+      balls: cleanWriteBalls,
       track: canonicalDraft.track,
       authoringStrategyId: canonicalDraft.authoringStrategyId,
       familyId: canonicalDraft.familyId,
       memberId: canonicalDraft.memberId,
       memberOrigin: canonicalDraft.memberOrigin,
       evaluateStrategy: evalForSave,
-      trajectoryExtensions: ctx.trajectoryExtensionPayload ?? null,
+      trajectoryExtensions: trajectoryExtensionsForWrite,
       reflectionOverride: ctx.reflectionOverridePayload ?? null,
     });
     strategy = attachCanonicalFieldsToStrategyEntry(baseEntry, canonicalDraft);
@@ -509,14 +593,14 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   });
 
   let updated: PositionRecord[];
-  let savedSlotId = slotId as "S1" | "S2" | "S3";
+  let savedSlotId = (overwriteRoot?.slot ?? slotId) as "S1" | "S2" | "S3";
 
   if (useFourTrackFamily) {
     console.log("[SAVE] Running family-aware four-track write (no Exact upsert)");
     const familyWrite = writeFourTrackFamilyMembers(
       Array.isArray(ctx.dataset) ? ctx.dataset : [],
       {
-        balls: ball3ForDataset,
+        balls: writeBalls,
         ...(datasetTargetBall ? { targetBall: datasetTargetBall } : {}),
         entry: strategy,
       },
@@ -555,20 +639,25 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     for (const member of familyWrite.set.members) {
       updated = applySchemaVersionToDatasetRecord(updated, member.balls);
     }
+    if (overwriteRoot) {
+      updated = syncFamilyCommonPayloadToDerivedMembers(updated, overwriteRoot.familyId, {
+        syncDerivedExtensions: rootExtensionsChanged,
+      });
+    }
   } else {
     console.log("[SAVE] Running Exact upsertPositionRecord");
     updated = upsertPositionRecord(
       ctx.dataset,
-      ball3ForDataset,
+      writeBalls,
       strategy,
       undefined,
       datasetTargetBall
     );
-    updated = applySchemaVersionToDatasetRecord(updated, cleanBall3);
+    updated = applySchemaVersionToDatasetRecord(updated, cleanWriteBalls);
   }
   console.log("[SAVE] updated length:", updated?.length);
 
-  const savedRecord = updated.find((r) => ballsExactEqual(r.balls, ball3ForDataset));
+  const savedRecord = updated.find((r) => ballsExactEqual(r.balls, writeBalls));
   const savedStrategy = savedRecord?.strategies?.[savedSlotId] ?? strategy;
 
   logCanonicalPersistAudit({
@@ -634,15 +723,29 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
         ? ctx.targetColor
         : null,
   });
+  // OVERWRITE keeps the recalled Member identity on the slot (SYMMETRY / DERIVED
+  // stay what the screen shows); CREATE binds the slot to the new AUTHORED Member.
+  const recalledEntryAfterWrite =
+    overwriteRoot && recallFrame
+      ? updated
+          .flatMap((r) => Object.values(r.strategies ?? {}))
+          .find(
+            (e) =>
+              e?.familyId === overwriteRoot.familyId && e?.memberId === recallFrame.memberId
+          ) ?? null
+      : null;
+  const slotIdentityEntry =
+    recalledEntryAfterWrite ??
+    (overwriteRoot && explicitSlotFamilyIdentity ? explicitSlotFamilyIdentity : savedStrategy);
   ctx.patchSlotFamilyIdentity(
     slotId,
     useFourTrackFamily
       ? {
-          familyId: savedStrategy.familyId ?? strategy.familyId,
-          memberId: savedStrategy.memberId ?? strategy.memberId,
-          memberOrigin: savedStrategy.memberOrigin ?? strategy.memberOrigin,
-          generatedFromMemberId: savedStrategy.generatedFromMemberId,
-          symmetryOp: savedStrategy.symmetryOp,
+          familyId: slotIdentityEntry.familyId ?? strategy.familyId,
+          memberId: slotIdentityEntry.memberId ?? strategy.memberId,
+          memberOrigin: slotIdentityEntry.memberOrigin ?? strategy.memberOrigin,
+          generatedFromMemberId: slotIdentityEntry.generatedFromMemberId,
+          symmetryOp: slotIdentityEntry.symmetryOp,
         }
       : null
   );

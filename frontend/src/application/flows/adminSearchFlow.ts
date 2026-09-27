@@ -25,6 +25,11 @@ import {
   adminSysFromRecallEntry,
 } from "./recallHydrateFlow";
 import { resolveAdminRecallTargetMeta } from "../../domain/system/adminEditSessionContract";
+import { resolveRecallNoticeMessage } from "../../domain/recall/recallPositionDifference";
+import {
+  buildOverwriteRecallContext,
+  type OverwriteRecallContext,
+} from "../../domain/family/overwriteFamilyRoot";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +59,8 @@ export type AdminSearchFlowContext = {
   setEditingPublishedFamilyId: (familyId: string | null) => void;
   /** Clear Local UPDATE ownership when Published Search owns the session. */
   setEditingLocalFamilyId?: (familyId: string | null) => void;
+  /** Recalled Member frame + Published AUTHORED root captured for OVERWRITE. */
+  setOverwriteRecallContext?: (context: OverwriteRecallContext | null) => void;
   setAdminTableLayersVisible: (value: boolean) => void;
   setShowCoaching: (value: boolean) => void;
   setBallsState?: (balls: Record<string, { x: number; y: number } | undefined> | ((prev: any) => any)) => void;
@@ -101,6 +108,7 @@ export async function runAdminSearch(
   ctx.clearAdminSearchDisplayRuntime();
   ctx.setEditingPublishedFamilyId(null);
   ctx.setEditingLocalFamilyId?.(null);
+  ctx.setOverwriteRecallContext?.(null);
 
   console.log(
     "[RECALL_READ]",
@@ -325,9 +333,22 @@ export async function runAdminSearch(
   ctx.setEditingPublishedFamilyId(
     readFamilyIdFromRecordSlot(spatialResult.record, ctx.activeSlot)
   );
+  ctx.setOverwriteRecallContext?.(
+    buildOverwriteRecallContext({
+      source: "PUBLISHED",
+      record: spatialResult.record,
+      slot: ctx.activeSlot,
+      publishedFamilyMembers: familyMembers,
+    })
+  );
 
-  if (spatialResult.distance > HARD_THRESHOLD_L1) {
-    alert("유사도 낮음");
+  const recallNotice = resolveRecallNoticeMessage({
+    screenBalls: bestMatchQueryBalls,
+    storedMemberBalls: spatialResult.record?.balls,
+    lowSimilarity: spatialResult.distance > HARD_THRESHOLD_L1,
+  });
+  if (recallNotice) {
+    alert(recallNotice);
   }
 
   ctx.setAdminTableLayersVisible(true);

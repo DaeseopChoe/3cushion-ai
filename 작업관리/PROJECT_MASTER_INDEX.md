@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Phase F-3C — OVERWRITE self/cross Family C-0 diagnosis + fix (F-2 COMPLETE · F-3B COMPLETE · F-3B.2 COMPLETE) |
+| **Next Track** | F-3C follow-up — C2 reflectionOverride Family-common propagation decision (Ask) · F-3C core COMPLETE (F-2 · F-3B · F-3B.2 COMPLETE) |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
 | **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict |
@@ -61,6 +61,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase F-2G-2** | ✅ **PARTIAL PUBLISH RECOVERED** — WT v3 candidate validated · assume-unchanged cleared target-scoped · data commit/push · PRODUCTION_VERIFIED · History exported pending UI reconcile |
 | **Phase F-3B** | ✅ **ADMIN DESTINATION SLOT** — S1/S2/S3 during editing = SAVE destination; edit draft preserved across slot select + failed SAVE; OVERWRITE only on recalled source slot; C-0 unchanged |
 | **Phase F-3B.2** | ✅ **4-TRACK FAMILY STRATEGY SLOT INVARIANT** — AUTHORED + H/V/RPI SYMMETRY Members of one Family share the selected S1/S2/S3; no first-empty fallback; any collision fails the whole CREATE; C-0 unchanged; Derived slot semantics not decided |
+| **Phase F-3C** | ✅ core · ⏳ C2 — **TRUSTED FAMILY OVERWRITE** — OVERWRITE edits the trusted Family at its stored AUTHORED root (never the Recall entry / screen coordinates); AUTHORED / SYMMETRY / DERIVED Recall equally eligible; Derived Family-common synced; Recall shows 내공/앞공/뒷공 position differences; thickness edit keeps eligibility; C2 reflectionOverride propagation PENDING (STOP C) |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -428,6 +429,45 @@ AI Agent·Cursor·문서 작성자가 작업 결과·오류·다음 행동을 �
 - `status` / `reason` / function / file 이름만 나열하고 설명을 끝내지 않는다.
 - 사용자가 다른 AI에게 다시 해석을 요청하지 않아도 이해할 수 있는 수준을 목표로 한다.
 - Cursor Agent **최종 보고**는 가능하면 **`BEGINNER SUMMARY`를 맨 앞**에 둔다.
+
+### Behavior Documentation — User Operation Flow (REQUIRED, permanent)
+
+**Authority:** 본 절 · Project Operations / Documentation (F-3C, 2026-09-27)
+
+중요한 프로젝트/관리자 동작은 **개발 용어만으로 기록하지 않는다.**
+중요한 동작을 문서화할 때는 다음 7가지를 설명한다:
+
+1. 사용자가 무엇을 한다
+2. 화면에서 무엇을 본다
+3. 어떤 버튼을 누른다
+4. 프로그램이 그 행동을 어떤 의미로 처리한다
+5. 무엇이 유지된다
+6. 무엇이 변경된다
+7. SAVE와 OVERWRITE가 어떻게 다른가
+
+기술 용어를 함께 적어도 되지만, 반드시 **구체적인 사용자 조작 설명**이 같이 있어야 한다.
+
+Example:
+
+> 관리자가 대칭 방향에서 Family A를 Search한다.
+> 공을 Recall 이후 움직이지 않고 공략 내용을 수정한다.
+> 덮어쓰기를 누르면 대칭 Member를 새 원본으로 만드는 것이 아니라
+> 기존 Family A의 공용 내용을 수정한다.
+> Family A의 원래 공 위치와 4 Track은 그대로 유지된다.
+
+### Terminology — 내공 / 앞공 / 뒷공 (REQUIRED, permanent)
+
+**Authority:** 본 절 · Project Operations / Terminology (F-3C, 2026-09-27)
+
+| Role | Korean user-facing (UI · 사용자 문서) | Internal / system (code · schema · JSON) |
+|------|------|------|
+| cue | **내공** | `cue` · `cue_ball` / `cueBall` (현재 code convention 유지) |
+| target | **앞공** | `target` · `target_ball` / `targetBall` |
+| second | **뒷공** | `second` · `second_ball` / `secondBall` |
+
+- 앞공/뒷공은 **logical role**이다. physical red/yellow 색과 고정 결합하지 않는다.
+- 한국어 사용자-facing 문서/UI에서 일본어 유래 **수구 / 1적구 / 2적구**를 새로 사용하지 않는다.
+- 내부 코드/schema/JSON 식별자는 국제화를 고려해 기존 영문 role identifier를 유지한다.
 
 ### Cursor Final Report Output (Copyable Plain Text) — REQUIRED
 
@@ -1090,6 +1130,7 @@ Families per Position: 0..3
 - **SAVE** to occupied preferred Slot → **BLOCK** (clear Korean reason; no auto S2/S3; no auto-overwrite).
   - Phase F-3B.2: the required slot applies to **every** AUTHORED + H/V/RPI SYMMETRY Member Position of the 4-Track set (no first-empty fallback for symmetry Members).
 - **OVERWRITE** same Family on its Slot → **PASS**; collision with another Family's occupied Slot → **BLOCK**; failed overwrite preserves prior corpus.
+  - Phase F-3C: the OVERWRITE target = the **trusted Family's stored AUTHORED root** (Position · track · Family Slot · memberId), **not** the Recall entry Member's coordinates and not the current screen balls. SYMMETRY / DERIVED Recall therefore rewrite the same 4-Track Positions in place (no self-conflict, no relocation).
 - schemaVersion **3** retained (validator strengthen; no bump).
 - Local Search / Published Search / Export / Publish / dataset leaves / Product / trajectory: **UNCHANGED**.
 
@@ -1540,6 +1581,52 @@ Selecting a slot keeps the current edit draft (SYS · HP/T · STR · AI · corre
 
 **Phase F-3B.2 COMPLETE:** YES
 **Next Track:** F-3C — reproduce exact Local OVERWRITE case and fix non-AUTHORED/Family self-conflict without changing the 4-Track strategy-slot invariant.
+
+### Phase F-3C — Trusted Family OVERWRITE + Recall Position Difference Notice (2026-09-27)
+
+**Authority:** 본 절 · F-3C.0 audit
+
+**Frozen SSOT:** 4 Track = one real Position/strategy shown in four orientations. AUTHORED + H/V/RPI share one familyId and one S1/S2/S3. OVERWRITE modifies the existing trusted Family — it never promotes a Recall Member to a new original. SAVE = CREATE a new Family at the current screen Position (C-0 applies).
+
+#### F-3C SSOT statements
+
+- **OVERWRITE:** "Recall entry Member is only the entry point to a trusted Family. OVERWRITE targets the trusted Family's existing AUTHORED root, not the Recall entry Member's coordinates."
+- **SAVE:** "SAVE uses current screen ball coordinates as the new Position and creates a new Family subject to C-0."
+- **Search:** "Approximate Search may Recall an existing Member even when current screen coordinates differ. Immediately after successful Recall, show the actual individual ball-position differences between current screen and the winning stored Member."
+- **Family-common:** "AUTHORED / SYMMETRY / DERIVED Recall all have equal eligibility to modify Family-common strategy data, provided trusted identity remains valid."
+
+#### User operation flow (Behavior Documentation rule)
+
+| 상황 | 사용자가 하는 일 · 보는 것 | 누르는 버튼 | 프로그램 처리 | 유지되는 것 | 바뀌는 것 |
+|------|------|------|------|------|------|
+| 원본 방향 Recall | 원본 Position에서 Search → 공략이 화면에 표시됨 → 내용 수정 | 덮어쓰기 | 같은 Family의 AUTHORED 원본 수정 | 원본 공 위치 · 4 Track · Family Slot · memberId | 공략 공용 내용(SYS·HP/T·STR·AI·보정·Extension) |
+| 대칭 방향 Recall | 대칭 방향(H/V/RPI)에서 Search → 대칭 Member의 공략 표시 → 수정 | 덮어쓰기 | 대칭 Member를 새 원본으로 만들지 않고 기존 Family의 공용 내용 수정 (편집값은 원본 방향 기준으로 환산) | 원본 공 위치 · 4 Track 좌표 · Slot · 모든 memberId | 공용 내용 (4 Track 모두 동일하게 반영) |
+| 파생 데이터 Recall | Derived Position에서 Search → 수정 | 덮어쓰기 | Derived를 원본으로 승격하지 않음; Family 공용 내용 수정 + 같은 Family의 Derived 공용값 동기화 | Derived 좌표 · Slot · memberId · 계보(generatedFrom · rule · step) | 공용 내용 |
+| 근사 Search → 덮어쓰기 | 저장 위치와 조금 다른 화면 배치에서 Search → "유사한 공략을 찾았습니다" + 내공/앞공/뒷공 차이 안내 | 덮어쓰기 | 화면 좌표가 아니라 **저장된 원본 위치**에 기록 | 기존 Family 위치 (이동 없음) | 공용 내용 |
+| 근사 Search → SAVE | 위와 같음 | SAVE | 현재 화면 좌표를 새 Position으로 **새 Family 생성** (C-0 적용) | 기존 Family 전체 그대로 | 새 Family 1개 추가 |
+| Recall 후 공을 실제로 이동 | 내공/앞공/뒷공 중 하나를 드래그·직접 입력 | — | 덮어쓰기 자격 해제 (편집 draft는 유지) | 편집 중인 공략 내용 | 덮어쓰기 불가 → SAVE로 새 Position 저장 가능 |
+| 두께(T) 변경 | 임팩트 핸들 드래그 / 두께 선택 | 덮어쓰기 | 두께는 Family 공용 값 → 덮어쓰기 자격 **유지** | Family 위치 | 두께(원본 방향 기준으로 환산 저장) |
+
+#### Rules
+
+- **Three separate concepts:** Recall entry Member → difference notice + edit frame · trusted Family AUTHORED root → OVERWRITE geometry · current screen balls → SAVE only.
+- **Root resolution:** LOCAL = Local normalized dataset AUTHORED Member · PUBLISHED = AUTHORED root captured at Recall from the Published normalized Family (`OverwriteRecallContext`, cleared with the edit session). A Local copy of a Published Family with a different root → fail closed (`OVERWRITE_FAMILY_ROOT_MISMATCH`). No root → fail closed (`OVERWRITE_FAMILY_ROOT_MISSING`). Current ballsState is never used as AUTHORED geometry.
+- **Edit frame → root frame:** HP/T edited on an opposite-handedness Member is mirrored back (exact inverse of Recall hydrate). Extension unchanged → root payload kept exactly; edited → transformed from the Recall track to the root track (H/V/RPI involution) and regenerated on all 4 Tracks.
+- **Derived Family-common sync:** after a 4-Track UPDATE, same-family Derived Members receive the AUTHORED FamilyMaster common keys (signature · sysInputs · corrections · correctionsStored · ai · str · hpT); when the root Extension changed, a Derived Extension follows its same-track base Member. Derived balls · Position · track · slot · memberId · origin · generatedFromMemberId · derivedRule · derivedStep · meta untouched. Fixes `COMMON_PAYLOAD_CONFLICT` on OVERWRITE when Derived Members exist. No second durable authority.
+- **Slot identity after OVERWRITE:** the active slot keeps the recalled Member identity (SYMMETRY / DERIVED stay as shown).
+- **Eligibility:** physical cue/target/target_center/second move clears it (`shouldClearOverwriteEligibilityOnBallEdit`); the temporary impact (thickness T) handle keeps it. Approximate-query difference alone never clears the session. No extra confirmation at OVERWRITE.
+- **Difference notice:** per-ball Euclidean distance `sqrt(dx²+dy²)` in ball grid coordinates (cueDifference · targetDifference · secondDifference) vs the **winning** Member (SYMMETRY / DERIVED member, not always AUTHORED). 1 decimal display; no internal rounding; exact (every ball < 0.05 = half the positionId 0.1 quantum) → no notice. Informational only (no SAVE/OVERWRITE choice). No similarity % · no weighted score · no grades · no Fg/Rg mapping · no "Rg" unit. Existing low-similarity warning is appended to the same alert.
+- **C2 reflectionOverride — PENDING (STOP C):** `generateFourTrackMembers` persists C2 on neither AUTHORED nor SYMMETRY (SYMMETRY omission is by design and tested); a `{rail, t}` symmetry transform does not exist. Carrying C2 as Family-common needs a new direction rule → not implemented. OVERWRITE C2 behavior is unchanged from before F-3C.
+- **Unchanged:** familyAwareWriter (no same-family different-identityKey replacement) · C-0 validator · F-3B.2 slot invariant · F-3B draft carry · Derived slot policy · Publish semantics · system formulas · positionId · H/V/RPI formulas · schema version · dataset · History.
+
+**Code SSOT:** `domain/family/overwriteFamilyRoot.ts` (root / recall frame / HP/T + Extension canonicalization / Derived common sync) · `familyRuntimeProjection.canonicalizeFamilyMemberRuntimeHpt` · `saveFlow.ts` UPDATE path · `domain/recall/recallPositionDifference.ts` · `adminLocalDbFlow.ts` / `adminSearchFlow.ts` (notice + `setOverwriteRecallContext`) · `publishedEditSession.shouldClearOverwriteEligibilityOnBallEdit` · App wiring · tests `trustedFamilyOverwrite.contract.test.ts`
+
+#### ADMIN MANUAL TODO (do NOT create ADMIN_OPERATION_MANUAL yet)
+
+Future chapter **「불러오기 · SAVE · 덮어쓰기」** must include: exact Search · approximate Search · 내공/앞공/뒷공 차이 안내 · AUTHORED Recall · SYMMETRY Recall · DERIVED Recall · OVERWRITE preserves existing Family Position · SAVE creates new Position · physical ball move clears overwrite eligibility · Family-common values · Extension · C2 reflection · thickness · C-0 duplicate handling.
+
+**Phase F-3C COMPLETE:** NO — core YES; blocker = C2 reflectionOverride Family-common propagation (STOP C).
+**Next Track:** F-3C follow-up Ask — decide C2 `{rail, t}` symmetry/direction rule and AUTHORED persistence in the 4-Track generator.
 
 **Production SSOT (검증 완료, 2026-06):**
 
