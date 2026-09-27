@@ -39,9 +39,14 @@ import {
   buildPublishOperationFromSave,
   type PublishOperation,
 } from "../../domain/publishOperation";
-import { writeFourTrackFamilyMembers } from "../../domain/family/familyAwareWriter";
+import {
+  listFamilyMemberLocations,
+  writeFourTrackFamilyMembers,
+} from "../../domain/family/familyAwareWriter";
+import { seedPublishedFamilyForOverwrite } from "../../domain/family/publishedFamilySeed";
 import {
   canonicalizeRecallHptForRoot,
+  checkOverwriteFamilyPreserved,
   resolveOverwriteFamilyRoot,
   resolveOverwriteRecallMemberFrame,
   resolveOverwriteRootExtensions,
@@ -444,11 +449,25 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   }
 
   // OVERWRITE (UPDATE): write the trusted Family at its AUTHORED root.
+  // A Published-only Family is first seeded (whole identity graph) into the in-memory
+  // working dataset; SAVE (CREATE) always works on ctx.dataset as is.
+  let workingDataset: PositionRecord[] = Array.isArray(ctx.dataset) ? ctx.dataset : [];
   let overwriteRoot: FamilyAuthoredRoot | null = null;
   let recallFrame: FamilyRecallMemberFrame | null = null;
   if (saveIntent === "UPDATE" && familyIdentity) {
+    const seed = seedPublishedFamilyForOverwrite({
+      dataset: workingDataset,
+      familyId: familyIdentity.familyId,
+      sourceKind: overwriteSourceKind,
+      recallContext: ctx.overwriteRecallContext ?? null,
+    });
+    if (!seed.ok) {
+      console.warn("[SAVE] OVERWRITE blocked:", seed.code);
+      return { ok: false, reason: seed.reason };
+    }
+    workingDataset = seed.dataset;
     const rootResult = resolveOverwriteFamilyRoot({
-      dataset: ctx.dataset,
+      dataset: workingDataset,
       familyId: familyIdentity.familyId,
       sourceKind: overwriteSourceKind,
       recallContext: ctx.overwriteRecallContext ?? null,
@@ -459,7 +478,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     }
     overwriteRoot = rootResult.root;
     recallFrame = resolveOverwriteRecallMemberFrame({
-      dataset: ctx.dataset,
+      dataset: workingDataset,
       root: overwriteRoot,
       slotIdentity: explicitSlotFamilyIdentity,
       recallContext: ctx.overwriteRecallContext ?? null,
@@ -612,7 +631,7 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   if (useFourTrackFamily) {
     console.log("[SAVE] Running family-aware four-track write (no Exact upsert)");
     const familyWrite = writeFourTrackFamilyMembers(
-      Array.isArray(ctx.dataset) ? ctx.dataset : [],
+      workingDataset,
       {
         balls: writeBalls,
         ...(datasetTargetBall ? { targetBall: datasetTargetBall } : {}),
@@ -658,11 +677,19 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
         syncDerivedExtensions: rootExtensionsChanged,
         syncDerivedReflectionOverride: rootReflectionOverrideChanged,
       });
+      const preserved = checkOverwriteFamilyPreserved({
+        before: listFamilyMemberLocations(workingDataset, overwriteRoot.familyId),
+        after: listFamilyMemberLocations(updated, overwriteRoot.familyId),
+      });
+      if (!preserved.ok) {
+        console.warn("[SAVE] OVERWRITE blocked:", preserved.code, preserved.memberId);
+        return { ok: false, reason: preserved.reason };
+      }
     }
   } else {
     console.log("[SAVE] Running Exact upsertPositionRecord");
     updated = upsertPositionRecord(
-      ctx.dataset,
+      workingDataset,
       writeBalls,
       strategy,
       undefined,

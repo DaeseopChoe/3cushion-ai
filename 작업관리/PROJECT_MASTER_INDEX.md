@@ -51,7 +51,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
 | **Current Mission** | **POLICY A documented** · **Issue B CLOSED (no Search/dataset change)** · uncommitted code+docs 대기 |
-| **Next Track** | Optional Display Boundary Ask — saved ADMIN C2 on USER? · F-3C COMPLETE (F-2 · F-3B · F-3B.2 · F-3C · F-3C.2 COMPLETE) |
+| **Next Track** | Optional Display Boundary Ask — saved ADMIN C2 on USER? · F-3C COMPLETE (F-2 · F-3B · F-3B.2 · F-3C · F-3C.2 · F-3D COMPLETE) |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
 | **Phase F-2B** | ✅ **META GATE FIXED** — existing-v2-only `repairLegacyV2MissingMeta` via `rebuildCanonicalMemberMeta`; new-data validators stay strict |
@@ -62,6 +62,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase F-3B** | ✅ **ADMIN DESTINATION SLOT** — S1/S2/S3 during editing = SAVE destination; edit draft preserved across slot select + failed SAVE; OVERWRITE only on recalled source slot; C-0 unchanged |
 | **Phase F-3B.2** | ✅ **4-TRACK FAMILY STRATEGY SLOT INVARIANT** — AUTHORED + H/V/RPI SYMMETRY Members of one Family share the selected S1/S2/S3; no first-empty fallback; any collision fails the whole CREATE; C-0 unchanged; Derived slot semantics not decided |
 | **Phase F-3C** | ✅ **COMPLETE** (core + F-3C.2 C2 Family-common: AUTHORED canonical C2 · H/V/RPI projections · edits from any Track canonicalized) — **TRUSTED FAMILY OVERWRITE** — OVERWRITE edits the trusted Family at its stored AUTHORED root (never the Recall entry / screen coordinates); AUTHORED / SYMMETRY / DERIVED Recall equally eligible; Derived Family-common synced; Recall shows 내공/앞공/뒷공 position differences; thickness edit keeps eligibility; C2 reflectionOverride Family-common (F-3C.2) |
+| **Phase F-3D** | ✅ **COMPLETE** — **OVERWRITE PRESERVES THE WHOLE FAMILY IDENTITY GRAPH** — Published-only Family first Local OVERWRITE seeds the recalled Family's full normalized graph (Master + every Member incl. Derived) into the working dataset, then the regular OVERWRITE path runs; every memberId / authoringStrategyId / lineage / balls / slot / Member count preserved; C-0 + no-relocation guard fail closed; one atomic persist; SAVE unchanged |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
 | **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
@@ -946,9 +947,9 @@ Member가 다른 위치에 있다고 해서 별도의 SYS / correction / AI / ST
 | Category | Fields | Notes |
 |----------|--------|-------|
 | **MASTER** | `familyId`, `signature`, `sysInputs`, `corrections?`, `correctionsStored?`, `ai?`, `str?`, canonical `hpT?` (thickness = `hpT.T`) | Authoritative Family-common strategy payload. Optional semantics follow existing `FamilyMaster` type. |
-| **MEMBER** | `memberId`, `familyId` (FK), `balls`, `track`, `memberOrigin`, `generatedFromMemberId?`, `symmetryOp?`, `derivedRule?`, `derivedStep?`, `authoringStrategyId?`, `sourceSlot`, `targetBall?` (+ storage of the Track-projected fields below) | Geometry / Track / provenance / packing. `positionId` = `createPositionId(balls)` (derivable; retained on PositionRecord). AUTHORED + SYMMETRY `sourceSlot` = the Family Strategy Slot (identical on all four Tracks — see **4-TRACK FAMILY STRATEGY SLOT INVARIANT**, Phase F-3B.2). |
+| **MEMBER** | `memberId`, `familyId` (FK), `balls`, `track`, `memberOrigin`, `generatedFromMemberId?`, `symmetryOp?`, `derivedRule?`, `derivedStep?`, `authoringStrategyId?`, `sourceSlot`, `targetBall?` (+ storage of the Track-projected fields below) | Geometry / Track / provenance / packing. `positionId` = `createPositionId(balls)` (derivable; retained on PositionRecord). AUTHORED + SYMMETRY `sourceSlot` = the Family Strategy Slot (identical on all four Tracks — see **4-TRACK FAMILY STRATEGY SLOT INVARIANT**, Phase F-3B.2). **OVERWRITE never changes any MEMBER field** (Phase F-3D) — `memberId` and `authoringStrategyId` are permanent identity. |
 | **FAMILY-COMMON · TRACK-PROJECTED** (Phase F-3C.2) | `reflectionOverride?` (C2 `{rail, t}`), `trajectoryExtensions?` | **Physical storage:** Member field (raw values differ per Track). **Semantic ownership:** Family-common strategy — one C2 / one Extension per Family. **Authority:** the AUTHORED Member's value (AUTHORED track frame) is canonical. **Projection:** SYMMETRY Members store the deterministic H/V/RPI projection, regenerated from AUTHORED on every 4-Track write; C3+ / Product Derived copy their same-track base projection; Cue→Impact Derived carries neither. SYMMETRY / Derived raw values are never an independent strategy authority (no Member-specific strategy override). Not in `FAMILY_MASTER_COMMON_FIELD_KEYS` (those require byte-identical copies). |
-| **DERIVABLE** | `meta` (impact/final/angles), runtime/display mirrored HPT & thickness, `positionId` from balls | Not Family Master. Not Member strategy authority. Rebuild via existing calculation owner. |
+| **DERIVABLE** | `meta` (impact/final/angles), runtime/display mirrored HPT & thickness, `positionId` from balls | Not Family Master. Not Member strategy authority. Rebuild via existing calculation owner. `meta` may legitimately change on OVERWRITE with identical balls when Family-common values (sysInputs · signature · hpT · corrections) change — never freeze it as identity (Phase F-3D). |
 | **COMPATIBILITY DUPLICATE** | Flat `StrategyEntry` copies of MASTER common payload | `TEMPORARY_COMPATIBILITY_DUPLICATION` on **rematerialized runtime** objects only — **not** a durable Local store. ~~Production WRITE SSOT still flat `positions_dataset` / `positions.json`.~~ **SUPERSEDED:** Local WRITE = `normalized_dataset` (B-1); Local flat persist removed (C-2). External Export/Publish/`positions.json` remain flat until Phase D. |
 
 #### HPT / Thickness
@@ -1609,11 +1610,12 @@ Selecting a slot keeps the current edit draft (SYS · HP/T · STR · AI · corre
 | 두께(T) 변경 | 임팩트 핸들 드래그 / 두께 선택 | 덮어쓰기 | 두께는 Family 공용 값 → 덮어쓰기 자격 **유지** | Family 위치 | 두께(원본 방향 기준으로 환산 저장) |
 | C2 수정 (F-3C.2) | 어느 방향(원본·대칭·파생)에서든 ADMIN C2 노란 점을 레일을 따라 이동 | 덮어쓰기 | 현재 방향의 C2를 AUTHORED 방향 기준으로 환산해 Family의 canonical C2로 저장 → 나머지 3방향은 H/V/RPI 대칭으로 재생성 → C3+ / Product 파생은 같은 방향 기준 Member의 C2를 따름 | Family 위치 · 4 Track · Slot · memberId · 파생 계보 | 4방향 C2 (각 방향 표현은 다르지만 같은 공략) |
 | C2로 새 공략 저장 | 화면에서 C2 조정 | SAVE | 현재 화면 방향이 새 Family의 AUTHORED → 화면 C2가 그대로 canonical | 기존 Family | 새 Family 1개 |
+| Published에만 있는 Family 덮어쓰기 (F-3D) | Published Search → 원본·대칭·파생 중 하나 Recall → 공용 내용 수정 | 덮어쓰기 | Local에 그 familyId가 전혀 없으면 Recall 때 읽은 Family 전체(원본·대칭·모든 파생)를 Local 작업 데이터에 그대로 올린 뒤 기존 덮어쓰기 수행 → 한 번에 저장 | 모든 memberId · authoringStrategyId · 좌표 · Track · Slot · origin · 파생 계보 · Member 수 | 공용 내용 (C2 · Extension은 기존 Member 위 projection) |
 
 #### Rules
 
 - **Three separate concepts:** Recall entry Member → difference notice + edit frame · trusted Family AUTHORED root → OVERWRITE geometry · current screen balls → SAVE only.
-- **Root resolution:** LOCAL = Local normalized dataset AUTHORED Member · PUBLISHED = AUTHORED root captured at Recall from the Published normalized Family (`OverwriteRecallContext`, cleared with the edit session). A Local copy of a Published Family with a different root → fail closed (`OVERWRITE_FAMILY_ROOT_MISMATCH`). No root → fail closed (`OVERWRITE_FAMILY_ROOT_MISSING`). Current ballsState is never used as AUTHORED geometry.
+- **Root resolution:** LOCAL = Local normalized dataset AUTHORED Member · PUBLISHED = AUTHORED root captured at Recall from the Published normalized Family (`OverwriteRecallContext`, cleared with the edit session). A Local copy of a Published Family with a different root → fail closed (`OVERWRITE_FAMILY_ROOT_MISMATCH`). No root → fail closed (`OVERWRITE_FAMILY_ROOT_MISSING`). Current ballsState is never used as AUTHORED geometry. Published-only Family → whole identity graph seeded first (see **F-3D** below).
 - **Edit frame → root frame:** HP/T edited on an opposite-handedness Member is mirrored back (exact inverse of Recall hydrate). Extension unchanged → root payload kept exactly; edited → transformed from the Recall track to the root track (H/V/RPI involution) and regenerated on all 4 Tracks.
 - **Derived Family-common sync:** after a 4-Track UPDATE, same-family Derived Members receive the AUTHORED FamilyMaster common keys (signature · sysInputs · corrections · correctionsStored · ai · str · hpT); when the root Extension / C2 changed, a C3+ / Product Derived Extension / C2 follows its same-track base Member (DERIVED_CUE_IMPACT never receives either — F-3C.2). Derived balls · Position · track · slot · memberId · origin · generatedFromMemberId · derivedRule · derivedStep · meta untouched. Fixes `COMMON_PAYLOAD_CONFLICT` on OVERWRITE when Derived Members exist. No second durable authority.
 - **Slot identity after OVERWRITE:** the active slot keeps the recalled Member identity (SYMMETRY / DERIVED stay as shown).
@@ -1629,6 +1631,37 @@ Selecting a slot keeps the current edit draft (SYS · HP/T · STR · AI · corre
 Future chapter **「불러오기 · SAVE · 덮어쓰기」** must include: exact Search · approximate Search · 내공/앞공/뒷공 차이 안내 · AUTHORED Recall · SYMMETRY Recall · DERIVED Recall · OVERWRITE preserves existing Family Position · SAVE creates new Position · physical ball move clears overwrite eligibility · Family-common values · Extension · C2 reflection · thickness · C-0 duplicate handling.
 
 Future **C2 section** must explain: 관리자가 AUTHORED / 대칭 / 파생 중 어느 방향에서 C2를 수정하더라도 Family의 하나의 C2 공략을 수정한다. SAVE: 현재 화면 방향이 새 Family의 canonical 기준 방향이 된다. OVERWRITE: 수정값은 기존 Family의 AUTHORED 방향 기준으로 환산된다. USER 화면의 C2 동작은 별도 정책이며 현재 변경되지 않는다 (ADMIN 전용 표시).
+
+Future **덮어쓰기 보존 section** (Phase F-3D) must state: "AUTHORED / SYMMETRY / DERIVED 중 어느 Member를 Recall해도 덮어쓰기는 기존 Family의 Member identity, 좌표, Position, Track, Slot, origin 및 lineage를 변경하지 않는다. Family 공용 전략값만 갱신한다. C2/Extension처럼 방향별 표현이 필요한 Family 공용값은 기존 Member 위에서 projection만 갱신한다." · Published에만 있는 Family를 처음 덮어쓰면 Family 전체(파생 포함)가 같은 ID로 Local에 이어진다 · Local에 같은 Family가 이미 있으면 Local 내용이 기준이다 · 다른 공략이 같은 위치·Slot을 쓰고 있거나 기존 Member 위치가 달라지게 되면 덮어쓰기가 중단된다.
+
+#### F-3D Full Family Identity Preservation on OVERWRITE (2026-09-27)
+
+**Authority:** 본 절 · F-3D audit (Ask)
+
+**OVERWRITE preservation invariant (frozen):** "AUTHORED / SYMMETRY / DERIVED 중 어느 Member를 Recall해도 덮어쓰기는 기존 Family의 Member identity, 좌표, Position, Track, Slot, origin 및 lineage를 변경하지 않는다. Family 공용 전략값만 갱신한다. C2/Extension처럼 방향별 표현이 필요한 Family 공용값은 기존 Member 위에서 projection만 갱신한다."
+
+OVERWRITE = EXISTING FAMILY CONTENT UPDATE ≠ Family / Member / Position re-creation ≠ memberId reissue. SAVE = CREATE (new familyId / memberIds normal; unchanged).
+
+**Published-first-OVERWRITE seed rule:** "Published-only Family의 첫 OVERWRITE에서는 Recall한 Family의 normalized identity graph 전체를 Local working dataset에 seed한 뒤 기존 OVERWRITE 경로를 사용한다. 단, Local에 같은 familyId가 하나라도 이미 존재하면 Published snapshot을 자동 merge/copy하지 않는다."
+
+- **Capture (Recall):** `buildOverwriteRecallContext` (PUBLISHED) stores `publishedFamily = { familyId, master, members[] }` — the recalled familyId only, deep copies of the Published normalized parts. Session-only (cleared with the edit session); not a durable authority, not a schema field.
+- **Seed (OVERWRITE):** `seedPublishedFamilyForOverwrite` — only when sourceKind = PUBLISHED **and** Local holds zero Members of the familyId. Snapshot validated (one AUTHORED equal to the captured root · unique memberIds · lineage resolvable) → `rematerializeFamilyPartsToPositionRecords` (exact `sourceSlot`, no slot move) → merged into an in-memory copy of the Local dataset.
+- **Then unchanged path:** `resolveOverwriteFamilyRoot` → `writeFourTrackFamilyMembers` (lineage now read from the seeded rows → same memberIds + authoringStrategyIds) → `syncFamilyCommonPayloadToDerivedMembers` (base found by generatedFromMemberId) → one `persistWorkingCorpusNormalizedAuthority`. No second OVERWRITE algorithm.
+- **authoringStrategyId:** preserved identity on OVERWRITE (Local-existing and Published-only). A new asid may be assigned only where a legacy Member had none.
+- **meta:** derivable cache — may rebuild with identical balls when Family-common values change; tests must not freeze it.
+
+**Fail closed (nothing persisted, UI dataset unchanged):**
+
+- `POSITION_STRATEGY_SLOT_CONFLICT` — another Local Family (or legacy entry) holds a Published Member's (positionId, sourceSlot) — C-0, no auto overwrite / slot move / partial seed.
+- `OVERWRITE_PUBLISHED_SEED_CONFLICT` — different target ball at a shared exact Position.
+- `OVERWRITE_PUBLISHED_SEED_INVALID` — snapshot missing / inconsistent.
+- `OVERWRITE_FAMILY_GEOMETRY_MISMATCH` — `checkOverwriteFamilyPreserved` (every OVERWRITE): each Member present before the write must keep memberId · exact balls · track · slot · origin · symmetryOp · generatedFromMemberId · derivedRule · derivedStep · (existing) authoringStrategyId. Catches legacy / stale SYMMETRY geometry that differs from the current canonical transform — no auto-correction, no relocation, no new id.
+
+**Stale / conflict policy (unchanged architecture):** Local gains the familyId before OVERWRITE → Local used, root mismatch fails closed · divergent Local graph → not reconciled (Local is the authority) · Published changed after Recall → no concurrency/versioning (pre-existing limitation).
+
+**Code SSOT:** `domain/family/publishedFamilySeed.ts` (`capturePublishedFamilySnapshot` · `seedPublishedFamilyForOverwrite`) · `overwriteFamilyRoot.ts` (`publishedFamily` context · `checkOverwriteFamilyPreserved`) · `adminSearchFlow.ts` (masters passed) · `saveFlow.ts` UPDATE path (seed → root → write → sync → guard → persist) · tests `publishedFamilySeed.test.ts` · `trustedFamilyOverwrite.contract.test.ts` (F-3D block)
+
+**Schema change:** NO · **Migration:** NO · **Phase F-3D COMPLETE:** YES
 
 #### F-3C.2 C2 Reflection Family-Common (2026-09-27)
 

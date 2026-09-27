@@ -17,12 +17,15 @@ import {
   normalizeReflectionOverride,
   type ReflectionOverride,
 } from "../trajectory/c2ReflectionOverride";
-import { listFamilyMemberLocations } from "./familyAwareWriter";
+import { ballsExactEqual } from "../cueEditSnap";
+import { listFamilyMemberLocations, type FamilyMemberLocation } from "./familyAwareWriter";
 import { parseMemberOrigin, parseSymmetryOp } from "./familyIdentity";
 import {
   FAMILY_MASTER_COMMON_FIELD_KEYS,
+  type FamilyMaster,
   type FamilyMember,
 } from "./familyNormalizedSchema";
+import { capturePublishedFamilySnapshot, type PublishedFamilySnapshot } from "./publishedFamilySeed";
 import {
   canonicalizeFamilyMemberRuntimeHpt,
   findAuthoredFamilyEntry,
@@ -72,6 +75,11 @@ export type OverwriteRecallContext = {
   recallMember: FamilyRecallMemberFrame | null;
   /** PUBLISHED only — AUTHORED root captured from the Published normalized Family. */
   authoredRoot: FamilyAuthoredRoot | null;
+  /**
+   * PUBLISHED only — the recalled Family's normalized parts (Master + every Member),
+   * session-only identity seed for a first Local OVERWRITE (Phase F-3D).
+   */
+  publishedFamily?: PublishedFamilySnapshot | null;
 };
 
 export type OverwriteRootResolution =
@@ -173,18 +181,71 @@ export function buildOverwriteRecallContext(args: {
   record: PositionRecord | null | undefined;
   slot: string;
   publishedFamilyMembers?: ReadonlyArray<FamilyMember> | null;
+  publishedMasterByFamilyId?: ReadonlyMap<string, FamilyMaster> | null;
 }): OverwriteRecallContext | null {
   const recallMember = recallMemberFrameFromRecord(args.record, args.slot);
   if (!recallMember) return null;
+  const published = args.source === "PUBLISHED";
   return {
     source: args.source,
     familyId: recallMember.familyId,
     recallMember,
-    authoredRoot:
-      args.source === "PUBLISHED"
-        ? findPublishedFamilyAuthoredRoot(args.publishedFamilyMembers, recallMember.familyId)
-        : null,
+    authoredRoot: published
+      ? findPublishedFamilyAuthoredRoot(args.publishedFamilyMembers, recallMember.familyId)
+      : null,
+    publishedFamily: published
+      ? capturePublishedFamilySnapshot({
+          familyId: recallMember.familyId,
+          members: args.publishedFamilyMembers,
+          masterByFamilyId: args.publishedMasterByFamilyId,
+        })
+      : null,
   };
+}
+
+export type OverwritePreservationResult =
+  | { ok: true }
+  | { ok: false; code: "OVERWRITE_FAMILY_GEOMETRY_MISMATCH"; reason: string; memberId: string };
+
+/**
+ * OVERWRITE updates Family-common content only. Every Member present before the write
+ * must still exist with the same identity, lineage and authoritative geometry
+ * (exact balls — Position is derived from them — track, slot). An authoringStrategyId
+ * is compared only when the Member already had one. Fail closed — never relocate,
+ * re-id or auto-correct.
+ */
+export function checkOverwriteFamilyPreserved(args: {
+  before: ReadonlyArray<FamilyMemberLocation>;
+  after: ReadonlyArray<FamilyMemberLocation>;
+}): OverwritePreservationResult {
+  const afterById = new Map(args.after.map((loc) => [loc.entry.memberId, loc]));
+  for (const prev of args.before) {
+    const memberId = prev.entry.memberId ?? "";
+    const next = afterById.get(prev.entry.memberId);
+    const a = prev.entry;
+    const b = next?.entry;
+    const same =
+      !!next &&
+      !!b &&
+      ballsExactEqual(prev.balls, next.balls) &&
+      prev.slot === next.slot &&
+      a.track === b.track &&
+      a.memberOrigin === b.memberOrigin &&
+      (a.symmetryOp ?? null) === (b.symmetryOp ?? null) &&
+      (a.generatedFromMemberId ?? null) === (b.generatedFromMemberId ?? null) &&
+      (a.derivedRule ?? null) === (b.derivedRule ?? null) &&
+      (a.derivedStep ?? null) === (b.derivedStep ?? null) &&
+      (!a.authoringStrategyId || a.authoringStrategyId === b.authoringStrategyId);
+    if (!same) {
+      return {
+        ok: false,
+        code: "OVERWRITE_FAMILY_GEOMETRY_MISMATCH",
+        memberId,
+        reason: `기존 Family Member(${memberId})의 위치 또는 식별 정보가 덮어쓰기 결과와 달라집니다. 자동 보정하지 않고 덮어쓰기를 중단했습니다. [OVERWRITE_FAMILY_GEOMETRY_MISMATCH]`,
+      };
+    }
+  }
+  return { ok: true };
 }
 
 function sameRootGeometry(a: FamilyAuthoredRoot, b: FamilyAuthoredRoot): boolean {

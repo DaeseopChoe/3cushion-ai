@@ -6,6 +6,68 @@ Status : Active Project Log
 
 ---
 
+# 2026-09-27 — Phase F-3D Preserve Complete Published Family Identity Graph on First Local OVERWRITE
+
+## Mode
+
+**Agent** · OVERWRITE (UPDATE) path only · no schema / migration / dataset / History / Publish · SAVE unchanged · Search / Recall UX unchanged
+
+## Rule (frozen)
+
+- "AUTHORED / SYMMETRY / DERIVED 중 어느 Member를 Recall해도 덮어쓰기는 기존 Family의 Member identity, 좌표, Position,
+  Track, Slot, origin 및 lineage를 변경하지 않는다. Family 공용 전략값만 갱신한다. C2/Extension처럼 방향별 표현이 필요한
+  Family 공용값은 기존 Member 위에서 projection만 갱신한다."
+- "Published-only Family의 첫 OVERWRITE에서는 Recall한 Family의 normalized identity graph 전체를 Local working dataset에
+  seed한 뒤 기존 OVERWRITE 경로를 사용한다. 단, Local에 같은 familyId가 하나라도 이미 존재하면 Published snapshot을
+  자동 merge/copy하지 않는다."
+- authoringStrategyId = preserved identity on OVERWRITE. meta = derivable cache (may rebuild).
+
+## User operation flow
+
+- 관리자가 Published Search로 Family A(원본 mb_A · 대칭 mb_H/mb_V/mb_RPI · 파생 D1→mb_H · D2→mb_V)의 아무 Member나 불러와
+  공용 내용을 고치고 덮어쓰기를 누른다. Local에 Family A가 없으면 프로그램은 Recall 때 읽어 둔 Family A 전체를 Local 작업
+  데이터에 그대로 올리고(같은 ID · 좌표 · Slot · 계보), 그 위에서 기존 덮어쓰기를 실행한 뒤 한 번에 저장한다.
+  결과 Local = Published와 같은 6개 Member, 공용 내용만 새 값.
+- Local에 Family A가 이미 있으면 Published 내용을 덮어씌우지 않고 Local Family를 기준으로 덮어쓴다.
+- 다른 공략이 Family A의 위치·Slot을 이미 쓰고 있거나, 기존 Member 위치가 바뀌게 되는 경우(예: 예전 방식으로 만들어진 대칭
+  좌표)에는 아무것도 저장하지 않고 중단한다.
+- SAVE는 그대로: 현재 화면 위치에 새 Family를 만든다.
+
+## Root cause (F-3D Ask)
+
+- `OverwriteRecallContext` kept only the winning Member frame + the AUTHORED root; the rest of the Published Family was discarded.
+- The 4-Track writer reads existing lineage from the Local dataset only → Published-only: H/V/RPI memberIds and all four
+  authoringStrategyIds minted; AUTHORED memberId survived only via the injected root id.
+- OVERWRITE never runs the Derived generators (sync only) → Published Derived Members never reached Local; the slot identity
+  could point at a Published Member absent from Local. The next Publish (family replacement) would have propagated the loss.
+
+## Delivered
+
+- `publishedFamilySeed.ts`: `capturePublishedFamilySnapshot` (Recall, recalled familyId only) · `seedPublishedFamilyForOverwrite`
+  (PUBLISHED + Local holds zero Members of the familyId → validate → `rematerializeFamilyPartsToPositionRecords` → merge into an
+  in-memory copy; C-0 / target conflict / invalid snapshot fail closed).
+- `overwriteFamilyRoot.ts`: `publishedFamily` on the Recall context · `checkOverwriteFamilyPreserved` (every OVERWRITE: each prior
+  Member keeps id · exact balls · track · slot · origin · lineage · existing asid → else `OVERWRITE_FAMILY_GEOMETRY_MISMATCH`).
+- `saveFlow.ts` UPDATE: seed → root → 4-Track write → Derived sync → guard → one persist. `adminSearchFlow.ts` passes masters.
+
+## Tests
+
+- Pre-fix (run before implementation): Local-existing ID-1/2/3/7L PASS (preservation already correct). Published-only cases FAIL —
+  H/V/RPI memberId mismatch · all 4 authoringStrategyIds re-minted (AUTHORED too) · Derived `mb_derived_1/2` missing (count 6 → 4)
+  · generatedFrom targets missing · Derived not recallable from Local · C-0 seed conflict accepted · stale SYMMETRY geometry
+  silently relocated · Recall context without snapshot.
+- Fixture note: Derived test records now carry the Family target colour (Target NONE queries bucket `targetBall == null`).
+- Found while running the full suite: the guard first compared stored `record.positionId` (legacy label `pos_c5`) → now exact balls
+  (Position is derived from balls).
+- Post-fix: focused 3 files / 90 · full 187 files / 2155 PASS · build PASS.
+- Manual browser: NOT RUN (the browser Local DB is the user's authoring store; no isolated fixture).
+
+## Status
+
+Phase F-3D COMPLETE. Schema / migration / dataset / History / Publish unchanged.
+
+---
+
 # 2026-09-27 — Phase F-3C.2 C2 Reflection Family-Common Canonicalization + 4-Track Projection
 
 ## Mode

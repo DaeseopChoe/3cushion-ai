@@ -1185,6 +1185,421 @@ describe("F-3C.2 — C2 reflection is Family-common (AUTHORED canonical + projec
 });
 
 // ---------------------------------------------------------------------------
+// Phase F-3D — OVERWRITE preserves the complete Family identity graph
+// (Local-existing and Published-only first Local OVERWRITE)
+// ---------------------------------------------------------------------------
+
+describe("F-3D — OVERWRITE preserves the complete Family identity graph", () => {
+  const familyC2: ReflectionOverride = { rail: "LEFT", t: 0.3 };
+  const ext = (x: number, y: number): StrategyEntry["trajectoryExtensions"] =>
+    ({
+      extensionSchemaVersion: 1,
+      origin: { kind: "path_node", source: "corrected" },
+      items: [
+        { id: "EXT-S1-01", index: 1, endpoint: { x, y }, userEdited: true, createdAt: "t0", updatedAt: "t0" },
+      ],
+    }) as StrategyEntry["trajectoryExtensions"];
+
+  type Who = "AUTHORED" | "H" | "V" | "RPI" | "D1" | "D2";
+  const D1 = "mb_derived_1";
+  const D2 = "mb_derived_2";
+
+  /** Family A: AUTHORED / H / V / RPI + D1 (C3+) → H, D2 (Cue→Impact) → V. */
+  function buildFamilyA(h: Harness, opts: { slot?: Slot; shotType?: string } = {}) {
+    const familyId = seedFamily(h, {
+      slot: opts.slot,
+      shotType: opts.shotType,
+      c2: familyC2,
+      extensions: ext(70, 30),
+    });
+    const hLoc = locByOp(h.dataset, familyId, "H");
+    const vLoc = locByOp(h.dataset, familyId, "V");
+    addDerived(h, familyId, hLoc, shift(hLoc.balls, { cue: [-4, 2] }), 1, "DERIVED_C3_PLUS");
+    addDerived(h, familyId, vLoc, shift(vLoc.balls, { cue: [4, -2] }), 2, "DERIVED_CUE_IMPACT");
+    // Derived Positions carry the Family target colour (seedFamily uses red).
+    h.dataset = h.dataset.map((r) => (r.targetBall ? r : { ...r, targetBall: "red" as const }));
+    persistLocal(h, opts.shotType);
+    return familyId;
+  }
+
+  function memberLoc(dataset: PositionRecord[], familyId: string, who: Who): FamilyLoc {
+    if (who === "D1" || who === "D2") {
+      const id = who === "D1" ? D1 : D2;
+      return entriesOfFamily(dataset, familyId).find((l) => l.entry.memberId === id)!;
+    }
+    return locByOp(dataset, familyId, who);
+  }
+
+  function recallTarget(dataset: PositionRecord[], familyId: string, who: Who, approximate = false) {
+    const loc = memberLoc(dataset, familyId, who);
+    return {
+      loc,
+      slot: loc.slot,
+      query: approximate ? shift(loc.balls, { cue: [0.6, -0.8] }) : loc.balls,
+    };
+  }
+
+  /** Permanent identity + authoritative geometry of every Member (meta excluded — derivable). */
+  function identityGraph(dataset: PositionRecord[], familyId: string) {
+    return entriesOfFamily(dataset, familyId)
+      .map((l) => ({
+        memberId: l.entry.memberId,
+        authoringStrategyId: l.entry.authoringStrategyId ?? null,
+        memberOrigin: l.entry.memberOrigin,
+        symmetryOp: l.entry.symmetryOp ?? null,
+        generatedFromMemberId: l.entry.generatedFromMemberId ?? null,
+        derivedRule: l.entry.derivedRule ?? null,
+        derivedStep: l.entry.derivedStep ?? null,
+        track: l.entry.track,
+        slot: l.slot,
+        balls: l.balls,
+        positionId: l.positionId,
+      }))
+      .sort((a, b) => String(a.memberId).localeCompare(String(b.memberId)));
+  }
+
+  function expectLineageResolves(dataset: PositionRecord[], familyId: string) {
+    const locs = entriesOfFamily(dataset, familyId);
+    const ids = new Set(locs.map((l) => l.entry.memberId));
+    for (const l of locs) {
+      if (l.entry.generatedFromMemberId) expect(ids.has(l.entry.generatedFromMemberId)).toBe(true);
+    }
+  }
+
+  function publishedFamilyA(opts: { slot?: Slot } = {}) {
+    const dry = harness();
+    const familyId = buildFamilyA(dry, { slot: opts.slot, shotType: "옆돌리기" });
+    const records = structuredClone(dry.dataset);
+    storage.clear();
+    return { records, familyId, graph: identityGraph(records, familyId) };
+  }
+
+  function storageSnapshot(): Record<string, string | null> {
+    const out: Record<string, string | null> = {};
+    for (let i = 0; i < storage.length; i += 1) {
+      const k = storage.key(i)!;
+      out[k] = storage.getItem(k);
+    }
+    return out;
+  }
+
+  const edit = (text: string): EditOptions => ({ ai: text, inputs: editedInputs, shotType: "옆돌리기" });
+
+  // --- Local-existing -------------------------------------------------------
+
+  it.each<[string, Who, boolean]>([
+    ["ID-1 AUTHORED", "AUTHORED", false],
+    ["ID-2 SYMMETRY", "H", false],
+    ["ID-3 DERIVED", "D1", false],
+    ["ID-3b DERIVED (Cue→Impact)", "D2", false],
+    ["ID-7L approximate SYMMETRY", "V", true],
+    ["ID-7L approximate DERIVED", "D1", true],
+  ])("%s Recall (Local-existing) → OVERWRITE keeps the whole identity graph", async (_l, who, approx) => {
+    const h = harness();
+    const familyId = buildFamilyA(h);
+    const before = identityGraph(h.dataset, familyId);
+    expect(before).toHaveLength(6);
+    const t = recallTarget(h.dataset, familyId, who, approx);
+    const rc = await localRecall(t.query, t.slot);
+    expect(rc.matched).toBe(true);
+
+    const { result } = pressAfterRecall(h, rc, t.slot, "OVERWRITE", edit(`${who} 수정`));
+    expect(result.ok, result.reason).toBe(true);
+    expect(identityGraph(h.dataset, familyId)).toEqual(before);
+    expectLineageResolves(h.dataset, familyId);
+    for (const l of entriesOfFamily(h.dataset, familyId)) expect(l.entry.ai).toEqual({ text: `${who} 수정` });
+  });
+
+  // --- Published-only first Local OVERWRITE --------------------------------
+
+  it.each<[string, Who, boolean]>([
+    ["ID-4 AUTHORED", "AUTHORED", false],
+    ["ID-5 SYMMETRY H", "H", false],
+    ["ID-5 SYMMETRY V", "V", false],
+    ["ID-5 SYMMETRY RPI", "RPI", false],
+    ["ID-6 DERIVED C3+", "D1", false],
+    ["ID-6 DERIVED Cue→Impact", "D2", false],
+    ["ID-7 approximate SYMMETRY", "H", true],
+    ["ID-7 approximate DERIVED", "D1", true],
+  ])("%s Recall (Published-only) → OVERWRITE materializes the exact Published graph", async (_l, who, approx) => {
+    const P = publishedFamilyA();
+    const t = recallTarget(P.records, P.familyId, who, approx);
+    const rc = await publishedRecall(P.records, t.query, t.slot);
+    expect(rc.matched).toBe(true);
+    expect(rc.record?.strategies[t.slot]?.memberId).toBe(t.loc.entry.memberId);
+    expect(rc.publishedFamilyId).toBe(P.familyId);
+
+    const h = harness([]);
+    const { result, patchIdentity } = pressAfterRecall(h, rc, t.slot, "OVERWRITE", edit("Published 수정"));
+    expect(result.ok, result.reason).toBe(true);
+    expect(result.overwriteSourceKind).toBe("PUBLISHED");
+    // ID-19: Member count N → N, and every id / asid / lineage / geometry identical.
+    expect(identityGraph(h.dataset, P.familyId)).toEqual(P.graph);
+    expectLineageResolves(h.dataset, P.familyId);
+    for (const l of entriesOfFamily(h.dataset, P.familyId)) {
+      expect(l.entry.ai).toEqual({ text: "Published 수정" });
+    }
+    // ID-18: slot identity = the recalled Member, present in Local.
+    const patched = patchIdentity.mock.calls.at(-1)?.[1] as { memberId: string; memberOrigin: string };
+    expect(patched.memberId).toBe(t.loc.entry.memberId);
+    expect(patched.memberOrigin).toBe(t.loc.entry.memberOrigin);
+    expect(entriesOfFamily(h.dataset, P.familyId).some((l) => l.entry.memberId === patched.memberId)).toBe(true);
+  });
+
+  it("ID-6 durable: after a Published-only DERIVED OVERWRITE the Derived is recallable from Local", async () => {
+    const P = publishedFamilyA();
+    const t = recallTarget(P.records, P.familyId, "D1");
+    const rc = await publishedRecall(P.records, t.query, t.slot);
+    const h = harness([]);
+    const { result } = pressAfterRecall(h, rc, t.slot, "OVERWRITE", edit("파생 덮어쓰기"));
+    expect(result.ok, result.reason).toBe(true);
+
+    const local = await localRecall(t.query, t.slot);
+    expect(local.matched).toBe(true);
+    expect(local.record?.strategies[t.slot]?.memberId).toBe(D1);
+    expect(local.record?.strategies[t.slot]?.generatedFromMemberId).toBe(
+      memberLoc(P.records, P.familyId, "H").entry.memberId
+    );
+  });
+
+  it("ID-8 Derived lineage: D1 → the same H memberId, D2 → the same V memberId", async () => {
+    const P = publishedFamilyA();
+    const mbH = memberLoc(P.records, P.familyId, "H").entry.memberId;
+    const mbV = memberLoc(P.records, P.familyId, "V").entry.memberId;
+    const rc = await publishedRecall(P.records, positionA);
+    const h = harness([]);
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", edit("계보"));
+    expect(result.ok, result.reason).toBe(true);
+    expect(memberLoc(h.dataset, P.familyId, "D1").entry.generatedFromMemberId).toBe(mbH);
+    expect(memberLoc(h.dataset, P.familyId, "D2").entry.generatedFromMemberId).toBe(mbV);
+    expect(memberLoc(h.dataset, P.familyId, "H").entry.memberId).toBe(mbH);
+    expect(memberLoc(h.dataset, P.familyId, "V").entry.memberId).toBe(mbV);
+  });
+
+  it("ID-9 C2 edit from a Published DERIVED Recall → projections change, identity graph unchanged", async () => {
+    const P = publishedFamilyA();
+    const t = recallTarget(P.records, P.familyId, "D1");
+    const rc = await publishedRecall(P.records, t.query, t.slot);
+    const shown = rc.drafts[t.slot].reflectionOverride as ReflectionOverride;
+    expect(shown).toEqual(transformReflectionOverride("H", familyC2));
+
+    const h = harness([]);
+    const edited: ReflectionOverride = { rail: shown.rail, t: 0.8 };
+    const { result } = pressAfterRecall(h, rc, t.slot, "OVERWRITE", { c2: edited, shotType: "옆돌리기" });
+    expect(result.ok, result.reason).toBe(true);
+    expect(identityGraph(h.dataset, P.familyId)).toEqual(P.graph);
+    const root = locByOp(h.dataset, P.familyId, "AUTHORED").entry.reflectionOverride!;
+    expect(root).not.toEqual(familyC2);
+    for (const op of ["H", "V", "RPI"] as const) {
+      expect(locByOp(h.dataset, P.familyId, op).entry.reflectionOverride).toEqual(transformReflectionOverride(op, root));
+    }
+    expect(memberLoc(h.dataset, P.familyId, "D1").entry.reflectionOverride).toEqual(
+      locByOp(h.dataset, P.familyId, "H").entry.reflectionOverride
+    );
+    expect(memberLoc(h.dataset, P.familyId, "D2").entry.reflectionOverride).toBeUndefined();
+  });
+
+  it("ID-10 Extension edit from a Published SYMMETRY Recall → projections change, identity graph unchanged", async () => {
+    const P = publishedFamilyA();
+    const t = recallTarget(P.records, P.familyId, "H");
+    const rc = await publishedRecall(P.records, t.query, t.slot);
+    const h = harness([]);
+    const { result } = pressAfterRecall(h, rc, t.slot, "OVERWRITE", { extensions: ext(12, 25), shotType: "옆돌리기" });
+    expect(result.ok, result.reason).toBe(true);
+    expect(identityGraph(h.dataset, P.familyId)).toEqual(P.graph);
+    const root = locByOp(h.dataset, P.familyId, "AUTHORED").entry.trajectoryExtensions!;
+    expect(root.items[0].endpoint).toEqual({ x: 68, y: 25 });
+    for (const op of ["H", "V", "RPI"] as const) {
+      expect(locByOp(h.dataset, P.familyId, op).entry.trajectoryExtensions).toEqual(transformTrajectoryExtensions(op, root));
+    }
+    expect(memberLoc(h.dataset, P.familyId, "D1").entry.trajectoryExtensions).toEqual(
+      locByOp(h.dataset, P.familyId, "H").entry.trajectoryExtensions
+    );
+    expect(memberLoc(h.dataset, P.familyId, "D2").entry.trajectoryExtensions).toBeUndefined();
+  });
+
+  it("ID-11 Family-common edit (sysInputs / hpT / AI) from a Published V Recall → identity graph unchanged", async () => {
+    const P = publishedFamilyA();
+    const t = recallTarget(P.records, P.familyId, "V");
+    const rc = await publishedRecall(P.records, t.query, t.slot);
+    const h = harness([]);
+    const { result } = pressAfterRecall(h, rc, t.slot, "OVERWRITE", {
+      ...edit("공용 수정"),
+      hpt: { ...seedHpt, T: "+5/8" },
+    });
+    expect(result.ok, result.reason).toBe(true);
+    expect(identityGraph(h.dataset, P.familyId)).toEqual(P.graph);
+    const root = locByOp(h.dataset, P.familyId, "AUTHORED").entry;
+    expect(root.sysInputs).toMatchObject({ CO_f: 34, C3_r: 23 });
+    // V is opposite handedness to the B2T_L root → "+5/8" edited on V is stored canonically.
+    expect((root.hpT as { T: string }).T).toBe("-5/8");
+    for (const l of entriesOfFamily(h.dataset, P.familyId)) {
+      expect(l.entry.sysInputs).toEqual(root.sysInputs);
+      expect(l.entry.ai).toEqual({ text: "공용 수정" });
+      expect(l.entry.hpT).toEqual(root.hpT);
+    }
+  });
+
+  it("ID-12 Published Recall → SAVE creates a new Family at the screen Position; Published graph not seeded", async () => {
+    const P = publishedFamilyA();
+    const q = shift(positionA, { cue: [1.2, 0.5], target: [0.3, -0.4] });
+    const rc = await publishedRecall(P.records, q);
+    expect(rc.matched).toBe(true);
+    const h = harness([]);
+    const { result } = pressAfterRecall(h, rc, "S1", "SAVE", edit("새 공략"));
+    expect(result.ok, result.reason).toBe(true);
+    expect(result.saveIntent).toBe("CREATE");
+    expect(result.familyId).not.toBe(P.familyId);
+    expectFourTrackFamily(h.dataset, result.familyId!, "S1", q);
+    expect(entriesOfFamily(h.dataset, P.familyId)).toHaveLength(0);
+    expect(h.dataset).toHaveLength(4);
+  });
+
+  it("ID-13 Published Recall → physical ball move → OVERWRITE blocked; SAVE creates a new Family only", async () => {
+    const P = publishedFamilyA();
+    const rc = await publishedRecall(P.records, positionA);
+    const moved = shift(positionA, { cue: [6, 3] });
+    const afterMove: RecallCapture = { ...rc, screenBalls: moved, publishedFamilyId: null };
+    const h = harness([]);
+    const blocked = pressAfterRecall(h, afterMove, "S1", "OVERWRITE", edit("x"), { local: null, published: null });
+    expect(blocked.result.ok).toBe(false);
+    expect(blocked.result.reason).toBe("overwrite-missing-source-family");
+    expect(h.dataset).toEqual([]);
+
+    const saved = pressAfterRecall(h, afterMove, "S1", "SAVE", edit("이동 후 저장"), { local: null, published: null });
+    expect(saved.result.ok, saved.result.reason).toBe(true);
+    expectFourTrackFamily(h.dataset, saved.result.familyId!, "S1", moved);
+    expect(entriesOfFamily(h.dataset, P.familyId)).toHaveLength(0);
+  });
+
+  it.each<[string, Slot]>([
+    ["ID-14 S2", "S2"],
+    ["ID-14 S3", "S3"],
+  ])("%s Published-only Family → every slot preserved", async (_l, slot) => {
+    const P = publishedFamilyA({ slot });
+    const t = recallTarget(P.records, P.familyId, "RPI");
+    expect(t.slot).toBe(slot);
+    const rc = await publishedRecall(P.records, t.query, t.slot);
+    const h = harness([]);
+    const { result } = pressAfterRecall(h, rc, t.slot, "OVERWRITE", edit(`${slot} 수정`));
+    expect(result.ok, result.reason).toBe(true);
+    expect(identityGraph(h.dataset, P.familyId)).toEqual(P.graph);
+    for (const l of fourTrack(h.dataset, P.familyId)) expect(l.slot).toBe(slot);
+  });
+
+  it("ID-15 seed C-0: another Local Family holds a Published Derived Position+slot → fail closed, Local untouched", async () => {
+    const P = publishedFamilyA();
+    const d1 = memberLoc(P.records, P.familyId, "D1");
+    const h = harness();
+    const other = seedFamily(h, { balls: d1.balls, slot: d1.slot, shotType: "옆돌리기" });
+    expect(other).not.toBe(P.familyId);
+    const datasetBefore = structuredClone(h.dataset);
+    const storageBefore = storageSnapshot();
+
+    const rc = await publishedRecall(P.records, positionA);
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", edit("충돌"));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT/);
+    expect(h.dataset).toEqual(datasetBefore);
+    expect(storageSnapshot()).toEqual(storageBefore);
+    expect(entriesOfFamily(h.dataset, P.familyId)).toHaveLength(0);
+  });
+
+  it("ID-16 atomicity: persist failure after the in-memory seed → no durable or UI mutation", async () => {
+    const P = publishedFamilyA();
+    const rc = await publishedRecall(P.records, positionA);
+    const h = harness([]);
+    const storageBefore = storageSnapshot();
+    const realSetItem = storage.setItem;
+    storage.setItem = () => {
+      throw new Error("quota exceeded (test seam)");
+    };
+    let result: ReturnType<typeof runSaveStrategy>;
+    try {
+      ({ result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", edit("원자성")));
+    } finally {
+      storage.setItem = realSetItem;
+    }
+    expect(result.ok).toBe(false);
+    expect(h.dataset).toEqual([]);
+    expect(storageSnapshot()).toEqual(storageBefore);
+  });
+
+  it("ID-17 authoringStrategyId preserved on the first OVERWRITE; second OVERWRITE keeps the same ids (no re-seed)", async () => {
+    const P = publishedFamilyA();
+    for (const g of P.graph) expect(g.authoringStrategyId).toBeTruthy();
+    const t = recallTarget(P.records, P.familyId, "H");
+    const rc = await publishedRecall(P.records, t.query, t.slot);
+    const h = harness([]);
+    const first = pressAfterRecall(h, rc, t.slot, "OVERWRITE", edit("1차"));
+    expect(first.result.ok, first.result.reason).toBe(true);
+    expect(identityGraph(h.dataset, P.familyId)).toEqual(P.graph);
+
+    const second = pressAfterRecall(h, rc, t.slot, "OVERWRITE", edit("2차"));
+    expect(second.result.ok, second.result.reason).toBe(true);
+    expect(identityGraph(h.dataset, P.familyId)).toEqual(P.graph);
+    for (const l of entriesOfFamily(h.dataset, P.familyId)) expect(l.entry.ai).toEqual({ text: "2차" });
+  });
+
+  it("Local already holds the familyId (divergent graph) → Published snapshot is not merged", async () => {
+    const P = publishedFamilyA();
+    const rc = await publishedRecall(P.records, positionA);
+    const h = harness([]);
+    expect(pressAfterRecall(h, rc, "S1", "OVERWRITE", edit("1차")).result.ok).toBe(true);
+    // Local now diverges from Published: D2 removed locally.
+    const d2 = memberLoc(h.dataset, P.familyId, "D2");
+    h.dataset = h.dataset
+      .map((r) => (r.positionId === d2.positionId ? { ...r, strategies: { ...r.strategies, [d2.slot]: undefined } } : r))
+      .map((r) => ({ ...r, strategies: Object.fromEntries(Object.entries(r.strategies).filter(([, e]) => e)) }))
+      .filter((r) => Object.keys(r.strategies).length > 0) as PositionRecord[];
+    persistLocal(h, "옆돌리기");
+    const localBefore = identityGraph(h.dataset, P.familyId);
+    expect(localBefore).toHaveLength(5);
+
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", edit("2차"));
+    expect(result.ok, result.reason).toBe(true);
+    expect(identityGraph(h.dataset, P.familyId)).toEqual(localBefore);
+    expect(entriesOfFamily(h.dataset, P.familyId).some((l) => l.entry.memberId === D2)).toBe(false);
+  });
+
+  it("Recall context snapshot holds only the recalled Family (master + every Member)", async () => {
+    const dry = harness();
+    const familyA = buildFamilyA(dry, { shotType: "옆돌리기" });
+    const familyB = seedFamily(dry, { balls: shift(positionA, { cue: [0, 12], target: [0, 10] }), shotType: "옆돌리기" });
+    const records = structuredClone(dry.dataset);
+    storage.clear();
+    const rc = await publishedRecall(records, positionA);
+    const snapshot = (rc.overwriteRecallContext as {
+      publishedFamily?: { familyId: string; master: { familyId: string }; members: Array<{ familyId: string; memberId: string }> };
+    }).publishedFamily!;
+    expect(snapshot.familyId).toBe(familyA);
+    expect(snapshot.master.familyId).toBe(familyA);
+    expect(snapshot.members).toHaveLength(6);
+    expect(snapshot.members.every((m) => m.familyId === familyA)).toBe(true);
+    expect(snapshot.members.some((m) => m.familyId === familyB)).toBe(false);
+  });
+
+  it("ID-20 stale Published SYMMETRY geometry → fail closed (no relocation, no new id, no Local write)", async () => {
+    const P = publishedFamilyA();
+    const hLoc = memberLoc(P.records, P.familyId, "H");
+    const records = P.records.map((r) => {
+      if (r.positionId !== hLoc.positionId) return r;
+      const balls = shift(r.balls, { cue: [0.5, 0] });
+      return { ...r, balls, positionId: createPositionId(balls) };
+    });
+    const rc = await publishedRecall(records, positionA);
+    expect(rc.matched).toBe(true);
+    const h = harness([]);
+    const storageBefore = storageSnapshot();
+    const { result } = pressAfterRecall(h, rc, "S1", "OVERWRITE", edit("stale"));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/OVERWRITE_FAMILY_GEOMETRY_MISMATCH/);
+    expect(h.dataset).toEqual([]);
+    expect(storageSnapshot()).toEqual(storageBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Search difference notice
 // ---------------------------------------------------------------------------
 

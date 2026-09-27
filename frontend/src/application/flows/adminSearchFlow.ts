@@ -339,6 +339,7 @@ export async function runAdminSearch(
       record: spatialResult.record,
       slot: ctx.activeSlot,
       publishedFamilyMembers: familyMembers,
+      publishedMasterByFamilyId: masterByFamilyId,
     })
   );
 
