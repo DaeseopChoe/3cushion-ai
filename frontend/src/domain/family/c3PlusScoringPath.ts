@@ -3,7 +3,8 @@
  * Phase 3A-359F — Assemble variable-length C3+ candidate / scoring line.
  *
  * Candidate: C3 → … → Origin(system tail) → EXT1? → EXT2?
- * Scoring line: truncate after first Second-Ball hit segment (full segment to endpoint).
+ * Scoring line: the full candidate path. The first Second-Ball hit segment
+ * gates eligibility (NO_SB_HIT) but never ends the sample range.
  * Display Cap is not used.
  */
 
@@ -210,8 +211,9 @@ function buildSegments(nodes: C3PlusPathNode[]): C3PlusSegment[] {
 }
 
 /**
- * First Second-Ball hit segment defines the last scoring segment.
- * Scoring line includes the full segment through its endpoint (not SB center).
+ * Scoring line = whole candidate path (C3 → system tail → EXT1 → EXT2).
+ * The Second Ball must be hit somewhere on it; the hit segment is reported
+ * but does not truncate the line.
  */
 export function resolveC3PlusScoringLine(args: {
   pathNodes: ReadonlyArray<RgPoint | null | undefined>;
@@ -261,17 +263,7 @@ export function resolveC3PlusScoringLine(args: {
     };
   }
 
-  const endId = hit.to.id;
-  const endIndex = assembled.nodes.findIndex((n) => n.id === endId);
-  if (endIndex < 0) {
-    return {
-      ok: false,
-      code: "SCORING_ENDPOINT_INVALID",
-      reason: "scoring segment endpoint not found on candidate path",
-    };
-  }
-
-  const scoringLine = assembled.nodes.slice(0, endIndex + 1);
+  const scoringLine = assembled.nodes.slice();
   if (scoringLine.length < 2) {
     return {
       ok: false,

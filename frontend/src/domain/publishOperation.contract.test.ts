@@ -463,9 +463,13 @@ describe("publishOperation — wiring", () => {
   it("useSettings reads History publishOperation into Publish items", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "../hooks/useSettings.js"), "utf8");
-    expect(src).toContain("readPublishOperationFromSnapshot");
+    const input = readFileSync(join(here, "historyPublishInput.ts"), "utf8");
+    const historyInput = readFileSync(join(here, "workHistory/workHistoryPublishInput.ts"), "utf8");
+    expect(src).toContain("loadPublishItemsFromWorkHistory");
+    expect(historyInput).toContain("buildPublishClientItemFromSnapshot");
     expect(src).toContain("publishOperation");
-    expect(src).toContain("readPublishFamilyPayloadFromSnapshot");
+    expect(input).toContain("readPublishOperationFromSnapshot");
+    expect(input).toContain("readPublishFamilyPayloadFromSnapshot");
     expect(src).toContain("publishDatasetToLocalRepoWithGit");
     expect(src).not.toContain("buildPublishedFamilyExportCandidate");
   });

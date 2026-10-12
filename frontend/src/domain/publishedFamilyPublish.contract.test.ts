@@ -534,7 +534,9 @@ describe("publishedFamilyPublish — integration vs old merge path", () => {
     const src = readFileSync(join(here, "../hooks/useSettings.js"), "utf8");
     expect(src).toContain("handlePublishSnapshots");
     expect(src).toContain("publishDatasetToLocalRepoWithGit");
-    expect(src).toContain("readPublishFamilyPayloadFromSnapshot");
+    expect(src).toContain("loadPublishItemsFromWorkHistory");
+    const input = readFileSync(join(here, "workHistory/workHistoryPublishInput.ts"), "utf8");
+    expect(input).toContain("buildPublishClientItemFromSnapshot");
     expect(src).not.toContain("buildPublishedFamilyExportCandidate");
     expect(src).not.toContain("handleExportSnapshots");
     // Published write path must not call mergePublishedExport directly.

@@ -294,7 +294,7 @@ describe("F-3B ADMIN destination slot — edit draft preservation", () => {
     expect(s2.applied?.memberId).toBeUndefined();
   });
 
-  it("TEST 3/4/5/6/9/10 — edit → SAVE(S1) C-0 → S2 keeps draft → SAVE → new S2 Family", () => {
+  it("TEST 3/4/5/6/9/10 — edit → SAVE(S1) C-0 → S2 keeps draft → SAVE → new S2 Family", async () => {
     const h = harness();
     const { familyA, authored } = seedFamilyA(h);
     const familyABefore = structuredClone(entriesOfFamily(h.dataset, familyA));
@@ -317,8 +317,8 @@ describe("F-3B ADMIN destination slot — edit draft preservation", () => {
       setDataset: setDatasetSpy,
       patchSlotFamilyIdentity: patchIdentity,
     });
-    const commitHistory = vi.fn(() => ({ ok: true }));
-    const failed = runCanonicalSave({
+    const commitHistory = vi.fn(async () => ({ ok: true, snapshotId: "h_test" }));
+    const failed = await runCanonicalSave({
       ...failCtx,
       canUseSystemControls: true,
       commitWorkspaceHistoryWithStrategyDataset: commitHistory,

@@ -562,7 +562,7 @@ describe("Phase B-1 WRITE order + lifecycle", () => {
     expect(ok.shadowSync.ok).toBe(false);
   });
 
-  it("CASE 13/21–26: SAVE + Derived/Product approval; product_export absent", () => {
+  it("CASE 13/21–26 (Task F): SAVE + Derived/Product approval go to History, not browser storage", async () => {
     const collinear = {
       cue: { x: 8, y: 16 },
       target: { x: 8 + 20 + DEFAULT_SCALE.BALL_DIAMETER_RG, y: 16 },
@@ -571,7 +571,7 @@ describe("Phase B-1 WRITE order + lifecycle", () => {
     const { ctx } = buildSaveCtx({ ballsState: collinear });
     const save = runSaveStrategy(ctx);
     expect(save.ok).toBe(true);
-    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeNull();
     if (!save.ok || !save.updated || !save.familyId) return;
 
     const review = createUnifiedDerivedReview({
@@ -603,36 +603,40 @@ describe("Phase B-1 WRITE order + lifecycle", () => {
     expect(approved.ok).toBe(true);
     if (!approved.ok) return;
 
-    const priorCanonical = localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY);
-    forceCanonicalCommitFailureForTests("write");
-    const failApprove = commitDerivedApprovalDataset({
+    const failSetDataset = vi.fn();
+    const failApprove = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: null,
-      setDataset: () => {},
+      setDataset: failSetDataset,
       restoreDerivedReviewSnapshot: () => {},
       shotType: "뒤돌리기",
       systemId: "5_half_system",
+      familyId: save.familyId,
+      finalizeHistory: async () => ({ ok: false, reason: "write-failed" }),
     });
-    expect(failApprove.canonicalOk).toBe(false);
-    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBe(
-      priorCanonical
-    );
-    clearCanonicalCommitFailureForTests();
+    expect(failApprove.ok).toBe(false);
+    expect(failSetDataset).not.toHaveBeenCalled();
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeNull();
 
-    const okApprove = commitDerivedApprovalDataset({
+    let committedGraph: { members: Array<{ memberOrigin?: string }> } | null = null;
+    const okApprove = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: null,
       setDataset: () => {},
       restoreDerivedReviewSnapshot: () => {},
       shotType: "뒤돌리기",
       systemId: "5_half_system",
+      familyId: save.familyId,
+      finalizeHistory: async ({ graph }) => {
+        committedGraph = graph as unknown as typeof committedGraph;
+        return { ok: true };
+      },
     });
-    expect(okApprove.canonicalOk).toBe(true);
-    const loaded = loadCanonicalNormalizedCorpus();
-    expect(loaded.ok && loaded.present).toBe(true);
-    if (!loaded.ok || !loaded.present) return;
+    expect(okApprove.ok, okApprove.reason).toBe(true);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeNull();
+    expect(committedGraph).not.toBeNull();
     expect(
-      loaded.envelope.familyMembers.some(
+      committedGraph!.members.some(
         (m) => m.memberOrigin === CUE_C3_PRODUCT_MEMBER_ORIGIN
       )
     ).toBe(true);
@@ -676,7 +680,7 @@ describe("Phase B-1 WRITE order + lifecycle", () => {
 });
 
 describe("Phase B-1 architecture owner wiring", () => {
-  it("saveFlow / derivedApproval use normalized authority orchestrator", () => {
+  it("Task F: saveFlow / derivedApproval no longer call the browser normalized authority", () => {
     const save = readFileSync(
       join(here, "../../application/flows/saveFlow.ts"),
       "utf8"
@@ -685,10 +689,8 @@ describe("Phase B-1 architecture owner wiring", () => {
       join(here, "../../application/flows/derivedApprovalFlow.ts"),
       "utf8"
     );
-    expect(save).toContain("persistWorkingCorpusNormalizedAuthority");
-    expect(approval).toContain("persistWorkingCorpusNormalizedAuthority");
-    expect(save.indexOf("persistWorkingCorpusNormalizedAuthority")).toBeLessThan(
-      save.lastIndexOf("ok: true")
-    );
+    expect(save).not.toContain("persistWorkingCorpusNormalizedAuthority(");
+    expect(approval).not.toContain("persistWorkingCorpusNormalizedAuthority(");
+    expect(approval).toContain("finalizeHistory");
   });
 });

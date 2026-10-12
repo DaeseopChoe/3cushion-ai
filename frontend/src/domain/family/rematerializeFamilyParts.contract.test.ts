@@ -37,11 +37,6 @@ import { loadFamilyCompatibleDataset } from "./loadFamilyCompatibleDataset";
 import { loadProductionCompatibleDataset } from "./loadProductionCompatibleDataset";
 import { migratePositionRecordsToFamilyParts } from "./migratePositionRecordsToFamilyParts";
 import { rematerializeFamilyPartsToPositionRecords } from "./rematerializeFamilyPartsToPositionRecords";
-import {
-  ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
-  runWorkspaceLocalStorageCleanup,
-  WORKSPACE_CLEANUP_PRESERVE_DATASET,
-} from "../../hooks/useSettings.js";
 import { familyCompatibilityFingerprint } from "./familyHydrate";
 
 function createMemoryLocalStorage() {
@@ -340,17 +335,6 @@ describe("Phase 3A-345 rematerialize / sourceSlot packing", () => {
     expect(reloaded.dataset).toHaveLength(1);
     expect(reloaded.dataset[0]?.strategies.S1?.memberId).toBe("mb_a");
     expect(reloaded.dataset[0]?.strategies.S2?.memberId).toBe("mb_b");
-  });
-
-  it("I preserveRebuild: cleanup may drop obsolete flat; canonical rematerialize remains", () => {
-    persistAndSync([multiSlotLegacy()], 9);
-    localStorage.setItem(WORKING_DATASET_KEY, JSON.stringify([multiSlotLegacy()]));
-    writePositionsDatasetCorpusGeneration(9);
-    localStorage.setItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY, "[]");
-    runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
-    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
-    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
-    expect(loadProductionCompatibleDataset().source).toBe("canonical");
   });
 
   it("J historyRestoreRecovery: stale flat restore does not replace canonical", () => {

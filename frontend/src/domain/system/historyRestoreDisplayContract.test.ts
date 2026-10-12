@@ -65,10 +65,10 @@ describe("History restore → Admin table layers (view vs edit)", () => {
     const settings = readSrc("hooks/useSettings.js");
 
     expect(app).toMatch(
-      /if\s*\(\s*handleLoadWorkspaceSnapshot\(id\)\s*\)\s*\{\s*setAdminTableLayersVisible\(true\)/
+      /const loaded = await handleLoadWorkspaceSnapshot\(id\);[\s\S]{0,120}if \(!loaded\.ok\) return;[\s\S]{0,200}setAdminTableLayersVisible\(true\)/
     );
-    expect(settings).toMatch(/return true;/);
-    expect(settings).toMatch(/return false;/);
+    expect(settings).toMatch(/return \{ ok: true, recall \};/);
+    expect(settings).toMatch(/return \{ ok: false \};/);
 
     const loadBody = settings.slice(
       settings.indexOf("handleLoadWorkspaceSnapshot"),
@@ -103,12 +103,13 @@ describe("History restore → Admin table layers (view vs edit)", () => {
     expect(body).not.toMatch(/불러왔던 원본 상태로 되돌리시겠습니까/);
   });
 
-  it("T3b: LocalDB match keeps editable session (no session false after begin)", () => {
-    const localDb = readSrc("application/flows/adminLocalDbFlow.ts");
-    expect(localDb).not.toMatch(/setIsAdminInputSessionActive\(false\)/);
-    expect(localDb).toMatch(/hydrateAdminRecallTarget/);
-    expect(localDb).toMatch(/resolveAdminRecallTargetMeta/);
-    expect(localDb).toMatch(/beginAdminInputSession/);
+  it("T3b: History recall keeps editable session (no session false after load)", () => {
+    const app = readSrc("App.jsx");
+    const start = app.indexOf("function applyHistoryRecallSession(");
+    expect(start).toBeGreaterThan(0);
+    const session = app.slice(start, app.indexOf("\n  }\n", start));
+    expect(session).not.toMatch(/setIsAdminInputSessionActive\(false\)/);
+    expect(session).not.toMatch(/setAdminTableLayersVisible\(false\)/);
   });
 
   it("T3c: Target dblclick guard retained for layers-on + session-off edge", () => {
@@ -147,11 +148,12 @@ describe("History restore → Admin table layers (view vs edit)", () => {
     expect(stripped.reflectionOverride).toBeUndefined();
   });
 
-  it("T6/T7: Search and LocalDB still set layers visible on match", () => {
+  it("T6/T7: Search and History recall still set layers visible on match", () => {
     const search = readSrc("application/flows/adminSearchFlow.ts");
-    const localDb = readSrc("application/flows/adminLocalDbFlow.ts");
+    const app = readSrc("App.jsx");
     expect(search).toMatch(/setAdminTableLayersVisible\(true\)/);
-    expect(localDb).toMatch(/setAdminTableLayersVisible\(true\)/);
+    const modalIdx = app.lastIndexOf("<LazyWorkspaceHistoryModal");
+    expect(app.slice(modalIdx, modalIdx + 600)).toMatch(/setAdminTableLayersVisible\(true\)/);
   });
 
   it("T8: History restore does not alter Exact-upsert / saveFlow identity path", () => {

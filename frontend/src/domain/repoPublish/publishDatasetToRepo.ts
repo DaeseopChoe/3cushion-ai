@@ -23,7 +23,13 @@ import {
   crossValidateOperationAndPayload,
   validatePublishFamilyPayload,
   type PublishFamilyPayload,
+  type ValidatePublishFamilyPayloadResult,
 } from "../publishFamilyPayload";
+import {
+  convertPublishFamilyGraphToPublishFamilyPayload,
+  validatePublishFamilyGraph,
+  type PublishFamilyGraph,
+} from "../publishFamilyGraph";
 import {
   validatePublishOperation,
   type PublishOperation,
@@ -32,13 +38,16 @@ import type { ResolvablePublishOverwriteConflict } from "../publishOccupancy";
 import { resolvePublishedLeafAbsolutePath } from "./resolveRepoLeafPath";
 import { writeVerifiedPublishedLeafFs } from "./writeVerifiedPublishedLeafFs";
 
-export const LOCAL_PUBLISH_MAX_BODY_BYTES = 1_000_000;
+/** Approved normalized graphs carry every Derived Member (hundreds per Family). */
+export const LOCAL_PUBLISH_MAX_BODY_BYTES = 8_000_000;
 
+/** Exactly one of publishFamilyGraph (new) / publishFamilyPayload (legacy flat). */
 export type LocalPublishLeafRequest = {
   shotType: string;
   systemId: string;
   publishOperation: PublishOperation;
-  publishFamilyPayload: PublishFamilyPayload;
+  publishFamilyPayload?: PublishFamilyPayload;
+  publishFamilyGraph?: PublishFamilyGraph;
   /** Optional correlation id (History snapshot). Never written to disk. */
   snapshotId?: string;
   /** User-confirmed Family replacement (execution-time only). */
@@ -58,6 +67,8 @@ export type LocalPublishLeafOk = {
   };
   purgedFamilyIds: string[];
   replaceFamilyIds: string[];
+  /** familyId actually written into the leaf (surviving id after confirmed overwrite). */
+  publishedFamilyId: string;
 };
 
 export type LocalPublishLeafFail = {
@@ -150,6 +161,31 @@ function readExistingLeafRaw(
 }
 
 /**
+ * Request Publish input → flat payload for the leaf mutation pipeline.
+ * Graph is converted here (server side) so the HTTP body stays normalized.
+ */
+export function resolveLeafRequestPublishFamilyPayload(request: {
+  publishFamilyPayload?: unknown;
+  publishFamilyGraph?: unknown;
+}): ValidatePublishFamilyPayloadResult {
+  const hasGraph = request.publishFamilyGraph != null;
+  const hasPayload = request.publishFamilyPayload != null;
+  if (hasGraph && hasPayload) {
+    return {
+      ok: false,
+      reason: "publish-input-ambiguous",
+      issues: ["publishFamilyGraph+publishFamilyPayload"],
+    };
+  }
+  if (hasGraph) {
+    const graph = validatePublishFamilyGraph(request.publishFamilyGraph);
+    if (!graph.ok) return graph;
+    return convertPublishFamilyGraphToPublishFamilyPayload(graph.graph);
+  }
+  return validatePublishFamilyPayload(request.publishFamilyPayload);
+}
+
+/**
  * Reject request objects that smuggle filesystem / command fields.
  */
 export function rejectClientPathOrCommandFields(
@@ -203,9 +239,7 @@ export function publishDatasetLeafToRepo(args: {
       issues: opResult.issues,
     };
   }
-  const payloadResult = validatePublishFamilyPayload(
-    request.publishFamilyPayload
-  );
+  const payloadResult = resolveLeafRequestPublishFamilyPayload(request);
   if (!payloadResult.ok) {
     return {
       ok: false,
@@ -271,6 +305,7 @@ export function publishDatasetLeafToRepo(args: {
   for (const key of [
     "publishOperation",
     "publishFamilyPayload",
+    "publishFamilyGraph",
     "sourceFamilyId",
     "intent",
     "snapshotId",
@@ -311,6 +346,7 @@ export function publishDatasetLeafToRepo(args: {
       },
       purgedFamilyIds: prepared.purgedFamilyIds,
       replaceFamilyIds,
+      publishedFamilyId: prepared.insertedFamilyId,
     };
   }
 
@@ -343,6 +379,7 @@ export function publishDatasetLeafToRepo(args: {
     },
     purgedFamilyIds: prepared.purgedFamilyIds,
     replaceFamilyIds,
+    publishedFamilyId: prepared.insertedFamilyId,
   };
 }
 
@@ -391,6 +428,7 @@ function publishSameLeafGroupInMemory(args: {
     snapshotId: string;
     purgedFamilyIds: string[];
     replaceFamilyIds: string[];
+    publishedFamilyId: string;
   }> = [];
 
   for (const item of group) {
@@ -432,9 +470,7 @@ function publishSameLeafGroupInMemory(args: {
       return results;
     }
 
-    const payloadResult = validatePublishFamilyPayload(
-      item.publishFamilyPayload
-    );
+    const payloadResult = resolveLeafRequestPublishFamilyPayload(item);
     if (!payloadResult.ok) {
       const failIdx = group.indexOf(item);
       const results: LocalPublishBatchItemResult[] = [];
@@ -514,6 +550,7 @@ function publishSameLeafGroupInMemory(args: {
         : prepared.insertedFamilyId
           ? [prepared.insertedFamilyId]
           : [],
+      publishedFamilyId: prepared.insertedFamilyId,
     });
   }
 
@@ -537,6 +574,7 @@ function publishSameLeafGroupInMemory(args: {
       },
       purgedFamilyIds: m.purgedFamilyIds,
       replaceFamilyIds: m.replaceFamilyIds,
+      publishedFamilyId: m.publishedFamilyId,
     }));
   }
 
@@ -571,6 +609,7 @@ function publishSameLeafGroupInMemory(args: {
     },
     purgedFamilyIds: m.purgedFamilyIds,
     replaceFamilyIds: m.replaceFamilyIds,
+    publishedFamilyId: m.publishedFamilyId,
   }));
 }
 
@@ -698,7 +737,12 @@ export function handleLocalPublishHttpBody(args: {
       shotType,
       systemId,
       publishOperation: it.publishOperation as PublishOperation,
-      publishFamilyPayload: it.publishFamilyPayload as PublishFamilyPayload,
+      ...(it.publishFamilyPayload != null
+        ? { publishFamilyPayload: it.publishFamilyPayload as PublishFamilyPayload }
+        : {}),
+      ...(it.publishFamilyGraph != null
+        ? { publishFamilyGraph: it.publishFamilyGraph as PublishFamilyGraph }
+        : {}),
       confirmedOverwrite,
     });
   }

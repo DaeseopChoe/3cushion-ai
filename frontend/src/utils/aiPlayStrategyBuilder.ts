@@ -115,6 +115,11 @@ const SYSTEM_NAME_KO: Record<string, string> = {
   florida_system: "플로리다 시스템",
 };
 
+/** systemIds with a Korean display name (same ids the SYS overlay writes). */
+export function listSystemNameKoIds(): string[] {
+  return Object.keys(SYSTEM_NAME_KO);
+}
+
 /** 매핑 실패 시 fallbackLabel 또는 systemId 그대로 사용 (undefined 노출 방지) */
 export function getSystemNameKo(
   systemId: string | null | undefined,

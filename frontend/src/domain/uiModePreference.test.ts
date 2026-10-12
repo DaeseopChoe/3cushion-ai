@@ -155,13 +155,13 @@ describe("uiModePreference wiring (source contracts)", () => {
     expect(loadBody).not.toMatch(/writeUiModePreference|app_ui_mode_v1/);
   });
 
-  it("T12/T13: Search/LocalDB and positions_dataset keys untouched by uiMode module", () => {
+  it("T12/T13: Search / History recall and positions_dataset keys untouched by uiMode module", () => {
     const pref = readSrc("domain/uiModePreference.ts");
     expect(pref).toMatch(/app_ui_mode_v1/);
     expect(pref).not.toMatch(/positions_dataset|workspace_history/);
     const search = readSrc("application/flows/adminSearchFlow.ts");
-    const localDb = readSrc("application/flows/adminLocalDbFlow.ts");
+    const recall = readSrc("domain/workHistory/workHistoryRecall.ts");
     expect(search).not.toMatch(/writeUiModePreference|app_ui_mode_v1/);
-    expect(localDb).not.toMatch(/writeUiModePreference|app_ui_mode_v1/);
+    expect(recall).not.toMatch(/writeUiModePreference|app_ui_mode_v1/);
   });
 });

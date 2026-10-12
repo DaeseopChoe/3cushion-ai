@@ -230,7 +230,7 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
     expect(loadWorkspaceHistory()).toHaveLength(0);
   });
 
-  it("TEST D — Canonical Right-Panel SAVE triggers runCanonicalSave and openUnifiedDerivedPreview after AI Apply", () => {
+  it("TEST D — Canonical Right-Panel SAVE triggers runCanonicalSave and openUnifiedDerivedPreview after AI Apply", async () => {
     const openUnifiedDerivedPreviewSpy = vi.fn();
 
     const adminState = {
@@ -312,6 +312,7 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
         };
         workspaceHistory.push(snap);
         saveWorkspaceHistory(workspaceHistory);
+        return { ok: true, snapshotId: snap.id };
       },
       resolveFormulaHash: () => "formula-hash-5half",
       resolveEvalProfile: () => ({}),
@@ -319,7 +320,7 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
     };
 
     // User clicks right-panel SAVE
-    const saveResult = runCanonicalSave(saveCtx);
+    const saveResult = await runCanonicalSave(saveCtx);
     expect(saveResult.ok).toBe(true);
     expect(saveResult.fourTrackWritten).toBe(true);
     expect(saveResult.familyId).toBeDefined();
@@ -329,13 +330,13 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
     }
 
     expect(openUnifiedDerivedPreviewSpy).toHaveBeenCalledTimes(1);
-    // Phase C-2: runtime mirror via setDataset; durable SSOT is normalized_dataset.
+    // Session dataset via setDataset; the durable copy is the History snapshot only.
     expect(dataset.length).toBe(4);
-    expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
+    expect(localStorage.getItem("normalized_dataset")).toBeNull();
     expect(loadWorkspaceHistory().length).toBe(1); // Single successor v001
   });
 
-  it("TEST E — Derived Approval generates and persists full searchable corpus after Canonical SAVE", () => {
+  it("TEST E — Derived Approval generates and persists full searchable corpus after Canonical SAVE", async () => {
     // 1. Setup Base 4-Track Dataset
     const testBalls = collinearCueBalls(20);
     const adminState = {
@@ -411,13 +412,14 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
           state: { adminState, ballsState: testBalls, shotEditor: slots, targetBall: "yellow" },
         });
         saveWorkspaceHistory(workspaceHistory);
+        return { ok: true, snapshotId: "snap-001" };
       },
       resolveFormulaHash: () => "formula-hash-5half",
       resolveEvalProfile: () => ({}),
       resolveAnchorsData: () => ({}),
     };
 
-    const saveResult = runCanonicalSave(saveCtx);
+    const saveResult = await runCanonicalSave(saveCtx);
     expect(saveResult.ok).toBe(true);
     const familyId = saveResult.familyId!;
 
@@ -439,31 +441,25 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
         dataset,
         bag: review.bag,
       });
-      const approvalCtx = {
+      const approvalResult = await commitDerivedApprovalDataset({
         resultDataset: approved.dataset,
         baselineSnapshot: null,
-        dataset,
         setDataset: (ds: PositionRecord[]) => {
           dataset = ds;
         },
-        saveWorkingDataset: (ds: PositionRecord[]) => {
-          dataset = ds;
-          saveWorkingDataset(ds);
-        },
         restoreDerivedReviewSnapshot: vi.fn(),
-      };
-
-      const approvalResult = commitDerivedApprovalDataset(approvalCtx);
-      expect(approvalResult.canonicalOk).toBe(true);
-      expect(approvalResult.corpusPersist.ok).toBe(false);
+        familyId,
+        finalizeHistory: async () => ({ ok: true }),
+      });
+      expect(approvalResult.ok, approvalResult.reason).toBe(true);
       expect(approved.dataset.length).toBeGreaterThan(4); // Base + Marginals + Product
-      expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
+      expect(localStorage.getItem("normalized_dataset")).toBeNull();
       expect(dataset.length).toBe(approved.dataset.length);
       expect(loadWorkspaceHistory().length).toBe(1); // Single successor preserved
     }
   });
 
-  it("TEST F — Duplicate Protection preserves dedup/upsert semantics when re-saving exact position", () => {
+  it("TEST F — Duplicate Protection preserves dedup/upsert semantics when re-saving exact position", async () => {
     const adminState = {
       sys: {
         systemId: "5_half_system",
@@ -527,20 +523,20 @@ describe("AI Overlay SAVE Lifecycle Isolation Contracts", () => {
       patchSlotFamilyIdentity: vi.fn(),
       saveToFile: vi.fn(),
       canUseSystemControls: true,
-      commitWorkspaceHistoryWithStrategyDataset: () => {},
+      commitWorkspaceHistoryWithStrategyDataset: async () => ({ ok: true, snapshotId: "snap-dup" }),
       resolveFormulaHash: () => "formula-hash-5half",
       resolveEvalProfile: () => ({}),
       resolveAnchorsData: () => ({}),
     });
 
     // First SAVE
-    const firstSave = runCanonicalSave(buildSaveCtx());
+    const firstSave = await runCanonicalSave(buildSaveCtx());
     expect(firstSave.ok).toBe(true);
     const countAfterFirst = dataset.length;
     expect(countAfterFirst).toBe(4);
 
     // Second SAVE on identical exact balls + same preferred Slot → occupancy BLOCK (Phase C-0)
-    const secondSave = runCanonicalSave(buildSaveCtx());
+    const secondSave = await runCanonicalSave(buildSaveCtx());
     expect(secondSave.ok).toBe(false);
     expect(secondSave.reason).toMatch(/POSITION_STRATEGY_SLOT_CONFLICT/);
     const countAfterSecond = dataset.length;

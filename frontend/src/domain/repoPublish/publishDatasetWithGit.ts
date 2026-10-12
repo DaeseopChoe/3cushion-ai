@@ -8,6 +8,7 @@
 import path from "node:path";
 import { DATASET_ROOT_DIR } from "../datasetPath";
 import type { PublishFamilyPayload } from "../publishFamilyPayload";
+import type { PublishFamilyGraph } from "../publishFamilyGraph";
 import type { PublishOperation } from "../publishOperation";
 import type { ConfirmedPublishOverwrite } from "../publishedLeafPrepare";
 import {
@@ -26,18 +27,24 @@ import {
   verifyPostWriteWorkingTree,
 } from "./gitPublish";
 import {
+  readCommittedPublishedLeafSummaries,
   verifyProductionDatasetLeaves,
   type ProductionVerifyPollConfig,
   type ProductionVerifyResult,
 } from "./productionVerify";
 import { CANONICAL_PRODUCTION_ORIGIN } from "./productionOrigin";
+import type { PublishedLeafSummary } from "./publishedLeafSummary";
+
+export type PublishedLeafSummaryReader = typeof readCommittedPublishedLeafSummaries;
 
 export type GitPublishItem = {
   snapshotId: string;
   shotType: string;
   systemId: string;
   publishOperation: PublishOperation;
-  publishFamilyPayload: PublishFamilyPayload;
+  /** Exactly one of publishFamilyGraph (new) / publishFamilyPayload (legacy flat). */
+  publishFamilyPayload?: PublishFamilyPayload;
+  publishFamilyGraph?: PublishFamilyGraph;
   confirmedOverwrite?: ConfirmedPublishOverwrite | null;
 };
 
@@ -51,6 +58,10 @@ export type GitPublishOrchestrationOk = {
   changedTargets: string[];
   commit?: string;
   production?: ProductionVerifyResult;
+  /** PRODUCTION_VERIFIED only: Published 현황 from the verified commit blob. */
+  leafSummaries?: PublishedLeafSummary[];
+  /** PRODUCTION_VERIFIED but the summary could not be read (Publish still succeeded). */
+  leafSummaryError?: string;
 };
 
 export type GitPublishOrchestrationFail = {
@@ -123,6 +134,30 @@ function uniqueLeafInputs(items: GitPublishItem[]): {
   return [...map.values()];
 }
 
+/** Summary failure never changes a verified Publish; only a short code is returned. */
+async function readLeafSummariesSafely(args: {
+  reader: PublishedLeafSummaryReader;
+  repoRoot: string;
+  datasetRoot: string;
+  commitSha: string;
+  items: GitPublishItem[];
+}): Promise<{ leafSummaries: PublishedLeafSummary[] } | { leafSummaryError: string }> {
+  try {
+    const read = await args.reader({
+      repoRoot: args.repoRoot,
+      datasetRoot: args.datasetRoot,
+      commitSha: args.commitSha,
+      leaves: uniqueLeafInputs(args.items),
+    });
+    if (read.ok) return { leafSummaries: read.summaries };
+    console.warn("[PUBLISH] Published leaf summary unavailable", read.reason, read.issues);
+    return { leafSummaryError: read.reason };
+  } catch (e) {
+    console.warn("[PUBLISH] Published leaf summary failed", e);
+    return { leafSummaryError: "leaf-summary-failed" };
+  }
+}
+
 async function attachProductionVerification(args: {
   repoRoot: string;
   datasetRoot: string;
@@ -135,6 +170,7 @@ async function attachProductionVerification(args: {
   productionOrigin?: string;
   productionPoll?: Partial<ProductionVerifyPollConfig>;
   productionFetchFn?: typeof fetch;
+  leafSummaryReader?: PublishedLeafSummaryReader;
 }): Promise<GitPublishOrchestrationResult> {
   if (args.verifyProduction === false) {
     return {
@@ -158,6 +194,13 @@ async function attachProductionVerification(args: {
   });
 
   if (production.ok) {
+    const summary = await readLeafSummariesSafely({
+      reader: args.leafSummaryReader ?? readCommittedPublishedLeafSummaries,
+      repoRoot: args.repoRoot,
+      datasetRoot: args.datasetRoot,
+      commitSha: production.commitSha,
+      items: args.items,
+    });
     return {
       ok: true,
       status: "PRODUCTION_VERIFIED",
@@ -166,6 +209,7 @@ async function attachProductionVerification(args: {
       changedTargets: args.changedTargets,
       commit: args.commitSha,
       production,
+      ...summary,
     };
   }
 
@@ -197,6 +241,8 @@ export async function publishDatasetBatchWithGit(args: {
   productionOrigin?: string;
   productionPoll?: Partial<ProductionVerifyPollConfig>;
   productionFetchFn?: typeof fetch;
+  /** Test seam; default reads the verified commit blob. */
+  leafSummaryReader?: PublishedLeafSummaryReader;
 }): Promise<GitPublishOrchestrationResult> {
   const { repoRoot, datasetRoot, items } = args;
   const fetchRemote = args.fetchRemote !== false;
@@ -233,7 +279,12 @@ export async function publishDatasetBatchWithGit(args: {
     shotType: it.shotType,
     systemId: it.systemId,
     publishOperation: it.publishOperation,
-    publishFamilyPayload: it.publishFamilyPayload,
+    ...(it.publishFamilyPayload != null
+      ? { publishFamilyPayload: it.publishFamilyPayload }
+      : {}),
+    ...(it.publishFamilyGraph != null
+      ? { publishFamilyGraph: it.publishFamilyGraph }
+      : {}),
     confirmedOverwrite: it.confirmedOverwrite ?? null,
   }));
   const results = publishDatasetBatchToRepo({
@@ -310,6 +361,7 @@ export async function publishDatasetBatchWithGit(args: {
       productionOrigin: args.productionOrigin,
       productionPoll: args.productionPoll,
       productionFetchFn: args.productionFetchFn,
+      leafSummaryReader: args.leafSummaryReader,
     });
   }
 
@@ -361,6 +413,7 @@ export async function publishDatasetBatchWithGit(args: {
     productionOrigin: args.productionOrigin,
     productionPoll: args.productionPoll,
     productionFetchFn: args.productionFetchFn,
+    leafSummaryReader: args.leafSummaryReader,
   });
 }
 
@@ -493,8 +546,12 @@ export async function handleGitPublishHttpBody(args: {
       systemId:
         typeof entry.systemId === "string" ? entry.systemId.trim() : "",
       publishOperation: entry.publishOperation as PublishOperation,
-      publishFamilyPayload:
-        entry.publishFamilyPayload as PublishFamilyPayload,
+      ...(entry.publishFamilyPayload != null
+        ? { publishFamilyPayload: entry.publishFamilyPayload as PublishFamilyPayload }
+        : {}),
+      ...(entry.publishFamilyGraph != null
+        ? { publishFamilyGraph: entry.publishFamilyGraph as PublishFamilyGraph }
+        : {}),
       confirmedOverwrite,
     });
   }

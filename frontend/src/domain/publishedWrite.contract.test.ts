@@ -604,11 +604,11 @@ describe("publishedWrite — useSettings wiring", () => {
     expect(src).toContain("handlePublishSnapshots");
     expect(src).toContain("publishDatasetToLocalRepoWithGit");
     expect(src).toContain('result.status === "PRODUCTION_VERIFIED"');
-    expect(src).toContain("updateSnapshotsExported(successfulIds)");
+    expect(src).toContain("api.markPublished({ snapshotIds: successfulIds");
     expect(src).not.toContain("writeVerifiedPublishedFile");
     expect(src).not.toContain("handleExportSnapshots");
     expect(src).not.toContain("saveDatasetExportToFile");
-    // Must not set exported from full selected ids blindly after unverified write.
-    expect(src).not.toMatch(/updateSnapshotsExported\(\s*ids\s*\)/);
+    // Must not mark PUBLISHED from full selected ids blindly after unverified write.
+    expect(src).not.toMatch(/markPublished\(\{\s*snapshotIds:\s*ids\b/);
   });
 });

@@ -2,22 +2,21 @@
  * adminRecallResetSaveLifecycle.contract.test.ts
  *
  * Full Lifecycle End-to-End Contract Tests for ADMIN:
- * Local DB Search → Load (immediately editable) → Edit → SAVE
+ * Search / History recall → Load (immediately editable) → Edit → SAVE
  *
  * Save Intent Split (2026-09-20):
- * Local DB recall → SAVE always CREATE NEW Family (never UPDATE via draft identity).
+ * Recall → SAVE always CREATE NEW Family (never UPDATE via draft identity).
  *
  * Invariants Verified:
  * - TEST A: Red Target Load → Edit → SAVE Success (NEW Family minted)
  * - TEST B: Yellow Target Load → Edit → SAVE Success with Physical Color Invariance
  * - TEST C: Target=NONE Search Preparation → Matched Record Load → SAVE Success
  * - TEST D: patchSlotRuntimeMeta does not create targetOnlyStub in applied (applied=null preserved)
- * - TEST E: SAVE mints NEW Family even when draft carries prior Local DB identity
+ * - TEST E: SAVE mints NEW Family even when draft carries a recalled identity
  * - TEST F: SAVE failure provides explicit user feedback (alert) instead of Silent No-Op
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runAdminLocalDbRecall } from "./adminLocalDbFlow";
 import { runCanonicalSave, type HistoryFlowContext } from "./historyFlow";
 import { runSaveStrategy, type SaveFlowContext } from "./saveFlow";
 import {
@@ -28,7 +27,6 @@ import type {
   PositionRecord,
   StrategyEntry,
 } from "../../domain/positionSearchEngine";
-import { seedCanonicalLocalCorpusFromFlat } from "../../domain/recall/seedCanonicalCorpusForTests";
 
 const ballsRedTarget: Ball3 = {
   cue: { x: 10, y: 8 },
@@ -107,14 +105,40 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
   it("TEST A — Red Target Lifecycle: Red Target → Load (editable) → Edit → SAVE Success", async () => {
     const record = createSampleAuthoredRecord("pos_red_01", ballsRedTarget, "red");
     const dataset = [record];
-    seedCanonicalLocalCorpusFromFlat(dataset);
+    const loaded = simulateAdminRecallLoadedEditableState({
+      recordTargetBall: "red",
+      searchQueryTargetBall: "red",
+    });
+    expect(loaded.isAdminInputSessionActive).toBe(true);
+    expect(loaded.canUseSystemControls).toBe(true);
+    expect(loaded.targetColor).toBe("red");
 
-    let appliedDrafts: any = null;
-    let layersVisible = false;
-    let sessionActive = true;
-    let targetHydrated: string | null = null;
+    // 2. Edit + SAVE on empty S2 (Phase C-0: S1 already occupied by recalled Family)
+    let historyCommitted = false;
+    const alertMock = vi.fn();
+    vi.stubGlobal("alert", alertMock);
 
-    const recallCtx = {
+    const s1 = record.strategies.S1!;
+    const slotState = {
+      draft: {
+        sys: {
+          systemId: s1.signature.systemId,
+          track: s1.track,
+          inputs: s1.sysInputs,
+          outputs: { result: s1.sysInputs },
+        },
+        hpt: s1.hpT,
+        str: s1.str,
+        ai: s1.ai,
+        familyId: s1.familyId,
+        memberId: s1.memberId,
+        memberOrigin: s1.memberOrigin,
+        targetBall: record.targetBall,
+      },
+      applied: null, // applied remains null!
+    };
+
+    const saveCtx: HistoryFlowContext = {
       dataset,
       ballsState: ballsRedTarget,
       adminState: {
@@ -126,71 +150,6 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
         },
         balls: ballsRedTarget,
       },
-      activeSlot: "S1" as const,
-      slots: { S1: { draft: null, applied: null } },
-      isTargetSelected: true,
-      targetColor: "red",
-      setAdminState: vi.fn(),
-      setIsAdminPublishedSearchMatched: vi.fn(),
-      setAdminTableLayersVisible: (v: boolean) => { layersVisible = v; },
-      setShowCoaching: vi.fn(),
-      setIsAdminInputSessionActive: (v: boolean) => { sessionActive = v; },
-      hydrateAdminRecallTarget: (t: any) => { targetHydrated = t; },
-      applyPositionRecall: (rec: PositionRecord) => {
-        appliedDrafts = {
-          sys: {
-            systemId: rec.strategies.S1!.signature.systemId,
-            track: rec.strategies.S1!.track,
-            inputs: rec.strategies.S1!.sysInputs,
-            outputs: { result: rec.strategies.S1!.sysInputs },
-          },
-          hpt: rec.strategies.S1!.hpT,
-          str: rec.strategies.S1!.str,
-          ai: rec.strategies.S1!.ai,
-          familyId: rec.strategies.S1!.familyId,
-          memberId: rec.strategies.S1!.memberId,
-          memberOrigin: rec.strategies.S1!.memberOrigin,
-          targetBall: rec.targetBall,
-        };
-      },
-      patchSlotRuntimeMeta: vi.fn(),
-      clearAdminSearchDisplayRuntime: vi.fn(),
-      beginAdminInputSession: () => true,
-      getAdminRecallQueryTargetBall: () => "red",
-      resolveFormulaHash: () => "v1",
-      rejectAdminRecallHydrateForMismatch: () => false,
-    };
-
-    // 1. Load → immediately editable
-    const matched = await runAdminLocalDbRecall(recallCtx as any);
-    expect(matched).toBe(true);
-    expect(layersVisible).toBe(true);
-    expect(targetHydrated).toBe("red");
-    expect(sessionActive).toBe(true);
-
-    const loaded = simulateAdminRecallLoadedEditableState({
-      recordTargetBall: "red",
-      searchQueryTargetBall: "red",
-    });
-    expect(loaded.isAdminInputSessionActive).toBe(true);
-    expect(loaded.canUseSystemControls).toBe(true);
-    expect(loaded.targetColor).toBe("red");
-
-    // 2. Edit + SAVE on empty S2 (Phase C-0: S1 already occupied by recalled Family)
-    let historyCommitted = false;
-    let savedDataset: PositionRecord[] | null = null;
-    const alertMock = vi.fn();
-    vi.stubGlobal("alert", alertMock);
-
-    const slotState = {
-      draft: appliedDrafts,
-      applied: null, // applied remains null!
-    };
-
-    const saveCtx: HistoryFlowContext = {
-      dataset,
-      ballsState: ballsRedTarget,
-      adminState: recallCtx.adminState,
       activeSlot: "S2",
       slots: { S1: { draft: null, applied: null }, S2: slotState },
       targetColor: "red",
@@ -199,20 +158,22 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
       resolvedSlotSysValues: { CO_f: 30, C3_r: 20 },
       autoSave: false,
       canUseSystemControls: loaded.canUseSystemControls,
-      saveWorkingDataset: (ds) => { savedDataset = ds; },
       setDataset: vi.fn(),
       setUserPublishedSearchContext: vi.fn(),
       setAdminState: vi.fn(),
       patchSlotRuntimeMeta: vi.fn(),
       patchSlotFamilyIdentity: vi.fn(),
       saveToFile: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: () => { historyCommitted = true; },
+      commitWorkspaceHistoryWithStrategyDataset: async () => {
+        historyCommitted = true;
+        return { ok: true, snapshotId: "h_test" };
+      },
       resolveFormulaHash: () => "v1",
       resolveEvalProfile: () => ({ formula: { expr: "CO_f - C3_r" } }),
       resolveAnchorsData: () => undefined,
     };
 
-    const saveResult = runCanonicalSave(saveCtx);
+    const saveResult = await runCanonicalSave(saveCtx);
     expect(saveResult.ok).toBe(true);
     expect(historyCommitted).toBe(true);
     expect(saveResult.saveIntent).toBe("CREATE");
@@ -280,18 +241,21 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
       patchSlotRuntimeMeta: vi.fn(),
       patchSlotFamilyIdentity: vi.fn(),
       saveToFile: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: () => { historyCommitted = true; },
+      commitWorkspaceHistoryWithStrategyDataset: async () => {
+        historyCommitted = true;
+        return { ok: true, snapshotId: "h_test" };
+      },
       resolveFormulaHash: () => "v1",
       resolveEvalProfile: () => ({ formula: { expr: "CO_f - C3_r" } }),
       resolveAnchorsData: () => undefined,
     };
 
-    const saveResult = runCanonicalSave(saveCtx);
+    const saveResult = await runCanonicalSave(saveCtx);
     expect(saveResult.ok).toBe(true);
     expect(historyCommitted).toBe(true);
   });
 
-  it("TEST C — Target=NONE Search Preparation → Matched Record Load → SAVE Success", () => {
+  it("TEST C — Target=NONE Search Preparation → Matched Record Load → SAVE Success", async () => {
     // 1. Search in Target=NONE mode, matches a record with targetBall="red"
     const recallState = simulateAdminRecallLoadedEditableState({
       recordTargetBall: "red",
@@ -349,13 +313,16 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
       patchSlotRuntimeMeta: vi.fn(),
       patchSlotFamilyIdentity: vi.fn(),
       saveToFile: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: () => { historyCommitted = true; },
+      commitWorkspaceHistoryWithStrategyDataset: async () => {
+        historyCommitted = true;
+        return { ok: true, snapshotId: "h_test" };
+      },
       resolveFormulaHash: () => "v1",
       resolveEvalProfile: () => ({ formula: { expr: "CO_f - C3_r" } }),
       resolveAnchorsData: () => undefined,
     };
 
-    const saveResult = runCanonicalSave(saveCtx);
+    const saveResult = await runCanonicalSave(saveCtx);
     expect(saveResult.ok).toBe(true);
     expect(historyCommitted).toBe(true);
   });
@@ -386,7 +353,7 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
     expect(nextSlot.draft.targetBall).toBe("red");
   });
 
-  it("TEST E — Local DB draft identity does not force UPDATE; SAVE S2 mints NEW Family", () => {
+  it("TEST E — recalled draft identity does not force UPDATE; SAVE S2 mints NEW Family", () => {
     // Phase C-0: S1 occupied by recalled Family → CREATE on empty S2.
     const slotWithPartialApplied = {
       draft: {
@@ -457,7 +424,7 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
     expect(saveResult.familyId).not.toBe("fm_defensive_001");
   });
 
-  it("TEST F — SAVE failure provides explicit user feedback (alert) instead of Silent No-Op", () => {
+  it("TEST F — SAVE failure provides explicit user feedback (alert) instead of Silent No-Op", async () => {
     const alertMock = vi.fn();
     vi.stubGlobal("alert", alertMock);
 
@@ -499,7 +466,7 @@ describe("ADMIN Load → Edit → SAVE Lifecycle Contract", () => {
       resolveAnchorsData: () => undefined,
     };
 
-    const result = runCanonicalSave(failCtx);
+    const result = await runCanonicalSave(failCtx);
     expect(result.ok).toBe(false);
     expect(alertMock).toHaveBeenCalledWith(
       expect.stringContaining("저장 실패")

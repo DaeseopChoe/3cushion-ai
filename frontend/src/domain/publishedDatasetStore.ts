@@ -9,6 +9,7 @@
  */
 
 import {
+  buildPublishedLeafUrl,
   fetchPublishedLeaf,
   type PublishedLeafLoadResult,
 } from "./datasetLoader";
@@ -191,6 +192,41 @@ export async function getOrLoadPublishedLeaf(
     url: result.url,
     fromCache: false,
   };
+}
+
+const PUBLISHED_LEAF_LOAD_CONCURRENCY = 12;
+
+/**
+ * Load many leaves through the same cache; results keep the input order.
+ * One leaf failing never stops the others (its result is kind "error").
+ */
+export async function loadPublishedLeaves<L extends { shotType: string; systemId: string }>(
+  leaves: readonly L[],
+  options?: { fetchFn?: typeof fetch }
+): Promise<Array<{ leaf: L; result: GetOrLoadPublishedLeafResult }>> {
+  const out: Array<{ leaf: L; result: GetOrLoadPublishedLeafResult }> = new Array(leaves.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < leaves.length) {
+      const i = next++;
+      const leaf = leaves[i];
+      let result: GetOrLoadPublishedLeafResult;
+      try {
+        result = await getOrLoadPublishedLeaf(leaf.shotType, leaf.systemId, options);
+      } catch (e) {
+        result = {
+          kind: "error",
+          message: e instanceof Error ? e.message : String(e),
+          url: buildPublishedLeafUrl(leaf.shotType, leaf.systemId),
+          fromCache: false,
+        };
+      }
+      out[i] = { leaf, result };
+    }
+  };
+  const workers = Math.min(PUBLISHED_LEAF_LOAD_CONCURRENCY, leaves.length);
+  await Promise.all(Array.from({ length: workers }, worker));
+  return out;
 }
 
 /** Test-only */

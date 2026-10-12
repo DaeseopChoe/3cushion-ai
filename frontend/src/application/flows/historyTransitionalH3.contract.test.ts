@@ -412,7 +412,7 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     expect(isNormalizedCorpusFresh()).toBe(false);
   });
 
-  it("restore → SAVE resyncs family, freshness=true, History +1, preserves 3-ball/provenance/identity", () => {
+  it("restore → SAVE commits once through the History committer, preserves 3-ball/provenance/identity", async () => {
     const c10 = [record("pos_c10", ballsC10, authoredEntry({ ai: { text: "c10" } }))];
     const c5 = [
       record(
@@ -474,14 +474,17 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     const historyCtx: HistoryFlowContext = {
       ...ctx,
       canUseSystemControls: true,
-      commitWorkspaceHistoryWithStrategyDataset: appendWorkspaceHistoryFromSave,
+      commitWorkspaceHistoryWithStrategyDataset: async (updated: PositionRecord[]) => {
+        appendWorkspaceHistoryFromSave(updated);
+        return { ok: true, snapshotId: "h_c5" };
+      },
     };
-    const result = runCanonicalSave(historyCtx);
+    const result = await runCanonicalSave(historyCtx);
     expect(result.ok).toBe(true);
     expect(capture.dataset).not.toBeNull();
 
-    // Phase C-2: SAVE writes canonical only — flat generation may stay at restore value.
-    expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
+    // Task F: SAVE never writes the browser canonical corpus; D History is the store.
+    expect(localStorage.getItem("normalized_dataset")).toBeNull();
 
     const saved = capture.dataset!;
     const authored = Object.values(saved[0]!.strategies).find(
@@ -501,7 +504,7 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     expect(loadWorkspaceHistory()).toHaveLength(1);
   });
 
-  it("restore → Approval resyncs shadow and maintains single history successor SSOT", () => {
+  it("restore → Approval hands the graph to History once and writes no legacy browser history", async () => {
     const c10 = [record("pos_c10", ballsC10, authoredEntry())];
     seedCorpus(c10);
 
@@ -534,22 +537,20 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     expect(transitionalHistoryRestore(approved.dataset).ok).toBe(true);
     expect(isNormalizedCorpusFresh()).toBe(false);
 
-    const commitHistory = vi.fn((updated: PositionRecord[]) => {
-      appendWorkspaceHistoryFromSave(updated);
-    });
+    const finalizeHistory = vi.fn(async () => ({ ok: true }));
 
-    const out = commitDerivedApprovalDataset({
+    const out = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaseline(),
       setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: commitHistory,
+      familyId: "fm_appr",
+      finalizeHistory,
     });
 
-    expect(out.canonicalOk).toBe(true);
-    expect(out.corpusPersist.ok).toBe(false);
-    expect(out.normalizedDualWrite.ok).toBe(false);
-    expect(commitHistory).not.toHaveBeenCalled();
+    expect(out.ok, out.reason).toBe(true);
+    expect(finalizeHistory).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("normalized_dataset")).toBeNull();
     expect(loadWorkspaceHistory()).toHaveLength(0);
   });
 
@@ -683,12 +684,12 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
     });
     const result = runSaveStrategy(ctx);
     expect(result.ok).toBe(true);
-    // Phase C-2: SAVE no longer advances positions_dataset generation.
-    expect(result.normalizedDualWrite?.ok).toBe(false);
+    // SAVE no longer advances positions_dataset generation nor writes browser corpus.
+    expect(localStorage.getItem("normalized_dataset")).toBeNull();
     expect(loadPositionsDatasetCorpusGeneration()).toBe(restored.corpusGeneration);
   });
 
-  it("Case F: restore → SAVE succeeds via canonical (no family_* shadow sync)", () => {
+  it("Case F: restore → SAVE succeeds in memory (no family_* shadow sync, no browser corpus)", () => {
     const c10 = [record("pos_c10", ballsC10, authoredEntry())];
     const c5 = [
       record(
@@ -738,6 +739,6 @@ describe("Phase 3A-337 transitional History H3 contract", () => {
       },
     });
     expect(runSaveStrategy(ctx).ok).toBe(true);
-    expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
+    expect(localStorage.getItem("normalized_dataset")).toBeNull();
   });
 });

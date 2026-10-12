@@ -1,10 +1,10 @@
-# Display Boundary Policy SSOT v1.5.1
+# Display Boundary Policy SSOT v1.7
 
-**Status:** Active · Phase 1 Cap + Phase 2A Overlay Gate · **Reading Mode Implemented** · **C2 Reflection Rail Handle Implemented** · **same-rail identity nearest-rail (BUG-A) Implemented** · **5&Half Baseline Display Ceiling (v1.5)** · **C2 Active Ownership (v1.5.1)** · Corrected Minimum·Continuation·Boundary 잔여  
+**Status:** Active · Phase 1 Cap + Phase 2A Overlay Gate · **Reading Mode Implemented** · **C2 Reflection Rail Handle Implemented** · **same-rail identity nearest-rail (BUG-A) Implemented** · **C2 Active Ownership (v1.5.1)** · **Always Last Valid Cushion — Second Ball Not a Display Cap (v1.7 Implemented)** · 5&Half baseline corrected ceiling 미배선 (v1.7) · Continuation·Boundary 잔여  
 **Scope:** USER 기준값 / 보정값 Display Layer · USER Overlay Reading Mode · ADMIN C2 Reflection Override (Display) · **5&Half baseline DISPLAY ceiling** · **ADMIN active C2 handle**  
 **Out of scope:** Trajectory Extension Runtime redesign · Formula · Search · `activateStrategySlot` · Reflection Engine 수식 변경 · `detectRail` 공통 시그니처/Y-first 순서 변경  
 **Related (Consume · Do Not Modify here):** `TRAJECTORY_EXTENSION_SSOT.md` v1.4 (Task Closed) · `OVERLAY_LAYOUT_SSOT_v1.2.md` (Shell 규약) · `trajectoryPathDisplayPolicy.ts` · `c2HandleModel.resolveActiveC2HandleRg`  
-**Last Updated:** 2026-09-09
+**Last Updated:** 2026-10-11
 
 > 본 문서는 **Display Layer의 단일 제품 정책(SSOT)** 이다.  
 > Trajectory Extension Runtime은 Completed / Freeze이며, 본 문서는 Extension을 재설계하지 않는다.  
@@ -23,6 +23,8 @@
 | **v1.4.1** | **BUG-A:** same-rail **presence** = `detectRail(eps)` · **identity** = `resolveNearestRail` (LEFT/RIGHT tie-break). `detectRail` 함수 자체 미변경. `skipSameRail`은 C2 override 예외로 **유지** (BUG-B와 별개 · BUG-B는 현재 **UNCONFIRMED / reproduction required**). |
 | **v1.5** | **5&Half Baseline Display Ceiling** — baseline **계산**은 독립(full pathNodes 보존) · baseline **DISPLAY**는 corrected DISPLAY endIndex(Cn)를 초과하지 않음 · corrected second-ball XY spatial clip 금지 · segments/labels 동일 Cap · D-DBP-05 **개정** |
 | **v1.5.1** | **C2 Handle Active Trajectory Ownership** — Handle = Active C2 (`resolveActiveC2HandleRg` + `showBaseLine`) · display≡drag seed · click-only no mutate · Display Ceiling과 독립 · user manual PASS 2026-09-09 |
+| **v1.6** | **Second Ball Miss = Full Valid Path** (2026-10-10) — 세컨드볼(`balls.second`, 뒷공) 미적중 시 기본 C3 절단 **폐지** → 마지막 유효 쿠션(maxChain)까지 표시 (reason `second_ball_miss`) · 적중 시 진행 순서상 첫 적중 segment의 시작 쿠션 + 공 위치 투영점(`endPoint`)에서 종료 (reason `second_ball_hit`) · `"full"` → `full_valid_path` · 5&Half corrected에도 PhysicalLimit 적용(corrected C4 해석 가능 시) · 5&Half baseline ceiling은 **corrected 적중 시에만** 전달 + baseline **자체 geometry** 적중 시 자체 `endPoint` · §6.2 불일치 해소 · D-DBP-05 재개정 · D-DBP-19 |
+| **v1.7** | **Always Last Valid Cushion** (2026-10-11) — 세컨드볼(`balls.second`)은 SYS 궤적·기준선·라벨의 표시 종료 조건이 **아니다**. v1.6의 "미적중=전체"와 "적중=공 위치 종료"를 **모두 폐지** · Cap = min(chain, same-rail, PhysicalLimit) · `second_ball_hit`/`second_ball_miss`/`endPoint`/`computeSecondBallCapEndIndex` 제거 · `resolveTrajectoryDisplayCap(pathNodes, opts?)` · Builder는 baseline에 corrected ceiling을 전달하지 않음(보정·기준선 각자 PhysicalLimit/유효 범위) · D-DBP-05 · D-DBP-19 개정 |
 
 ---
 
@@ -154,7 +156,7 @@ Display Cap은 **하나의 계산 결과**를 사용자에게 **어디까지** �
 | **3** | **Minimum Guarantee** (Baseline / Corrected) | 세컨드볼과 무관하게 **최소 C4**까지 표시 (§6). second_ball이 C3로 자르지 못함 |
 | **4** | **Continuation Rule** | **C4 이후** 정상 선회 여부만 결정 (§7). C4 Minimum과 **독립** |
 | **5** | **Physical Limit** | 시스템별 표시 상한(예: 5&Half C4 값 기반). Continuation과 병행 시 관계 명시 |
-| **6** | **Second Ball** | 세컨드볼 hit로 **C4 이후** 표시를 더 자를 수 있음. **C3 이하로 Minimum을 깨뜨리면 안 됨** |
+| **6** | ~~Second Ball~~ | **(v1.7) 폐지.** 세컨드볼 위치·적중 여부는 표시 범위를 자르지 않는다. 세컨드볼은 궤적·시스템값 검증용 시각 기준으로만 남는다. |
 
 ### 5.3 same-rail (안전)과의 관계
 
@@ -175,9 +177,9 @@ same-rail은 Invalid/Chain 계열 안전망으로 유지한다. Continuation과 
 
 | 분기 | Cap 정책 |
 |------|----------|
-| **baseline (5&Half)** | existing = min(chain, same-rail, PhysicalLimit) · **DisplayEnd = min(existing, correctedDisplayEndIndex)** (§6.1 / §6.1.1). 계산 pathNodes는 독립·보존. |
-| **baseline (기타)** | legacy `resolveTrajectoryDisplayCap` (second_ball 등) — **corrected ceiling 미적용**. |
-| **corrected** | **Corrected Display Minimum Guarantee** (§6.2) + Continuation (§7) + 안전. **second_ball로 C3 종료 금지.** C5/C6는 Continuation. |
+| **baseline (5&Half)** | **(v1.7)** min(chain, same-rail, PhysicalLimit) — baseline 자체 geometry·자체 C4 값 기준. Builder는 corrected ceiling을 전달하지 않는다 (§6.1.1). 계산 pathNodes는 독립·보존. |
+| **baseline (기타)** | `resolveTrajectoryDisplayCap(pathNodes, opts)` — min(chain, same-rail). |
+| **corrected** | **(v1.7)** min(chain, same-rail, PhysicalLimit*) — 세컨드볼 무관, 마지막 유효 쿠션까지. *5&Half: corrected 유효 SYS에서 C4 값을 해석할 수 있을 때만. Continuation (§7)은 잔여. |
 
 ### 5.5 Baseline ↔ Corrected (최소 표시)
 
@@ -229,6 +231,16 @@ existingBaselineDisplayCap = min(chain, same-rail, PhysicalLimit)
 
 구현: `resolveBaselineTrajectoryDisplayCap` · Builder가 `capCorrected.endIndex`를 전달 · `slicePathNodesToCap` / `buildTrajectoryRenderModel`.
 
+**v1.6 개정 (2026-10-10 · v1.7에서 대체):** ceiling은 corrected 세컨드볼 적중 시에만 전달 · baseline 자체 적중 시 자체 `endPoint`.
+
+**v1.7 개정 (2026-10-11 · 현행):**
+
+| 규칙 | 내용 |
+|------|------|
+| **ceiling 미배선** | Builder는 `correctedDisplayEndIndex`를 전달하지 않는다. corrected의 끝이 세컨드볼과 무관해졌으므로 baseline은 **자체** chain/same-rail/PhysicalLimit으로 표시한다 (보정 C4 < 20이어도 기준선 C4 ≥ 20이면 기준선은 C6). |
+| **세컨드볼 절단 없음** | baseline 선·라벨은 세컨드볼 위치에서 끊기지 않는다. 2026-09-08 "적중 후 C5/C6 미표시" 의도는 v1.7에서 **폐지**. |
+| **API** | `resolveBaselineTrajectoryDisplayCap`의 `correctedDisplayEndIndex`는 index-only 선택 상한으로만 남는다 (spatial clip 아님). |
+
 > **D-DBP-05 개정 (v1.5):** Phase 1의 “corrected ceiling 비종속”은 **철회**한다.  
 > 5&Half에서 baseline **DISPLAY**는 corrected DISPLAY end에 ceiling된다.  
 > baseline **계산** 독립성은 유지한다.
@@ -256,10 +268,12 @@ C5 / C6의 표시 여부는 Continuation Rule에 따른다.
 | C5/C6 | Continuation Rule (§7)만 결정. Minimum과 독립 |
 | Builder | **수정하지 않음** — 노드는 이미 생성됨 · Display만 자른다 |
 
-#### 현행 코드와의 불일치 (구현 과제)
+#### 현행 코드와의 불일치 — 해소 (v1.6 · 2026-10-10)
 
-현행 `computeSecondBallCapEndIndex`는 미히트 시 `endIndex = min(3, maxChain)` 이다.  
-이는 본 §6.2와 **불일치**한다. 해소는 **Display Cap 계층만**에서 하며, Builder·Extension·Hydrate·Search는 비대상이다.
+기존 `computeSecondBallCapEndIndex`는 미히트 시 `endIndex = min(3, maxChain)` 이었다 (§6.2 불일치).  
+v1.6에서 **미적중 = `maxChain` (reason `second_ball_miss`)** 으로 해소했다. 적중 시 `second_ball_hit` + `endPoint`(공 중심의 segment 투영점).  
+변경은 Display Cap 계층(`trajectoryPathDisplayPolicy.ts`)과 Builder의 Cap 입력 배선(`correctedSysValues` → corrected PhysicalLimit, baseline ceiling hit-only)뿐이며, Builder 좌표 공식·Extension·Hydrate·Search는 비대상이다.  
+**v1.7 (2026-10-11):** 세컨드볼 Cap 자체를 제거했다 (`computeSecondBallCapEndIndex` 삭제). corrected 끝 = min(chain, same-rail, PhysicalLimit).
 
 ### 6.3 Physical Limit와의 관계
 
@@ -490,7 +504,7 @@ Freeze된 Extension Runtime을 깨고 Display를 맞추지 않는다. Display를
 | **D-DBP-02** | Trajectory Extension ≠ Difference. Runtime Geometry는 Boundary 입력이 아니다. |
 | **D-DBP-03** | Flow: Builder → Cap → Boundary → Overlay Attach → Render. |
 | **D-DBP-04** | Continuation은 Display Cap 하위 규칙이다. Boundary에 두지 않는다. |
-| **D-DBP-05** | **(v1.5 개정)** 5&Half: baseline **계산** 독립 · baseline **DISPLAY**는 corrected DISPLAY endIndex ceiling. second-ball XY spatial clip 금지. |
+| **D-DBP-05** | **(v1.5 개정 · v1.6 재개정 · v1.7 재개정)** 5&Half: baseline **계산**·**DISPLAY** 모두 자체 범위(chain/same-rail/PhysicalLimit). corrected ceiling은 배선하지 않는다. second-ball XY spatial clip 금지. |
 | **D-DBP-06** | Continuation=false → 다음 segment 미표시 · **C4에서 종료**. |
 | **D-DBP-07** | Axis(long/short) 교차 = Continuation true · 동일 axis 연속 = Reverse End(Display). |
 | **D-DBP-08** | Overlay Attach는 Boundary 결과에 따른다. Runtime을 삭제·null 처리하지 않는다. |
@@ -504,6 +518,7 @@ Freeze된 Extension Runtime을 깨고 Display를 맞추지 않는다. Display를
 | **D-DBP-16** | **Reading ON Width는 kind별 originalAspect를 사용한다.** AI/HPT=`AI_OVERLAY_ASPECT_RATIO`(6:4). CALC는 OFF max-box aspect 유지. widthRatio는 OFF 전용. |
 | **D-DBP-17** | **Reading Mode 토글 시 Overlay Center를 유지한다.** Drag/clamp/pointer 로직은 변경하지 않는다. |
 | **D-DBP-18** | **ADMIN C2 Reflection Override:** rail+t persist · Builder는 `anchors.C2` 존재 시 Reflection skip · Display Cap은 override 경로에서 **sameRail 절단 생략** (`skipSameRail`). `detectRail`/Reflection Engine 수식 **비변경**. USER Handle 비표시. |
+| **D-DBP-19** | **(v1.7 개정) Always Last Valid Cushion.** SYS 궤적·기준선·라벨은 세컨드볼(`balls.second`) 적중 여부와 무관하게 마지막 유효 쿠션까지 표시한다 (v1.6 "적중=공 위치 종료" 폐지). 노드 없음·same-rail·PhysicalLimit만 표시를 자른다. 선의 끝 = 마지막 라벨. `targetBall`은 색상 메타데이터로만 사용. |
 
 ---
 
@@ -676,4 +691,4 @@ Manual Reflection Override가 있으면 Display Cap **sameRail 절단을 수행�
 
 ---
 
-*End of DISPLAY_BOUNDARY_POLICY_SSOT.md — v1.5.1 · Active C2 Handle Ownership finalized 2026-09-09*
+*End of DISPLAY_BOUNDARY_POLICY_SSOT.md — v1.7 · Always Last Valid Cushion 2026-10-11*

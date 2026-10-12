@@ -2,7 +2,9 @@
  * WorkspaceSnapshot → published Dataset export (PositionRecord[] envelope).
  *
  * Phase 3-C2 / Phase C-2 storage source priority:
- * 1. SNAPSHOT_PAYLOAD — snapshot.publishFamilyPayload
+ * 0. SNAPSHOT_GRAPH — snapshot.publishFamilyGraph (approved normalized graph);
+ *    derivedApproval PENDING → fail-closed (no Publish input yet)
+ * 1. SNAPSHOT_PAYLOAD — snapshot.publishFamilyPayload (legacy flat)
  * 2. STATE_DATASET — legacy snapshot.state.dataset
  * 3. C1_WORKING_FALLBACK — operation present, no payload → rematerialized canonical
  * 4. LEGACY_INFERENCE — no operation → rematerialized canonical
@@ -29,7 +31,13 @@ import { readPublishOperationFromSnapshot } from "./publishOperation";
 import {
   crossValidateOperationAndPayload,
   readPublishFamilyPayloadFromSnapshot,
+  type ValidatePublishFamilyPayloadResult,
 } from "./publishFamilyPayload";
+import {
+  convertPublishFamilyGraphToPublishFamilyPayload,
+  crossValidateOperationAndGraph,
+  readPublishFamilyGraphFromSnapshot,
+} from "./publishFamilyGraph";
 
 export type DatasetExportPayload = {
   schemaVersion: typeof DATASET_EXPORT_SCHEMA_VERSION;
@@ -42,6 +50,7 @@ export type DatasetExportPayload = {
 };
 
 export type DatasetExportSource =
+  | "SNAPSHOT_GRAPH"
   | "SNAPSHOT_PAYLOAD"
   | "STATE_DATASET"
   | "C1_WORKING_FALLBACK"
@@ -149,7 +158,38 @@ export function buildDatasetExport(
   const shotType = snapshot.pattern ?? "뒤돌리기";
   const systemId = canonicalSystemId(snapshot.systemId);
   const operation = readPublishOperationFromSnapshot(snapshot);
-  const payloadRead = readPublishFamilyPayloadFromSnapshot(snapshot);
+
+  // New Family awaiting Derived Approve: no Publish input yet (never fall back to Local DB).
+  if (snapshot.derivedApproval?.status === "PENDING") {
+    return {
+      ok: false,
+      reason: "derived-approval-pending",
+      issues: [`snapshot:${snapshot.id}`],
+    };
+  }
+
+  const graphRead = readPublishFamilyGraphFromSnapshot(snapshot);
+  if (!graphRead.ok) {
+    return { ok: false, reason: graphRead.reason, issues: graphRead.issues };
+  }
+  let graphPayload: ValidatePublishFamilyPayloadResult | null = null;
+  if (graphRead.graph) {
+    if (!operation) {
+      return {
+        ok: false,
+        reason: "graph-without-operation",
+        issues: ["publishFamilyGraph requires publishOperation"],
+      };
+    }
+    const cross = crossValidateOperationAndGraph(operation, graphRead.graph);
+    if (!cross.ok) return { ok: false, reason: cross.reason, issues: cross.issues };
+    graphPayload = convertPublishFamilyGraphToPublishFamilyPayload(graphRead.graph);
+    if (!graphPayload.ok) {
+      return { ok: false, reason: graphPayload.reason, issues: graphPayload.issues };
+    }
+  }
+  const payloadRead = graphPayload ?? readPublishFamilyPayloadFromSnapshot(snapshot);
+  const payloadSource: DatasetExportSource = graphPayload ? "SNAPSHOT_GRAPH" : "SNAPSHOT_PAYLOAD";
 
   // Fail-closed: field present but invalid.
   if (!payloadRead.ok) {
@@ -179,7 +219,7 @@ export function buildDatasetExport(
         issues: cross.issues,
       };
     }
-    console.warn("[EXPORT] source=SNAPSHOT_PAYLOAD");
+    console.warn(`[EXPORT] source=${payloadSource}`);
     const records = filterRecordsForDatasetExport(
       payloadRead.payload.records,
       systemId,
@@ -194,7 +234,7 @@ export function buildDatasetExport(
     }
     return {
       ok: true,
-      source: "SNAPSHOT_PAYLOAD",
+      source: payloadSource,
       payload: envelopeFromRecords(snapshot, records, exportedAt),
     };
   }

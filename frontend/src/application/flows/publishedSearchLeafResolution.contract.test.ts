@@ -2,8 +2,8 @@
  * OPEN-02 — Published Search leaf resolution & Export cache invalidation contract tests.
  *
  * Covers:
- * CASE A: ADMIN Published Search resolves canonical shotType & systemId from adminState.sys
- * CASE B: Other shotType (e.g. 빗겨치기, 앞돌리기) preserved without 뒤돌리기 fallback
+ * CASE A: ADMIN Published Search ranks the adminState.sys leaf first, then searches every leaf
+ * CASE B: Other shotType (e.g. 빗겨치기, 앞돌리기) hint kept as its own first leaf (no 뒤돌리기 substitution)
  * CASE C: History Export success invalidates published dataset cache
  * CASE D: Export failure does not trigger cache refresh
  * CASE E: Exact Ball3 Match (cue=(19.5,11), target=(20.4,30.6), second=(64.9,22.1))
@@ -24,6 +24,7 @@ import { runSpatialRecall } from "../../domain/recall/recallEngine";
 import type { PositionRecord } from "../../domain/positionSearchEngine";
 import { createPositionId } from "../../domain/positionId";
 import { parsePublishedLeafPayload } from "../../domain/datasetLoader";
+import { resolveCandidatePublishedLeaves } from "../../domain/publishedLeafResolve";
 
 const sampleBalls = {
   cue: { x: 19.5, y: 11 },
@@ -132,11 +133,13 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
     const result = await runAdminSearch(ctx);
 
     expect(result).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Hint leaf is loaded first (tie-break priority); every other Published leaf is still searched.
     const calledUrl = fetchMock.mock.calls[0][0];
     expect(calledUrl).toContain(encodeURIComponent("옆돌리기"));
     expect(calledUrl).toContain(encodeURIComponent("파이브앤하프"));
-    expect(calledUrl).not.toContain(encodeURIComponent("뒤돌리기"));
+    expect(fetchMock.mock.calls.length).toBe(
+      resolveCandidatePublishedLeaves({ mode: "ADMIN", shotType: "옆돌리기", systemId: "5_half_system" }).length
+    );
     expect(applyRecallMock).toHaveBeenCalledWith(
       expect.objectContaining({
         positionId: sampleRepresentativeRecord.positionId,
@@ -193,10 +196,11 @@ describe("OPEN-02 Published Search Leaf Resolution Contract", () => {
 
     await runAdminSearch(ctx);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Non-canonical hinted shotType is kept as its own leaf and ranked first (no 뒤돌리기 substitution).
     const calledUrl = fetchMock.mock.calls[0][0];
     expect(calledUrl).toContain(encodeURIComponent("빗겨치기"));
     expect(calledUrl).not.toContain(encodeURIComponent("뒤돌리기"));
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
   });
 
   it("CASE C: History Export success invalidates published dataset cache for exported leaf", async () => {

@@ -254,6 +254,59 @@ export function commitCanonicalNormalizedCorpus(
   }
 }
 
+/** Raw canonical key value for exact compensation (null = key absent). */
+export type CanonicalCorpusRawSnapshot = { ok: true; raw: string | null } | { ok: false; reason: string };
+
+export function snapshotCanonicalNormalizedCorpusRaw(): CanonicalCorpusRawSnapshot {
+  try {
+    if (typeof localStorage === "undefined") {
+      return { ok: false, reason: "localStorage is not available" };
+    }
+    return { ok: true, raw: localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY) };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Compact fingerprint of normalized_dataset bytes (`length:hash`, or "absent").
+ * Used to prove LocalDB is still exactly what a SAVE wrote without keeping a
+ * second full copy.
+ */
+export function digestCanonicalCorpusRaw(raw: string | null): string {
+  if (raw == null) return "absent";
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const hex = (h2 >>> 0).toString(16).padStart(8, "0") + (h1 >>> 0).toString(16).padStart(8, "0");
+  return `${raw.length}:${hex}`;
+}
+
+/**
+ * Compensation for a multi-key step that failed after the canonical commit
+ * (e.g. History write). Restores the exact previous bytes.
+ */
+export function restoreCanonicalNormalizedCorpusRaw(
+  raw: string | null
+): { ok: true } | { ok: false; reason: string } {
+  try {
+    if (raw == null) localStorage.removeItem(CANONICAL_NORMALIZED_CORPUS_KEY);
+    else localStorage.setItem(CANONICAL_NORMALIZED_CORPUS_KEY, raw);
+    if (localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY) !== raw) {
+      return { ok: false, reason: "restore readback mismatch" };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export function clearCanonicalNormalizedCorpusForTests(): void {
   try {
     localStorage.removeItem(CANONICAL_NORMALIZED_CORPUS_KEY);

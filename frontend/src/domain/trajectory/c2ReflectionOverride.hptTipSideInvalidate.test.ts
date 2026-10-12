@@ -260,7 +260,7 @@ describe("C2 reflectionOverride HP/T dependency invalidation", () => {
       null,
       null,
     ];
-    const capStale = resolveTrajectoryDisplayCap(pathWithStale, null, 2);
+    const capStale = resolveTrajectoryDisplayCap(pathWithStale);
     expect(capStale.endIndex).toBeGreaterThanOrEqual(0);
 
     const reflected = reflectWithTip(HPT_R);
@@ -274,7 +274,7 @@ describe("C2 reflectionOverride HP/T dependency invalidation", () => {
       { x: 40, y: 0 },
       { x: 0, y: 10 },
     ];
-    const capFresh = resolveTrajectoryDisplayCap(pathFresh, null, 2);
+    const capFresh = resolveTrajectoryDisplayCap(pathFresh);
     expect(pathFresh[2]).toBeTruthy();
     expect(capFresh.reason).not.toBe("missing_node");
   });

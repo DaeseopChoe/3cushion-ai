@@ -44,11 +44,12 @@ export function isRecallPositionExact(diff: RecallPositionDifference): boolean {
 
 /** Notice text, or null when every ball matches (no notice for exact Recall). */
 export function formatRecallPositionDifferenceNotice(
-  diff: RecallPositionDifference
+  diff: RecallPositionDifference,
+  sourceLabel?: string | null
 ): string | null {
   if (isRecallPositionExact(diff)) return null;
   return [
-    "유사한 공략을 찾았습니다.",
+    sourceLabel ? `유사한 공략을 찾았습니다. (${sourceLabel})` : "유사한 공략을 찾았습니다.",
     "",
     `내공: ${diff.cueDifference.toFixed(1)}`,
     `앞공: ${diff.targetDifference.toFixed(1)}`,
@@ -66,11 +67,14 @@ export function resolveRecallNoticeMessage(args: {
   screenBalls: Ball3 | null | undefined;
   storedMemberBalls: Ball3 | null | undefined;
   lowSimilarity: boolean;
+  /** Published leaf of the winning Member, e.g. "옆돌리기 · 파이브앤하프". */
+  sourceLabel?: string | null;
 }): string | null {
   const notice =
     args.screenBalls && args.storedMemberBalls
       ? formatRecallPositionDifferenceNotice(
-          computeRecallPositionDifference(args.screenBalls, args.storedMemberBalls)
+          computeRecallPositionDifference(args.screenBalls, args.storedMemberBalls),
+          args.sourceLabel
         )
       : null;
   if (notice && args.lowSimilarity) return `${notice}\n\n유사도 낮음`;

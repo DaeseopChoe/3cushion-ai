@@ -51,6 +51,9 @@ _update_*.txt
 # Local caches (never commit)
 .npm-cache/
 
+# Admin work History (D drive only; never commit)
+.workspace-data/
+
 # Agent/test ephemeral console captures (Phase 3A-353)
 frontend/vitest-*.txt
 frontend/grep-out.txt

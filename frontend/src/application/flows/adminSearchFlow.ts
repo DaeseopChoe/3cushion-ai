@@ -16,8 +16,13 @@ import {
   type Ball3,
   type PositionRecord,
 } from "../../domain/positionSearchEngine";
-import { getOrLoadPublishedLeaf } from "../../domain/publishedDatasetStore";
-import { resolvePublishedLeafKey } from "../../domain/publishedLeafResolve";
+import { loadPublishedLeaves } from "../../domain/publishedDatasetStore";
+import {
+  formatPublishedLeafSource,
+  resolveCandidatePublishedLeaves,
+  type CandidateLeaf,
+} from "../../domain/publishedLeafResolve";
+import type { FamilyMaster, FamilyMember } from "../../domain/family/familyNormalizedSchema";
 import { readFamilyIdFromRecordSlot } from "../../domain/family/publishedEditSession";
 import {
   normalizePublishedShotTypeHint,
@@ -124,7 +129,9 @@ export async function runAdminSearch(
     ctx.activeSlot
   );
 
-  const { shotType, systemId } = resolvePublishedLeafKey({
+  // Hints (screen sys / slot / SAVE context) only order the leaves for tie-breaks;
+  // every Published leaf is searched, so a reload cannot hide data in another leaf.
+  const candidateLeaves = resolveCandidatePublishedLeaves({
     mode: "ADMIN",
     shotType:
       runtimeHints.shotType ??
@@ -135,19 +142,20 @@ export async function runAdminSearch(
       runtimeHints.systemId ?? ctx.userPublishedSearchContext?.systemId,
   });
 
-  const loadResult = await getOrLoadPublishedLeaf(shotType, systemId);
-
-  if (loadResult.kind === "error") {
-    alert(`Search 데이터 로드 오류: ${loadResult.message}`);
+  const leafLoads = await loadPublishedLeaves(candidateLeaves);
+  const failedLeaves = leafLoads.flatMap(({ leaf, result }) =>
+    result.kind === "error"
+      ? [{ shotType: leaf.shotType, systemId: leaf.systemId, url: result.url, message: result.message }]
+      : []
+  );
+  if (failedLeaves.length > 0) {
+    console.warn("[ADMIN_PUBLISHED_RECALL] leaf load failed", failedLeaves);
+  }
+  if (failedLeaves.length === leafLoads.length) {
+    alert(`Search 데이터 로드 오류: ${failedLeaves[0]?.message ?? "Published 데이터 없음"}`);
     return false;
   }
 
-  const familyMembers =
-    loadResult.kind === "ok" ? loadResult.familyMembers : [];
-  const masterByFamilyId =
-    loadResult.kind === "ok"
-      ? loadResult.masterByFamilyId
-      : new Map();
   const currentBalls = normalizeBallsToBall3(
     (ctx.ballsState ??
       (ctx.adminState as Record<string, unknown> | undefined)?.balls ??
@@ -157,18 +165,22 @@ export async function runAdminSearch(
   const recallProfile = "adminStrict";
 
   console.log("[ADMIN_PUBLISHED_RECALL]", {
-    shotType,
-    systemId,
     dataSource: "published-members",
-    url: loadResult.url,
-    fromCache: loadResult.fromCache,
-    memberCount: familyMembers.length,
+    leafCount: leafLoads.length,
+    loadedLeaves: leafLoads
+      .filter(({ result }) => result.kind === "ok")
+      .map(({ leaf, result }) => ({
+        ...leaf,
+        url: result.url,
+        fromCache: result.fromCache,
+        memberCount: result.kind === "ok" ? result.familyMembers.length : 0,
+      })),
+    failedLeafCount: failedLeaves.length,
     leafHints: runtimeHints,
     persistedContext: ctx.userPublishedSearchContext,
   });
 
   console.log("[RECALL_QUERY_DEBUG]", {
-    publishedMemberCount: familyMembers.length,
     currentBalls,
     searchQueryTargetBall,
     adminShotType: (ctx.adminState as Record<string, unknown> | undefined)?.sys,
@@ -196,35 +208,47 @@ export async function runAdminSearch(
   let bestMatchDistance = Infinity;
   let bestSpatialResult: SpatialRecallResult | null = null;
   let bestMatchQueryBalls: Ball3 | null = null;
+  let bestMatchLeaf: CandidateLeaf | null = null;
+  let familyMembers: FamilyMember[] = [];
+  let masterByFamilyId = new Map<string, FamilyMaster>();
 
-  for (const queryBalls of candidateBallQueries) {
-    const spatialResult = runNormalizedPublishedMemberSearch({
-      members: familyMembers,
-      masterByFamilyId,
-      query: {
-        balls: queryBalls,
-        targetBall: searchQueryTargetBall as
-          | "red"
-          | "yellow"
-          | null
-          | undefined,
-      },
-      profile: recallProfile,
-    });
+  // Leaves are in priority order (hint leaf, then canonical): only a strictly
+  // closer candidate replaces the current best, so ties keep the earlier leaf.
+  for (const { leaf, result } of leafLoads) {
+    if (result.kind !== "ok") continue;
+    for (const queryBalls of candidateBallQueries) {
+      const spatialResult = runNormalizedPublishedMemberSearch({
+        members: result.familyMembers,
+        masterByFamilyId: result.masterByFamilyId,
+        query: {
+          balls: queryBalls,
+          targetBall: searchQueryTargetBall as
+            | "red"
+            | "yellow"
+            | null
+            | undefined,
+        },
+        profile: recallProfile,
+      });
 
-    if (spatialResult.kind === "match") {
-      if (spatialResult.distance < bestMatchDistance) {
-        bestMatchDistance = spatialResult.distance;
-        bestMatchRecord = spatialResult.record;
-        bestSpatialResult = spatialResult;
-        bestMatchQueryBalls = queryBalls;
-        if (spatialResult.distance === 0) {
-          break;
+      if (spatialResult.kind === "match") {
+        if (spatialResult.distance < bestMatchDistance) {
+          bestMatchDistance = spatialResult.distance;
+          bestMatchRecord = spatialResult.record;
+          bestSpatialResult = spatialResult;
+          bestMatchQueryBalls = queryBalls;
+          bestMatchLeaf = leaf;
+          familyMembers = result.familyMembers;
+          masterByFamilyId = result.masterByFamilyId;
+          if (spatialResult.distance === 0) {
+            break;
+          }
         }
+      } else if (!bestSpatialResult) {
+        bestSpatialResult = spatialResult;
       }
-    } else if (!bestSpatialResult) {
-      bestSpatialResult = spatialResult;
     }
+    if (bestMatchDistance === 0) break;
   }
 
   const spatialResult =
@@ -246,6 +270,7 @@ export async function runAdminSearch(
       spatialResult.kind === "match"
         ? spatialResult.record?.positionId ?? null
         : null,
+    leaf: bestMatchLeaf,
     bestMatchQueryBalls,
   });
 
@@ -298,11 +323,13 @@ export async function runAdminSearch(
       | undefined
   )?.[ctx.activeSlot];
 
+  const matchedLeaf = bestMatchLeaf as CandidateLeaf | null;
   if (recallEntry) {
     ctx.setAdminState((prev) => {
       const entry = recallEntry as Parameters<typeof adminSysFromRecallEntry>[0];
       const sid =
         entry?.signature?.systemId ??
+        matchedLeaf?.systemId ??
         ((prev as Record<string, unknown>)?.sys as Record<string, unknown> | undefined)
           ?.systemId ??
         ((ctx.adminState?.sys as Record<string, unknown> | undefined)?.systemId as
@@ -315,8 +342,24 @@ export async function runAdminSearch(
         ctx.resolveFormulaHash(String(sid))
       );
       if (!nextSys) return prev;
-      return { ...prev, sys: nextSys };
+      // Matched leaf shotType = next Search's priority hint (never a scope limit).
+      return {
+        ...prev,
+        sys: matchedLeaf ? { ...nextSys, shotType: matchedLeaf.shotType } : nextSys,
+      };
     });
+  } else if (matchedLeaf) {
+    ctx.setAdminState((prev) => ({
+      ...prev,
+      sys: {
+        ...((prev as Record<string, unknown>)?.sys as Record<string, unknown> | undefined),
+        shotType: matchedLeaf.shotType,
+        systemId: matchedLeaf.systemId,
+        system_id: matchedLeaf.systemId,
+        system: matchedLeaf.systemId,
+        formulaHash: String(ctx.resolveFormulaHash(matchedLeaf.systemId)).slice(0, 32),
+      },
+    }));
   }
 
   if (bestMatchQueryBalls) {
@@ -347,6 +390,7 @@ export async function runAdminSearch(
     screenBalls: bestMatchQueryBalls,
     storedMemberBalls: spatialResult.record?.balls,
     lowSimilarity: spatialResult.distance > HARD_THRESHOLD_L1,
+    sourceLabel: matchedLeaf ? formatPublishedLeafSource(matchedLeaf) : null,
   });
   if (recallNotice) {
     alert(recallNotice);

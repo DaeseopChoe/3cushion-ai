@@ -305,7 +305,6 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
   const STAGE_BUILD_ID = "user-rail-stage-v2026-05";
   const userSearchHandlerRef = useRef(null);
   const userSearchResetHandlerRef = useRef(null);
-  const adminSearchHandlerRef = useRef(null);
   const userStrategySlotPickRef = useRef(null);
   const userRailActions = useMemo(() => ({}), []);
   const [viewport, setViewport] = useState({ vw: 0, vh: 0 });
@@ -501,33 +500,6 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
         gap: BUTTON_GAP,
       }}
     >
-      <button
-        type="button"
-        data-stage-build={STAGE_BUILD_ID}
-        data-user-info-btn="SEARCH"
-        title="로컬 DB 검색"
-        onClick={() => {
-          adminSearchHandlerRef.current?.();
-        }}
-        style={{
-          height: BUTTON_HEIGHT,
-          fontSize: BUTTON_FONT,
-          padding: 0,
-          background: getButtonColor("SEARCH", false, false),
-          color: "#ffffff",
-          border: "none",
-          borderRadius: "6px",
-          cursor: "pointer",
-          fontWeight: "700",
-          whiteSpace: "nowrap",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxSizing: "border-box",
-        }}
-      >
-        로컬DB
-      </button>
       {adminButtons.map(({ id, label, type }) => {
         const isShotButton = type === "shot";
         const isSlotSelected = isShotButton && activeSlot === id;
@@ -841,9 +813,6 @@ export default function Stage({ onSearchStrategies, onOpenHistory, onCloseUserOv
               userSearchResetHandlerRef.current = fn ?? null;
             }}
             onUserSearchHasResultsChange={setUserSearchHasResults}
-            onAdminSearchRegister={(fn) => {
-              adminSearchHandlerRef.current = fn ?? null;
-            }}
             onUserFuncButtonSelect={setCurrentButtonId}
             onUserStrategySlotPickRegister={(fn) => {
               userStrategySlotPickRef.current = fn ?? null;

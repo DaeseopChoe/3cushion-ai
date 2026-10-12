@@ -29,12 +29,11 @@ const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../../.."
 );
+/** Frozen copy of dataset/옆돌리기/파이브앤하프/positions.json before the 2026-09-29 Published reset. */
 const SIDE_LEAF = path.join(
-  REPO_ROOT,
-  "dataset",
-  "옆돌리기",
-  "파이브앤하프",
-  "positions.json"
+  path.dirname(fileURLToPath(import.meta.url)),
+  "__fixtures__",
+  "legacySideLeaf.v2.2026-08-27.json"
 );
 
 function loadSideLeaf(): DatasetExportPayload {
@@ -560,7 +559,7 @@ describe("legacyProductTwinDedupe — apply gates (A1–A17)", () => {
       expect(again.duplicateGroupsBefore).toBe(0);
       expect(again.nonCanonicalRemove).toBe(0);
 
-      // Real leaf must remain untouched
+      // Source leaf must remain untouched
       const live = JSON.parse(fs.readFileSync(SIDE_LEAF, "utf8"));
       expect(live.records.length).toBe(508);
     } finally {

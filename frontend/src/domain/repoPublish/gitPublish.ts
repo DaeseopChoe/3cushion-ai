@@ -11,6 +11,7 @@ import {
   parseNormalizedDatasetEnvelope,
 } from "../dataset/normalizedDatasetEnvelope";
 import { gitExec } from "./gitExec";
+import { PUBLISHED_LEAF_MAX_BYTES } from "./publishedLeafSummary";
 
 export const GIT_PUBLISH_REMOTE = "origin";
 export const GIT_PUBLISH_BRANCH = "main";
@@ -537,7 +538,17 @@ export async function stageCommitAndPush(args: {
 
   // Validate each staged blob
   for (const t of expected) {
-    const show = await gitExec(args.repoRoot, ["show", `:${t}`]);
+    const show = await gitExec(args.repoRoot, ["show", `:${t}`], {
+      maxBufferBytes: PUBLISHED_LEAF_MAX_BYTES,
+    });
+    if (!show.ok && show.reason === "git-output-too-large") {
+      return {
+        ok: false,
+        reason: "staged-blob-too-large",
+        status: "STAGED_BLOB_TOO_LARGE",
+        issues: [`too-large:${t}`, `max:${PUBLISHED_LEAF_MAX_BYTES}`],
+      };
+    }
     if (!show.ok) {
       return {
         ok: false,
@@ -561,6 +572,7 @@ export async function stageCommitAndPush(args: {
       !Array.isArray(raw) &&
       (Object.prototype.hasOwnProperty.call(raw, "publishOperation") ||
         Object.prototype.hasOwnProperty.call(raw, "publishFamilyPayload") ||
+        Object.prototype.hasOwnProperty.call(raw, "publishFamilyGraph") ||
         Object.prototype.hasOwnProperty.call(raw, "sourceFamilyId") ||
         Object.prototype.hasOwnProperty.call(raw, "intent"))
     ) {
@@ -831,7 +843,16 @@ export async function readCommittedBlobText(args: {
   }
   const show = await gitExec(args.repoRoot, ["show", `${sha}:${posix}`], {
     timeoutMs: 30_000,
+    maxBufferBytes: PUBLISHED_LEAF_MAX_BYTES,
   });
+  if (!show.ok && show.reason === "git-output-too-large") {
+    return {
+      ok: false,
+      reason: "commit-blob-too-large",
+      issues: ["commit-blob-too-large", `max:${PUBLISHED_LEAF_MAX_BYTES}`],
+      status: "BLOB_TOO_LARGE",
+    };
+  }
   if (!show.ok) {
     return {
       ok: false,

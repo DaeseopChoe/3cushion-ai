@@ -789,13 +789,18 @@ describe("publishFamilyPayload — provenance + persistence hygiene", () => {
 });
 
 describe("publishFamilyPayload — wiring", () => {
-  it("useSettings builds payload from strategyUpdatedDataset at commit", () => {
+  it("useSettings commits the normalized graph (not a new flat payload) at SAVE", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "../hooks/useSettings.js"), "utf8");
-    expect(src).toContain("buildPublishFamilyPayload");
-    expect(src).toContain("strategyUpdatedDataset");
-    expect(src).toContain("publishFamilyPayload");
-    expect(src).toContain("crossValidateOperationAndPayload");
+    expect(src).toContain("commitSaveToWorkHistory");
+    // New History rows never write the flat SAVE-time payload.
+    expect(src).not.toContain("buildPublishFamilyPayload");
+    const commit = readFileSync(join(here, "workHistory/workHistorySaveCommit.ts"), "utf8");
+    expect(commit).toContain("buildPublishFamilyGraphFromRecords");
+    expect(commit).not.toMatch(/publishFamilyPayload\s*:/);
+    const store = readFileSync(join(here, "workHistory/workHistoryFileStore.ts"), "utf8");
+    expect(store).toContain("crossValidateOperationAndGraph");
+    expect(store).not.toMatch(/publishFamilyPayload\s*:/);
   });
 
   it("historyFlow fails closed when history commit returns ok:false", () => {

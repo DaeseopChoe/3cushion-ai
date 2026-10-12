@@ -27,6 +27,12 @@ import {
 } from "./productionOrigin";
 import { resolvePublishedLeafAbsolutePath } from "./resolveRepoLeafPath";
 import { rejectClientPathOrCommandFields } from "./publishDatasetToRepo";
+import {
+  PUBLISHED_LEAF_MAX_BYTES,
+  summarizePublishedLeafText,
+  utf8ByteLength,
+  type PublishedLeafSummary,
+} from "./publishedLeafSummary";
 
 export type ProductionVerifyLeafInput = {
   shotType: string;
@@ -94,7 +100,7 @@ export const DEFAULT_PRODUCTION_VERIFY_POLL: ProductionVerifyPollConfig = {
   intervalMs: 4_000,
   overallTimeoutMs: 90_000,
   perRequestTimeoutMs: 8_000,
-  maxResponseBytes: 5_000_000,
+  maxResponseBytes: PUBLISHED_LEAF_MAX_BYTES,
 };
 
 function sleep(ms: number): Promise<void> {
@@ -198,10 +204,19 @@ async function readResponseTextLimited(
   response: Response,
   maxBytes: number
 ): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  const declared = Number(response.headers?.get?.("content-length") ?? NaN);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    try {
+      await response.body?.cancel?.();
+    } catch {
+      /* ignore */
+    }
+    return { ok: false, reason: "response-too-large" };
+  }
   const reader = response.body?.getReader?.();
   if (!reader) {
     const text = await response.text();
-    if (text.length > maxBytes) {
+    if (utf8ByteLength(text) > maxBytes) {
       return { ok: false, reason: "response-too-large" };
     }
     return { ok: true, text };
@@ -420,7 +435,10 @@ async function loadExpectedFromCommitBlob(args: {
       ok: false,
       reason: blob.reason,
       issues: blob.issues,
-      fatal: blob.status === "FATAL_COMMIT_SHA" || blob.status === "FATAL_BLOB_PATH",
+      fatal:
+        blob.status === "FATAL_COMMIT_SHA" ||
+        blob.status === "FATAL_BLOB_PATH" ||
+        blob.status === "BLOB_TOO_LARGE",
     };
   }
   let raw: unknown;
@@ -465,6 +483,53 @@ async function loadExpectedFromCommitBlob(args: {
     candidate: parsed.envelope,
     repoRelativePath: leaf.repoRelativePath,
   };
+}
+
+/**
+ * Published 현황 for each leaf, read from the given commit blob (same path
+ * validation + `git show` route as verification). All-or-nothing.
+ */
+export async function readCommittedPublishedLeafSummaries(args: {
+  repoRoot: string;
+  datasetRoot: string;
+  commitSha: string;
+  leaves: ProductionVerifyLeafInput[];
+}): Promise<
+  | { ok: true; summaries: PublishedLeafSummary[] }
+  | { ok: false; reason: string; issues: string[] }
+> {
+  const summaries: PublishedLeafSummary[] = [];
+  const seen = new Set<string>();
+  for (const leaf of args.leaves ?? []) {
+    const shotType = trimStr(leaf.shotType);
+    const systemId = trimStr(leaf.systemId);
+    const key = `${shotType}\0${systemId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const resolved = repoRelativePublishedLeafPath(args.datasetRoot, shotType, systemId);
+    if (!resolved.ok) return { ok: false, reason: resolved.reason, issues: resolved.issues };
+    const validated = validateGitTargetPaths(args.repoRoot, args.datasetRoot, [
+      resolved.repoRelativePath,
+    ]);
+    if (!validated.ok) {
+      return { ok: false, reason: validated.reason, issues: validated.issues };
+    }
+    const blob = await readCommittedBlobText({
+      repoRoot: args.repoRoot,
+      commitSha: args.commitSha,
+      repoRelativePath: resolved.repoRelativePath,
+    });
+    if (!blob.ok) return { ok: false, reason: blob.reason, issues: blob.issues };
+    const summarized = summarizePublishedLeafText(blob.text);
+    if (!summarized.ok) {
+      return { ok: false, reason: summarized.reason, issues: [`${shotType}/${systemId}`] };
+    }
+    summaries.push(summarized.summary);
+  }
+  if (summaries.length === 0) {
+    return { ok: false, reason: "leaves-empty", issues: ["leaves:empty"] };
+  }
+  return { ok: true, summaries };
 }
 
 async function verifyOneLeaf(args: {

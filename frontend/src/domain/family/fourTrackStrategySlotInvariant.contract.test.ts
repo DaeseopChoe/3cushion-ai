@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runSaveStrategy, type SaveFlowContext } from "../../application/flows/saveFlow";
-import { runNormalizedLocalMemberSearch } from "../recall/normalizedLocalMemberSearch";
+import { runSpatialRecall } from "../recall/recallEngine";
 import type { CompareProfileId } from "../recall/recallTypes";
 import { createPositionId } from "../positionId";
 import type { Ball3, PositionRecord, StrategyEntry } from "../positionSearchEngine";
@@ -190,21 +190,20 @@ function expectFourTrackFamilyInSlot(
 }
 
 function searchEveryOrientation(
+  dataset: PositionRecord[],
   locs: FamilyLoc[],
   familyId: string,
   slot: Slot,
   profile: CompareProfileId = "adminSearch"
 ) {
   for (const loc of locs) {
-    const r = runNormalizedLocalMemberSearch({ query: { balls: loc.balls }, profile });
+    const r = runSpatialRecall({ dataset, query: { balls: loc.balls }, profile });
     expect(r.kind, `${loc.entry.symmetryOp ?? "AUTHORED"} ${loc.positionId}`).toBe("match");
     if (r.kind !== "match") continue;
     expect(r.positionId).toBe(loc.positionId);
     expect(r.record.strategies[slot]?.familyId).toBe(familyId);
     expect(r.record.strategies[slot]?.memberId).toBe(loc.entry.memberId);
-    const hit = r.hits.find((x) => x.familyId === familyId)!;
-    expect(hit.sourceSlot).toBe(slot);
-    expect(hit.track).toBe(loc.entry.track);
+    expect(r.record.strategies[slot]?.track).toBe(loc.entry.track);
   }
 }
 
@@ -266,7 +265,7 @@ describe("F-3B.2 — SAVE slot = Family strategy slot for all four Tracks", () =
     const h = harness();
     const familyId = saveCreate(h, slot);
     const locs = expectFourTrackFamilyInSlot(h.dataset, familyId, slot);
-    searchEveryOrientation(locs, familyId, slot);
+    searchEveryOrientation(h.dataset, locs, familyId, slot);
   });
 
   it("TEST 6 — symmetry Position/S2 held by another Family → whole CREATE fails atomically", () => {
@@ -375,7 +374,7 @@ describe("F-3B.2 — SAVE slot = Family strategy slot for all four Tracks", () =
       expect(rec.strategies.S1?.familyId).toBe(familyA);
       expect(rec.strategies.S2?.familyId).toBe(familyB);
     }
-    searchEveryOrientation(locsB, familyB, "S2");
+    searchEveryOrientation(h.dataset, locsB, familyB, "S2");
   });
 
   it("TEST 10 — F-3B: failed SAVE (C-0) leaves slots/dataset intact; retry in S2 succeeds", () => {
@@ -420,7 +419,7 @@ describe("F-3B.2 — SAVE slot = Family strategy slot for all four Tracks", () =
         const h = harness();
         const familyId = saveCreate(h, slot, track);
         const locs = expectFourTrackFamilyInSlot(h.dataset, familyId, slot, track);
-        searchEveryOrientation(locs, familyId, slot);
+        searchEveryOrientation(h.dataset, locs, familyId, slot);
       }
     }
   );
@@ -471,8 +470,8 @@ describe("F-3B.2 — SAVE slot = Family strategy slot for all four Tracks", () =
     const familyB = saveCreate(h, "S3");
     const locsB = expectFourTrackFamilyInSlot(h.dataset, familyB, "S3");
     for (const profile of ["userStrict", "userRelaxed"] as CompareProfileId[]) {
-      searchEveryOrientation(locsB, familyB, "S3", profile);
-      searchEveryOrientation(entriesOfFamily(h.dataset, familyA), familyA, "S1", profile);
+      searchEveryOrientation(h.dataset, locsB, familyB, "S3", profile);
+      searchEveryOrientation(h.dataset, entriesOfFamily(h.dataset, familyA), familyA, "S1", profile);
     }
   });
 

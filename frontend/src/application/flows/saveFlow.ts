@@ -8,9 +8,8 @@
 // Batch 6 STEP 6-4: profile / anchors via App-injected HELPER (D-006 / D-007 Closed).
 //
 // 핵심 불변 조건:
-//   Durable corpus write uses persistWorkingCorpusNormalizedAuthority
-//   (canonical NormalizedDatasetEnvelope commit only — Phase C-2; no flat/shadow).
-//   React mirror via setDataset after canonical ok.
+//   This flow only updates the in-memory session dataset (setDataset).
+//   The durable copy is the D History snapshot (historyFlow.runCanonicalSave).
 //   localStorage 직접 접근 금지 in this flow.
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
@@ -56,13 +55,6 @@ import {
   type FamilyRecallMemberFrame,
   type OverwriteRecallContext,
 } from "../../domain/family/overwriteFamilyRoot";
-import {
-  type NormalizedDualWriteResult,
-} from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
-import {
-  persistWorkingCorpusNormalizedAuthority,
-} from "../../domain/dataset/infra/persistWorkingCorpusNormalizedAuthority";
-import type { PersistPositionsWithGenerationResult } from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
 import { createPositionId } from "../../domain/positionId";
 import { upsertPositionRecord } from "../../domain/positionMergeEngine";
 
@@ -150,15 +142,6 @@ export type SaveFlowResult = {
   publishOperation?: PublishOperation | null;
   /** Trusted edit source at OVERWRITE time (NONE on SAVE). */
   overwriteSourceKind?: EditSourceKind;
-  /**
-   * Phase C-2: family_* shadow no longer production-written.
-   * Present for backwards-compatible result shape (always skipped).
-   */
-  normalizedDualWrite?: NormalizedDualWriteResult;
-  /** Phase C-2: flat positions_dataset no longer production-written. */
-  flatProjection?: PersistPositionsWithGenerationResult;
-  /** Canonical normalized commit stage when authority write failed. */
-  corpusPersistStage?: "migrate" | "compose" | "canonical" | "invalidate" | "positions" | "generation";
 };
 
 export type SaveFlowContext = {
@@ -721,44 +704,10 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
     effectiveRenderKeys: Object.keys(ctx.resolvedSlotSysValues || {}),
   });
 
-  // Phase C-2: canonical NormalizedDatasetEnvelope commit only (no flat/shadow).
-  const corpusPersist = persistWorkingCorpusNormalizedAuthority({
-    dataset: updated,
-    shotType: normalizePublishedShotTypeHint(shotType) ?? shotType,
-    systemId,
-  });
-  if (!corpusPersist.ok) {
-    console.warn(
-      "[SAVE] canonical normalized corpus persist failed",
-      corpusPersist.stage,
-      corpusPersist.reason
-    );
-    return {
-      ok: false,
-      reason: `corpus persist failed (${corpusPersist.stage}): ${corpusPersist.reason}`,
-      corpusPersistStage: corpusPersist.stage,
-      normalizedDualWrite: {
-        ok: false,
-        stage: "generation",
-        reason: corpusPersist.reason,
-      },
-    };
-  }
-
-  // DS-002: React in-memory mirror after durable canonical commit succeeds.
+  // In-memory session dataset only; the durable copy is the D History snapshot
+  // written by runCanonicalSave (failure there restores ctx.dataset).
   ctx.setDataset(updated);
 
-  const normalizedDualWrite: NormalizedDualWriteResult =
-    corpusPersist.shadowSync.ok === true
-      ? corpusPersist.shadowSync
-      : {
-          ok: false,
-          stage: "exception",
-          reason:
-            "reason" in corpusPersist.shadowSync
-              ? String(corpusPersist.shadowSync.reason)
-              : "family_* shadow not written (Phase C-2)",
-        };
   ctx.patchSlotRuntimeMeta(slotId, {
     targetBall:
       ctx.targetColor === "red" || ctx.targetColor === "yellow"
@@ -852,8 +801,6 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
   return {
     ok: true,
     updated,
-    normalizedDualWrite,
-    flatProjection: corpusPersist.flatProjection,
     saveIntent,
     destinationFamilyId,
     overwriteSourceKind:

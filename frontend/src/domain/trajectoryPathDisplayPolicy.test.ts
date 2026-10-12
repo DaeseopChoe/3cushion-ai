@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { detectRail, resolveNearestRail } from "./reflectionEngine";
+import * as policy from "./trajectoryPathDisplayPolicy";
 import {
   computeBaselinePhysicalLimitEndIndex,
   computeSameRailCapEndIndex,
-  computeSecondBallCapEndIndex,
   PATH_NODE_MARKS,
   resolveBaselineTrajectoryDisplayCap,
   resolveTrajectoryDisplayCap,
@@ -54,7 +54,7 @@ describe("trajectoryPathDisplayPolicy", () => {
     ];
     const cap = computeSameRailCapEndIndex(pathNodes);
     expect(cap.endIndex).toBe(6);
-    expect(cap.reason).toBe("full");
+    expect(cap.reason).toBe("full_valid_path");
   });
 
   it("Case 3: CO/C3/C6 all BOTTOM — non-consecutive segments allowed", () => {
@@ -71,51 +71,63 @@ describe("trajectoryPathDisplayPolicy", () => {
     expect(cap.endIndex).toBe(6);
   });
 
-  it("Case 4: second ball hit on C6 segment extends to index 6", () => {
-    const pathNodes = [
-      bottom(30),
-      top(4),
-      { x: 48, y: 18 },
-      bottom(26),
-      left(16),
-      top(16),
-      bottom(16),
-    ];
-    const secondBall = bottom(15);
-    const cap = resolveTrajectoryDisplayCap(pathNodes, secondBall, 2);
-    expect(cap.endIndex).toBe(6);
-    expect(cap.reason).toBe("second_ball");
+  it("세컨드볼은 표시 Cap 입력이 아님 — 정책 모듈에 세컨드볼 절단 API 없음", () => {
+    expect("computeSecondBallCapEndIndex" in policy).toBe(false);
+    expect(policy.resolveTrajectoryDisplayCap.length).toBeLessThanOrEqual(2);
   });
 
-  it("same-rail cap wins over second-ball when C4-C5 invalid", () => {
+  it("유효 노드 C6까지 → 마지막 유효 쿠션(C6)까지 표시 · 공 위치 점 없음", () => {
+    const pathNodes = fullPathNodes();
+    const cap = resolveTrajectoryDisplayCap(pathNodes);
+    expect(cap.endIndex).toBe(6);
+    expect(cap.reason).toBe("full_valid_path");
+    expect(cap).not.toHaveProperty("endPoint");
+    expect(slicePathNodesToCap(pathNodes, cap)).toEqual(pathNodes);
+    expect(PATH_NODE_MARKS.slice(0, cap.endIndex + 1)).toContain("C6");
+  });
+
+  it("노드가 C4에서 끝남 → C4까지 (없는 C5/C6 미표시)", () => {
+    const pathNodes = fullPathNodes().slice(0, 5);
+    const cap = resolveTrajectoryDisplayCap(pathNodes);
+    expect(cap.endIndex).toBe(4);
+    expect(slicePathNodesToCap(pathNodes, cap)).toHaveLength(5);
+  });
+
+  it("노드가 C3에서 끊김 → C3까지 (missing_node)", () => {
+    const pathNodes = [...fullPathNodes().slice(0, 4), null, null, null];
+    const cap = resolveTrajectoryDisplayCap(pathNodes);
+    expect(cap.endIndex).toBe(3);
+    expect(cap.reason).toBe("missing_node");
+  });
+
+  it("same-rail(C4–C5) 절단 유지", () => {
     const pathNodes = [
       bottom(30),
       top(4),
       { x: 48, y: 18 },
       bottom(26),
       top(16),
-      top(16),
+      top(16.05),
       bottom(16),
     ];
-    const secondBall = bottom(15);
-    const cap = resolveTrajectoryDisplayCap(pathNodes, secondBall, 2);
+    const cap = resolveTrajectoryDisplayCap(pathNodes);
     expect(cap.endIndex).toBe(4);
     expect(cap.reason).toBe("same_rail");
+    expect(slicePathNodesToCap(pathNodes, cap)).toEqual(pathNodes.slice(0, 5));
   });
 
-  it("default second-ball cap stops at C3 when no hit", () => {
-    const pathNodes = [
-      bottom(30),
-      top(4),
-      { x: 48, y: 18 },
-      bottom(26),
-      left(16),
-      top(16),
-      bottom(16),
-    ];
-    const cap = computeSecondBallCapEndIndex(pathNodes, null, 2);
-    expect(cap.endIndex).toBe(3);
-    expect(cap.reason).toBe("full");
+  it("물리 제한(physicalLimitEndIndex=4) → C4 · 제한이 chain 이상이면 full_valid_path", () => {
+    const limited = resolveTrajectoryDisplayCap(fullPathNodes(), {
+      physicalLimitEndIndex: 4,
+    });
+    expect(limited.endIndex).toBe(4);
+    expect(limited.reason).toBe("physical_limit");
+
+    const open = resolveTrajectoryDisplayCap(fullPathNodes(), {
+      physicalLimitEndIndex: 6,
+    });
+    expect(open.endIndex).toBe(6);
+    expect(open.reason).toBe("full_valid_path");
   });
 
   it("chain break at missing C2 stops before gap", () => {
@@ -126,7 +138,7 @@ describe("trajectoryPathDisplayPolicy", () => {
       bottom(26),
       left(16),
     ];
-    const cap = resolveTrajectoryDisplayCap(pathNodes, null, 2);
+    const cap = resolveTrajectoryDisplayCap(pathNodes);
     expect(cap.endIndex).toBe(1);
     expect(cap.reason).toBe("missing_node");
   });
@@ -155,7 +167,7 @@ describe("trajectoryPathDisplayPolicy", () => {
         baselineC4Value: 25,
       });
       expect(cap.endIndex).toBe(6);
-      expect(cap.reason).toBe("full");
+      expect(cap.reason).toBe("full_valid_path");
     });
 
     it("T1: corrected ends C4 → baseline DISPLAY ends C4 (even if PhysicalLimit C6)", () => {
@@ -244,7 +256,18 @@ describe("trajectoryPathDisplayPolicy", () => {
         baselineC4Value: 25,
       });
       expect(cap.endIndex).toBe(6);
-      expect(cap.reason).toBe("full");
+      expect(cap.reason).toBe("full_valid_path");
+    });
+
+    it("baseline은 세컨드볼 입력이 없어도 자체 PhysicalLimit/chain까지 (C6) · 공 위치 점 없음", () => {
+      const pathNodes = fullPathNodes();
+      const cap = resolveBaselineTrajectoryDisplayCap({
+        pathNodes,
+        baselineC4Value: 25,
+      });
+      expect(cap.endIndex).toBe(6);
+      expect(cap).not.toHaveProperty("endPoint");
+      expect(slicePathNodesToCap(pathNodes, cap)).toEqual(pathNodes);
     });
 
     it("PhysicalLimit still binds when tighter than corrected ceiling", () => {
@@ -277,7 +300,7 @@ describe("trajectoryPathDisplayPolicy", () => {
     expect(skip.endIndex).toBe(6);
     expect(skip.reason).not.toBe("same_rail");
 
-    const resolved = resolveTrajectoryDisplayCap(pathNodes, null, 2, {
+    const resolved = resolveTrajectoryDisplayCap(pathNodes, {
       skipSameRail: true,
     });
     expect(resolved.endIndex).toBeGreaterThanOrEqual(3);
@@ -323,7 +346,7 @@ describe("trajectoryPathDisplayPolicy", () => {
         expect(same.endIndex).toBeGreaterThanOrEqual(2);
         expect(same.stoppedSegment).not.toBe("C1-C2");
 
-        const cap = resolveTrajectoryDisplayCap(pathNodes, null, 2);
+        const cap = resolveTrajectoryDisplayCap(pathNodes);
         expect(cap.reason).not.toBe("same_rail");
         expect(cap.endIndex).toBeGreaterThan(1);
       }
@@ -374,7 +397,7 @@ describe("trajectoryPathDisplayPolicy", () => {
     it("geometry presence: 7 path nodes still cap without cutting at C1", () => {
       const pathNodes = pathWithC1C2(f1.c1_5.C1, f1.c1_5.C2);
       expect(pathNodes.filter(Boolean)).toHaveLength(7);
-      const cap = resolveTrajectoryDisplayCap(pathNodes, null, 2);
+      const cap = resolveTrajectoryDisplayCap(pathNodes);
       expect(cap.endIndex).toBeGreaterThanOrEqual(3);
       expect(cap.stoppedSegment).not.toBe("C1-C2");
     });

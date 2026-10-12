@@ -271,6 +271,35 @@
   padding: 28px 24px;
 }
 
+/* Centered confirm dialog (e.g. [로컬 삭제]) — dimmed page, fits small screens, body scrolls. */
+.modal-backdrop--dim {
+  background: rgba(15, 23, 42, 0.55);
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.modal-panel--confirm {
+  min-width: 0;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 24px 20px;
+}
+
+.modal-panel--confirm .modal-panel-header {
+  flex: 0 0 auto;
+  margin-bottom: 14px;
+}
+
+.modal-panel--confirm .modal-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 /* ============================================
    USER Overlay Shell — Layout SSOT v1.1
    Size = table-area × Ratio · Surface · Position/Drag/Clamp

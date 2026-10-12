@@ -10,7 +10,6 @@ import { CANONICAL_NORMALIZED_CORPUS_KEY } from "../../domain/dataset/infra/cano
 import {
   clearPositionsDatasetMetaForTests,
   loadPositionsDatasetCorpusGeneration,
-  POSITIONS_DATASET_META_KEY,
 } from "../../domain/dataset/infra/positionsDatasetMeta";
 import { persistPositionsDatasetWithGeneration } from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
 import type { Ball3, PositionRecord, StrategyEntry } from "../../domain/positionSearchEngine";
@@ -50,11 +49,6 @@ import {
   commitDerivedApprovalDataset,
   type DerivedReviewBaselineSnapshot,
 } from "./derivedApprovalFlow";
-import {
-  runWorkspaceLocalStorageCleanup,
-  WORKSPACE_CLEANUP_PRESERVE_DATASET,
-} from "../../hooks/useSettings.js";
-
 function createMemoryLocalStorage() {
   const map = new Map<string, string>();
   return {
@@ -233,14 +227,14 @@ describe("feature flag / production read", () => {
 });
 
 describe("SAVE dual-write", () => {
-  it("Phase C-2: SAVE writes canonical only (no flat/shadow production mirror)", () => {
+  it("Task F: SAVE writes nothing to browser storage (D History is the only work store)", () => {
     const { ctx, capture } = buildSaveCtx({
       saveWorkingDataset: undefined,
     });
     const result = runSaveStrategy(ctx);
     expect(result.ok).toBe(true);
     expect(result.fourTrackWritten).toBe(true);
-    expect(result.normalizedDualWrite?.ok).toBe(false);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeNull();
     expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeNull();
@@ -294,7 +288,7 @@ describe("SAVE dual-write", () => {
 });
 
 describe("Derived Approval dual-write", () => {
-  it("Phase C-2: Approval writes canonical; runtime setDataset; no flat/shadow", () => {
+  it("Task F: Approval hands the graph to History; runtime setDataset; no browser storage", async () => {
     const written = writeFourTrackFamilyMembers([], {
       balls: collinearBalls(20),
       targetBall: "red",
@@ -313,20 +307,21 @@ describe("Derived Approval dual-write", () => {
     if (!approved.ok) throw new Error(approved.reason);
 
     let legacy: PositionRecord[] | null = null;
-    const commitHistory = vi.fn();
-    const commit = commitDerivedApprovalDataset({
+    const finalizeHistory = vi.fn(async () => ({ ok: true }));
+    const commit = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaselineA(),
       setDataset: (updated) => {
         legacy = updated;
       },
       restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: commitHistory,
+      familyId: "fm_family1",
+      finalizeHistory,
     });
 
-    expect(commitHistory).not.toHaveBeenCalled();
-    expect(commit.canonicalOk).toBe(true);
-    expect(commit.normalizedDualWrite.ok).toBe(false);
+    expect(commit.ok, commit.reason).toBe(true);
+    expect(finalizeHistory).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeNull();
     expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
     expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
     expect(legacy).toBeTruthy();
@@ -497,7 +492,7 @@ describe("failure policy", () => {
     }
   });
 
-  it("History restore → SAVE restores canonical (flat freshness N/A in C-2)", () => {
+  it("stale flat leftover does not affect SAVE and is not written by it", () => {
     const { ctx } = buildSaveCtx({ saveWorkingDataset: undefined });
     expect(runSaveStrategy(ctx).ok).toBe(true);
 
@@ -507,7 +502,7 @@ describe("failure policy", () => {
     const { ctx: ctx2, capture } = buildSaveCtx({ saveWorkingDataset: undefined });
     const result = runSaveStrategy(ctx2);
     expect(result.ok).toBe(true);
-    expect(result.normalizedDualWrite?.ok).toBe(false);
+    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeNull();
     expect(capture.dataset.length).toBeGreaterThan(0);
     expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeTruthy(); // leftover flat ignored
   });
@@ -521,23 +516,5 @@ describe("failure policy", () => {
     const sync = syncPositionDatasetToNormalizedFamilyStore(written.dataset);
     expect(sync.ok).toBe(false);
     if (!sync.ok) expect(sync.stage).toBe("generation");
-  });
-
-  it("local_delete: preserves normalized_dataset; may remove obsolete flat/shadow", () => {
-    const { ctx } = buildSaveCtx({ saveWorkingDataset: undefined });
-    expect(runSaveStrategy(ctx).ok).toBe(true);
-    // Seed obsolete flat leftover
-    localStorage.setItem(WORKING_DATASET_KEY, "[]");
-    localStorage.setItem(POSITIONS_DATASET_META_KEY, "{}");
-
-    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
-
-    runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_PRESERVE_DATASET);
-
-    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
-    expect(localStorage.getItem(WORKING_DATASET_KEY)).toBeNull();
-    expect(localStorage.getItem(POSITIONS_DATASET_META_KEY)).toBeNull();
-    expect(localStorage.getItem(FAMILY_MASTERS_STORAGE_KEY)).toBeNull();
-    expect(localStorage.getItem(FAMILY_MEMBERS_STORAGE_KEY)).toBeNull();
   });
 });

@@ -2,7 +2,285 @@
 
 Version : v1.00
 Period : 2026-09
-Status : Active Project Log
+Status : Closed (September records only)
+
+> 2026-10 entries → `PROJECT_LOG_2026-10.md` (moved 2026-10-12).
+
+---
+
+# 2026-09-30 — Task F: LocalDB removed · D-drive History is the only work store
+
+## Mode
+
+**Agent** · code + tests + docs · uncommitted · no commit / push / Publish · migration verified by code + tests only (never run on real browser data by the agent) · tests use memory storage + `os.tmpdir()` repos only
+
+## Why
+
+The same work lived in three places (LocalDB `normalized_dataset` + flat/shadow keys, browser `workspace_history`, Published leaf). They could drift, [로컬 삭제] and History Delete meant different things, and browser storage could hit QuotaExceededError mid-SAVE. The admin needs one ledger.
+
+## Change
+
+- New server store `<repoRoot>/.workspace-data/` (`history-index.json` light metadata + `history/snapshot-<id>.json`), temp file + rename, snapshot-then-index with rollback, revision/status cross-check. Git-ignored.
+- Vite dev-only `POST /api/work-history` (`apply: "serve"`, loopback Host/remote, Origin, JSON, body cap). Request = `{ op, input }`; no paths / repoRoot / drive / shell; strict snapshotId; short error codes only. Nothing on Production.
+- SAVE → PENDING snapshot (failure = SAVE failure, dataset restored) · Approve → same snapshot APPROVED with the full graph (`commitDerivedApprovalDataset` async `finalizeHistory`) · F5 → PENDING snapshot → [파생 승인 재개] / [새 SAVE 취소] · Recall = index list + one snapshot · Publish input = APPROVED graph, success marks PUBLISHED · Delete = snapshot + index entry, Published leaf untouched.
+- Migration of 7 legacy keys: ADMIN prompt [옮기기] / [나중에]; analyze read-only → import → verify → remove keys; failure keeps data byte-identical with "작업 데이터 이전에 실패했습니다. 기존 데이터는 보존했습니다."; fixed ids, no duplicates on re-run; orphan LocalDB Families become `legacy-family-<familyId>` (APPROVED if derived Members exist, else PENDING).
+- Removed: [로컬DB] rail button, [로컬 삭제] + dialog, `localDbDeleteFlow`, `localDbWorkCleanup`, LocalDB Search (`adminLocalDbFlow`, `normalizedLocalMemberSearch`), `useShotSlots.saveShot`, browser-history repo-only Publish helper.
+- Legacy corpus modules (`canonicalNormalizedCorpusStore`, `persistWorkingCorpusNormalizedAuthority`, `loadProductionCompatibleDataset`, `pendingNewFamilySaveRecoveryStore`) remain for non-work callers; SAVE / approve / recall / Publish do not use them (`localDbRemoval.contract.test.ts`).
+
+## Tests
+
+- New: `workHistoryFileStore` · `workHistoryPublish` · `legacyWorkMigration` · `workHistoryFlows` · `localDbRemoval` contracts (5 files / 66 tests). On the pre-change code all 5 suites fail (History modules absent).
+- Deleted LocalDB-only suites (8): `LocalDbDeleteConfirmDialog`, `normalizedLocalMemberSearch`, `historyApprovedFamilyGraph`, `historySearchCorpusSeparation`, `pendingSaveRecovery`, `pendingSaveCancel`, `workspaceCleanup.preserveDataset`, `workspaceCleanup.phase1.ux`. Rewritten to the async History API / "no browser storage writes": derivedApprovalFlow, normalizedDualWrite, historyTransitionalH3, canonicalNormalizedCorpus, aiOverlaySaveIsolation, adminStrategyDestinationSlot, trustedFamilyOverwrite, fourTrack, lifecycle + Publish source contracts.
+- Full suite 194 files / 2219 tests pass · `npm run build` pass · ESLint: new/edited JSX/JS clean; App.jsx 77 (baseline 80, none new); Stage.jsx same set as HEAD.
+
+## Not changed
+
+Ball-role SSOT (`balls.cue` 내공 · `balls.target` 앞공 · `balls.second` 뒷공) · Master/Member split · Track / lineage / C3+ · Git Publish · Production read-back · 12MiB cap · 현황 report · AI library · `dataset/` · `incidenceAngle.ts` · `.tmp.driveupload/` · the real `.workspace-data/` contents.
+
+---
+
+# 2026-09-30 — Published leaf size cap unified at 12MiB · LocalDB delete dialog wording
+
+## Mode
+
+**Agent** · code + tests + docs · uncommitted · no Publish executed · browser LocalDB / History / Production NOT touched (temp repos + fake Production fetch only)
+
+## Why
+
+Production read-back capped responses at 5,000,000 bytes and `git show` at 8MiB, so any leaf above ~4.77MiB failed verification and the 5MiB / 10MiB 현황 states could never appear on a verified Publish.
+
+## Change
+
+- `PUBLISHED_LEAF_MAX_BYTES` = 12MiB (exact 12MiB allowed, +1 byte rejected) now bounds every read of leaf content: Production read-back default, committed blob (verification + 현황), staged blob check before commit.
+- Clear codes: `response-too-large` (Content-Length pre-check, stream cancelled at the cap, non-stream fallback counts UTF-8 bytes) · `commit-blob-too-large` (fatal verify) · `staged-blob-too-large` (blocked before commit/push). `gitExec` maps Node's maxBuffer error to `git-output-too-large`; other Git output keeps the 8MiB default.
+- Dialog: "LocalDB에 저장된 Family N개와 Member M개를 삭제합니다."
+
+## Tests
+
+- New `publishedLeafSizeLimit.contract.test.ts` (11, real 5MiB / 10MiB−1 / 10MiB / 12MiB / 12MiB+1 blobs). Dialog test updated. Failing-first: 10 failures on old code (9 size + 1 wording). After: green.
+- Full suite 197 files / 2253 tests pass · `npm run build` pass.
+
+## Not changed
+
+Status thresholds / labels · origin, path validation, `cache: no-store`, 3s / 4s polling · Publish request body cap · shards / manifest / DB · schema · C3+ · HP/T · History delete · LocalDB delete scope · AI library · `incidenceAngle.ts` · `.tmp.driveupload/`.
+
+---
+
+# 2026-09-30 — Publish success alert shows the Published 현황 (size · counts · time · scale status)
+
+## Mode
+
+**Agent** · code + tests + docs · uncommitted · no Publish executed · browser LocalDB / History / Production NOT touched (temp repos + fake Production fetch only)
+
+## Change (user view)
+
+After "HEAD: …" the verified Publish alert adds, per leaf: "{공략} · {시스템} Published 현황", Family, Member, 파일 (UTF-8 bytes), 이번 Publish·검증 시간, 상태 (정상 / 분할 준비 ≥5MiB / 분할 전환 필요 ≥10MiB / 데이터베이스 전환 검토 Family ≥1,000 or Member ≥1,000,000, highest priority). Multi-leaf: one block each, time once. Unreadable summary: "Published 현황을 읽지 못했습니다." + time; Publish stays successful.
+
+## Implementation
+
+- Host: after `PRODUCTION_VERIFIED`, `readCommittedPublishedLeafSummaries` reads the verified commit blob per leaf (same path validation + `git show` as verification) → `leafSummaries` (shotType · systemId · systemLabel · familyCount · memberCount · byteLength only). Failure → `leafSummaryError` code + console warn. NO_CHANGE uses current HEAD.
+- Client: `parsePublishedLeafSummaries` keeps only those fields; `publishStatusReport.ts` formats; `useSettings` times each Git Publish request with `timePublishCall` (overwrite confirm excluded; retry success uses retry time).
+
+## Tests
+
+- New `publishedLeafSummary.contract.test.ts` (5, temp Git repo + fake Production) and `publishStatusReport.contract.test.ts` (14). Failing-first: both files failed on old code (modules missing). After: green.
+- Full suite 196 files / 2242 tests pass · `npm run build` pass.
+
+## Not changed
+
+Shards / manifest / DB · Search timing / tolerance · schema · C3+ · HP/T · History delete · LocalDB manual delete · AI library · Production poll (3s / 4s) and read-back limits · `incidenceAngle.ts` · `.tmp.driveupload/`. Known edge (reported): read-back cap 5,000,000 bytes / `git show` 8MiB mean leaves above ~4.77MiB fail verification today.
+
+---
+
+# 2026-09-30 — LocalDB is never auto-deleted; the admin cleans it manually via [로컬 삭제]
+
+## Mode
+
+**Agent** · code + tests + docs · uncommitted · no Publish executed · browser LocalDB / History / AI sentences NOT touched (fixtures / memory storage only)
+
+## Change (user view)
+
+- Verified Publish (Publish + Git + Production read-back) no longer removes the Family from LocalDB. The success alert shows only Publish / Published verification / HEAD commit; the "⚠ 로컬 데이터 보존 …: Publish가 완료되지 않았습니다" line is gone. The same data can be recalled from LocalDB right after Publish.
+- [로컬 삭제] dialog: title "로컬 작업 데이터 삭제", "LocalDB에 저장된 Family N개와 파생 Member 포함 Member M개를 삭제합니다.", "용량 약 X MB", "이 작업은 되돌릴 수 없습니다.", [취소] [LocalDB 작업 데이터 모두 삭제]. No "미배포" and no preservation paragraph. Empty LocalDB → "삭제할 로컬 작업 데이터가 없습니다." + [닫기] only.
+- Delete scope: all LocalDB work data (unpublished work, published copies, the pending new-SAVE recovery record). Key list unchanged; History / Published / AI sentences / other keys kept; no `localStorage.clear()`.
+
+## Implementation
+
+- `hooks/useSettings.js`: removed `applyLocalCleanupAfterVerifiedPublish` + `LOCAL_CLEANUP_CODE_LABELS` and both success-branch calls; alerts append only blocked-row lines. Publish success check / Git / Production verify / `updateSnapshotsExported` unchanged.
+- `localDbWorkCleanup.ts`: deleted `applyPostPublishLocalCleanup` / `removeLocalFamilyAfterVerifiedPublish` and their types; manual delete + summary only.
+- `LocalDbDeleteConfirmDialog.jsx` · `localDbDeleteFlow.ts` · `pendingSaveRecoveryFlow.ts` (local delete scope line): wording.
+
+## Tests
+
+- `historyApprovedFamilyGraph.contract.test.ts` §7/8/8b rewritten for the new policy; `LocalDbDeleteConfirmDialog.contract.test.jsx` and `workspaceCleanup.phase1.ux.contract.test.ts` updated. Failing-first on old code: 7 failures (auto-cleanup still wired; old dialog / message wording). After: green.
+- Full suite 194 files / 2223 tests pass · `npm run build` pass.
+
+## Not changed
+
+FamilyMaster / FamilyMember schema · C3+ generation · HP/T hydrate / inversion · search tolerance · History delete policy · Publish Git / Production verification · AI 30 FIFO · `incidenceAngle.ts` · `.tmp.driveupload/`.
+
+---
+
+# 2026-09-29 — New SAVE ↔ Derived Approval gaps closed: reload (F5) recovery prompt · review-start failure auto revert
+
+## Mode
+
+**Agent** · code + tests + docs · uncommitted · no Publish executed · browser LocalDB / History / AI sentences NOT touched · Published leaves unchanged (fixtures / memory storage only)
+
+## Why
+
+The entry below made cancel revert a new SAVE, but two gaps remained between SAVE and Derived Approval: a page reload lost the in-memory review/revert token (the PENDING row and new Family stayed with no way to finish), and a review that failed to open right after SAVE left the SAVE in place.
+
+## Change (user view)
+
+- **Reload before approval:** the new SAVE is not auto-deleted. On entering ADMIN (once per page load) a prompt shows "파생 승인이 완료되지 않은 새 작업이 있습니다." with [파생 승인 재개] / [새 SAVE 취소] (no close button).
+  - [파생 승인 재개]: the review is rebuilt from the Family already in LocalDB — same familyId, same Member ids, same PENDING row; no new Family/row, no duplicate base Members; screen restored from the row's SAVE-time state. Approve / cancel then behave exactly as before. If the review cannot be rebuilt, no fake review opens, nothing is deleted, and the alert names the cause and the cleanup options.
+  - [새 SAVE 취소]: same revert as review cancel (LocalDB pre-SAVE bytes, PENDING row removed, recovery record removed). Other Families/rows, Published and AI sentences untouched.
+- **Review cannot start after SAVE:** the whole SAVE is reverted automatically; alert "파생 검토를 시작할 수 없어 새 저장을 되돌렸습니다. 기존 작업 데이터는 유지되었습니다." If a safe revert is impossible, nothing is deleted and the alert gives the exact reason plus History Delete / [로컬 삭제] scopes.
+- Incomplete / mismatched recovery info, legacy PENDING rows without a record, approved Families, OVERWRITE: no prompt, no auto-delete, no conversion. Unrecoverable cases show "승인 전 작업을 자동 복구할 수 없습니다" with cleanup scopes.
+
+## Implementation
+
+- New `domain/dataset/infra/pendingNewFamilySaveRecoveryStore.ts`: key `pending_new_family_save_recovery_v1` (schemaVersion 1) = historySnapshotId · familyId · pre-SAVE `normalized_dataset` bytes · post-SAVE LocalDB digest · C3+ authored path nodes. read (strict validation) / write (readback) / clear (optionally only for a given row id).
+- `canonicalNormalizedCorpusStore.digestCanonicalCorpusRaw` (length + 64-bit hash). Cancel token field `localDbRawAfterSave` → `localDbAfterSaveDigest` (no second full LocalDB copy in memory or storage); cancel compares digests and compensates with the bytes it just read.
+- New `application/flows/pendingSaveRecoveryFlow.ts`: `startNewFamilyDerivedReview` (open review; failure → `cancelPendingNewFamilySave`; success → write record) · `inspectPendingNewFamilySaveRecovery` (NONE / RECOVERABLE / UNRECOVERABLE; only ever removes the record, and only when its row is gone or APPROVED) · `rebuildPendingNewFamilyReview` (no writes) · user-facing describers.
+- Record cleared by: `cancelPendingNewFamilySave` after LocalDB restore · `applyApprovedFamilyGraphToHistorySnapshot` on success · [로컬 삭제] (key added to `LOCAL_DB_WORK_STORAGE_KEYS`).
+- `components/PendingSaveRecoveryPrompt.jsx` (ModalShell). `App.jsx`: reload check effect · resume / cancel handlers · `openUnifiedDerivedPreview` uses `startNewFamilyDerivedReview` for new SAVEs · review cancel re-reads LocalDB when no in-memory pre-SAVE dataset exists (resumed review).
+
+## Tests
+
+- New `pendingSaveRecovery.contract.test.ts` (16): failing-first confirmed (module missing), then green. Covers reload detection, resume (same ids; approved graph = what the original review would approve, derived ids masked since Approve mints fresh ids per run), reload cancel, review-start failure revert, 5 damaged-record cases + deleted row, approved/OVERWRITE/legacy rows, local delete scope, prompt SSR.
+- `pendingSaveCancel.contract.test.ts` updated for the digest token field.
+- Full suite 193 files / 2212 tests pass · `npm run build` pass.
+
+## Not changed
+
+Family ID collision / confirmed-overwrite familyId policy · HP/T same-Track inversion · History Recall post-C3 trajectory · C3+ / Product rules · Published leaves · History Delete / [로컬 삭제] / Publish auto-cleanup policies (except the new key in local delete) · AI 30 FIFO · History migration · `incidenceAngle.ts` · `.tmp.driveupload/`.
+
+---
+
+# 2026-09-29 — New SAVE Derived Review cancel reverts the whole SAVE · Published full reset for new verification
+
+## Mode
+
+**Agent** · code + tests + docs + repo `dataset/` leaf reset (user-approved) · uncommitted · no Publish executed · browser LocalDB / History / AI sentences NOT touched (fixtures / memory storage only)
+
+## Why
+
+The lifecycle entry below left a known edge: cancelling the Derived Review after a new SAVE kept the new Family in LocalDB and a "파생 승인 전 · Publish 불가" History row. A new SAVE and its Derived Approval are one operation, so cancel must undo the SAVE. Separately, 木鷄님 approved resetting all Published test data to start a clean verification.
+
+## Change (user view)
+
+- New SAVE → Derived Review → [취소]: the new Family (with its AUTHORED/SYMMETRY base Members) leaves LocalDB (exact pre-SAVE bytes restored), the PENDING History row is deleted, temp family/member identity and review state are cleared, and the screen returns to the pre-SAVE editing state. Toast: "저장을 취소했습니다. 새 Family와 History 기록을 모두 되돌렸습니다."
+- If the revert cannot be done safely (row already approved · History unreadable · LocalDB changed after SAVE · LocalDB restore failed), LocalDB and History are left unchanged, the review stays open, and an alert names the failed step. If only the History row deletion fails after LocalDB was restored, the row stays PENDING (never publishable) and the alert asks the user to delete it in History.
+- OVERWRITE · History Recall · Published Recall · approved Families: unchanged (no cancel token issued).
+- Published: both tracked leaves reset to valid empty v3 leaves (see below). Search now shows no Published data until new data is published.
+
+## Implementation
+
+- New `application/flows/pendingSaveCancelFlow.ts`: `cancelPendingNewFamilySave(token)` (check row PENDING + same familyId → check LocalDB equals post-SAVE bytes → restore pre-SAVE bytes → remove row) and `describePendingSaveCancelFailure`.
+- `domain/workspaceHistoryPublishGraph.ts`: `checkPendingWorkspaceHistorySnapshot` · `removePendingWorkspaceHistorySnapshot` — raw read (unreadable History is never overwritten), removes only a PENDING row of that Family, readback verified.
+- `historyFlow.runCanonicalSave`: new-Family SAVE (PENDING mode) returns `pendingNewFamilySave { historySnapshotId, familyId, localDbRawBefore, localDbRawAfterSave }`.
+- `useSettings`: `refreshWorkspaceHistory`. `App.jsx`: `pendingNewFamilySaveRef` (token + pre-SAVE dataset / published search context / screen) replaces `pendingDerivedHistorySnapshotIdRef`; `handleCancelDerivedReview` runs the revert.
+
+## Published reset (repo `dataset/`)
+
+| Leaf | Before | After |
+|------|--------|-------|
+| `dataset/뒤돌리기/파이브앤하프/positions.json` | v3 · FamilyMaster 5 · FamilyMember 1460 · exportedAt 2026-09-25T10:54:06.730Z · sourceSnapshotId 0600c4f9… | v3 · 0 · 0 · no exportedAt / sourceSnapshotId |
+| `dataset/옆돌리기/파이브앤하프/positions.json` | legacy flat v2 · records 256 (FamilyMaster/Member 0 on disk; loader converts in memory) · exportedAt 2026-08-27T09:37:25.635Z · sourceSnapshotId 2d9dec77… | v3 · 0 · 0 · no exportedAt / sourceSnapshotId |
+
+- Content = byte-identical to the app's canonical empty leaf (`createEmptyNormalizedPublishedLeaf` + `serializeNormalizedCandidate`, 170 bytes). In-place overwrite; no file/folder deletion. Reset executed only after PENDING-cancel tests · contract tests · C3+ tests · full suite · build all passed.
+- Loader check: `parsePublishedLeafPayload` → `empty` · `resolveExistingNormalizedLeafBase` → `ok:v3` · Family publish into a temp copy of each leaf → +1 Master / 4 Members.
+- Tests that pinned old leaf contents: `legacyV2MetaRepair` / `legacyProductTwinDedupe` now read a frozen test-only copy `frontend/src/domain/family/__fixtures__/legacySideLeaf.v2.2026-08-27.json` (SHA-256 identical to the pre-reset 옆돌리기 leaf); the 뒤돌리기 real-leaf check and `userSearchRolePermutation` static-artifact check now assert "valid leaf, empty allowed".
+
+## Tests
+
+- Failing-first `pendingSaveCancel.contract.test.ts` (12): missing module → with a no-op stub 11 failed / 1 passed (SAVE-time History failure already handled) → 12/12 PASS after.
+- New `publishedLeafLoad.contract.test.ts` (5): every tracked leaf loads (`ok|empty`) through the client loader and the Publish base reader; publish into a copy works.
+- Pre-reset gate: full 192 files / 2194 tests PASS · build PASS. Post-reset: full 192 files / 2196 tests PASS · build PASS (one run had a `gitPublish` temp-repo push flake under parallel load; 17/17 in isolation and next full run clean). Manual browser NOT RUN.
+
+## Known edges (reported, not policy changes)
+
+- Page reload during a Derived Review loses the in-memory revert token: the new Family and its PENDING row remain (not publishable); clean up via History Delete + [로컬 삭제].
+- If Derived Review cannot be created right after SAVE (existing alert "Derived Review를 시작할 수 없습니다"), the SAVE is not reverted.
+- `autoSave` file export written at SAVE time is not reverted by cancel.
+
+## Not changed
+
+OVERWRITE · Recall paths · approval flow · History Delete · [로컬 삭제] · post-Publish auto removal · AI 30 FIFO · C3+ generation · HP/T inversion · History recall C3+ trajectory · system definitions / config / images · browser LocalDB / History / AI data · `incidenceAngle.ts` · `.tmp.driveupload/`.
+
+---
+
+# 2026-09-29 — LocalDB / History / Publish Lifecycle (approved graph in History · post-Publish auto removal · LocalDB-only local delete)
+
+## Mode
+
+**Agent** · code + tests + docs · uncommitted · no Publish executed · no real LocalDB / History / Published data touched (fixtures / memory storage only)
+
+## Why
+
+Real data: `fm_2a1440b5` LocalDB held 440 Members (AUTHORED 1 · SYMMETRY 3 · DERIVED_CUE_IMPACT 16 · DERIVED_C3_PLUS 84 · DERIVED_CUE_C3_PRODUCT 336) while History v001 / Published held only the 4 SAVE-time Members — Derived Approve updated LocalDB only; Publish sent the SAVE-time flat payload.
+
+## Change (user view)
+
+- SAVE of a new Family → History row "파생 승인 전 · Publish 불가" → Approve → the same row gets the full approved graph ("파생 승인 완료 · N개") and becomes publishable.
+- OVERWRITE → no Derived re-review; History row = updated Master + every preserved Member.
+- Publish success (PRODUCTION_VERIFIED + same familyId + LocalDB equals the published graph) → that one Family is removed from LocalDB; otherwise LocalDB kept with a warning.
+- [로컬 삭제] now deletes only unpublished LocalDB work data (5 keys) with a summary confirm; History / Published / AI sentences kept. (Previous behavior deleted History and kept LocalDB — inverted.)
+- History delete confirm states that LocalDB / Published / AI are not deleted.
+
+## Implementation
+
+- New: `publishFamilyGraph.ts` · `workspaceHistoryPublishGraph.ts` · `historyPublishInput.ts` · `historyRowView.ts` · `dataset/infra/localDbWorkCleanup.ts`.
+- `historyFlow.runCanonicalSave`: History mode (PENDING_DERIVED_APPROVAL / OVERWRITE_PRESERVED / IMMEDIATE), returns `historySnapshotId`, restores LocalDB bytes when History write fails.
+- `derivedApprovalFlow.commitDerivedApprovalDataset`: optional `finalizeHistory` — prebuilt graph → LocalDB commit → readback graph equality → History finalize → rollback on failure (`historyOk` · `rolledBack`).
+- Publish transport: client sends `publishFamilyGraph` (legacy rows: flat payload); server converts graph → flat payload before the unchanged leaf/occupancy/F-2E pipeline; ok results carry `publishedFamilyId`; graph + flat together rejected; dev publish body limit 1MB → 8MB.
+- `datasetExport.buildDatasetExport`: graph branch; PENDING fail-closed (no LocalDB fallback).
+- AI sentence library: verified existing 30 FIFO (`registerOnePointLibraryItem`) — no change.
+
+## Tests
+
+- Failing-first: `historyApprovedFamilyGraph.contract.test.ts` (1 · 1b · 2 · 3 · 3-App · 4 · 6 · 7 · 8 · 9 · 10 · 11) + `WorkspaceHistoryModal.derivedBadge.test.jsx` (5) — failed on missing modules before implementation → 16/16 PASS after.
+- Old-policy tests updated to the confirmed policy: local-delete cleanup (`workspaceCleanup.preserveDataset` · `workspaceCleanup.phase1.ux` · `normalizedDualWrite` · `loadProductionCompatibleDataset` · `rematerializeFamilyParts`) and flat-payload wiring source checks (`historyOnePublishUx` · `publishOperation` · `publishFamilyPayload` · `publishedFamilyPublish`).
+- Full: 190 files / 2179 tests PASS · build PASS. Manual browser NOT RUN.
+
+## Known edges (reported, not policy changes)
+
+- Cancelled Derived Review leaves a PENDING (non-publishable) History row; the user can delete it.
+- OVERWRITE of a never-approved Family produces a publishable row with its existing Members.
+- History storage grows (~250KB per 440-Member graph); a failed History write cancels the SAVE/Approve with a message.
+
+## Not changed
+
+fm_2a/fm_3c collision policy · confirmed-overwrite familyId · HP/T track inversion · History recall C3+ trajectory · C3+ generation rules · Published data · old History conversion · `incidenceAngle.ts` · `.tmp.driveupload/`.
+
+---
+
+# 2026-09-28 — C3+ 뒷공 파생 범위 = 전체 득점선 (C3 → system tail → EXT1 → EXT2)
+
+> Recorded 2026-10-12 (the code change was made 2026-09-28 and stayed uncommitted until the 2026-10-12 consolidation commit).
+
+## Mode
+
+**Agent** · code + tests · uncommitted until 2026-10-12 · no Publish
+
+## Why
+
+`resolveC3PlusScoringLine` cut the scoring line after the first segment the original 뒷공 (`balls.second`) touched. When the 뒷공 sat on C3→C4, no C3+ Members were generated for C4…C6 / Extension positions, so Search on those parts of the scoring line found "해당 데이터 없음".
+
+## Change
+
+- `c3PlusScoringPath.ts`: scoring line = the whole candidate path (C3 → … → system tail → EXT1? → EXT2?). The first 뒷공 hit segment still gates eligibility (`NO_SB_HIT`) but no longer ends the sample range; `SCORING_ENDPOINT_INVALID` branch removed. Display Cap still not used.
+- C3+ Members change only `balls.second`; `balls.cue` (내공) / `balls.target` (앞공) stay original. Product = Nc + Ns + Nc×Ns per track.
+
+## Tests
+
+- New `c3PlusFullScoringLine.test.ts` (resolver / generator 1, 2, 3a, 3b, 6 · Unified review Product 4 tracks); `generateC3PlusScoringDerivedMembers.test.ts` expectations updated to the full line.
+
+## Not changed
+
+Cue→Impact derived axis · Display Boundary · Search tolerance · Family storage schema · ball-role SSOT · Published data · `incidenceAngle.ts` · `.tmp.driveupload/`.
 
 ---
 

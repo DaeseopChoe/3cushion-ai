@@ -1,14 +1,13 @@
 /**
- * Trajectory 표시 레이어 cap — same-rail 연속 segment 차단 · 세컨드볼 종료.
- * Baseline(5&Half): PhysicalLimit + chain/same-rail + corrected DISPLAY ceiling.
- * Internal baseline pathNodes(C5/C6)는 보존; cushionPath/labels만 Cap으로 절단.
- * corrected second-ball XY로 baseline을 spatial clip하지 않음 (endIndex 상한만 공유).
- * (DISPLAY_BOUNDARY_POLICY_SSOT · 5&Half Baseline Display Ceiling).
+ * Trajectory 표시 레이어 cap — 마지막 유효 쿠션까지 표시.
+ * endIndex = min(chain break, same-rail, PhysicalLimit?). 세컨드볼(balls.second)은 입력이 아니다.
+ * Baseline(5&Half): 자체 PhysicalLimit + chain/same-rail (+ 선택적 cushion-order ceiling).
+ * Internal pathNodes(C5/C6)는 보존; cushionPath/labels만 Cap으로 절단.
+ * (DISPLAY_BOUNDARY_POLICY_SSOT v1.7).
  * 계산 엔진/SYS 값 생성과 분리 (Display Layer only).
  */
 
 import { detectRail, resolveNearestRail } from "./reflectionEngine";
-import { isSegmentHitBall } from "../utils/geometry";
 
 export const PATH_NODE_MARKS = [
   "CO",
@@ -29,11 +28,12 @@ export const PATH_INDEX_C6 = 6;
 
 export type PathPoint = { x: number; y: number };
 
+/** full_valid_path: 절단 규칙 없음 — 유효 경로 마지막 노드까지. */
 export type DisplayCapReason =
-  | "full"
+  | "full_valid_path"
   | "missing_node"
   | "same_rail"
-  | "second_ball"
+  | "physical_limit"
   | "baseline_physical"
   | "corrected_ceiling";
 
@@ -52,14 +52,15 @@ export type TrajectoryDisplayCapOptions = {
    * detectRail() / resolveNearestRail() themselves are never modified — Cap policy only.
    */
   skipSameRail?: boolean;
+  /** 시스템 물리 표시 상한(pathNodes index). */
+  physicalLimitEndIndex?: number | null;
 };
 
 export type BaselineDisplayCapInput = {
   pathNodes: (PathPoint | null | undefined)[];
   /**
-   * 5&Half: corrected DISPLAY endIndex (cushion-order ceiling).
-   * When finite ≥ 0, baseline display cannot exceed this index.
-   * Does NOT spatialize-clip baseline to corrected second-ball XY.
+   * Optional cushion-order ceiling (index only, never a spatial clip).
+   * buildTrajectory does not supply it: baseline keeps its own chain/same-rail/PhysicalLimit range.
    */
   correctedDisplayEndIndex?: number;
   /** Baseline 4쿠션 SYS 값 (DisplayModel과 동일 기준). */
@@ -137,7 +138,7 @@ export function computeChainBreakCapEndIndex(
     lastValid = i;
   }
 
-  return { endIndex: lastValid, reason: "full" };
+  return { endIndex: lastValid, reason: "full_valid_path" };
 }
 
 /** 연속 segment 양 끝이 동일 rail이면 해당 segment 직전 node에서 종료. */
@@ -166,54 +167,25 @@ export function computeSameRailCapEndIndex(
     }
   }
 
-  return { endIndex: limit, reason: "full" };
+  return { endIndex: limit, reason: "full_valid_path" };
 }
 
-/** post-C3 segment 세컨드볼 hit — 기본 endIndex 3 (C3까지). */
-export function computeSecondBallCapEndIndex(
-  pathNodes: (PathPoint | null | undefined)[],
-  secondPoint: PathPoint | null | undefined,
-  hitTolerance: number
-): TrajectoryDisplayCap {
-  const chain = computeChainBreakCapEndIndex(pathNodes);
-  const maxChain = chain.endIndex;
-  if (maxChain < 0) {
-    return { endIndex: -1, reason: "missing_node" };
+function normalizeEndIndexLimit(
+  value: number | null | undefined
+): number | null {
+  if (value == null || !Number.isFinite(value)) {
+    return null;
   }
-
-  let endIndex = Math.min(3, maxChain);
-  let reason: DisplayCapReason = "full";
-
-  if (isValidPoint(secondPoint) && maxChain >= 4) {
-    const postC3Segments: [PathPoint | null | undefined, PathPoint | null | undefined][] =
-      [
-        [pathNodes[3], pathNodes[4]],
-        [pathNodes[4], pathNodes[5]],
-        [pathNodes[5], pathNodes[6]],
-      ];
-
-    for (let i = 0; i < postC3Segments.length; i++) {
-      const [A, B] = postC3Segments[i];
-      if (!isValidPoint(A) || !isValidPoint(B)) {
-        continue;
-      }
-      if (isSegmentHitBall(A, B, secondPoint, hitTolerance)) {
-        endIndex = Math.min(4 + i, maxChain);
-        reason = "second_ball";
-        break;
-      }
-    }
-  }
-
-  return { endIndex, reason };
+  const n = Math.trunc(value);
+  return n >= 0 ? n : null;
 }
 
 function bindingReason(
   endIndex: number,
   chain: TrajectoryDisplayCap,
   sameRail: TrajectoryDisplayCap,
-  secondBall: TrajectoryDisplayCap
-): Pick<TrajectoryDisplayCap, "reason" | "stoppedSegment"> {
+  physicalLimit: number | null
+): Omit<TrajectoryDisplayCap, "endIndex"> {
   if (endIndex === sameRail.endIndex && sameRail.reason === "same_rail") {
     return {
       reason: "same_rail",
@@ -226,34 +198,38 @@ function bindingReason(
       stoppedSegment: chain.stoppedSegment,
     };
   }
-  if (endIndex === secondBall.endIndex && secondBall.reason === "second_ball") {
-    return { reason: "second_ball" };
+  if (
+    physicalLimit != null &&
+    endIndex === physicalLimit &&
+    physicalLimit < chain.endIndex
+  ) {
+    return { reason: "physical_limit" };
   }
-  return { reason: "full" };
+  return { reason: "full_valid_path" };
 }
 
-/** endIndex = min(sameRailCap, secondBallCap, chainBreakCap). */
+/** endIndex = min(chainBreak, sameRail, physicalLimit?). */
 export function resolveTrajectoryDisplayCap(
   pathNodes: (PathPoint | null | undefined)[],
-  secondPoint: PathPoint | null | undefined,
-  hitTolerance: number,
   opts?: TrajectoryDisplayCapOptions
 ): TrajectoryDisplayCap {
   const chain = computeChainBreakCapEndIndex(pathNodes);
   const sameRail = computeSameRailCapEndIndex(pathNodes, opts);
-  const secondBall = computeSecondBallCapEndIndex(
-    pathNodes,
-    secondPoint,
-    hitTolerance
-  );
+  const physicalLimit = normalizeEndIndexLimit(opts?.physicalLimitEndIndex);
 
-  const candidates = [chain.endIndex, sameRail.endIndex, secondBall.endIndex].filter(
-    (n) => n >= 0
-  );
+  const candidates = [
+    chain.endIndex,
+    sameRail.endIndex,
+    physicalLimit ?? -1,
+  ].filter((n) => n >= 0);
   const endIndex =
     candidates.length > 0 ? Math.min(...candidates) : -1;
 
-  const meta = bindingReason(endIndex, chain, sameRail, secondBall);
+  if (endIndex < 0) {
+    return { endIndex, reason: "missing_node" };
+  }
+
+  const meta = bindingReason(endIndex, chain, sameRail, physicalLimit);
   return { endIndex, ...meta };
 }
 
@@ -277,19 +253,6 @@ export function computeBaselinePhysicalLimitEndIndex(
   return PATH_INDEX_C6;
 }
 
-function normalizeCorrectedDisplayCeiling(
-  correctedDisplayEndIndex: number | null | undefined
-): number | null {
-  if (
-    correctedDisplayEndIndex == null ||
-    !Number.isFinite(correctedDisplayEndIndex)
-  ) {
-    return null;
-  }
-  const n = Math.trunc(correctedDisplayEndIndex);
-  return n >= 0 ? n : null;
-}
-
 function bindingReasonBaseline(
   endIndex: number,
   chain: TrajectoryDisplayCap,
@@ -310,7 +273,7 @@ function bindingReasonBaseline(
       stoppedSegment: chain.stoppedSegment,
     };
   }
-  // Corrected DISPLAY cushion-order ceiling bound the result below existing baseline cap.
+  // Cushion-order ceiling bound the result below existing baseline cap.
   if (
     correctedCeiling != null &&
     endIndex === correctedCeiling &&
@@ -322,7 +285,7 @@ function bindingReasonBaseline(
   if (endIndex === physicalLimit && physicalLimit === PATH_INDEX_C4) {
     return { reason: "baseline_physical" };
   }
-  return { reason: "full" };
+  return { reason: "full_valid_path" };
 }
 
 /**
@@ -330,7 +293,6 @@ function bindingReasonBaseline(
  * existing = min(chain, same-rail, PhysicalLimit)
  * BaselineDisplayEnd = min(existing, correctedDisplayEndIndex?) when ceiling provided.
  *
- * Corrected second-ball XY is NOT a spatial clip point — only DISPLAY endIndex/Cn.
  * Internal pathNodes (incl. C5/C6) stay intact; callers slice cushionPath/labels via Cap.
  */
 export function resolveBaselineTrajectoryDisplayCap(
@@ -341,9 +303,7 @@ export function resolveBaselineTrajectoryDisplayCap(
   const chain = computeChainBreakCapEndIndex(pathNodes);
   const sameRail = computeSameRailCapEndIndex(pathNodes, opts);
   const physicalLimit = computeBaselinePhysicalLimitEndIndex(baselineC4Value);
-  const correctedCeiling = normalizeCorrectedDisplayCeiling(
-    correctedDisplayEndIndex
-  );
+  const correctedCeiling = normalizeEndIndexLimit(correctedDisplayEndIndex);
 
   const existingCandidates = [
     chain.endIndex,

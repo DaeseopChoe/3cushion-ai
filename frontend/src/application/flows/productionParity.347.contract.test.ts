@@ -1,7 +1,8 @@
 /**
  * Phase 3A-347 ??Production parity regression completion.
- * Closes 3A-346 CONDITIONAL gaps: ADMIN LocalDB E2E, S2/S3 recall??edit??SAVE,
- * preferred S3, Approval/Import reload, determinism, meta regeneration.
+ * Closes 3A-346 CONDITIONAL gaps: S2/S3 edit → SAVE sibling preservation,
+ * preferred S3, Import reload, determinism, meta regeneration.
+ * (LocalDB recall E2E and Approval reload retired: History is the only work store.)
  *
  * Run: npx vitest run src/application/flows/productionParity.347.contract.test.ts
  *
@@ -49,12 +50,7 @@ import { loadFamilyCompatibleDataset } from "../../domain/family/loadFamilyCompa
 import { loadProductionCompatibleDataset } from "../../domain/family/loadProductionCompatibleDataset";
 import { rematerializeFamilyPartsToPositionRecords } from "../../domain/family/rematerializeFamilyPartsToPositionRecords";
 import { migratePositionRecordsToFamilyParts } from "../../domain/family/migratePositionRecordsToFamilyParts";
-import { runAdminLocalDbRecall } from "./adminLocalDbFlow";
 import { runSaveStrategy, type SaveFlowContext } from "./saveFlow";
-import {
-  commitDerivedApprovalDataset,
-  type DerivedReviewBaselineSnapshot,
-} from "./derivedApprovalFlow";
 
 function createMemoryLocalStorage() {
   const map = new Map<string, string>();
@@ -189,94 +185,6 @@ function isPlaceholderMeta(
   );
 }
 
-/** Mirrors useShotSlots applyPositionRecall draft mapping for parity asserts. */
-function applyPositionRecallCapture(record: PositionRecord) {
-  const drafts: Record<string, { memberId?: string; familyId?: string }> = {};
-  for (const slotId of ["S1", "S2", "S3"] as const) {
-    const e = record.strategies[slotId];
-    if (!e) continue;
-    drafts[slotId] = { memberId: e.memberId, familyId: e.familyId };
-  }
-  return drafts;
-}
-
-type LocalDbCapture = {
-  appliedRecord: PositionRecord | null;
-  drafts: ReturnType<typeof applyPositionRecallCapture> | null;
-  adminSysMemberId: string | null;
-  adminSysFamilyId: string | null;
-};
-
-async function runLocalDbParity(args: {
-  dataset: PositionRecord[];
-  activeSlot: "S1" | "S2" | "S3";
-  balls: Ball3;
-}): Promise<{ ok: boolean; capture: LocalDbCapture }> {
-  const { seedCanonicalLocalCorpusFromFlat } = await import(
-    "../../domain/recall/seedCanonicalCorpusForTests"
-  );
-  seedCanonicalLocalCorpusFromFlat(args.dataset);
-
-  const capture: LocalDbCapture = {
-    appliedRecord: null,
-    drafts: null,
-    adminSysMemberId: null,
-    adminSysFamilyId: null,
-  };
-  let adminState: Record<string, unknown> = {
-    balls: args.balls,
-    sys: {
-      systemId: "5_half_system",
-      system_id: "5_half_system",
-      shotType: "?????",
-    },
-  };
-
-  const ok = await runAdminLocalDbRecall({
-    dataset: args.dataset,
-    ballsState: args.balls as unknown as Record<string, unknown>,
-    adminState,
-    activeSlot: args.activeSlot,
-    slots: { S1: {}, S2: {}, S3: {} },
-    isTargetSelected: true,
-    targetColor: "red",
-    setAdminState: (updater) => {
-      adminState = updater(adminState);
-      const sys = adminState.sys as Record<string, unknown> | undefined;
-      capture.adminSysMemberId =
-        (sys?.memberId as string | undefined) ??
-        ((sys as { family?: { memberId?: string } } | undefined)?.family
-          ?.memberId as string | undefined) ??
-        null;
-      // adminSysFromRecallEntry may put identity on sys differently ??also read signature
-      void sys;
-    },
-    setIsAdminPublishedSearchMatched: vi.fn(),
-    setAdminTableLayersVisible: vi.fn(),
-    setShowCoaching: vi.fn(),
-    setIsAdminInputSessionActive: vi.fn(),
-    hydrateAdminRecallTarget: vi.fn(),
-    applyPositionRecall: (record) => {
-      capture.appliedRecord = record;
-      capture.drafts = applyPositionRecallCapture(record);
-    },
-    patchSlotRuntimeMeta: vi.fn(),
-    clearAdminSearchDisplayRuntime: vi.fn(),
-    beginAdminInputSession: () => true,
-    getAdminRecallQueryTargetBall: () => "red",
-    resolveFormulaHash: () => "h1",
-  });
-
-  // Prefer identity from applied record strategies[activeSlot]
-  const activeEntry = capture.appliedRecord?.strategies?.[args.activeSlot];
-  if (activeEntry) {
-    capture.adminSysMemberId = activeEntry.memberId ?? capture.adminSysMemberId;
-    capture.adminSysFamilyId = activeEntry.familyId ?? null;
-  }
-
-  return { ok, capture };
-}
-
 function buildSaveCtx(args: {
   dataset: PositionRecord[];
   activeSlot: "S1" | "S2" | "S3";
@@ -408,68 +316,6 @@ describe("Phase 3A-347 production parity regression", () => {
     expect(prod.dataset[0]?.strategies.S2?.memberId).toBe("mb_b");
   });
 
-  it("A/B ADMIN LocalDB E2E: legacy vs rematerialized ??activeSlot S2", async () => {
-    const legacy = [multiSlotTwo()];
-    persistAligned(legacy);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const prod = loadProductionCompatibleDataset();
-    expect(prod.source).toBe("canonical");
-
-    const a = await runLocalDbParity({
-      dataset: legacy,
-      activeSlot: "S2",
-      balls: ballsX,
-    });
-    const b = await runLocalDbParity({
-      dataset: prod.dataset,
-      activeSlot: "S2",
-      balls: ballsX,
-    });
-    expect(a.ok).toBe(true);
-    expect(b.ok).toBe(true);
-    expect(a.capture.appliedRecord?.positionId).toBe(
-      b.capture.appliedRecord?.positionId
-    );
-    expect(a.capture.appliedRecord?.balls).toEqual(b.capture.appliedRecord?.balls);
-    expect(a.capture.drafts?.S2?.memberId).toBe("mb_b");
-    expect(b.capture.drafts?.S2?.memberId).toBe("mb_b");
-    expect(a.capture.drafts?.S1?.memberId).toBe("mb_a");
-    expect(b.capture.drafts?.S1?.memberId).toBe("mb_a");
-    // Must hydrate S2 identity for activeSlot, not remap to S1
-    expect(a.capture.adminSysMemberId).toBe("mb_b");
-    expect(b.capture.adminSysMemberId).toBe("mb_b");
-    expect(a.capture.adminSysFamilyId).toBe("fm_b");
-    expect(b.capture.adminSysFamilyId).toBe("fm_b");
-  });
-
-  it("C ADMIN LocalDB E2E: activeSlot S3 ??no S1/S2 remap", async () => {
-    const legacy = [multiSlotThree()];
-    persistAligned(legacy);
-    forceFamilyNormalizedStorageEnabledForTests(true);
-    const prod = loadProductionCompatibleDataset();
-    expect(prod.source).toBe("canonical");
-    expect(prod.dataset[0]?.strategies.S3?.memberId).toBe("mb_c");
-
-    const a = await runLocalDbParity({
-      dataset: legacy,
-      activeSlot: "S3",
-      balls: ballsX,
-    });
-    const b = await runLocalDbParity({
-      dataset: prod.dataset,
-      activeSlot: "S3",
-      balls: ballsX,
-    });
-    expect(a.ok && b.ok).toBe(true);
-    expect(b.capture.drafts?.S3?.memberId).toBe("mb_c");
-    expect(b.capture.adminSysMemberId).toBe("mb_c");
-    expect(b.capture.adminSysMemberId).not.toBe("mb_a");
-    expect(b.capture.adminSysMemberId).not.toBe("mb_b");
-    expect(a.capture.appliedRecord?.positionId).toBe(
-      b.capture.appliedRecord?.positionId
-    );
-  });
-
   it("D preferredAuthoredSlot S3: sourceSlot + rematerialize placement", () => {
     const written = writeFourTrackFamilyMembers(
       [],
@@ -510,13 +356,7 @@ describe("Phase 3A-347 production parity regression", () => {
     const view = loadProductionCompatibleDataset();
     expect(view.source).toBe("canonical");
 
-    const recall = await runLocalDbParity({
-      dataset: view.dataset,
-      activeSlot: "S2",
-      balls: ballsX,
-    });
-    expect(recall.ok).toBe(true);
-    const s2 = recall.capture.appliedRecord!.strategies.S2!;
+    const s2 = view.dataset.find((r) => ballsExactEqual(r.balls, ballsX))!.strategies.S2!;
     expect(s2.memberId).toBe("mb_b");
 
     const { ctx, capture } = buildSaveCtx({
@@ -536,13 +376,6 @@ describe("Phase 3A-347 production parity regression", () => {
     const ids = capture.dataset.map((r) => r.positionId);
     expect(new Set(ids).size).toBe(ids.length);
 
-    // Reload rematerialize after SAVE (canonical only)
-    const reloaded = loadProductionCompatibleDataset();
-    expect(reloaded.source).toBe("canonical");
-    const packed = reloaded.dataset.find((r) => ballsExactEqual(r.balls, ballsX))!;
-    expect(packed.strategies.S1?.memberId).toBe("mb_a");
-    expect(packed.strategies.S2?.memberId).toBe("mb_b");
-    expect(packed.strategies.S2?.sysInputs?.CO_f).toBe(31);
   });
 
   it("F Recall S3 ??edit ??SAVE ??reload: siblings S1/S2 preserved", async () => {
@@ -552,13 +385,7 @@ describe("Phase 3A-347 production parity regression", () => {
     const view = loadProductionCompatibleDataset();
     expect(view.source).toBe("canonical");
 
-    const recall = await runLocalDbParity({
-      dataset: view.dataset,
-      activeSlot: "S3",
-      balls: ballsX,
-    });
-    expect(recall.ok).toBe(true);
-    const s3 = recall.capture.appliedRecord!.strategies.S3!;
+    const s3 = view.dataset.find((r) => ballsExactEqual(r.balls, ballsX))!.strategies.S3!;
 
     const { ctx, capture } = buildSaveCtx({
       dataset: view.dataset,
@@ -574,69 +401,6 @@ describe("Phase 3A-347 production parity regression", () => {
     expect(exact.strategies.S3?.memberId).toBe("mb_c");
     expect(exact.strategies.S3?.sysInputs?.CO_f).toBe(33);
 
-    const reloaded = loadProductionCompatibleDataset();
-    expect(reloaded.source).toBe("canonical");
-    const packed = reloaded.dataset.find((r) => ballsExactEqual(r.balls, ballsX))!;
-    expect(packed.strategies.S1?.memberId).toBe("mb_a");
-    expect(packed.strategies.S2?.memberId).toBe("mb_b");
-    expect(packed.strategies.S3?.memberId).toBe("mb_c");
-    expect(packed.strategies.S3?.sysInputs?.CO_f).toBe(33);
-  });
-
-  it("G Approval ??reload ??rematerialize packing + sourceSlot", () => {
-    const legacy = [multiSlotTwo()];
-    // Seed gen then Approval bumps
-    persistAligned(legacy, 1);
-    const approvedDataset = structuredClone(legacy);
-    // Simulate Approval adding a derived-like sibling on new Exact (keep multi-slot intact)
-    approvedDataset.push({
-      positionId: createPositionId({
-        cue: { x: 11, y: 8 },
-        target: { x: 40, y: 20 },
-        second: { x: 62, y: 12 },
-      }),
-      balls: { cue: { x: 11, y: 8 }, target: { x: 40, y: 20 }, second: { x: 62, y: 12 } },
-      targetBall: "red",
-      schemaVersion: 1,
-      strategies: {
-        S1: entry({
-          slot: "S1",
-          familyId: "fm_a",
-          memberId: "mb_derived_appr",
-          memberOrigin: "DERIVED_CUE_IMPACT",
-          generatedFromMemberId: "mb_a",
-          derivedRule: "CUE_IMPACT_FIRST_30PCT",
-          derivedStep: "cue_impact:t:0.100000",
-          authoringStrategyId: "as_derived_appr",
-        }),
-      },
-    });
-
-    const baseline: DerivedReviewBaselineSnapshot = {
-      ballsState: ballsX,
-      adminState: {},
-      overlayState: {},
-      targetColor: "red",
-      isTargetSelected: true,
-      shotEditor: {},
-      activeSlot: "S1",
-    };
-    const commit = commitDerivedApprovalDataset({
-      resultDataset: approvedDataset,
-      baselineSnapshot: baseline,
-      setDataset: vi.fn(),
-      restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: vi.fn(),
-    });
-    expect(commit.canonicalOk).toBe(true);
-    expect(commit.corpusPersist.ok).toBe(false);
-    expect(commit.normalizedDualWrite.ok).toBe(false);
-
-    const loaded = loadProductionCompatibleDataset();
-    expect(loaded.source).toBe("canonical");
-    const packed = loaded.dataset.find((r) => ballsExactEqual(r.balls, ballsX))!;
-    expect(packed.strategies.S1?.memberId).toBe("mb_a");
-    expect(packed.strategies.S2?.memberId).toBe("mb_b");
   });
 
   it("H Import ? reload ? rematerialize via canonical persist", () => {

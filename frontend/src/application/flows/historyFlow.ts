@@ -1,5 +1,5 @@
 // application/flows/historyFlow.ts
-// DS-003 — Canonical Save + Workspace History Flow
+// DS-003 — Canonical Save + D History Flow
 // Batch 3 STEP 3-7B
 //
 // AD-B3-02: Hybrid Object Context (READ / WRITE / ACTION 분리).
@@ -8,9 +8,13 @@
 // Flow → Flow: saveFlow.runSaveStrategy 경유 (동일 Layer 참조 허용).
 
 import { runSaveStrategy, type SaveFlowContext, type SaveFlowResult } from "./saveFlow";
-import { type PositionRecord } from "../../domain/positionSearchEngine";
+import type { Point, PositionRecord } from "../../domain/positionSearchEngine";
 import type { PublishOperation } from "../../domain/publishOperation";
 import { OVERWRITE_MISSING_SOURCE_USER_MESSAGE } from "../../domain/family/publishedEditSession";
+import type { WorkHistorySaveMode } from "../../domain/workHistory/workHistorySaveCommit";
+import type { PendingNewFamilySaveToken } from "./pendingSaveCancelFlow";
+
+export type HistorySaveMode = WorkHistorySaveMode;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,6 +23,8 @@ import { OVERWRITE_MISSING_SOURCE_USER_MESSAGE } from "../../domain/family/publi
 export type HistoryFlowContext = SaveFlowContext & {
   // READ (추가)
   canUseSystemControls: boolean;
+  /** Authored path (C1..C4) stored with a new-Family PENDING snapshot for F5 resume. */
+  authoredPathNodes?: ReadonlyArray<Point | null | undefined> | null;
 
   // ACTION (추가)
   commitWorkspaceHistoryWithStrategyDataset: (
@@ -29,9 +35,33 @@ export type HistoryFlowContext = SaveFlowContext & {
       shotEditor: unknown;
       targetBall: string | null;
     },
-    publishOperation?: PublishOperation | null
-  ) => { ok: boolean; reason?: string } | void;
+    publishOperation?: PublishOperation | null,
+    historyOptions?: {
+      mode: HistorySaveMode;
+      authoredPathNodes?: ReadonlyArray<Point | null | undefined> | null;
+    }
+  ) => Promise<{ ok: boolean; reason?: string; snapshotId?: string } | void>;
 };
+
+export type CanonicalSaveResult = SaveFlowResult & {
+  /** History snapshot created by this SAVE (PENDING until derived approval for new Families). */
+  historySnapshotId?: string;
+  historyMode?: HistorySaveMode;
+  /** New-Family SAVE only: lets a Derived Review cancel revert this whole SAVE. */
+  pendingNewFamilySave?: PendingNewFamilySaveToken;
+};
+
+/**
+ * New 4-track Family SAVE → History snapshot waits for derived approval.
+ * OVERWRITE of a 4-track Family → Members preserved, APPROVED immediately.
+ */
+export function resolveHistorySaveMode(
+  saveCommand: SaveFlowContext["saveCommand"],
+  r: SaveFlowResult
+): HistorySaveMode {
+  if (!r.fourTrackWritten) return "IMMEDIATE";
+  return saveCommand === "OVERWRITE" ? "OVERWRITE_PRESERVED" : "PENDING_DERIVED_APPROVAL";
+}
 
 // ---------------------------------------------------------------------------
 // Flow
@@ -39,14 +69,12 @@ export type HistoryFlowContext = SaveFlowContext & {
 
 /**
  * Canonical Save Flow (DS-003).
- * 저장 가능 상태 검증 → runSaveStrategy → workspace_history snapshot 기록.
- * handleCanonicalRightPanelSave 로직을 추출.
- * @returns SaveFlowResult — callers may clear edit/session UX on ok.
+ * 저장 가능 상태 검증 → runSaveStrategy (session dataset) → D History snapshot.
+ * History failure → SAVE not successful and the session dataset is restored.
  */
-export function runCanonicalSave(ctx: HistoryFlowContext): SaveFlowResult {
-  // Guard: 저장 가능 상태 검증
+export async function runCanonicalSave(ctx: HistoryFlowContext): Promise<CanonicalSaveResult> {
   if (!ctx.canUseSystemControls) {
-    alert("Search/로컬DB 편집 세션 및 Target 확정 후 저장할 수 있습니다.");
+    alert("Search 또는 History 편집 세션과 Target 확정 후 저장할 수 있습니다.");
     return { ok: false, reason: "controls-unavailable" };
   }
 
@@ -82,20 +110,31 @@ export function runCanonicalSave(ctx: HistoryFlowContext): SaveFlowResult {
     return r ?? { ok: false, reason: "save-failed" };
   }
 
-  // DS-003: workspace_history snapshot 기록
-  // Phase 3-C2: payload build/validation failure must not create a publish-ready snapshot.
-  if (r.updated) {
-    const commitResult = ctx.commitWorkspaceHistoryWithStrategyDataset(
-      r.updated,
-      undefined,
-      r.publishOperation ?? null
-    );
-    if (commitResult && commitResult.ok === false) {
-      return {
-        ok: false,
-        reason: commitResult.reason ?? "history-commit-failed",
-      };
-    }
+  if (!r.updated) return r;
+
+  const historyMode = resolveHistorySaveMode(ctx.saveCommand, r);
+  const commitResult = await ctx.commitWorkspaceHistoryWithStrategyDataset(
+    r.updated,
+    undefined,
+    r.publishOperation ?? null,
+    { mode: historyMode, authoredPathNodes: ctx.authoredPathNodes ?? null }
+  );
+  if (!commitResult || commitResult.ok === false) {
+    ctx.setDataset(ctx.dataset ?? []);
+    return {
+      ok: false,
+      reason: (commitResult && commitResult.reason) || "history-commit-failed",
+    };
   }
-  return r;
+  const historySnapshotId = commitResult.snapshotId;
+  const pendingNewFamilySave: PendingNewFamilySaveToken | undefined =
+    historyMode === "PENDING_DERIVED_APPROVAL" && historySnapshotId && r.familyId
+      ? { historySnapshotId, familyId: r.familyId }
+      : undefined;
+  return {
+    ...r,
+    historyMode,
+    ...(historySnapshotId ? { historySnapshotId } : {}),
+    ...(pendingNewFamilySave ? { pendingNewFamilySave } : {}),
+  };
 }

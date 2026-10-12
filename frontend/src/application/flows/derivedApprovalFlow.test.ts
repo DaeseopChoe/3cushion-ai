@@ -192,42 +192,51 @@ function derivedLineageFromDataset(dataset: PositionRecord[], familyId: string) 
   return rows;
 }
 
+function approvedFixture() {
+  const written = persistFourTrack();
+  const review = createCueImpactDerivedReview({
+    dataset: written.dataset,
+    familyId: "fm_family1",
+  });
+  if (!review.ok) throw new Error(review.reason);
+  const approved = approveCueImpactDerivedReview({
+    dataset: written.dataset,
+    session: review.session,
+  });
+  if (!approved.ok) throw new Error(approved.reason);
+  return { review, approved };
+}
+
+function okFinalize() {
+  return vi.fn(async (_args: { familyId: string; graph: unknown }) => ({ ok: true }));
+}
+
 describe("commitDerivedApprovalDataset", () => {
-  it("Case A: restores baseline runtime after persist (projection B → baseline A)", () => {
-    const written = persistFourTrack();
-    const review = createCueImpactDerivedReview({
-      dataset: written.dataset,
-      familyId: "fm_family1",
-    });
-    if (!review.ok) throw new Error(review.reason);
-    const approved = approveCueImpactDerivedReview({
-      dataset: written.dataset,
-      session: review.session,
-    });
-    if (!approved.ok) throw new Error(approved.reason);
+  it("Case A: restores baseline runtime after persist (projection B → baseline A)", async () => {
+    const { approved } = approvedFixture();
 
     const baselineA = makeBaselineA();
     const projectionB = makeProjectionB();
     let restoredSnapshot: DerivedReviewBaselineSnapshot | null = null;
     let currentRuntime = projectionB;
 
-    const saveWorkingDataset = vi.fn();
     const setDataset = vi.fn();
-    const commitHistory = vi.fn();
+    const finalizeHistory = okFinalize();
 
-    commitDerivedApprovalDataset({
+    const result = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: baselineA,
-      saveWorkingDataset,
       setDataset,
       restoreDerivedReviewSnapshot: (snap) => {
         restoredSnapshot = snap;
         currentRuntime = snap as DerivedReviewBaselineSnapshot;
       },
-      commitWorkspaceHistoryWithStrategyDataset: commitHistory,
+      familyId: "fm_family1",
+      finalizeHistory,
     });
 
-    expect(saveWorkingDataset).not.toHaveBeenCalled();
+    expect(result.ok, result.reason).toBe(true);
+    expect(localStorage.length).toBe(0);
     expect(setDataset).toHaveBeenCalledWith(approved.dataset);
     expect(restoredSnapshot).toEqual(baselineA);
     expect(currentRuntime.ballsState).toEqual(baselineA.ballsState);
@@ -237,87 +246,86 @@ describe("commitDerivedApprovalDataset", () => {
         .draft.track
     ).toBe("B2T_L");
     expect(currentRuntime).not.toEqual(projectionB);
-    expect(commitHistory).not.toHaveBeenCalled();
+    expect(finalizeHistory).toHaveBeenCalledTimes(1);
     expect(persistedCueImpactDerivedCount(approved.dataset, "fm_family1")).toBeGreaterThan(0);
   });
 
-  it("Case E: does not double-append workspace_history on Approval (single successor committed at SAVE)", () => {
-    const written = persistFourTrack();
-    const review = createCueImpactDerivedReview({
-      dataset: written.dataset,
-      familyId: "fm_family1",
-    });
-    if (!review.ok) throw new Error(review.reason);
-    const approved = approveCueImpactDerivedReview({
-      dataset: written.dataset,
-      session: review.session,
-    });
-    if (!approved.ok) throw new Error(approved.reason);
+  it("Case E: Approval writes the approved graph to History exactly once (same snapshot, no second SAVE entry)", async () => {
+    const { approved } = approvedFixture();
 
-    const commitHistory = vi.fn();
-    commitDerivedApprovalDataset({
+    const finalizeHistory = okFinalize();
+    const result = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaselineA(),
-      saveWorkingDataset: vi.fn(),
       setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: commitHistory,
+      familyId: "fm_family1",
+      finalizeHistory,
     });
-    expect(commitHistory).not.toHaveBeenCalled();
+    expect(result.ok, result.reason).toBe(true);
+    expect(finalizeHistory).toHaveBeenCalledTimes(1);
+    const args = finalizeHistory.mock.calls[0][0];
+    expect(args.familyId).toBe("fm_family1");
+    expect(args.graph).toBe(result.approvedGraph);
   });
 
-  it("Case F: Derived members survive baseline restore path", () => {
-    const written = persistFourTrack();
-    const review = createCueImpactDerivedReview({
-      dataset: written.dataset,
-      familyId: "fm_family1",
-    });
-    if (!review.ok) throw new Error(review.reason);
-    const approved = approveCueImpactDerivedReview({
-      dataset: written.dataset,
-      session: review.session,
-    });
-    if (!approved.ok) throw new Error(approved.reason);
-    const derivedCountBefore = persistedCueImpactDerivedCount(approved.dataset, "fm_family1");
+  it("Case E2: History failure keeps the review open — no dataset swap, no baseline restore", async () => {
+    const { approved } = approvedFixture();
+    const setDataset = vi.fn();
+    const restore = vi.fn();
 
-    commitDerivedApprovalDataset({
+    const result = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaselineA(),
-      saveWorkingDataset: vi.fn(),
-      setDataset: vi.fn(),
-      restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: vi.fn(),
+      setDataset,
+      restoreDerivedReviewSnapshot: restore,
+      familyId: "fm_family1",
+      finalizeHistory: async () => ({ ok: false, reason: "disk-full" }),
     });
 
+    expect(result.ok).toBe(false);
+    expect(result.historyOk).toBe(false);
+    expect(setDataset).not.toHaveBeenCalled();
+    expect(restore).not.toHaveBeenCalled();
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("Case F: Derived members survive baseline restore path", async () => {
+    const { review, approved } = approvedFixture();
+    const derivedCountBefore = persistedCueImpactDerivedCount(approved.dataset, "fm_family1");
+
+    const result = await commitDerivedApprovalDataset({
+      resultDataset: approved.dataset,
+      baselineSnapshot: makeBaselineA(),
+      setDataset: vi.fn(),
+      restoreDerivedReviewSnapshot: vi.fn(),
+      familyId: "fm_family1",
+      finalizeHistory: okFinalize(),
+    });
+
+    expect(result.ok, result.reason).toBe(true);
     expect(persistedCueImpactDerivedCount(approved.dataset, "fm_family1")).toBe(derivedCountBefore);
     expect(derivedCountBefore).toBe(review.session.members.length);
   });
 
-  it("preserves Derived lineage fields in AFTER dataset", () => {
-    const written = persistFourTrack();
-    const review = createCueImpactDerivedReview({
-      dataset: written.dataset,
-      familyId: "fm_family1",
-    });
-    if (!review.ok) throw new Error(review.reason);
-    const approved = approveCueImpactDerivedReview({
-      dataset: written.dataset,
-      session: review.session,
-    });
-    if (!approved.ok) throw new Error(approved.reason);
+  it("preserves Derived lineage fields in AFTER dataset", async () => {
+    const { approved } = approvedFixture();
 
     const before = derivedLineageFromDataset(approved.dataset, "fm_family1");
     expect(before.length).toBeGreaterThan(0);
 
     let snapDataset: PositionRecord[] = [];
-    commitDerivedApprovalDataset({
+    const result = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaselineA(),
       setDataset: (dataset) => {
         snapDataset = dataset;
       },
       restoreDerivedReviewSnapshot: vi.fn(),
+      familyId: "fm_family1",
+      finalizeHistory: okFinalize(),
     });
+    expect(result.ok, result.reason).toBe(true);
 
     const after = derivedLineageFromDataset(snapDataset, "fm_family1");
     expect(after).toEqual(before);
@@ -339,7 +347,7 @@ describe("Derived approval isolation", () => {
     expect(String(commitDerivedApprovalDataset)).not.toContain("runSaveStrategy");
   });
 
-  it("does not regenerate 4-track or Cue Derived on approval commit", () => {
+  it("does not regenerate 4-track or Cue Derived on approval commit", async () => {
     const written = persistFourTrack();
     const review = createCueImpactDerivedReview({
       dataset: written.dataset,
@@ -356,13 +364,13 @@ describe("Derived approval isolation", () => {
     });
     if (!approved.ok) throw new Error(approved.reason);
 
-    commitDerivedApprovalDataset({
+    await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: makeBaselineA(),
-      saveWorkingDataset: vi.fn(),
       setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: vi.fn(),
+      familyId: "fm_family1",
+      finalizeHistory: okFinalize(),
     });
 
     expect(generateSpy).not.toHaveBeenCalled();
@@ -417,20 +425,21 @@ describe("approval persistence unchanged", () => {
     expect(approved.session.status).toBe("APPROVED");
   });
 
-  it("Case F follow-up: subsequent SAVE input would read baseline A not projection B", () => {
+  it("Case F follow-up: subsequent SAVE input would read baseline A not projection B", async () => {
+    const { approved } = approvedFixture();
     const baselineA = makeBaselineA();
     const projectionB = makeProjectionB();
     let saveInputRuntime = projectionB;
 
-    commitDerivedApprovalDataset({
-      resultDataset: [],
+    await commitDerivedApprovalDataset({
+      resultDataset: approved.dataset,
       baselineSnapshot: baselineA,
-      saveWorkingDataset: vi.fn(),
       setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: (snap) => {
         saveInputRuntime = snap as DerivedReviewBaselineSnapshot;
       },
-      commitWorkspaceHistoryWithStrategyDataset: vi.fn(),
+      familyId: "fm_family1",
+      finalizeHistory: okFinalize(),
     });
 
     expect(saveInputRuntime.ballsState).toEqual(baselineA.ballsState);

@@ -748,12 +748,12 @@ describe("security + wiring", () => {
     ).toBe(false);
   });
 
-  it("useSettings wires Git Publish primary; keeps repo-only helper", () => {
+  it("useSettings wires Git Publish from the D History (no browser-history repo-only path)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "../../hooks/useSettings.js"), "utf8");
     expect(src).toContain("publishDatasetToLocalRepoWithGit");
-    expect(src).toContain("handleRepoOnlyPublishSnapshots");
-    expect(src).toContain("publishDatasetToLocalRepo");
+    expect(src).toContain("loadPublishItemsFromWorkHistory");
+    expect(src).not.toContain("handleRepoOnlyPublishSnapshots");
   });
 
   it("G11 evidence — staging uses git add -- only in source", () => {

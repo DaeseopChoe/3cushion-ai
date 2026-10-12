@@ -5,6 +5,7 @@
 
 import type { PublishOperation } from "./publishOperation";
 import type { PublishFamilyPayload } from "./publishFamilyPayload";
+import type { PublishFamilyGraph } from "./publishFamilyGraph";
 
 export const WORKSPACE_CURRENT_KEY = "workspace_current";
 export const WORKSPACE_HISTORY_KEY = "workspace_history";
@@ -40,10 +41,25 @@ export interface WorkspaceSnapshot {
   publishOperation?: PublishOperation;
   /**
    * Phase 3-C2 — SAVE-time destination-family PositionRecords (slot-scoped).
-   * Immutable. Optional for C1/legacy snapshots.
+   * Legacy read-only: new snapshots store `publishFamilyGraph` instead.
    */
   publishFamilyPayload?: PublishFamilyPayload;
+  /**
+   * Approved normalized Family graph (Master once + every Member) used as the
+   * Publish input. Set on Derived Approve or OVERWRITE completion.
+   */
+  publishFamilyGraph?: PublishFamilyGraph;
+  /** New-Family Derived Approval state; PENDING rows are not publishable. */
+  derivedApproval?: WorkspaceSnapshotDerivedApproval;
 }
+
+export type WorkspaceSnapshotDerivedApproval = {
+  status: "PENDING" | "APPROVED";
+  /** DERIVED_* Member count (AUTHORED / SYMMETRY excluded). */
+  derivedCount: number;
+  source?: "SAVE_APPROVE" | "OVERWRITE_PRESERVED";
+  approvedAt?: string;
+};
 
 /** UUID v4 생성 */
 export function generateUUID(): string {

@@ -236,10 +236,12 @@ describe("adminEditSessionContract — Load editable / Undo-Recall", () => {
     expect(loadBody).not.toMatch(/setIsAdminInputSessionActive\(false\)/);
   });
 
-  it("source: LocalDB match keeps session editable (no session false after begin)", () => {
-    const localDb = readSrc("application/flows/adminLocalDbFlow.ts");
-    expect(localDb).toMatch(/beginAdminInputSession/);
-    expect(localDb).not.toMatch(/setIsAdminInputSessionActive\(false\)/);
+  it("source: History recall keeps session editable (no session false after load)", () => {
+    const app = readSrc("App.jsx");
+    const start = app.indexOf("function applyHistoryRecallSession(");
+    expect(start).toBeGreaterThan(0);
+    const session = app.slice(start, app.indexOf("\n  }\n", start));
+    expect(session).not.toMatch(/setIsAdminInputSessionActive\(false\)/);
   });
 });
 

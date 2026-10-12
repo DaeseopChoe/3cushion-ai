@@ -34,12 +34,21 @@ describe("Phase D-3 — History ONE Publish UX", () => {
 
   it("Publish handler is snapshot-bound and does not open folder picker", () => {
     const fnStart = settings.indexOf("const handlePublishSnapshots");
-    const fnEnd = settings.indexOf("const handleRepoOnlyPublishSnapshots");
+    const fnEnd = settings.indexOf("workHistoryApi: api,");
     expect(fnStart).toBeGreaterThan(-1);
     expect(fnEnd).toBeGreaterThan(fnStart);
     const body = settings.slice(fnStart, fnEnd);
-    expect(body).toContain("readPublishOperationFromSnapshot");
-    expect(body).toContain("readPublishFamilyPayloadFromSnapshot");
+    // Snapshot → Publish item (approved graph, or legacy flat payload) lives in
+    // historyPublishInput; the handler reads it from the D History.
+    expect(body).toContain("loadPublishItemsFromWorkHistory");
+    expect(read("../../domain/workHistory/workHistoryPublishInput.ts")).toContain(
+      "buildPublishClientItemFromSnapshot"
+    );
+    const input = read("../../domain/historyPublishInput.ts");
+    expect(input).toContain("readPublishOperationFromSnapshot");
+    expect(input).toContain("readPublishFamilyGraphFromSnapshot");
+    expect(input).toContain("readPublishFamilyPayloadFromSnapshot");
+    expect(input).not.toContain("loadCanonicalNormalizedCorpus");
     expect(body).toContain("publishDatasetToLocalRepoWithGit");
     expect(body).not.toContain("showDirectoryPicker");
     expect(body).not.toContain("resolveExportRootDir");
@@ -49,18 +58,18 @@ describe("Phase D-3 — History ONE Publish UX", () => {
     expect(body).not.toContain("normalizeDatasetFromStorage");
   });
 
-  it("strict SUCCESS: PRODUCTION_VERIFIED only marks exported", () => {
+  it("strict SUCCESS: PRODUCTION_VERIFIED only marks PUBLISHED", () => {
     const fnStart = settings.indexOf("const handlePublishSnapshots");
-    const fnEnd = settings.indexOf("const handleRepoOnlyPublishSnapshots");
+    const fnEnd = settings.indexOf("workHistoryApi: api,");
     const body = settings.slice(fnStart, fnEnd);
     expect(body).toContain('result.status === "PRODUCTION_VERIFIED"');
-    expect(body).toContain("updateSnapshotsExported(successfulIds)");
+    expect(body).toContain("api.markPublished({ snapshotIds: successfulIds");
     // Soft success on push/timeout must be gone
     expect(body).not.toMatch(
-      /gitStatus === "PUSHED"[\s\S]{0,200}updateSnapshotsExported/
+      /gitStatus === "PUSHED"[\s\S]{0,200}markPublished/
     );
     expect(body).not.toMatch(
-      /PRODUCTION_VERIFY_TIMEOUT[\s\S]{0,120}updateSnapshotsExported/
+      /PRODUCTION_VERIFY_TIMEOUT[\s\S]{0,120}markPublished/
     );
     // Success copy says Publish, not Export
     expect(body).toContain("Publish 완료");
@@ -70,7 +79,7 @@ describe("Phase D-3 — History ONE Publish UX", () => {
 
   it("F-2E resolvable overwrite: confirm dialog; cancel leaves Unexported; no History mutate", () => {
     const fnStart = settings.indexOf("const handlePublishSnapshots");
-    const fnEnd = settings.indexOf("const handleRepoOnlyPublishSnapshots");
+    const fnEnd = settings.indexOf("workHistoryApi: api,");
     const body = settings.slice(fnStart, fnEnd);
     expect(body).toContain("resolvable-publish-overwrite");
     expect(body).toContain("window.confirm");
@@ -85,7 +94,7 @@ describe("Phase D-3 — History ONE Publish UX", () => {
 
   it("F-2F confirm→retry uses conflict.existingFamilyId + leafRevision (no History rewrite)", () => {
     const fnStart = settings.indexOf("const handlePublishSnapshots");
-    const fnEnd = settings.indexOf("const handleRepoOnlyPublishSnapshots");
+    const fnEnd = settings.indexOf("workHistoryApi: api,");
     const body = settings.slice(fnStart, fnEnd);
     expect(body).toContain("conflict?.existingFamilyId");
     expect(body).toContain("confirmed-overwrite-incomplete");

@@ -5,6 +5,10 @@
 
 import type { LocalPublishClientItem } from "./publishDatasetToLocalRepo";
 import type { ResolvablePublishOverwriteConflict } from "../publishOccupancy";
+import {
+  parsePublishedLeafSummaries,
+  type PublishedLeafSummary,
+} from "./publishedLeafSummary";
 
 export const LOCAL_GIT_PUBLISH_ENDPOINT = "/api/publish-dataset-git";
 export const LOCAL_PRODUCTION_VERIFY_ENDPOINT =
@@ -40,6 +44,7 @@ export type GitPublishClientResult =
             snapshotId: string;
             status: "REPO_WRITTEN" | "NO_CHANGE";
             changed: boolean;
+            publishedFamilyId?: string;
           }
         | {
             ok: false;
@@ -51,6 +56,8 @@ export type GitPublishClientResult =
       changedTargets?: string[];
       commit?: string;
       production?: ProductionClientResult;
+      /** Published 현황 (verified commit blob); undefined when unreadable. */
+      leafSummaries?: PublishedLeafSummary[];
     }
   | {
       ok: false;
@@ -280,7 +287,9 @@ export async function publishDatasetToLocalRepoWithGit(
           shotType: it.shotType,
           systemId: it.systemId,
           publishOperation: it.publishOperation,
-          publishFamilyPayload: it.publishFamilyPayload,
+          ...(it.publishFamilyGraph
+            ? { publishFamilyGraph: it.publishFamilyGraph }
+            : { publishFamilyPayload: it.publishFamilyPayload }),
           ...(it.confirmedOverwrite
             ? { confirmedOverwrite: it.confirmedOverwrite }
             : {}),
@@ -358,6 +367,7 @@ export async function publishDatasetToLocalRepoWithGit(
         : undefined,
       commit: typeof body.commit === "string" ? body.commit : undefined,
       production,
+      leafSummaries: parsePublishedLeafSummaries(body.leafSummaries),
     };
   }
 

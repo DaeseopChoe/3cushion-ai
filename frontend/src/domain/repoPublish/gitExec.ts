@@ -8,6 +8,8 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+const DEFAULT_GIT_MAX_BUFFER_BYTES = 8 * 1024 * 1024;
+
 export type GitExecOk = {
   ok: true;
   stdout: string;
@@ -50,7 +52,7 @@ const ALLOWED_GIT_SUBCOMMANDS = new Set([
 export async function gitExec(
   repoRoot: string,
   args: readonly string[],
-  options?: { timeoutMs?: number }
+  options?: { timeoutMs?: number; maxBufferBytes?: number }
 ): Promise<GitExecResult> {
   if (typeof repoRoot !== "string" || !repoRoot.trim()) {
     return {
@@ -114,7 +116,8 @@ export async function gitExec(
       {
         cwd: repoRoot,
         timeout: options?.timeoutMs ?? 60_000,
-        maxBuffer: 8 * 1024 * 1024,
+        // Default for status/diff/log output; leaf blob reads pass their own cap.
+        maxBuffer: options?.maxBufferBytes ?? DEFAULT_GIT_MAX_BUFFER_BYTES,
         windowsHide: true,
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
       }
@@ -141,7 +144,11 @@ export async function gitExec(
     return {
       ok: false,
       reason:
-        err.code === "ENOENT" ? "git-not-found" : "git-command-failed",
+        err.code === "ENOENT"
+          ? "git-not-found"
+          : err.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER"
+            ? "git-output-too-large"
+            : "git-command-failed",
       stdout: String(err.stdout ?? ""),
       stderr: String(err.stderr ?? err.message ?? ""),
       code,

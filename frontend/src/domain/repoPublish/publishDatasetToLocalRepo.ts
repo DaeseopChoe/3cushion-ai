@@ -4,17 +4,20 @@
  */
 
 import type { PublishFamilyPayload } from "../publishFamilyPayload";
+import type { PublishFamilyGraph } from "../publishFamilyGraph";
 import type { PublishOperation } from "../publishOperation";
 import type { ConfirmedPublishOverwrite } from "../publishedLeafPrepare";
 
 export const LOCAL_PUBLISH_ENDPOINT = "/api/publish-dataset";
 
+/** Exactly one of publishFamilyGraph (new) / publishFamilyPayload (legacy flat). */
 export type LocalPublishClientItem = {
   snapshotId: string;
   shotType: string;
   systemId: string;
   publishOperation: PublishOperation;
-  publishFamilyPayload: PublishFamilyPayload;
+  publishFamilyPayload?: PublishFamilyPayload;
+  publishFamilyGraph?: PublishFamilyGraph;
   confirmedOverwrite?: ConfirmedPublishOverwrite | null;
 };
 
@@ -107,7 +110,9 @@ export async function publishDatasetToLocalRepo(
           shotType: it.shotType,
           systemId: it.systemId,
           publishOperation: it.publishOperation,
-          publishFamilyPayload: it.publishFamilyPayload,
+          ...(it.publishFamilyGraph
+            ? { publishFamilyGraph: it.publishFamilyGraph }
+            : { publishFamilyPayload: it.publishFamilyPayload }),
           ...(it.confirmedOverwrite
             ? { confirmedOverwrite: it.confirmedOverwrite }
             : {}),

@@ -167,7 +167,7 @@ describe("assembleC3PlusCandidatePath — variable system tail", () => {
   });
 });
 
-describe("resolveC3PlusScoringLine — SB first-hit segment", () => {
+describe("resolveC3PlusScoringLine — SB hit gate + full scoring line", () => {
   it("1: SB on C3→C4 → end C4", () => {
     const path = pathNodesThrough([
       { id: "C3", p: pt(0, 20) },
@@ -258,7 +258,7 @@ describe("resolveC3PlusScoringLine — SB first-hit segment", () => {
     expect(r.hitSegment.to.id).toBe("EXT2");
   });
 
-  it("6: E2 present but SB earlier → E2 excluded", () => {
+  it("6: E2 present but SB earlier → scoring line still runs through E2", () => {
     const path = pathNodesThrough([
       { id: "C3", p: pt(0, 20) },
       { id: "C4", p: pt(80, 20) },
@@ -274,8 +274,9 @@ describe("resolveC3PlusScoringLine — SB first-hit segment", () => {
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.scoringLine.map((n) => n.id)).toEqual(["C3", "C4"]);
-    expect(r.scoringLine.some((n) => n.id === "EXT2")).toBe(false);
+    expect(r.scoringLine.map((n) => n.id)).toEqual(["C3", "C4", "EXT1", "EXT2"]);
+    expect(r.hitSegment.from.id).toBe("C3");
+    expect(r.hitSegment.to.id).toBe("C4");
   });
 
   it("7: No SB hit → fail", () => {

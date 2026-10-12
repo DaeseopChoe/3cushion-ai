@@ -1,7 +1,7 @@
 # 3Cushion AI - Project Master Index
 
-Version: 2.22
-Last Updated: 2026-09-27
+Version: 2.23
+Last Updated: 2026-10-12
 Role: **현재 프로젝트 상태 SSOT** (월별 로그 아님) · **Project Entry Point**
 
 > 기능이 완료·변경될 때마다 이 문서만 갱신한다.
@@ -50,7 +50,7 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Product Envelope Static Publisher** | ✅ **COMPLETE** (`690d6fe` · Task #4) |
 | **Phase 5 Search Quality Follow-on · Task #5** | ✅ **COMPLETE** (`282c859` · Production RI E2E · Push done) |
 | **Phase 5 Mission 02 — Dead Code Cleanup** | ✅ **COMPLETE** (`8bf90b6` · EXIT-AFTER-#4 · **COMPLETE WITH DEFERRED ITEMS**) |
-| **Current Mission** | **Session handoff after F-3D** — baseline `b39b676` · see **Current Session Handoff (2026-09-27)** below |
+| **Current Mission** | **Consolidated 2026-10-12** — LocalDB removed / D-drive History · Publish 현황 + 12MiB · Display Boundary v1.7 · ADMIN Search over every Published leaf · see **Current State (2026-10-12)** below (2026-09-27 handoff = 이력) |
 | **Next Track** | Choose **one** open issue from **Current Session Handoff** (USER C2 Display Boundary Ask · HP/T Derived opposite-handed display Ask · other Stage 1 work) — not auto-decided · F-2 · F-3B · F-3B.2 · F-3C · F-3C.2 · F-3D COMPLETE |
 | **Phase E** | ✅ **COMPLETE** — Published normalized store · Member-centric Search · RI on-demand rematerialize |
 | **Phase F-1** | ✅ **COMPLETE** — Dead Manual Export / folder picker removed · stale flat-authority docs/UI repaired · productionVerify test-local timeout |
@@ -64,12 +64,12 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Phase F-3C** | ✅ **COMPLETE** (core + F-3C.2 C2 Family-common: AUTHORED canonical C2 · H/V/RPI projections · edits from any Track canonicalized) — **TRUSTED FAMILY OVERWRITE** — OVERWRITE edits the trusted Family at its stored AUTHORED root (never the Recall entry / screen coordinates); AUTHORED / SYMMETRY / DERIVED Recall equally eligible; Derived Family-common synced; Recall shows 내공/앞공/뒷공 position differences; thickness edit keeps eligibility; C2 reflectionOverride Family-common (F-3C.2) |
 | **Phase F-3D** | ✅ **COMPLETE** — **OVERWRITE PRESERVES THE WHOLE FAMILY IDENTITY GRAPH** — Published-only Family first Local OVERWRITE seeds the recalled Family's full normalized graph (Master + every Member incl. Derived) into the working dataset, then the regular OVERWRITE path runs; every memberId / authoringStrategyId / lineage / balls / slot / Member count preserved; C-0 + no-relocation guard fail closed; one atomic persist; SAVE unchanged |
 | **Derived Data** | Cue→Impact · C3+ · Unified Review · **Cartesian Product durable** · Atomic 4-track · History/Recall — see below |
-| **LocalDB ADMIN Search** | **Euclidean 2.0 Rg / ball** · Role-direct · trajectory proximity ≠ Recall guarantee |
+| **LocalDB ADMIN Search** | **폐지됨 (2026-09-30 Task F)** — LocalDB 제거와 함께 삭제 · ADMIN Search = Published 전체 leaf (`adminStrict`) → **ADMIN Search All Published Leaves** · 아래는 이력: Euclidean 2.0 Rg / ball · Role-direct |
 | **ADMIN Recall→Edit** | **Load → editable** · **Undo** (되돌리기) + **Recall** (Origin S0) · SAVE ≠ Origin replace · detail → `TRAJECTORY_EXTENSION_SSOT` §7 |
 | **ADMIN Impact CONTACT ownership** | ✅ **COMPLETE** (2026-09-07 · practical PASS) — runtime Impact = CONTACT · temporary `balls.impact` only while dragging · dblclick = nearest-trajectory snap → T/HPT → CONTACT · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
 | **ADMIN HP/T zero-tip tipSideIntent** | ✅ **COMPLETE** (2026-09-07 · practical PASS) — UI `tipSideIntent` survives tipCount=0 · left 0 calc == right 0 calc · no fake ε · detail → `HISTORY/PROJECT_LOG_2026-09.md` |
 | **SYS Signed Correction Authoring** | ✅ **FINALIZED** (2026-09-15 · manual PASS) — SSOT `SIGNED_CORRECTION_AUTHORING_SSOT.md` · commits `82f8296` + `84b753b` · log: `HISTORY/PROJECT_LOG_2026-09.md` |
-| **History / Search Corpus Separation** | ✅ **COMPLETE** — History snapshot load no longer overwrites searchable corpus · independent search pool preserved |
+| **History / Search Corpus Separation** | **대체됨 (2026-09-30 Task F)** — LocalDB corpus 자체가 없어짐 · Search corpus = Published only · History = D-drive work store (never searched) · 이력: History snapshot load no longer overwrote the searchable corpus |
 | **USER Search Normalization & Role Permutation** | ✅ **COMPLETE** — 2-way Target/Second permutation · winning matchedBalls preserved · Trajectory Target alignment |
 | **ADMIN Target Selection Contract** | ✅ **COMPLETE** — Target defaults to NONE · explicit double-click reassign · non-target search supported |
 | **Regression Test Foundation (R01~R24)** | ✅ **COMPLETE** — FAST/CONTRACT/FULL/BUILD 4-tier standardized regression · Full Lifecycle Contract · 98 files/964 tests GREEN |
@@ -92,9 +92,30 @@ All Constitution-level documents are now aligned (MASTER · Architecture Freeze 
 | **Mission 03 Deployment Workflow** | ✅ **COMPLETED** · **RETIRED Phase B-0** (offline deploy CLI removed with `product/`) |
 | **Mission 04 Authoring Integration** | ✅ **ABSORBED** · offline `product pipeline` **RETIRED Phase B-0** |
 
-### Current Session Handoff (2026-09-27)
+### Current State (2026-10-12)
 
-**Authority:** 본 절 = 새 세션 시작 기준점 (current state pointer). 상세 규칙은 각 Phase 절이 SSOT이며 여기서 재정의하지 않는다.
+**Authority:** 본 절 = 새 세션 시작 기준점 (current state pointer). 상세 규칙은 인용한 절·SSOT가 권위이며 여기서 재정의하지 않는다. 아래 **Current Session Handoff (2026-09-27)** 는 이력 (Frozen product meaning 중 LocalDB 관련 표현은 §13 Task F로 대체).
+
+| Area | Status (one line) | Detail |
+|------|-------------------|--------|
+| **Work store** | ✅ **LocalDB 제거 · D 드라이브 History가 유일한 작업 저장소** (dev 서버 `POST /api/work-history`, `.workspace-data/` gitignored) · 남은 브라우저 키는 ADMIN 진입 시 [옮기기] 안내 | §13 Task F · log 2026-09-30 |
+| **New SAVE** | ✅ 파생 검토 [취소] = SAVE 전체 되돌리기 (PENDING snapshot 삭제) · F5 후 [파생 승인 재개] / [새 SAVE 취소] · 승인 시 정규화 그래프를 History에 확정 | §5 · §8 · §13 · log 2026-09-29 |
+| **Publish** | ✅ 입력 = History 확정 그래프 · 성공 알림에 Published 현황 (용량 · Family/Member 수 · 시각 · 12MiB 대비) · Published leaf 상한 **12MiB** 단일화 · Publish는 작업 데이터를 지우지 않음 | §11 · §12 · log 2026-09-30 |
+| **Local delete** | **폐지됨** — [로컬DB] · [로컬 삭제] UI 제거 (LocalDB 없음) · History Delete = 선택 행만 | §13 |
+| **C3+ derived** | ✅ 뒷공 파생 범위 = 전체 득점선 (C3 → tail → EXT1 → EXT2) · 뒷공 적중은 자격만 판정 | log 2026-09-28 |
+| **Display Boundary** | ✅ **v1.7** — 세컨드볼은 표시 종료 조건이 아님 · 마지막 유효 쿠션까지 · Cap = min(chain, same-rail, PhysicalLimit) (v1.6 대체됨) | `DISPLAY_BOUNDARY_POLICY_SSOT.md` · log 2026-10-11 |
+| **ADMIN Search** | ✅ Published 전체 leaf (공략 × 시스템 폴더) 전역 최근접 · 힌트 = 우선순위만 · 새로고침 전후 동일 · 안내에 출처 | log 2026-10-11 |
+| **USER Search** | 변경 없음 — canonical 공략 × 시스템 1개 | Published Leaf Resolution |
+
+**Logs:** `HISTORY/PROJECT_LOG_2026-10.md` (2026-10 entries) · `HISTORY/PROJECT_LOG_2026-09.md` (September).
+
+**Protected (never stage / commit / delete):** `frontend/src/domain/trajectory/incidenceAngle.ts` · `.tmp.driveupload/` · `.workspace-data/` (real History).
+
+**New session start:** (1) this file (2) latest entry of `HISTORY/PROJECT_LOG_2026-10.md` (3) Git HEAD == origin/main (4) protected files unchanged (5) one open issue at a time (Open issues below still apply except LocalDB-specific wording).
+
+### Current Session Handoff (2026-09-27) — 이력 (대체됨 → Current State 2026-10-12)
+
+**Authority (2026-09-27 당시):** 새 세션 시작 기준점이었음. 현재 기준점은 위 **Current State (2026-10-12)**.
 
 | Field | Value |
 |-------|-------|
@@ -135,7 +156,7 @@ Items 3–5 are not promoted to priority features until a real need appears.
 
 **Protected untracked (never modify / delete / stage / commit — not project changes):** `frontend/src/domain/trajectory/incidenceAngle.ts` · `.tmp.driveupload/`
 
-**New session start:** (1) this file (2) latest entry of `HISTORY/PROJECT_LOG_2026-09.md` (3) Git HEAD == origin/main; `git diff --stat b39b676 HEAD` shows only `작업관리/` docs (4) protected untracked unchanged (5) one open issue at a time. **Next candidates (user decides):** A. USER C2 Display Boundary Ask · B. HP/T Derived opposite-handed display Ask · C. other Stage 1 work.
+**New session start (2026-09-27, 대체됨 → Current State 2026-10-12):** (1) this file (2) latest entry of `HISTORY/PROJECT_LOG_2026-09.md` (3) Git HEAD == origin/main; `git diff --stat b39b676 HEAD` shows only `작업관리/` docs (4) protected untracked unchanged (5) one open issue at a time. **Next candidates (user decides):** A. USER C2 Display Boundary Ask · B. HP/T Derived opposite-handed display Ask · C. other Stage 1 work.
 
 ### USER Display Runtime HPT (2026-09-02)
 
@@ -154,13 +175,14 @@ Items 3–5 are not promoted to priority features until a real need appears.
 
 | Item | Status |
 |------|--------|
-| **History / Search Corpus Separation** | ✅ **COMPLETE** — `handleLoadWorkspaceSnapshot`의 `positions_dataset` 영속화 및 `dataset` 덮어쓰기 호출 분리. History 스냅샷 복원은 UI 편집 상태만 복원하며 전체 검색 코퍼스 독립성 보장. (`historySearchCorpusSeparation.contract.test.ts` 6 PASS) |
+| **History / Search Corpus Separation** | **대체됨 (2026-09-30 Task F — LocalDB corpus 제거, 테스트 삭제; 아래는 이력)** ✅ COMPLETE — `handleLoadWorkspaceSnapshot`의 `positions_dataset` 영속화 및 `dataset` 덮어쓰기 호출 분리. History 스냅샷 복원은 UI 편집 상태만 복원하며 전체 검색 코퍼스 독립성 보장. (`historySearchCorpusSeparation.contract.test.ts` 6 PASS) |
 | **Track Symmetry Runtime Hydrate** | ✅ **COMPLETE** — `hydrateFamilyMemberRuntimeHpt` / `hydrateFamilyMemberRuntimeThickness`가 `memberOrigin` 대신 `authoredTrack` vs `requestedTrack`의 handedness 관계(`isOppositeHandedness`)를 기준으로 판정. `AUTHORED`, `SYMMETRY`, `DERIVED_*` 전 영역에서 canonical 유지 및 Thickness sign mirror / hit_point.x mirror 일관 적용. (`adminDerivedPersistenceMarginalSearchLifecycle.contract.test.ts` TEST 1~5 PASS) |
 | **History Single Successor SSOT** | ✅ **COMPLETE** — SAVE 시 `runCanonicalSave`에서 단일 후속자 스냅샷(v005)만 기록하고, `commitDerivedApprovalDataset`의 중복 히스토리 커밋 제거. 한 번의 논리적 작업(Recall v004 → Edit → SAVE → Derived Approval) 후 정확히 단일 후속자(`[v004, v005]`)만 생성. (`adminDerivedPersistenceMarginalSearchLifecycle.contract.test.ts` TEST 6 PASS) |
 | **ADMIN Initial Target Gate SSOT** | ✅ **COMPLETE** (IMPLEMENTED · AUTOMATED TESTED · BROWSER VERIFIED) — Fresh ADMIN 진입 시 Target 미지정(`isTargetSelected=false`, `targetColor=null`) 상태에서 Impact Ball 및 Cue→Impact 점선 Guide 완전 차단 (`useCoachingController` / `computeCoachingState` ADMIN gate 적용). 명시적 Red/Yellow 더블클릭 시에만 Target 확정 및 Impact/Guide 계산 활성화. Drag는 Target을 선택하지 않음 (`Drag ≠ Target Selection`). (`adminTargetBallRules.contract.test.ts` TEST A~E PASS, Manual Tests 1~3 PASS) |
 | **HMR Fresh-State SSOT** | ✅ **COMPLETE** (IMPLEMENTED · AUTOMATED TESTED · BROWSER VERIFIED) — Fresh/view 초기화 effect에서 `actions.clearAdminWorkSlots()`를 실행하여 HMR/새로고침 후 Fresh ball과 stale slot draft(S1)가 결합되는 Mixed Runtime State 방지. History Recall 정상 스냅샷 hydrate는 완전 보존. (`adminTargetBallRules.contract.test.ts` TEST F~G PASS, Manual Test 4 PASS) |
 | **ADMIN Target Selection Contract** | ✅ **COMPLETE** — ADMIN 진입 및 Reset 시 Target Ball 기본값을 NONE(`null`)으로 초기화. 더블클릭을 통한 명시적 재지정 지원 및 Target 미지정 상태에서도 전체 코퍼스 검색 보장. (`adminTargetBallRules.contract.test.ts` 19 PASS) |
 | **Published Leaf Resolution** | ✅ **COMPLETE** — USER Search에서 stale `shotType` 단일 leaf 잠금 제거, 모든 활성 canonical leaf 동적 탐색 및 Export 후 published cache 전체 무효화. (`publishedSearchLeafResolution.contract.test.ts` 13 PASS) |
+| **ADMIN Search All Published Leaves** | ✅ **COMPLETE (2026-10-11)** — ADMIN Search = 모든 Published leaf(canonical 공략 × 시스템 폴더) 전역 최근접 1건 · 화면/슬롯/SAVE 힌트는 동점 우선순위만 (범위 제한 아님) · 새로고침 후에도 동일 결과 · 성공 안내에 출처 "(공략 · 시스템)" · History APPROVED/PENDING 미검색 · log `HISTORY/PROJECT_LOG_2026-10.md` (2026-10-11 ADMIN Search entry) |
 | **USER Search 2-way Role Permutation** | ✅ **COMPLETE** — Target=NONE 상태에서 Yellow=Target/Red=Second 및 Red=Target/Yellow=Second 2가지 역할 순열을 모두 평가하여 물리 색상과 무관하게 정확한 레코드 매칭. (`userSearchRolePermutation.contract.test.ts` 11 PASS) |
 | **Winning Role Mapping & Trajectory Target** | ✅ **COMPLETE** — `runUserSearch`가 승리한 `matchedBalls`를 반환하고 UI `ballsState`를 동기화하여 화면 상 물리공 위치 불변 및 Trajectory 엔진으로의 정확한 1적구 물리 좌표 전달 보장. |
 | **Full Lifecycle Pipeline Contract** | ✅ **COMPLETE** — Save → `positions_dataset` → Derived Approval → Cartesian Product → Export → Published Leaf → USER Search → Trajectory Target 전 수명주기 무결성 보장. (`endToEndDataPipeline.contract.test.ts` 7 PASS) |
@@ -224,6 +246,7 @@ Derived Data
 | Field | Value |
 |-------|--------|
 | **Review samples** | Cue markers ∪ C3+ markers (≠ durable count) |
+| **C3+ sample range** | Full scoring line: C3 → system tail (C4/C5/C6) → EXT1 → EXT2 end. 뒷공 first-hit segment only gates eligibility (`NO_SB_HIT`), never ends the range (`resolveC3PlusScoringLine`). Future SAVE/Approve only; stored data not regenerated |
 | **Durable Product** | **Phase 6 Role-native:** `balls.target` = physical Target · `balls.second` = scoring sample P · Canonical: `placePhysicalSecondSampleOnRoleBall3` |
 | **Cardinality** | `T × Nc × N3` (dynamic; fixture e.g. 4×3×21=252; real sets may be 4×4×18=288) · Product-only on Approve |
 | **Identity** | `DERIVED_CUE_C3_PRODUCT` · `CUE_C3_CARTESIAN_PRODUCT_V1` · `cue:{cueStep}\|c3:{c3Step}` |
@@ -231,9 +254,11 @@ Derived Data
 | **Impl** | `buildCueC3ProductMembers.ts` · `placePhysicalSecondSampleOnRoleBall3` · `resolveC3PlusSecondBall` → `balls.second` |
 | **Coverage display SSOT** | APPROVED/History: `productCoverageFromDataset` ← unique Product `balls.cue` / **`balls.second`** (Role physical Second) per track |
 
-### LocalDB ADMIN Spatial Search (adminSearch)
+### LocalDB ADMIN Spatial Search (adminSearch) — 폐지됨 (2026-09-30 Task F)
 
-> Path: `handleAdminSearch` → `runAdminLocalDbRecall` → `runSpatialRecall(adminSearch)`.
+> **폐지됨:** `adminLocalDbFlow` · `normalizedLocalMemberSearch` 삭제. 현행 ADMIN Search = Published 전체 leaf (`adminStrict`, Manhattan) — **ADMIN Search All Published Leaves** 참조. 아래는 이력.
+>
+> Path (이력): `handleAdminSearch` → `runAdminLocalDbRecall` → `runSpatialRecall(adminSearch)`.
 > **Corpus** = persisted `PositionRecord` Ball3 samples (React `dataset` after History load / working corpus).
 > **Not** trajectory geometry · **Not** Coverage markers as candidate expansion.
 
@@ -637,7 +662,7 @@ Architecture Review
 | `작업관리/STEP7_IMPLEMENTATION_DECOMPOSITION.md` | **STEP7 Session Execution SSOT v1.0 Approved** |
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | **Operations** — Session Read Order · Startup Rules · Current / Next / Carry |
 | `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
-| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.5** — Cap / Boundary · Phase 2A · Reading Mode · C2 Override · **5&Half Baseline Display Ceiling** |
+| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.7** — Cap / Boundary · Phase 2A · Reading Mode · C2 Override · **Always Last Valid Cushion (세컨드볼은 표시 종료 조건 아님)** |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension Overlay Runtime SSOT **v1.4** (Task Closed · Freeze) |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book v1.0** · Front Matter + **Ch.8–Ch.11 Ratified** · **B0–B8 Completed** · **Final Validation Gate v1.0** |
 | `System Platform Standard (SPS) v1.0/Certification_Platform/` | **STEP9 Certification Platform SSOT v1.0 · FROZEN** · P-01…P-05 · FC-01…FC-08 |
@@ -1754,6 +1779,143 @@ H² = V² = RPI² = identity · H∘V = V∘H = RPI · source track → destinat
 **Phase F-3C COMPLETE:** YES (core `58ef947` + F-3C.2 C2 Family-common).
 **Next Track:** separate Display Boundary Ask (optional) — whether saved ADMIN C2 should also apply to USER.
 
+### LocalDB / History / Publish Lifecycle + Ball-Role SSOT (2026-09-29)
+
+**Authority:** 본 절 · 2026-09-29 Agent (LocalDB·History·Publish 원칙 구현)
+
+#### 1. 공 역할 SSOT
+
+- `balls.cue` = **내공** = 항상 흰 공 · `balls.target` = **앞공** · `balls.second` = **뒷공**.
+- `targetBall`은 앞공의 **색상 메타데이터**일 뿐, 앞공/뒷공 역할을 결정하지 않는다. 좌표만 보고 앞공/뒷공을 다시 추론하지 않는다.
+- 사용자-facing 문구는 내공/앞공/뒷공 (위 Terminology 절). 수구/1적구/2적구 금지.
+
+#### 2. LocalDB 정책 (`normalized_dataset`) — **2026-09-30 폐지 → §13** (LocalDB는 더 이상 작업 저장소가 아님; 아래는 이력)
+
+- LocalDB = **아직 Publish하지 않은 작업 데이터**. 정규화 저장: FamilyMaster 공용값(signature · sysInputs · corrections · correctionsStored · ai · str · hpT) 1회 · Member는 Member 필드만.
+- 새 Family: SAVE → 파생 검토 → **승인** 시 LocalDB와 History 그래프가 함께 확정된다. 승인 전에는 Publish 불가.
+- **(2026-09-30 폐지 → §10) Publish 후 자동 정리:** Publish 파일 쓰기 + Git push + Production 검증(`PRODUCTION_VERIFIED`) 모두 성공 **그리고** Published familyId = History familyId **그리고** LocalDB의 해당 Family가 배포된 History 그래프와 같을 때만, 그 Family 1개만 LocalDB에서 제거한다. 하나라도 아니면 보존 + 사용자 경고 (`NOT_VERIFIED` · `FAMILY_ID_MISMATCH` · `LOCAL_DIFFERS_FROM_PUBLISHED` · `LOCALDB_COMMIT_FAILED` 등). History · Published · AI · 다른 Family는 유지. fm_2a/fm_3c 충돌 정책은 변경하지 않음 (확정 덮어쓰기로 ID가 달라지면 제거하지 않음).
+- **(2026-09-30 폐지 → §13, 버튼·기능 제거) [로컬 삭제] = 미배포 로컬 데이터 모두 삭제:** 삭제 키는 `normalized_dataset` · `positions_dataset` · `positions_dataset_meta` · `family_masters` · `family_members` 5개 + 승인 전 새 SAVE 복구 기록 `pending_new_family_save_recovery_v1` (§8) 뿐. `localStorage.clear()` · 광범위 키 삭제 금지. 확인 화면: Family 수 · Member 수(파생 포함) · 대략 용량 · History/Published/AI 문장 보존 · 되돌릴 수 없음 · [취소] [미배포 로컬 데이터 모두 삭제]. LocalDB가 비어 있으면 안내만 표시.
+
+#### 3. History 정책 (`workspace_history`) — 저장 위치·원자성·삭제는 **2026-09-30 §13으로 대체** (D 드라이브 History 파일; 배지·그래프·OVERWRITE 규칙은 유지)
+
+- **화면:** 원본 작업 1개 = 1행. 파생 Member는 행으로 표시하지 않는다. 승인된 파생이 있으면 "파생 승인 완료 · N개" 배지 (N = `DERIVED_*`만, AUTHORED · SYMMETRY 제외, 0이면 배지 없음). 승인 전 새 Family 행은 "파생 승인 전 · Publish 불가".
+- **저장:** 새 행은 `publishFamilyGraph` (`kind: NORMALIZED_FAMILY_GRAPH`, `schemaVersion: 1`, `familyId`, Master 1개 + 모든 Member) + `derivedApproval { status: PENDING|APPROVED, derivedCount, source: SAVE_APPROVE|OVERWRITE_PRESERVED }`. 그래프는 커밋된 LocalDB에서 다시 읽어 만든다 (History = LocalDB 동일 그래프).
+- **OVERWRITE:** 파생 재생성·삭제·재검토 없음. History 그래프 = 수정된 Master + 보존된 모든 Member, 기존 파생 개수 표시.
+- **원자성:** History 기록 실패 시 LocalDB를 직전 값으로 되돌린다 (SAVE · OVERWRITE · 승인 모두). 실패한 항목은 Publish 가능한 승인 항목으로 보이지 않는다.
+- **Publish 입력 = History에 확정된 그래프** (Publish 시점에 LocalDB를 다시 읽지 않음). 서버가 그래프 → 기존 flat 경로로 변환해 occupancy/F-2E 동작 불변. graph와 flat 동시 전송은 `publish-input-ambiguous`로 거부.
+- **레거시:** 옛 flat `publishFamilyPayload` 행은 읽기·Publish 계속 가능. 자동 변환·삭제 없음. 새 행은 flat payload를 쓰지 않는다.
+- **History 삭제:** 선택한 Published/Unexported 행의 `workspace_history` 항목만 삭제. LocalDB · Published · AI 문장은 건드리지 않는다.
+
+#### 4. AI 등록 문장 정책 (`ONE_POINT_LESSON_LIBRARY_V1`)
+
+- 최대 30개, 새 문장 등록 시 가장 오래된 문장부터 제거 (createdAt 기준 FIFO). 수정·삭제·순서 변경은 개수를 늘리지 않는다.
+- History 삭제 · Publish 후 자동 정리 · [로컬 삭제] 어느 경로도 이 키(및 `ONE_POINT_CATEGORY_LIBRARY_V1`)를 건드리지 않는다.
+
+#### 5. 새 SAVE 파생 승인 취소 = SAVE 전체 되돌리기
+
+> 2026-09-30 §13: "LocalDB 복원" 단계는 없어졌다. [취소] = D History의 그 PENDING snapshot 1개 삭제 + 화면 SAVE 직전 복원.
+
+- 새 Family SAVE와 그 파생 승인은 **하나의 작업**이다. 파생 검토에서 [취소]하면 그 SAVE 전체를 되돌린다: 새 Family(AUTHORED · SYMMETRY 기본 Member 포함)를 LocalDB에서 제거(= SAVE 직전 `normalized_dataset` 바이트로 복원) · 그 SAVE가 만든 PENDING History 행 1개 삭제 · 임시 familyId/memberId · 검토 상태 해제 · 화면은 SAVE 직전 편집 상태로 복원.
+- **취소 후 "파생 승인 전 · Publish 불가" 행은 남지 않는다.** 다른 History 행 · 다른 LocalDB Family · Published · AI 문장은 그대로.
+- 대상은 **새 SAVE만.** OVERWRITE(검토 없음) · History Recall · Published Recall · 이미 승인된 Family는 취소 되돌리기 대상이 아니다 (`runCanonicalSave`가 새 SAVE에만 되돌리기 토큰 `pendingNewFamilySave`를 발급).
+- 안전 순서: History 행이 아직 PENDING인지 확인 → LocalDB가 그 SAVE 직후 값 그대로인지 확인 → LocalDB 복원 → PENDING 행 삭제. 확인 단계에서 이상하면(행이 이미 승인됨 · History를 읽을 수 없음 · SAVE 이후 LocalDB가 다른 작업으로 바뀜 · LocalDB 복원 실패) LocalDB와 History를 **바꾸지 않고** 검토 화면을 유지한 채 어느 단계가 실패했는지 알린다. LocalDB 복원 후 History 행 삭제만 실패하면 그 행은 PENDING(Publish 불가)으로 남고, History에서 직접 Delete하도록 안내한다. 어떤 실패에서도 PENDING 행은 Publish 가능해지지 않는다.
+
+#### 6. 삭제 범위 (무엇을 지우면 무엇이 남는가)
+
+| 동작 | 지우는 것 | 남기는 것 |
+|------|-----------|-----------|
+| History Delete | 선택한 `workspace_history` 행만 | LocalDB · Published · AI 문장 |
+| [로컬 삭제] | LocalDB 작업 키 5개 + 승인 전 새 SAVE 복구 기록 | History · Published · AI 문장 |
+| ~~Publish 후 자동 정리~~ (2026-09-30 폐지 → §10) | 없음 — Publish는 LocalDB를 지우지 않는다 | LocalDB 전체 · History · Published · AI 문장 |
+| 새 SAVE 파생 검토 [취소] | 그 SAVE의 새 Family (LocalDB) + 그 SAVE의 PENDING 행 1개 + 복구 기록 | 다른 모든 LocalDB · History · Published · AI 문장 |
+| 새로고침 후 [새 SAVE 취소] (§8) | 위와 같음 | 위와 같음 |
+| 파생 검토 시작 실패 자동 되돌리기 (§8) | 위와 같음 (복구 기록은 만들어지지 않음) | 위와 같음 |
+| Published 초기화 (repo `dataset/` leaf) | leaf 안의 FamilyMaster · FamilyMember | leaf 파일 · 경로 · shotType/systemId/systemLabel |
+
+AI 등록 문장(`ONE_POINT_LESSON_LIBRARY_V1` · `ONE_POINT_CATEGORY_LIBRARY_V1`)은 위 어느 동작으로도 삭제되지 않는다.
+
+> 2026-09-30 §13: [로컬 삭제] 행은 폐지. History Delete = D History snapshot 파일 + index 항목만 (Published · AI 문장 유지). 새 SAVE [취소] = 그 PENDING snapshot만.
+
+#### 7. Published 전체 초기화 기록 (2026-09-29, 새 검증 시작용)
+
+- 2026-09-29, 새 검증을 위해 repo의 **모든 Published leaf**를 빈 정상 구조로 초기화했다 (木鷄님 승인). 대상 전체: `dataset/뒤돌리기/파이브앤하프/positions.json` (v3 · Master 5 / Member 1460 → 0 / 0) · `dataset/옆돌리기/파이브앤하프/positions.json` (legacy flat v2 · records 256 → v3 Master 0 / Member 0).
+- 빈 구조 = Publish가 leaf가 없을 때 만드는 정식 빈 leaf와 바이트 동일: `{ schemaVersion: 3, shotType, systemId: "5_half_system", systemLabel: "파이브앤하프", familyMasters: [], familyMembers: [] }` (`exportedAt` · `sourceSnapshotId` 없음 — 옛 snapshot 흔적 없음). 파일·폴더 삭제 없음, 제자리 덮어쓰기.
+- 검증: Search loader(`parsePublishedLeafPayload`) = `empty` · Publish 기준 leaf 읽기(`resolveExistingNormalizedLeafBase`) = `ok:v3` · leaf 복사본에 Family Publish 시 정상 추가. 회귀 테스트 `publishedLeafLoad.contract.test.ts`는 모든 leaf가 `ok|empty`로 로드되는지 검사한다 (빈 leaf 허용).
+- 새 테스트 데이터는 이후 정상 흐름(SAVE → 파생 승인 → History Publish)으로 이 빈 leaf에 다시 Publish한다.
+- 옛 legacy 옆돌리기 leaf를 쓰던 마이그레이션 회귀 테스트(legacyV2MetaRepair · legacyProductTwinDedupe)는 초기화 직전 사본 `frontend/src/domain/family/__fixtures__/legacySideLeaf.v2.2026-08-27.json`(테스트 전용, 앱이 읽지 않음)을 사용한다.
+- 브라우저의 LocalDB · History는 Cursor가 지우지 않았다. 사용자가 직접 정리한다 (History 전체 Delete → [로컬 삭제] → 새로고침 → 비어 있음 확인 → 새 SAVE + 파생 승인).
+
+#### 8. 새 SAVE ~ 파생 승인 사이 예외: 새로고침(F5) 복구 · 검토 시작 실패 자동 되돌리기
+
+> 2026-09-30 §13: 복구 기록(`pending_new_family_save_recovery_v1`)과 LocalDB 복원은 폐지. F5 복구는 D History의 PENDING snapshot 자체로 판단한다. 안내창 문구·[파생 승인 재개]·[새 SAVE 취소] 동작 의미는 유지.
+
+- **새로고침 복구 안내:** 새 SAVE 후 파생 승인/취소 전에 페이지를 새로고침하면, 새 SAVE를 **자동 삭제하지 않는다.** ADMIN 화면에 들어오면 (페이지 로드당 1회) 안내창을 띄운다: "파생 승인이 완료되지 않은 새 작업이 있습니다." · [파생 승인 재개] · [새 SAVE 취소] (닫기 버튼 없음). USER 모드로 열렸으면 ADMIN 전환 시 표시한다. 그동안 그 행은 "파생 승인 전 · Publish 불가"로 남는다.
+- **[파생 승인 재개]:** LocalDB에 이미 있는 그 Family로 파생 검토를 다시 만든다. 새 Family · 새 History 행 · 기본 Member 중복을 만들지 않고, 같은 familyId · 같은 Member ID · 같은 PENDING 행을 그대로 쓴다. 공 역할(`balls.cue`=내공 · `balls.target`=앞공 · `balls.second`=뒷공) · Track · lineage · C3+/Product 규칙 변경 없음. 화면은 그 행에 저장된 SAVE 시점 상태로 복원. 이후 [승인] = 전체 정규화 그래프를 History에 확정 (기존과 동일), [취소] = SAVE 전체 되돌리기 (§5와 동일). 승인 결과는 새로고침 전 원래 검토가 승인했을 결과와 같다 (파생 Member ID · authoringStrategyId는 승인 때마다 새로 발급되는 기존 동작). 검토를 다시 만들 수 없으면 가짜 검토를 열지 않고 아무것도 지우지 않으며, 원인과 [새 SAVE 취소] / History Delete 방법을 안내한다.
+- **[새 SAVE 취소]:** §5와 같은 되돌리기 — LocalDB를 SAVE 직전 바이트로 복원 · 그 PENDING 행 1개 삭제 · 복구 기록 삭제 · 안내창 닫기. 다른 Family · 다른 행 · Published · AI 문장은 그대로. SAVE 이후 LocalDB가 바뀌었으면 되돌리지 않고 안내창을 유지한다 (재개 후 승인은 가능).
+- **파생 검토 시작 실패:** 새 SAVE 직후 검토를 만들 수 없으면 SAVE 전체를 자동으로 되돌린다 (LocalDB SAVE 전 복원 · PENDING 행 삭제 · 임시 familyId/memberId · 검토 상태 해제 · 화면 SAVE 전 복원). 안내: "파생 검토를 시작할 수 없어 새 저장을 되돌렸습니다. 기존 작업 데이터는 유지되었습니다." 안전하게 되돌릴 수 없으면 (History를 읽을 수 없음 · SAVE 이후 LocalDB가 바뀜 · 복원 쓰기 실패 · 되돌리기 정보 없음) LocalDB · History를 임의로 지우지 않고 정확한 원인과 정리 방법을 안내한다: History에서 그 행을 Delete (History 행만) · 로컬DB의 새 Family까지 지우려면 [로컬 삭제] (로컬 작업 전체). LocalDB만 되돌리고 History 행 삭제만 실패하면 그 행을 History에서 직접 Delete하도록 안내한다.
+- **복구 기록 (`pending_new_family_save_recovery_v1`, localStorage):** 검토가 열릴 때 1개 기록. 내용 = `historySnapshotId` · `familyId` · SAVE 직전 `normalized_dataset` 바이트 1벌 (정확한 되돌리기용) · SAVE 직후 LocalDB 지문(길이+해시, 두 번째 복사본 대신) · C3+ authored 경로 노드 (C3+ 후보 재생성용) · `schemaVersion: 1`. 새 Family 자체는 LocalDB에만 있고 기록에 복사하지 않는다. AI 문장 · Published · 사용자 설정 키와 분리. 기록 저장에 실패해도 SAVE/검토는 진행하고 "새로고침하지 마세요" 경고만 표시 (검토 중 [취소]는 메모리 정보로 정상 동작).
+- **복구 기록 자동 제거:** 승인 완료 (History 행 APPROVED 확정 시) · 검토 [취소] / [새 SAVE 취소] 되돌리기 (LocalDB 복원 성공 시) · [로컬 삭제] · History에서 그 행이 삭제된 뒤 다음 확인 시 (기록 무효화) · 이미 APPROVED 행을 가리키는 남은 기록 (조용히 제거). 검토 시작 실패 시에는 처음부터 기록하지 않는다. `localStorage.clear()` 사용 없음.
+- **안내창을 띄우는 조건 (모두 만족):** 기록이 온전함 (형식 · 필수 항목) · History 행 존재 · 그 행이 PENDING이고 Publish 불가 · 행의 familyId = 기록 familyId · LocalDB에 그 Family (Master + AUTHORED) 존재 · 아직 파생 Member 없음. 하나라도 아니면 자동 삭제 · 가짜 재개 없이 일반 화면으로 들어가고 "승인 전 작업을 자동 복구할 수 없습니다" 안내 + History Delete / [로컬 삭제] 범위를 표시한다 (행이 삭제된 경우만 기록을 정리).
+- **기존 PENDING 행 호환:** 복구 기록 없이 남아 있는 옛 "파생 승인 전" 행은 자동 변환 · 자동 삭제하지 않고 안내창도 띄우지 않는다. Publish 불가 상태 유지, History에서 직접 Delete 가능.
+- **삭제 범위 불변:** History Delete · [로컬 삭제] · Publish 후 자동 정리 · Published · AI 문장 정책은 §2~§6 그대로 (복구 기록 키가 [로컬 삭제] 대상에 추가된 것만 다름).
+
+#### 9. [로컬 삭제] 확인창 (2026-09-29, 화면 배치만 변경) — **2026-09-30 폐지 → §13** (확인창·기능 제거)
+
+- [로컬 삭제]는 **화면 중앙 확인창**에서 실행한다 (`LocalDbDeleteConfirmDialog`, ModalShell · 고정 위치 · 배경 어둡게 · 작은 화면에서 본문 스크롤). 우측 제어 패널 아래에 설명·버튼을 인라인으로 펼치지 않는다.
+- 확인창 내용: 제목 "미배포 로컬 작업 삭제" · 미배포 Family 수 · 파생 Member 포함 전체 Member 수 · 대략 용량 · "History, Published 데이터, AI 문장 라이브러리는 삭제되지 않습니다." · "이 작업은 되돌릴 수 없습니다." · [취소](안전, 기본 포커스) [미배포 로컬 데이터 모두 삭제](빨간 위험 버튼). LocalDB를 읽을 수 없으면 개수 대신 경고를 보여 주고 삭제는 허용한다.
+- 확인창을 여는 것은 요약 읽기만 한다 (저장소 변경 없음). [취소] · Esc · 배경 클릭 · × = 닫기만. 삭제는 위험 버튼을 눌렀을 때만 기존 경로(`runWorkspaceLocalStorageCleanup` → `deleteAllLocalDbWork`)로 실행하고 결과(성공 / 일부 실패)를 알린 뒤, 삭제된 키가 있으면 기존처럼 페이지를 다시 읽어 LocalDB를 새로 반영한다.
+- LocalDB가 비어 있으면 "삭제할 미배포 로컬 데이터가 없습니다."와 [닫기]만 보여 주고 삭제 버튼은 없다.
+- 삭제 범위 불변: LocalDB 작업 키(§2)만 삭제 · History · Published · AI 문장 라이브러리 · 카테고리 · 앵커 · UI 설정 · 다른 키 유지 · `localStorage.clear()` 없음.
+
+#### 10. LocalDB는 자동 삭제하지 않고 관리자가 수동 정리 (2026-09-30) — **같은 날 §13으로 폐지** (LocalDB 자체 제거; "Publish는 작업 데이터를 지우지 않는다"는 유지)
+
+- **Publish 후 자동 정리 폐지:** Publish + Git + Production 검증(`PRODUCTION_VERIFIED`)이 성공해도 LocalDB Family를 지우지 않는다. 성공 후 동작은 History 행 Published 표시 · Published 새로고침 · 성공 알림(Publish 완료 · Published 검증 완료 · HEAD 커밋)뿐. 로컬 정리 성공/보류/실패 문구와 "⚠ 로컬 데이터 보존 …: Publish가 완료되지 않았습니다" 경고는 없어졌다. Publish 성공 판정 · Git commit/push · Production read-back · History Published 표시는 그대로.
+- **[로컬 삭제] = LocalDB 작업 데이터 전체 수동 삭제:** 미배포 작업 · 이미 Publish된 Family의 로컬 사본 · 승인 전 새 SAVE 복구 기록을 모두 지운다. 삭제 키 목록(§2)은 그대로. History · Published · AI 문장 · 카테고리 · 앵커 · UI 설정 · 다른 키 유지, `localStorage.clear()` 없음.
+- **확인창 문구 (§9 대체):** 제목 "로컬 작업 데이터 삭제" · "LocalDB에 저장된 Family N개와 파생 Member 포함 Member M개를 삭제합니다." · "용량 약 X MB" · "이 작업은 되돌릴 수 없습니다." · [취소] [LocalDB 작업 데이터 모두 삭제]. "미배포" 표현 · 보존 설명 문장은 쓰지 않는다 (보존은 구현과 테스트로 보장). 비어 있으면 "삭제할 로컬 작업 데이터가 없습니다." + [닫기]만.
+- Code: `hooks/useSettings.js` (성공 분기에서 자동 정리 제거) · `localDbWorkCleanup.ts` (자동 제거 함수 삭제, 수동 삭제만) · `LocalDbDeleteConfirmDialog.jsx` · `localDbDeleteFlow.ts` · tests `historyApprovedFamilyGraph.contract.test.ts` §7/8/8b · `LocalDbDeleteConfirmDialog.contract.test.jsx`.
+
+#### 11. Publish 성공 안내 — Published 현황 (2026-09-30)
+
+- Production 검증 성공 시에만 성공 알림(HEAD 아래)에 leaf별 현황을 붙인다: "{공략} · {시스템} Published 현황" · Family N개 · Member M개 (천 단위 쉼표) · 파일 크기 (UTF-8 바이트, B/KB/MB/GB, 1024 단위) · 이번 Publish·검증 시간 · 상태.
+- **숫자 기준:** Production 검증과 같은 commit의 leaf blob (`git show <commit>:dataset/…/positions.json`, 검증과 같은 경로 검증) → `familyMasters` / `familyMembers` 배열 길이 · blob 바이트 수. working tree · LocalDB · History · 브라우저 캐시는 쓰지 않는다. NO_CHANGE도 현재 HEAD blob 기준. 응답에는 shotType · systemId · systemLabel · familyCount · memberCount · byteLength만 담는다.
+- **시간:** Git Publish 요청 1회의 시작~완료 (Git + 배포 반영 대기 + read-back 포함). 덮어쓰기 확인창을 읽는 시간은 제외, 재시도 성공이면 재시도 요청 시간. 1초 미만은 "1초 미만". 여러 leaf여도 한 번만 표시.
+- **상태 (운영 안내, 오류 아님):** Family ≥ 1,000 또는 Member ≥ 1,000,000 → 데이터베이스 전환 검토 (최우선) · 파일 ≥ 10MiB → 분할 전환 필요 · ≥ 5MiB → 분할 준비 · 그 외 정상. 판정은 반올림 전 원본 바이트.
+- **현황을 못 읽으면:** Publish 성공은 그대로, "Published 현황을 읽지 못했습니다." + 시간만 표시 (0으로 추측하지 않음). 원인은 console과 결과의 짧은 코드(`leafSummaryError`)에만.
+- 참고 (기존 제약, 이번 변경 없음): Production read-back 응답 상한 5,000,000바이트 · `git show` 출력 상한 8MiB → 약 4.77MiB를 넘는 leaf는 지금 검증 단계에서 실패하므로 "분할 준비" 이상 상태가 성공 화면에 나오기 전에 검증 상한 조정이 먼저 필요하다. → **2026-09-30 해결 (§12).**
+
+#### 12. Published leaf 크기 상한 12MiB 통일 (2026-09-30)
+
+- 상수 `PUBLISHED_LEAF_MAX_BYTES` = 12 × 1024 × 1024 (`repoPublish/publishedLeafSummary.ts`). 정확히 12MiB 허용, 1바이트라도 넘으면 거부.
+- 적용 위치 (leaf 내용을 읽는 곳 전부): Production read-back 응답 (`DEFAULT_PRODUCTION_VERIFY_POLL.maxResponseBytes`) · commit blob 읽기 `git show <commit>:<leaf>` (검증 기대값 + Published 현황) · commit 직전 staged blob 검사 `git show :<leaf>` (12MiB 초과 leaf는 commit/push 전에 차단).
+- 거부 코드: Production `response-too-large` (응답 Content-Length가 상한 초과면 본문을 읽지 않음, 스트림은 상한 초과 즉시 중단, 비스트림 응답도 UTF-8 바이트로 계산) · commit blob `commit-blob-too-large` / `BLOB_TOO_LARGE` (검증 fatal) · staged `staged-blob-too-large`. origin · 경로 검증 · `cache: no-store` · 3초/4초 polling 불변.
+- 그 밖의 Git 명령 출력(status/diff/log) 버퍼는 기존 8MiB 유지 (leaf 내용을 읽지 않음). Publish 요청 본문 상한 8,000,000바이트(History Family 그래프 전송용)도 leaf 크기와 무관해 유지.
+- 결과: 5MiB(분할 준비) · 10MiB(분할 전환 필요) leaf도 Production 검증 성공 후 현황 상태가 표시된다. 상태 판정은 원본 byteLength.
+- (§13으로 폐지) [로컬 작업 데이터 삭제] 확인창 본문 (§10 대체): "LocalDB에 저장된 Family N개와 Member M개를 삭제합니다." (Member 수는 원본·대칭·파생 포함 전체, 화면에서 풀어 설명하지 않음). 삭제 범위 불변.
+- Tests: `publishedLeafSizeLimit.contract.test.ts` (실제 5MiB / 10MiB−1 / 10MiB / 12MiB / 12MiB+1 blob).
+- Code: `repoPublish/publishedLeafSummary.ts` · `productionVerify.readCommittedPublishedLeafSummaries` · `publishDatasetWithGit.ts` (검증 성공 결과에 `leafSummaries`) · `publishDatasetToLocalRepoGit.ts` (클라이언트 파싱) · `application/flows/publishStatusReport.ts` (문구 · 상태 · 시간) · `hooks/useSettings.js` · tests `publishedLeafSummary.contract.test.ts` · `publishStatusReport.contract.test.ts`.
+
+#### 13. LocalDB 제거 — D 드라이브 History가 유일한 작업 저장소 (2026-09-30, Task F)
+
+**대체:** §2 전체 · §2/§6/§9/§10/§12의 [로컬 삭제] · §3의 저장 위치(`workspace_history` localStorage)·원자성(LocalDB 되돌리기) · §5/§8의 LocalDB 복원과 복구 기록. 공 역할 SSOT(§1) · 배지/그래프/OVERWRITE 규칙(§3) · AI 문장(§4) · Published 초기화 기록(§7) · Publish 현황(§11) · 12MiB 상한(§12)은 그대로.
+
+- **원칙:** 브라우저 localStorage에 FamilyMaster · FamilyMember · 승인 그래프 · History 그래프를 저장하지 않는다. 작업 데이터 = 프로젝트 D 드라이브 History 하나. Publish된 데이터는 Search로, Publish 전 작업은 History로 불러온다. History 삭제는 Published 데이터를 지우지 않는다.
+- **저장 구조:** `<repoRoot>/.workspace-data/history-index.json` (목록용 가벼운 정보만: snapshotId · 이름 · 버전 · 시각 · shotType/systemId/systemLabel · status · derivedCount · familyId · publishable · published · revision) + `history/snapshot-<id>.json` (화면 상태 + Family 그래프 1개). 목록은 index만 읽고, 불러오기·Publish는 snapshot 1개만 읽는다. `.workspace-data/`는 `.gitignore` 대상.
+- **상태:** `PENDING` (새 SAVE, 승인 전, Publish 불가) → `APPROVED` (같은 snapshot을 전체 정규화 그래프로 원자적 확정) → `PUBLISHED` (Production 검증 성공 후 표시). Publish 실패 시 snapshot은 그대로 APPROVED.
+- **보안:** API(`POST /api/work-history`)는 Vite dev 서버(`apply: "serve"`)에만 등록 · loopback Host/접속 주소 · Origin · `application/json` · 본문 크기 검사. 요청은 `{ op, input }`만; 파일/폴더 경로 · repoRoot · 드라이브 · 셸 명령은 받지 않는다 (섞여 오면 무시·거부). snapshotId = `^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$` (`../` · 절대 경로 · 구분자 · 셸 문자 거부). 오류 응답은 짧은 코드 + 초보자 문구만 (절대 경로 · Git 명령 · 환경값 없음). Production / preview / Vercel에는 History API 없음. Published Search는 Production Published 데이터만 읽는다 (LocalDB 대체 경로 없음).
+- **원자성:** 모든 파일 쓰기 = 임시 파일 + rename. snapshot 먼저, index 나중; index 쓰기 실패 시 snapshot 이전 바이트 복원. snapshot은 index 항목과 revision · status가 일치할 때만 사용 (임시 파일 · index 없는 파일 · 반쯤 복원된 파일은 원장으로 읽지 않음).
+- **흐름:** SAVE = PENDING snapshot 생성 (실패하면 SAVE 실패, 화면 dataset 복원) · 승인 = 같은 snapshot APPROVED + 그래프 (실패 시 검토 유지, 화면 불변) · F5 = PENDING snapshot 발견 시 [파생 승인 재개] / [새 SAVE 취소] · 불러오기 = index 목록 → snapshot 1개 (PENDING이면 재개/취소/[닫기] 안내; APPROVED/PUBLISHED면 [덮어쓰기] 가능, Member identity 유지) · Publish 입력 = APPROVED 그래프 (Git commit/push · Production read-back · Published 표시 · 현황 보고 유지) · 삭제 = snapshot 파일 + index 항목 (Published leaf 불변) · 새 SAVE 충돌 확인창 유지.
+- **이전(migration) 7개 키:** `normalized_dataset` · `positions_dataset` · `positions_dataset_meta` · `family_masters` · `family_members` · `workspace_history` · `pending_new_family_save_recovery_v1`. ADMIN 진입 시 남은 데이터가 있으면 안내창 [옮기기] [나중에] (나중에 = 다음 ADMIN 진입 때 다시 물음). 순서: 읽기 전용 분석 → D History 가져오기(서버에서 전부 또는 전무) → 모든 snapshot 검증 → 검증 성공 후에만 키 삭제 (`localStorage.clear()` 없음). 실패 시 "작업 데이터 이전에 실패했습니다. 기존 데이터는 보존했습니다." + 이번에 가져온 snapshot 회수. 고정 id(`legacy-family-<familyId>` 등)로 재실행해도 중복 없음. History 행이 없는 LocalDB Family는 파생 Member가 있으면 APPROVED, 없으면 PENDING. 복구 기록이 없는 PENDING(QuotaExceededError로 기록 실패)도 이전되며 C3+ 경로 없이 재개 가능.
+- **제거한 UI/기능:** 좌측 [로컬DB] 버튼 · [로컬 삭제] · 확인창 `LocalDbDeleteConfirmDialog` · `localDbDeleteFlow` · `localDbWorkCleanup` · LocalDB Search(`adminLocalDbFlow` · `normalizedLocalMemberSearch`) · `useShotSlots.saveShot`(localStorage `shot_*`) · browser-history 기반 repo-only Publish 경로. 화면 문구에 경로 · JSON · localStorage · IndexedDB · API를 쓰지 않는다.
+- **남아 있는 레거시 인프라 (작업 흐름에서는 미사용):** `canonicalNormalizedCorpusStore` · `persistWorkingCorpusNormalizedAuthority` · `loadProductionCompatibleDataset` · `pendingNewFamilySaveRecoveryStore` · `domain/workspaceHistory` (이름 생성 등). SAVE · 승인 · 불러오기 · Publish는 이것들을 쓰지 않는다 (`localDbRemoval.contract.test.ts`가 강제). 삭제는 후속 정리 대상.
+- Code: `domain/workHistory/` (`workHistoryFileStore.ts` 서버 저장소 · `workHistoryModel.ts` · `workHistoryClient.ts` · `workHistorySaveCommit.ts` · `workHistoryRecall.ts` · `workHistoryPublishInput.ts` · `legacyWorkMigration.ts`) · `vite.config.js` (`workHistoryApiDevMiddleware`) · `historyFlow.ts` · `derivedApprovalFlow.ts` (`finalizeHistory`) · `saveFlow.ts` · `pendingSaveCancelFlow.ts` · `pendingSaveRecoveryFlow.ts` · `hooks/useSettings.js` · `components/LegacyWorkMigrationPrompt.jsx` · `components/PendingSaveRecoveryPrompt.jsx` · `WorkspaceHistoryModal.jsx` · `Stage.jsx` · App wiring · `.gitignore`.
+- Tests: `workHistoryFileStore.contract.test.ts` · `workHistoryPublish.contract.test.ts` · `legacyWorkMigration.contract.test.ts` · `workHistoryFlows.contract.test.ts` · `localDbRemoval.contract.test.ts` (임시 폴더는 `os.tmpdir()`만; 실제 `.workspace-data` 미사용). 옛 LocalDB 전용 테스트는 삭제하거나 "브라우저 저장소에 쓰지 않음"으로 뒤집었다.
+
+**Code SSOT:** `domain/publishFamilyGraph.ts` · `domain/workspaceHistoryPublishGraph.ts` · `domain/historyPublishInput.ts` · `domain/historyRowView.ts` · `domain/dataset/infra/localDbWorkCleanup.ts` · `historyFlow.ts` (History mode · 보상 복원) · `derivedApprovalFlow.ts` (승인 → History 그래프 · 실패 시 복원) · `repoPublish/publishDatasetToRepo.ts` (`resolveLeafRequestPublishFamilyPayload` · `publishedFamilyId`) · `hooks/useSettings.js` · `WorkspaceHistoryModal.jsx` · App wiring · `application/flows/pendingSaveCancelFlow.ts` (새 SAVE 취소 되돌리기) · `application/flows/pendingSaveRecoveryFlow.ts` (검토 시작 실패 자동 되돌리기 · 새로고침 복구 확인/재개) · `domain/dataset/infra/pendingNewFamilySaveRecoveryStore.ts` (복구 기록) · `canonicalNormalizedCorpusStore.digestCanonicalCorpusRaw` · `components/PendingSaveRecoveryPrompt.jsx` · `components/LocalDbDeleteConfirmDialog.jsx` · `application/flows/localDbDeleteFlow.ts` ([로컬 삭제] 확인창) · tests `LocalDbDeleteConfirmDialog.contract.test.jsx` · `historyApprovedFamilyGraph.contract.test.ts` · `WorkspaceHistoryModal.derivedBadge.test.jsx` · `pendingSaveCancel.contract.test.ts` · `pendingSaveRecovery.contract.test.ts` · `publishedLeafLoad.contract.test.ts`
+
+(2026-09-30 §13: 위 목록 중 `localDbWorkCleanup.ts` · `LocalDbDeleteConfirmDialog.jsx` · `localDbDeleteFlow.ts` · 관련 tests와 `historyApprovedFamilyGraph` · `pendingSaveCancel` · `pendingSaveRecovery` contract tests는 삭제; 작업 저장소 SSOT는 §13 Code 목록.)
+
+**Schema change:** History snapshot 필드 추가 (`publishFamilyGraph` · `derivedApproval`, optional) · **Migration:** NO → **2026-09-30 §13: YES** (7개 localStorage 키 → D History, 확인 후 1회) · **Publish body limit:** 1MB → 8MB (localhost 개발 Publish 엔드포인트)
+
 **Production SSOT (검증 완료, 2026-06):**
 
 - Published Dataset은 **Git 관리 대상**이다.
@@ -2282,7 +2444,8 @@ Calculation Toolbar의 **쿠션 포인트**는 관리자 SYS/Grid에서 사용�
 
 USER 기준값/보정값의 **Display Layer 상위 정책**이다. Extension Runtime(Freeze)과 역할을 분리한다.
 
-- SSOT: `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` **v1.5.1**
+- SSOT: `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` **v1.7** (2026-10-11)
+- **v1.7 Always Last Valid Cushion:** SYS 궤적·기준선·라벨은 뒷공(`balls.second`) 적중 여부와 무관하게 마지막 유효 쿠션까지 표시 · Cap = min(chain, same-rail, PhysicalLimit) · v1.6 "적중=공 위치 종료"·baseline corrected ceiling 폐지 · log `HISTORY/PROJECT_LOG_2026-10.md` (2026-10-11 entry)
 - Flow: Builder → **Display Cap** → **Display Boundary** → **Overlay Attach** → Render
 - **Phase 2A:** `trajectoryExtensionOverlayVisibility.ts` — USER baseline CASE B 미부착 · corrected/ADMIN 부착 · Runtime 유지
 - **Reading Mode (§15):** USER Overlay Shell · Original Aspect · Zoom → **table-area center** (`dragOffset=0`) · `ReadingFontScale=1.45` · **Completed**
@@ -3166,7 +3329,7 @@ Path prefix: `System Platform Standard (SPS) v1.0/`
 | `작업관리/CURSOR_SESSION_HANDOFF.md` | **Session Operations** — Official Read Order · Startup Rules · Current / Next / Carry |
 | `SESSION_TRANSFER/Product Phase Handoff.md` | Phase 4 Product Pipeline Mission roadmap |
 | `작업관리/FAMILY_DATA_ARCHITECTURE_DRAFT.md` | **Family Data Architecture** — CONFIRMED DESIGN · CURRENT vs TARGET · Derived Data **3A-359 COMPLETE** · production WRITE SSOT still `positions_dataset` · gated READ default ON |
-| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.5** — 5&Half Baseline Display Ceiling · same-rail nearest-rail identity (BUG-A) · Reading Mode · C2 Handle |
+| `작업관리/DISPLAY_BOUNDARY_POLICY_SSOT.md` | **Display Boundary Policy SSOT v1.7** — Always Last Valid Cushion (세컨드볼 표시 Cap 폐지) · same-rail nearest-rail identity (BUG-A) · Reading Mode · C2 Handle |
 | `작업관리/SIGNED_CORRECTION_AUTHORING_SSOT.md` | **Signed Correction Authoring SSOT** — authored ± · CO/C3 domains · slide/draw mutex · CO label · legacy · curve KEEP · manual PASS 2026-09-15 |
 | `작업관리/TRAJECTORY_EXTENSION_SSOT.md` | Trajectory Extension SSOT **v1.4** · Runtime Activation · USER Search flow |
 | `System Platform Standard (SPS) v1.0/Fleet_Contract_Book/` | **Fleet Contract Book** — Ch.8·Ch.9·Ch.10·**Ch.11 Ratified** · B0–**B8 PASS** · **Final Validation Gate v1.0** |

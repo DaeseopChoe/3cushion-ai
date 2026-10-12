@@ -1,16 +1,19 @@
 /**
- * Workspace History Modal
- * - 상단: [ 전체선택 ] [ 로컬데이터 ] [ Unexported ]
- * - 개별 행: 체크박스 (선택/해제, Shift 범위선택) + 행 클릭 시 Workspace Load
+ * Workspace History Modal — the admin's work ledger (D History).
+ * - 상단: [ 전체선택 ] [ 전체 ] [ Unexported ]
+ * - 개별 행: 체크박스 (선택/해제, Shift 범위선택) + 행 클릭 시 불러오기
  * - 하단 LEFT: Delete / Publish · RIGHT: 닫기
  * Phase D-3: user-facing action = Publish only (independent Manual Export UI removed).
- * `exported` flag = PRODUCTION_VERIFIED Publish success (legacy field name kept).
+ * `exported` = status PUBLISHED (Production-verified Publish).
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ModalShell from "./common/ModalShell";
+import { buildHistoryDerivedBadge } from "../domain/historyRowView";
 
 export default function WorkspaceHistoryModal({
   history,
+  /** Beginner-facing notice when the History list cannot be read. */
+  historyError = null,
   onClose,
   onLoad,
   onDelete,
@@ -18,13 +21,14 @@ export default function WorkspaceHistoryModal({
   /** Phase D-3 — true while Publish pipeline is running (handler-owned). */
   publishInFlight = false,
 }) {
-  const [tab, setTab] = useState("all"); // "all": 로컬데이터, "unexported": Unexported
+  const [tab, setTab] = useState("all"); // "all": 전체, "unexported": Unexported
   const [selectedIds, setSelectedIds] = useState([]);
   const lastCheckedIndexRef = useRef(null);
   const localPublishBusyRef = useRef(false);
   const [localPublishBusy, setLocalPublishBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
-  const busy = publishInFlight || localPublishBusy;
+  const busy = publishInFlight || localPublishBusy || deleteBusy;
 
   const sorted = useMemo(() => {
     return [...(history ?? [])].sort(
@@ -112,14 +116,27 @@ export default function WorkspaceHistoryModal({
     lastCheckedIndexRef.current = index;
   };
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (busy) return;
     if (selectedIds.length === 0) return;
     const count = selectedIds.length;
-    if (window.confirm(`선택한 Workspace ${count}개를 삭제하시겠습니까?`)) {
-      onDelete?.(selectedIds);
-      setSelectedIds([]);
-      lastCheckedIndexRef.current = null;
+    if (
+      !window.confirm(
+        `선택한 History ${count}개를 삭제하시겠습니까?\n` +
+          "이 작업 기록이 삭제됩니다. 이미 Published된 데이터는 삭제되지 않습니다."
+      )
+    ) {
+      return;
+    }
+    setDeleteBusy(true);
+    try {
+      const result = await onDelete?.([...selectedIds]);
+      if (result?.ok) {
+        setSelectedIds([]);
+        lastCheckedIndexRef.current = null;
+      }
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -260,7 +277,7 @@ export default function WorkspaceHistoryModal({
 
         <div style={{ width: 1, height: 24, backgroundColor: "#cbd5e1", margin: "0 4px" }} />
 
-        {/* View: 로컬데이터 */}
+        {/* View: 전체 */}
         <button
           type="button"
           onClick={() => handleSwitchTab("all")}
@@ -277,7 +294,7 @@ export default function WorkspaceHistoryModal({
             transition: "all 0.15s ease",
           }}
         >
-          로컬데이터
+          전체
         </button>
 
         {/* View: Unexported (= not yet PRODUCTION_VERIFIED Publish) */}
@@ -309,7 +326,7 @@ export default function WorkspaceHistoryModal({
               color: "#2563eb",
             }}
           >
-            Publish 진행 중…
+            {deleteBusy ? "삭제 중…" : "Publish 진행 중…"}
           </span>
         ) : null}
       </div>
@@ -323,6 +340,22 @@ export default function WorkspaceHistoryModal({
           minHeight: 0,
         }}
       >
+        {historyError ? (
+          <div
+            role="alert"
+            style={{
+              fontSize: 14,
+              color: "#b45309",
+              backgroundColor: "#fffbeb",
+              border: "1px solid #fcd34d",
+              borderRadius: 6,
+              padding: "10px 14px",
+              marginBottom: 10,
+            }}
+          >
+            {historyError}
+          </div>
+        ) : null}
         {currentList.length === 0 ? (
           <div
             style={{
@@ -333,15 +366,17 @@ export default function WorkspaceHistoryModal({
             }}
           >
             {tab === "all"
-              ? "SAVE 클릭 시 스냅샷이 여기에 표시됩니다."
-              : "Unexported 스냅샷이 없습니다."}
+              ? "SAVE 클릭 시 작업 기록이 여기에 표시됩니다."
+              : "Unexported 작업 기록이 없습니다."}
           </div>
         ) : (
           currentList.map((snap, index) => {
             const isChecked = selectedIds.includes(snap.id);
+            const derivedBadge = buildHistoryDerivedBadge(snap);
             return (
               <div
                 key={snap.id}
+                data-testid="history-row"
                 onClick={() => onLoad?.(snap.id)}
                 style={{
                   display: "flex",
@@ -406,6 +441,21 @@ export default function WorkspaceHistoryModal({
                 >
                   {formatName(snap.name)}
                 </div>
+                {derivedBadge && (
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: derivedBadge.kind === "APPROVED" ? "#1d4ed8" : "#b45309",
+                      backgroundColor: derivedBadge.kind === "APPROVED" ? "#dbeafe" : "#fef3c7",
+                      padding: "2px 8px",
+                      borderRadius: 4,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {derivedBadge.label}
+                  </span>
+                )}
                 {snap.exported && (
                   <span
                     style={{
@@ -477,7 +527,7 @@ export default function WorkspaceHistoryModal({
               type="button"
               onClick={handlePublish}
               disabled={publishDisabled}
-              title="로컬 Vite → repo write → git commit → push → Production 검증"
+              title="관리자 컴퓨터 → 저장소 기록 → Git commit → push → Production 검증"
               style={{
                 padding: "10px 20px",
                 fontSize: 15,

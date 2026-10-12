@@ -1,5 +1,5 @@
 /**
- * Phase 2+ — Search/LocalDB source ownership wiring + SAVE/OVERWRITE (source).
+ * Phase 2+ — Search / History recall source ownership wiring + SAVE/OVERWRITE (source).
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -19,21 +19,21 @@ describe("Phase 2+ edit source ownership session wiring", () => {
     expect(src).toContain("draft.memberId");
   });
 
-  it("adminSearch sets PUBLISHED ownership and clears LOCAL; LocalDB sets LOCAL and clears PUBLISHED", () => {
+  it("adminSearch sets PUBLISHED ownership and clears LOCAL; History recall sets LOCAL and clears PUBLISHED", () => {
     const published = readFileSync(
       join(__dirname, "../../application/flows/adminSearchFlow.ts"),
       "utf8"
     );
-    const local = readFileSync(
-      join(__dirname, "../../application/flows/adminLocalDbFlow.ts"),
-      "utf8"
-    );
+    const app = readFileSync(join(__dirname, "../../App.jsx"), "utf8");
+    const start = app.indexOf("function applyHistoryRecallSession(");
+    expect(start).toBeGreaterThan(0);
+    const local = app.slice(start, app.indexOf("\n  }\n", start));
     expect(published).toContain("setEditingPublishedFamilyId");
     expect(published).toContain("setEditingLocalFamilyId?.(null)");
     expect(published).toContain("readFamilyIdFromRecordSlot");
-    expect(local).toContain("setEditingPublishedFamilyId?.(null)");
-    expect(local).toContain("setEditingLocalFamilyId?.(");
-    expect(local).toContain("readFamilyIdFromRecordSlot");
+    expect(local).toContain("setEditingPublishedFamilyId(null)");
+    expect(local).toContain("setEditingLocalFamilyId(recall.familyId)");
+    expect(local).toContain('source: "LOCAL"');
   });
 
   it("saveFlow uses saveCommand SAVE→CREATE / OVERWRITE→trusted LOCAL|PUBLISHED UPDATE", () => {
@@ -69,6 +69,6 @@ describe("Phase 2+ edit source ownership session wiring", () => {
       "utf8"
     );
     expect(src).not.toMatch(/alert\(`스냅샷 저장: \$\{name\}`\)/);
-    expect(src).toContain("WORKSPACE_CLEANUP_LOCAL_DELETE");
+    expect(src).not.toContain("WORKSPACE_CLEANUP_LOCAL_DELETE");
   });
 });

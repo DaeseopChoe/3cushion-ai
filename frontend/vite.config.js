@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import fs from "node:fs";
 import { cpSync } from "node:fs";
+import { Buffer } from "node:buffer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -89,7 +90,7 @@ function proofreadApiDevMiddleware(serverEnv) {
  * @param {string} datasetRoot
  */
 function publishDatasetApiDevMiddleware(datasetRoot) {
-  const MAX_BODY = 1_000_000;
+  const MAX_BODY = 8_000_000;
   return {
     name: "publish-dataset-api-dev",
     configureServer(server) {
@@ -186,7 +187,7 @@ function publishDatasetApiDevMiddleware(datasetRoot) {
  * @param {string} repoRoot
  */
 function publishDatasetGitApiDevMiddleware(datasetRoot, repoRoot) {
-  const MAX_BODY = 1_000_000;
+  const MAX_BODY = 8_000_000;
   return {
     name: "publish-dataset-git-api-dev",
     configureServer(server) {
@@ -379,6 +380,78 @@ function verifyProductionDatasetApiDevMiddleware(datasetRoot, repoRoot) {
   };
 }
 
+/**
+ * Dev-only: POST /api/work-history — admin work History (<repoRoot>/.workspace-data).
+ * The folder is fixed on the server; the request carries only { op, input }.
+ * Loopback clients only. Not registered for preview / production / Vercel.
+ * @param {string} repoRoot
+ */
+function workHistoryApiDevMiddleware(repoRoot) {
+  const MAX_BODY = 32_000_000;
+  const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+  const LOOPBACK_ADDRS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+  return {
+    name: "work-history-api-dev",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use("/api/work-history", async (req, res) => {
+        const sendJson = (status, body) => {
+          res.statusCode = status;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.setHeader("Cache-Control", "no-store");
+          res.end(JSON.stringify(body));
+        };
+        const refuse = (status, code) =>
+          sendJson(status, { ok: false, code, message: "이 컴퓨터에서만 History를 사용할 수 있습니다." });
+
+        if (req.method !== "POST") return refuse(405, "METHOD");
+
+        const hostName = String(req.headers.host || "").trim().toLowerCase().replace(/:\d+$/, "");
+        const remote = String(req.socket?.remoteAddress || "");
+        if (!LOOPBACK_HOSTS.has(hostName) || !LOOPBACK_ADDRS.has(remote)) {
+          return refuse(403, "HOST_FORBIDDEN");
+        }
+        const origin = String(req.headers.origin || "").trim();
+        if (
+          origin &&
+          !origin.startsWith("http://localhost:") &&
+          !origin.startsWith("http://127.0.0.1:") &&
+          !origin.startsWith("http://[::1]:")
+        ) {
+          return refuse(403, "ORIGIN_FORBIDDEN");
+        }
+        if (!String(req.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          return refuse(415, "CONTENT_TYPE");
+        }
+
+        try {
+          const chunks = [];
+          let total = 0;
+          for await (const chunk of req) {
+            total += chunk.length;
+            if (total > MAX_BODY) {
+              return sendJson(413, { ok: false, code: "BODY_TOO_LARGE", message: "요청이 너무 큽니다." });
+            }
+            chunks.push(chunk);
+          }
+          let body;
+          try {
+            body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+          } catch {
+            return sendJson(400, { ok: false, code: "INVALID_INPUT", message: "요청 형식이 올바르지 않습니다." });
+          }
+          const mod = await server.ssrLoadModule("/src/domain/workHistory/workHistoryFileStore.ts");
+          const handled = mod.handleWorkHistoryHttpBody({ repoRoot, body });
+          sendJson(handled.statusCode, handled.body);
+        } catch {
+          console.warn("[work-history-api-dev] request failed");
+          sendJson(500, { ok: false, code: "INTERNAL", message: "History 작업에 실패했습니다." });
+        }
+      });
+    },
+  };
+}
+
 /** Serve repo-root dataset/ at /dataset (dev) and copy into dist on build. */
 function publishedDatasetStatic() {
   const mimeFor = (filePath) => {
@@ -431,6 +504,7 @@ export default defineConfig(({ mode }) => {
       publishDatasetApiDevMiddleware(REPO_DATASET_DIR),
       publishDatasetGitApiDevMiddleware(REPO_DATASET_DIR, REPO_ROOT),
       verifyProductionDatasetApiDevMiddleware(REPO_DATASET_DIR, REPO_ROOT),
+      workHistoryApiDevMiddleware(REPO_ROOT),
     ],
 
     resolve: {

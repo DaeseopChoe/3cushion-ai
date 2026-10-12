@@ -4,6 +4,7 @@ import { useShotSlots, resolveSlotSysForRender } from "./hooks/useShotSlots";
 import { useAdminEditHistory } from "./hooks/useAdminEditHistory";
 import { resolveSlotSys } from "./domain/system/slotSysViewModel";
 import {
+  normalizeAdminTargetBall,
   shouldBlockTargetDblclickEditSession,
 } from "./domain/system/adminEditSessionContract";
 import { useTrajectoryState } from "./hooks/useTrajectoryState";
@@ -274,22 +275,12 @@ import {
   shouldClearReflectionOverrideOnHptDependencyChange,
   shouldClearReflectionOverrideOnTrackChange,
 } from "./domain/trajectory/c2ReflectionOverride";
-import {
-  loadProductionCompatibleDataset,
-} from "./domain/family/loadProductionCompatibleDataset";
-import {
-  importDatasetFromFile,
-} from "./domain/dataset/infra/datasetStorage";
-import { persistWorkingCorpusNormalizedAuthority } from "./domain/dataset/infra/persistWorkingCorpusNormalizedAuthority";
-import { CANONICAL_NORMALIZED_CORPUS_KEY } from "./domain/dataset/infra/canonicalNormalizedCorpusStore";
 import { useAutoCapture } from "./domain/dataset/autoCapture";
 import {
   adminSysFromRecallEntry,
-  normalizePublishedShotTypeHint,
   resolvePublishedLeafHints,
 } from "./application/flows/recallHydrateFlow";
 import { runUserSearchReset } from "./application/flows/resetFlow";
-import { runAdminLocalDbRecall } from "./application/flows/adminLocalDbFlow";
 import { runAdminSearch } from "./application/flows/adminSearchFlow";
 import { runUserSearch } from "./application/flows/userSearchFlow";
 import { runRealInterpolationSearchFlow } from "./application/flows/realInterpolationSearchFlow";
@@ -307,7 +298,6 @@ import {
   formatRiConfidenceLabel,
   formatRiMatchTypeLabel,
 } from "./domain/realInterpolation/uiSurface";
-import { runSaveStrategy } from "./application/flows/saveFlow";
 import { runCanonicalSave } from "./application/flows/historyFlow";
 import {
   canOverwriteTrustedSourceFamily,
@@ -317,6 +307,26 @@ import {
 } from "./domain/family/publishedEditSession";
 import { resolveAdminStrategySlotSelection } from "./domain/adminStrategyDestinationSlot";
 import { commitDerivedApprovalDataset } from "./application/flows/derivedApprovalFlow";
+import {
+  cancelPendingNewFamilySave,
+  describePendingSaveCancelFailure,
+} from "./application/flows/pendingSaveCancelFlow";
+import {
+  describeNewFamilyReviewStartFailure,
+  describePendingSaveRecoveryUnavailable,
+  describePendingSaveResumeFailure,
+  inspectPendingWorkHistory,
+  rebuildPendingNewFamilyReview,
+  startNewFamilyDerivedReview,
+} from "./application/flows/pendingSaveRecoveryFlow";
+import PendingSaveRecoveryPrompt from "./components/PendingSaveRecoveryPrompt";
+import LegacyWorkMigrationPrompt from "./components/LegacyWorkMigrationPrompt";
+import {
+  detectLegacyWorkData,
+  LEGACY_MIGRATION_FAILED_MESSAGE,
+  runLegacyWorkMigration,
+} from "./domain/workHistory/legacyWorkMigration";
+import { buildOverwriteRecallContext } from "./domain/family/overwriteFamilyRoot";
 import {
   DERIVED_REVIEW_MARKER_HIT_RADIUS_RG,
   frozenReviewSourceForTrack,
@@ -358,11 +368,7 @@ import {
 import { makeSignatureKey } from "./domain/search/signatureKey";
 import { listStrategiesInRecord } from "./domain/positionSearchEngine";
 import { initFileHandle, saveToFile } from "./domain/fileService";
-import {
-  useSettings,
-  WORKSPACE_CLEANUP_LOCAL_DELETE,
-  runWorkspaceLocalStorageCleanup,
-} from "./hooks/useSettings";
+import { useSettings } from "./hooks/useSettings";
 
 /** Batch 6 STEP 6-4 — App Runtime Injection Hub (Registry → Contract slices). */
 function resolveFormulaHash(systemId) {
@@ -784,7 +790,6 @@ export default function App({
   onUserSearchResetRegister,
   onUserSearchHasResultsChange,
   onUserStrategySlotPickRegister,
-  onAdminSearchRegister,
   onUserFuncButtonSelect,
   userRailActions,
 }) {
@@ -804,8 +809,6 @@ export default function App({
   // 관리자 모드 상태 (v0)
   // ============================================
   const [appMode, setAppMode] = useState(() => readUiModePreference()); // "USER" | "ADMIN"
-  const [workspaceCleanupOpen, setWorkspaceCleanupOpen] = useState(false);
-
   const ANCHORS_OVERRIDE_KEY = "ANCHORS_OVERRIDE_V1";
   const [adminState, setAdminState] = useState(() => {
     try {
@@ -1281,7 +1284,7 @@ export default function App({
     return null;
   }
 
-  /** ADMIN Search/로컬DB recall query — explicit UI target only (no slot fallback). */
+  /** ADMIN Search recall query — explicit UI target only (no slot fallback). */
   function getAdminRecallQueryTargetBall() {
     if (
       isTargetSelected &&
@@ -1326,19 +1329,6 @@ export default function App({
     setIsTargetSelected(false);
   }
 
-  function logAdminSearchTargetState(phase, extra = {}) {
-    const slot = shotEditor.slots[shotEditor.activeSlot];
-    const payload = {
-      phase,
-      targetColor,
-      isTargetSelected,
-      slotRuntimeTargetBall: extractSlotTargetBall(slot),
-      searchQueryTargetBall: getAdminSearchTargetBall(),
-      ...extra,
-    };
-    console.log("[ADMIN_SEARCH_TARGET]", payload);
-  }
-
   const canUseSystemControls =
     appMode === "ADMIN" && isAdminInputSessionActive && isAdminTargetReady();
 
@@ -1346,23 +1336,24 @@ export default function App({
     onSystemControlsAvailabilityChange?.(canUseSystemControls);
   }, [canUseSystemControls, onSystemControlsAvailabilityChange]);
 
-  // dataset: PositionRecord[] — Phase C-2 App runtime mirror from normalized_dataset rematerialize.
-  const [dataset, setDataset] = useState(
-    () => loadProductionCompatibleDataset().dataset
-  );
+  // dataset: PositionRecord[] — in-memory session only (SAVE result or History recall).
+  // The durable copy of every work item is its D History snapshot.
+  const [dataset, setDataset] = useState(() => []);
 
   const {
+    workHistoryApi,
     workspaceHistory,
+    historyError,
     showHistoryModal,
     setShowHistoryModal,
     commitWorkspaceHistoryWithStrategyDataset,
+    finalizeDerivedApprovalHistory,
+    refreshWorkspaceHistory,
     handleLoadWorkspaceSnapshot,
     handleDeleteWorkspaceSnapshot,
-    handleDeleteOldest30,
     handlePublishSnapshots,
     publishInFlight,
     editSourceContext,
-    clearEditSourceContext,
   } = useSettings({
     adminState,
     ballsState,
@@ -1853,6 +1844,29 @@ export default function App({
   const derivedReviewUi = useCueImpactDerivedReviewUi();
   const reviewBaselineSnapshotRef = useRef(null);
   const derivedReviewApproveInFlightRef = useRef(false);
+  /**
+   * New-Family SAVE that opened the current derived review: its PENDING History row,
+   * the revert token and the pre-SAVE screen/dataset. Cleared on Approve or cancel.
+   */
+  const pendingNewFamilySaveRef = useRef(null);
+  /**
+   * A new-Family SAVE still waiting for Derived Approval:
+   * { kind: "RECOVERABLE", token, entry, source: "RELOAD" | "RECALL" }.
+   */
+  const [pendingSaveRecovery, setPendingSaveRecovery] = useState(null);
+  const [pendingSaveRecoveryBusy, setPendingSaveRecoveryBusy] = useState(false);
+  const pendingSaveRecoveryCheckedRef = useRef(false);
+  /** SAVE / 덮어쓰기 waits for the History write; blocks a second click meanwhile. */
+  const saveInFlightRef = useRef(false);
+  /**
+   * Legacy browser work data → D History move, asked on ADMIN entry.
+   * status: UNCHECKED → PROMPT → DONE | DEFERRED ([나중에]: asked again next ADMIN entry).
+   */
+  const [legacyMigration, setLegacyMigration] = useState({
+    status: "UNCHECKED",
+    summary: null,
+    busy: false,
+  });
   /** Authored corrected pathNodes captured at SAVE / unified open for C3+. */
   const c3PlusAuthoredPathNodesRef = useRef(null);
 
@@ -2022,7 +2036,6 @@ export default function App({
 
   // KD-Tree 인덱스 (dataset 변경 시 rebuild; USER strategyCountMap 등)
   const kdIndexRef = useRef(null);
-  const fileInputRef = useRef(null);
   useEffect(() => {
     kdIndexRef.current = new PositionKDIndex(dataset ?? []);
   }, [dataset]);
@@ -2148,64 +2161,6 @@ export default function App({
     // Explicit Target Selection: double-click designates or switches Target Role
     applyTargetFromBallId(roleId);
   }
-  function handleWorkspaceLocalStorageCleanup() {
-    const ok = window.confirm(
-      "로컬 작업 History/세션 데이터를 정리합니다.\n" +
-        "Local DB(normalized_dataset)와 AI 등록 문장 Library는 보존됩니다.\n" +
-        "계속하시겠습니까?"
-    );
-    if (!ok) return;
-    const removedKeys = runWorkspaceLocalStorageCleanup(
-      WORKSPACE_CLEANUP_LOCAL_DELETE
-    );
-    if (import.meta.env.DEV) {
-      console.log("[WorkspaceCleanup]", removedKeys);
-    }
-    clearEditSourceContext();
-    setWorkspaceCleanupOpen(false);
-    window.location.reload();
-  }
-
-  function handleImportDataset() {
-    fileInputRef.current?.click();
-  }
-
-  async function handleFileImport(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    event.target.value = "";
-
-    try {
-      const normalized = await importDatasetFromFile(file);
-      // Phase C-2: canonical normalized commit only (no flat mirror).
-      const corpusPersist = persistWorkingCorpusNormalizedAuthority({
-        dataset: normalized,
-        shotType:
-          normalizePublishedShotTypeHint(adminState?.sys?.shotType) ??
-          "뒤돌리기",
-        systemId:
-          adminState?.sys?.system_id ??
-          adminState?.sys?.systemId ??
-          adminState?.sys?.system ??
-          "5_half_system",
-      });
-      if (!corpusPersist.ok) {
-        console.warn(
-          "[Import] canonical corpus persist failed",
-          corpusPersist.stage,
-          corpusPersist.reason
-        );
-        alert(
-          `Import corpus persist failed (${corpusPersist.stage}): ${corpusPersist.reason}`
-        );
-        return;
-      }
-      setDataset(normalized);
-    } catch (err) {
-      alert(err?.message ?? "Failed to import dataset.json");
-    }
-  }
-
   // OVL-001: useAdminOverlayRouter (Batch 2 STEP 2-4)
   const { openOverlay, openAnchorEdit } = useAdminOverlayRouter({
     dragState,
@@ -2439,12 +2394,42 @@ export default function App({
   }
 
   /** SAVE 직후: Cue + C3+ 독립 생성 → 하나의 Unified Derived Review. */
-  function openUnifiedDerivedPreview(nextDataset, familyId) {
+  async function openUnifiedDerivedPreview(nextDataset, familyId) {
     if (appMode !== "ADMIN" || !familyId) return;
     captureC3PlusAuthoredPathNodesFromRuntime();
     const authoredPathNodes = Array.isArray(c3PlusAuthoredPathNodesRef.current)
       ? c3PlusAuthoredPathNodesRef.current
       : [];
+    const pendingSave = pendingNewFamilySaveRef.current;
+    if (pendingSave?.token && pendingSave.token.familyId === familyId) {
+      const started = await startNewFamilyDerivedReview({
+        token: pendingSave.token,
+        dataset: Array.isArray(nextDataset) ? nextDataset : [],
+        authoredPathNodes,
+        api: workHistoryApi,
+      });
+      if (!started.ok) {
+        console.warn(
+          "[UNIFIED_DERIVED_REVIEW] create failed → SAVE revert",
+          started.reviewCode,
+          started.revert.code
+        );
+        pendingNewFamilySaveRef.current = null;
+        void refreshWorkspaceHistory();
+        if (started.revert.ok) {
+          setDataset(pendingSave.datasetBefore ?? []);
+          setUserPublishedSearchContext(pendingSave.publishedSearchContextBefore);
+          setIsSaved(false);
+          restoreDerivedReviewSnapshot(pendingSave.screenBefore);
+        }
+        setUnifiedDerivedReview(null);
+        derivedReviewUi.resetReviewUi();
+        alert(describeNewFamilyReviewStartFailure(started));
+        return;
+      }
+      beginUnifiedDerivedReview(started.bag, captureDerivedReviewSnapshot());
+      return;
+    }
     const review = createUnifiedDerivedReview({
       dataset: Array.isArray(nextDataset) ? nextDataset : [],
       familyId,
@@ -2454,17 +2439,27 @@ export default function App({
       console.warn("[UNIFIED_DERIVED_REVIEW] create failed", review.code, review.reason);
       setUnifiedDerivedReview(null);
       derivedReviewUi.resetReviewUi();
-      alert(`Derived Review를 시작할 수 없습니다: ${review.reason}`);
+      if (pendingSave) {
+        // New-Family SAVE without a revert token: nothing can be restored exactly.
+        pendingNewFamilySaveRef.current = null;
+        alert(describeNewFamilyReviewStartFailure(null, review.reason));
+      } else {
+        alert(`Derived Review를 시작할 수 없습니다: ${review.reason}`);
+      }
       return;
     }
-    const c3Fb = notifyPayloadForUnifiedC3PlusFeedback(review.bag);
-    if (c3Fb) notifyC3PlusReviewOpenFeedback(c3Fb);
-    reviewBaselineSnapshotRef.current = captureDerivedReviewSnapshot();
-    setUnifiedDerivedReview(review.bag);
-    derivedReviewUi.startReview(review.bag.authoredTrack);
+    beginUnifiedDerivedReview(review.bag, captureDerivedReviewSnapshot());
   }
 
-  function handleApproveDerivedReview() {
+  function beginUnifiedDerivedReview(bag, baselineSnapshot) {
+    const c3Fb = notifyPayloadForUnifiedC3PlusFeedback(bag);
+    if (c3Fb) notifyC3PlusReviewOpenFeedback(c3Fb);
+    reviewBaselineSnapshotRef.current = baselineSnapshot;
+    setUnifiedDerivedReview(bag);
+    derivedReviewUi.startReview(bag.authoredTrack);
+  }
+
+  async function handleApproveDerivedReview() {
     if (!isUnifiedDerivedReviewBag(unifiedDerivedReview) || derivedReviewApproveInFlightRef.current)
       return;
     derivedReviewApproveInFlightRef.current = true;
@@ -2477,19 +2472,27 @@ export default function App({
         alert(`파생 승인 실패: ${result.reason}`);
         return;
       }
-      const commit = commitDerivedApprovalDataset({
+      const historySnapshotId = pendingNewFamilySaveRef.current?.historySnapshotId ?? null;
+      const commit = await commitDerivedApprovalDataset({
         resultDataset: result.dataset,
+        familyId: unifiedDerivedReview.familyId,
         baselineSnapshot: reviewBaselineSnapshotRef.current,
         setDataset,
         restoreDerivedReviewSnapshot,
-        commitWorkspaceHistoryWithStrategyDataset,
+        finalizeHistory: historySnapshotId
+          ? ({ graph }) => finalizeDerivedApprovalHistory(historySnapshotId, graph)
+          : undefined,
       });
-      if (!commit.canonicalOk) {
+      if (!commit.ok) {
         alert(
-          `파생 승인 저장 실패: ${commit.canonicalReason ?? "canonical corpus persist failed"}`
+          "파생 승인 저장 실패\n" +
+            "History에 승인 결과를 기록하지 못했습니다." +
+            (commit.historyMessage ? `\n${commit.historyMessage}` : "") +
+            "\n이 작업은 '파생 승인 전 · Publish 불가' 상태로 남아 있습니다. 다시 [승인]할 수 있습니다."
         );
         return;
       }
+      pendingNewFamilySaveRef.current = null;
       setUnifiedDerivedReview(null);
       derivedReviewUi.resetReviewUi();
       reviewBaselineSnapshotRef.current = null;
@@ -2499,8 +2502,30 @@ export default function App({
     }
   }
 
-  function handleCancelDerivedReview() {
-    restoreDerivedReviewSnapshot(reviewBaselineSnapshotRef.current);
+  async function handleCancelDerivedReview() {
+    const pendingSave = pendingNewFamilySaveRef.current;
+    if (pendingSave) {
+      const reverted = pendingSave.token
+        ? await cancelPendingNewFamilySave(pendingSave.token, workHistoryApi)
+        : null;
+      void refreshWorkspaceHistory();
+      if (!reverted || !reverted.ok) {
+        alert(describePendingSaveCancelFailure(reverted));
+        // Nothing was changed: keep the review so the user can cancel again or approve.
+        return;
+      }
+      pendingNewFamilySaveRef.current = null;
+      // A review resumed after reload has no pre-SAVE session dataset.
+      setDataset(pendingSave.datasetBefore ?? []);
+      setUserPublishedSearchContext(pendingSave.publishedSearchContextBefore);
+      setIsSaved(false);
+      restoreDerivedReviewSnapshot(pendingSave.screenBefore);
+      userToast.show("저장을 취소했습니다. 새 Family와 History 기록을 모두 되돌렸습니다.", {
+        durationMs: 4000,
+      });
+    } else {
+      restoreDerivedReviewSnapshot(reviewBaselineSnapshotRef.current);
+    }
     setUnifiedDerivedReview(null);
     derivedReviewUi.resetReviewUi();
     reviewBaselineSnapshotRef.current = null;
@@ -2508,48 +2533,208 @@ export default function App({
     closeOverlay();
   }
 
-  /** Strategy Save — SRCH-005 + DS-002 → saveFlow.runSaveStrategy (always CREATE) */
-  function handleSaveStrategy(aiOverride = null) {
-    if (isDerivedReviewSessionPending) return null;
-    const result = runSaveStrategy({
-      dataset,
-      ballsState,
-      adminState,
-      activeSlot: shotEditor.activeSlot,
-      slots: shotEditor.slots,
-      targetColor,
-      aiOverride,
-      system,
-      resolvedSlotSysValues,
-      autoSave,
-      trajectoryExtensionPayload: trajectoryExtensionDraft
-        ? draftToPayload(trajectoryExtensionDraft)
-        : null,
-      reflectionOverridePayload: c2ReflectionOverride ?? null,
-      editSource: editSourceContext,
-      editingPublishedFamilyId,
-      editingLocalFamilyId,
-      saveCommand: "SAVE",
-      setDataset,
-      setUserPublishedSearchContext,
-      setAdminState,
-      patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
-      patchSlotFamilyIdentity: actions.patchSlotFamilyIdentity,
-      saveToFile,
-      resolveFormulaHash,
-      resolveEvalProfile,
-      resolveAnchorsData,
-    });
-    if (result?.ok && result.fourTrackWritten && result.familyId && result.updated) {
-      openUnifiedDerivedPreview(result.updated, result.familyId);
+  /** [파생 승인 재개]: same Family / Members / History snapshot, review rebuilt from that snapshot. */
+  async function handleResumePendingSaveRecovery() {
+    const current = pendingSaveRecovery;
+    if (current?.kind !== "RECOVERABLE" || pendingSaveRecoveryBusy) return;
+    const screenBefore = captureDerivedReviewSnapshot();
+    setPendingSaveRecoveryBusy(true);
+    let rebuilt;
+    try {
+      rebuilt = await rebuildPendingNewFamilyReview({
+        api: workHistoryApi,
+        snapshotId: current.token.historySnapshotId,
+      });
+    } finally {
+      setPendingSaveRecoveryBusy(false);
     }
-    return result;
+    if (!rebuilt.ok) {
+      console.warn("[PENDING_SAVE_RECOVERY] resume failed", rebuilt.code, rebuilt.reason);
+      alert(describePendingSaveResumeFailure(rebuilt));
+      if (rebuilt.code === "HISTORY_ROW_MISSING" || rebuilt.code === "HISTORY_ROW_NOT_PENDING") {
+        setPendingSaveRecovery(null);
+      }
+      return;
+    }
+    const rowState = rebuilt.rowState ?? null;
+    let baseline = screenBefore;
+    if (rowState?.adminState && rowState?.shotEditor && rowState?.ballsState) {
+      const restoredTarget = normalizeAdminTargetBall(rowState.targetBall);
+      baseline = {
+        ballsState: hydrateBallsStateForUi(structuredClone(rowState.ballsState)),
+        adminState: structuredClone(rowState.adminState),
+        overlayState: { ...overlayState, open: false, type: null },
+        targetColor: restoredTarget,
+        isTargetSelected: restoredTarget != null,
+        shotEditor: structuredClone(rowState.shotEditor),
+        activeSlot: rowState.shotEditor.activeSlot ?? shotEditor.activeSlot,
+      };
+      restoreDerivedReviewSnapshot(baseline);
+    }
+    setIsAdminInputSessionActive(true);
+    setIsSaved(false);
+    setDataset(rebuilt.dataset);
+    pendingNewFamilySaveRef.current = {
+      historySnapshotId: rebuilt.historySnapshotId,
+      token: rebuilt.token,
+      datasetBefore: null,
+      publishedSearchContextBefore: userPublishedSearchContext,
+      screenBefore,
+    };
+    c3PlusAuthoredPathNodesRef.current = rebuilt.authoredPathNodes.map((p) =>
+      p == null ? null : { x: p.x, y: p.y }
+    );
+    setPendingSaveRecovery(null);
+    beginUnifiedDerivedReview(rebuilt.bag, baseline);
+  }
+
+  /** [새 SAVE 취소] from the prompt: removes only that PENDING History snapshot. */
+  async function handleCancelPendingSaveRecovery() {
+    const current = pendingSaveRecovery;
+    if (current?.kind !== "RECOVERABLE" || pendingSaveRecoveryBusy) return;
+    setPendingSaveRecoveryBusy(true);
+    let reverted;
+    try {
+      reverted = await cancelPendingNewFamilySave(current.token, workHistoryApi);
+    } finally {
+      setPendingSaveRecoveryBusy(false);
+    }
+    void refreshWorkspaceHistory();
+    if (!reverted.ok) {
+      alert(describePendingSaveCancelFailure(reverted));
+      if (reverted.code === "HISTORY_ROW_MISSING" || reverted.code === "HISTORY_ROW_NOT_PENDING") {
+        setPendingSaveRecovery(null);
+      }
+      return;
+    }
+    if (current.source === "RECALL") {
+      setDataset([]);
+      setEditingLocalFamilyId(null);
+      setOverwriteRecallContext(null);
+    }
+    setIsSaved(false);
+    setPendingSaveRecovery(null);
+    userToast.show("새 SAVE를 취소했습니다. 새 Family와 History 기록을 모두 되돌렸습니다.", {
+      durationMs: 4000,
+    });
+  }
+
+  /** ADMIN entry: earlier browser-kept work → ask before moving it to the History. */
+  useEffect(() => {
+    if (appMode !== "ADMIN") {
+      if (legacyMigration.status === "DEFERRED") {
+        setLegacyMigration({ status: "UNCHECKED", summary: null, busy: false });
+      }
+      return;
+    }
+    if (legacyMigration.status !== "UNCHECKED") return;
+    let summary = null;
+    try {
+      summary = detectLegacyWorkData(window.localStorage);
+    } catch {
+      summary = null;
+    }
+    setLegacyMigration(
+      summary?.present
+        ? { status: "PROMPT", summary, busy: false }
+        : { status: "DONE", summary: null, busy: false }
+    );
+  }, [appMode, legacyMigration.status]);
+
+  /** [옮기기] — the only place the legacy move runs. */
+  async function handleConfirmLegacyWorkMigration() {
+    if (legacyMigration.busy) return;
+    setLegacyMigration((prev) => ({ ...prev, busy: true }));
+    let result;
+    try {
+      result = await runLegacyWorkMigration({
+        storage: window.localStorage,
+        api: workHistoryApi,
+      });
+    } catch {
+      result = { ok: false, kind: "FAILED", message: LEGACY_MIGRATION_FAILED_MESSAGE };
+    }
+    void refreshWorkspaceHistory();
+    setLegacyMigration({ status: result.ok ? "DONE" : "DEFERRED", summary: null, busy: false });
+    if (result.ok) {
+      if (result.kind === "MIGRATED") {
+        alert("이전 작업을 History로 옮겼습니다.\nHistory에서 불러와 이어서 작업할 수 있습니다.");
+      }
+    } else {
+      alert(result.message);
+    }
+  }
+
+  /** [나중에] — nothing changes; asked again on the next ADMIN entry. */
+  function handleLaterLegacyWorkMigration() {
+    if (legacyMigration.busy) return;
+    setLegacyMigration({ status: "DEFERRED", summary: null, busy: false });
+  }
+
+  /** After the move prompt is resolved: a PENDING History snapshot → resume / cancel prompt. */
+  useEffect(() => {
+    if (appMode !== "ADMIN" || pendingSaveRecoveryCheckedRef.current) return;
+    if (legacyMigration.status === "UNCHECKED" || legacyMigration.status === "PROMPT") return;
+    if (unifiedDerivedReview || pendingNewFamilySaveRef.current) return;
+    pendingSaveRecoveryCheckedRef.current = true;
+    void inspectPendingWorkHistory(workHistoryApi).then((found) => {
+      if (found.kind === "RECOVERABLE") {
+        setPendingSaveRecovery({ ...found, source: "RELOAD" });
+      } else if (found.kind === "UNAVAILABLE") {
+        console.warn("[PENDING_SAVE_RECOVERY] History unavailable", found.code);
+        userToast.show(describePendingSaveRecoveryUnavailable(found), { durationMs: 6000 });
+      }
+    });
+  }, [appMode, unifiedDerivedReview, legacyMigration.status, workHistoryApi, userToast]);
+
+  /**
+   * History recall → PENDING: resume / cancel prompt.
+   * APPROVED / PUBLISHED with screen state: [덮어쓰기] edits that Family
+   * (Member identity, coordinates and lineage kept; common values only).
+   */
+  function applyHistoryRecallSession(recall) {
+    const entry = recall?.entry;
+    if (!entry) return;
+    if (entry.status === "PENDING") {
+      if (recall.familyId) {
+        setPendingSaveRecovery({
+          kind: "RECOVERABLE",
+          token: { historySnapshotId: entry.snapshotId, familyId: recall.familyId },
+          entry,
+          source: "RECALL",
+        });
+      }
+      return;
+    }
+    const member = recall.authoredMember;
+    if (!recall.snapshot?.state || !recall.familyId || !recall.authoredRecord || !member) return;
+    setEditingPublishedFamilyId(null);
+    setEditingLocalFamilyId(recall.familyId);
+    setOverwriteRecallContext(
+      buildOverwriteRecallContext({
+        source: "LOCAL",
+        record: recall.authoredRecord,
+        slot: member.sourceSlot,
+      })
+    );
+    actions.patchSlotFamilyIdentity(member.sourceSlot, {
+      familyId: recall.familyId,
+      memberId: member.memberId,
+      memberOrigin: member.memberOrigin,
+      generatedFromMemberId: member.generatedFromMemberId,
+      symmetryOp: member.symmetryOp,
+    });
   }
 
   /** 우측 SAVE: always CREATE NEW Family */
-  function handleCanonicalRightPanelSave() {
-    if (isDerivedReviewSessionPending) return;
-    const result = runCanonicalSave({
+  async function handleCanonicalRightPanelSave() {
+    if (isDerivedReviewSessionPending || saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    const screenBeforeSave = captureDerivedReviewSnapshot();
+    const datasetBeforeSave = dataset;
+    const publishedSearchContextBeforeSave = userPublishedSearchContext;
+    captureC3PlusAuthoredPathNodesFromRuntime();
+    const result = await runCanonicalSave({
       dataset,
       ballsState,
       adminState,
@@ -2576,18 +2761,28 @@ export default function App({
       saveToFile,
       canUseSystemControls,
       commitWorkspaceHistoryWithStrategyDataset,
+      authoredPathNodes: c3PlusAuthoredPathNodesRef.current,
       resolveFormulaHash,
       resolveEvalProfile,
       resolveAnchorsData,
+    }).finally(() => {
+      saveInFlightRef.current = false;
     });
     if (result?.ok && result.fourTrackWritten && result.familyId && result.updated) {
-      openUnifiedDerivedPreview(result.updated, result.familyId);
+      pendingNewFamilySaveRef.current = {
+        historySnapshotId: result.historySnapshotId ?? null,
+        token: result.pendingNewFamilySave ?? null,
+        datasetBefore: datasetBeforeSave,
+        publishedSearchContextBefore: publishedSearchContextBeforeSave,
+        screenBefore: screenBeforeSave,
+      };
+      await openUnifiedDerivedPreview(result.updated, result.familyId);
     }
   }
 
   /** 우측 덮어쓰기: UPDATE trusted LOCAL or PUBLISHED Source Family */
-  function handleCanonicalOverwrite() {
-    if (isDerivedReviewSessionPending) return;
+  async function handleCanonicalOverwrite() {
+    if (isDerivedReviewSessionPending || saveInFlightRef.current) return;
     if (!canOverwriteTrustedSource) {
       return;
     }
@@ -2595,7 +2790,8 @@ export default function App({
       alert(OVERWRITE_SLOT_MISMATCH_USER_MESSAGE);
       return;
     }
-    const result = runCanonicalSave({
+    saveInFlightRef.current = true;
+    const result = await runCanonicalSave({
       dataset,
       ballsState,
       adminState,
@@ -2626,13 +2822,15 @@ export default function App({
       resolveFormulaHash,
       resolveEvalProfile,
       resolveAnchorsData,
+    }).finally(() => {
+      saveInFlightRef.current = false;
     });
-    if (result?.ok && result.fourTrackWritten && result.familyId && result.updated) {
-      openUnifiedDerivedPreview(result.updated, result.familyId);
+    // Existing Derived Members are preserved; History already holds the
+    // updated Master + preserved Members, so no derived re-review here.
+    if (result?.ok && result.historyMode === "OVERWRITE_PRESERVED") {
+      alert("덮어쓰기 완료\n기존 파생 Member는 그대로 유지되고 History에 기록되었습니다.");
     }
   }
-
-  // SRCH-001: runAdminPositionRecall → application/flows/adminLocalDbFlow.ts (STEP 3-5)
 
   /** 우측 ADMIN Search (published) — SRCH-002 → adminSearchFlow.runAdminSearch */
   async function handlePositionRecall() {
@@ -2694,7 +2892,7 @@ export default function App({
     return true;
   }, [ballsState, actions]);
 
-  /** ADMIN Search/로컬DB 직전 — 이전 recall draft/표시 제거 (ballsState·targetColor 유지). */
+  /** ADMIN Search 직전 — 이전 recall draft/표시 제거 (ballsState·targetColor 유지). */
   const clearAdminSearchDisplayRuntime = useCallback(() => {
     actions.clearAdminSearchDisplaySlotDrafts();
     trajectory.resetTrajectory();
@@ -2799,69 +2997,6 @@ export default function App({
     if (!snap) return;
     restoreAdminEditSnapshot(snap);
   }, [appMode, adminEditHistory, restoreAdminEditSnapshot]);
-
-  const handleAdminSearch = useCallback(async () => {
-    if (appMode !== "ADMIN") return;
-    logAdminSearchTargetState("ADMIN_SEARCH_TARGET_STATE");
-    const matched = await runAdminLocalDbRecall({
-      dataset,
-      ballsState,
-      adminState,
-      activeSlot: shotEditor.activeSlot,
-      slots: shotEditor.slots,
-      isTargetSelected,
-      targetColor,
-      setBallsState,
-      setAdminState,
-      setIsAdminPublishedSearchMatched,
-      setEditingPublishedFamilyId,
-      setEditingLocalFamilyId,
-      setOverwriteRecallContext,
-      setAdminTableLayersVisible,
-      setShowCoaching,
-      setIsAdminInputSessionActive,
-      hydrateAdminRecallTarget: (tb) => {
-        // POLICY A: explicit Lock hydrate — never keep stale previous lock.
-        if (tb === "red" || tb === "yellow") {
-          setTargetColor(tb);
-          setIsTargetSelected(true);
-        } else {
-          setTargetColor(null);
-          setIsTargetSelected(false);
-        }
-      },
-      applyPositionRecall: actions.applyPositionRecall,
-      patchSlotRuntimeMeta: actions.patchSlotRuntimeMeta,
-      clearAdminSearchDisplayRuntime,
-      beginAdminInputSession,
-      getAdminRecallQueryTargetBall,
-      resolveFormulaHash,
-    });
-    if (matched) {
-      setUserTableDisplaySlotId(null);
-      setAdminRecallOriginNonce((n) => n + 1);
-    }
-    // no-match: 포지션 유지, beginAdminInputSession으로 새 입력 상태 진입
-  }, [
-    appMode,
-    dataset,
-    ballsState,
-    adminState,
-    shotEditor.activeSlot,
-    shotEditor.slots,
-    isTargetSelected,
-    targetColor,
-    setAdminState,
-    setIsAdminPublishedSearchMatched,
-    setAdminTableLayersVisible,
-    setShowCoaching,
-    setIsAdminInputSessionActive,
-    actions.applyPositionRecall,
-    actions.patchSlotRuntimeMeta,
-    clearAdminSearchDisplayRuntime,
-    beginAdminInputSession,
-    getAdminRecallQueryTargetBall,
-  ]);
 
   const clearUserSearchDisplayRuntime = useCallback(() => {
     clearBallPointerInteractionState();
@@ -3658,15 +3793,6 @@ function handleJoyPadPointerCancel(e) {
   }, [appMode, adminState?.sys]);
 
   useEffect(() => {
-    if (appMode !== "ADMIN") {
-      onAdminSearchRegister?.(null);
-      return;
-    }
-    onAdminSearchRegister?.(handleAdminSearch);
-    return () => onAdminSearchRegister?.(null);
-  }, [appMode, handleAdminSearch, onAdminSearchRegister]);
-
-  useEffect(() => {
     if (appMode !== "USER") {
       onUserStrategySlotPickRegister?.(null);
       return;
@@ -3836,27 +3962,11 @@ function handleJoyPadPointerCancel(e) {
   useEffect(() => {
     if (mountDatasetTraceDoneRef.current) return;
     mountDatasetTraceDoneRef.current = true;
-    let lsRawLength = 0;
-    try {
-      const saved = localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY);
-      if (!saved) {
-        lsRawLength = 0;
-      } else {
-        const parsed = JSON.parse(saved);
-        lsRawLength = Array.isArray(parsed?.familyMembers)
-          ? parsed.familyMembers.length
-          : -1;
-      }
-    } catch {
-      lsRawLength = -1;
-    }
     postRecallTraceLog(
       "App.jsx:mount_dataset_hydrate",
       "MOUNT_DATASET_HYDRATE",
       "H2C_G3",
       {
-        localStorageRawLength: lsRawLength,
-        canonicalKey: CANONICAL_NORMALIZED_CORPUS_KEY,
         setDatasetLength: dataset?.length ?? 0,
         datasetSummary: summarizeDatasetRecords(dataset ?? []),
         appMode,
@@ -5602,6 +5712,7 @@ function handlePointerCancel(e) {
     ballRadiusRg: BALL_RADIUS_RG,
     curveEps: CURVE_EPS,
     baseSysValues: resolvedSlotBaseSysValues,
+    correctedSysValues: resolvedSlotSysValues,
     displayCapOpts: c2OverridePoint ? { skipSameRail: true } : undefined,
   });
 
@@ -6722,22 +6833,42 @@ function handlePointerCancel(e) {
         <Suspense fallback={null}>
           <LazyWorkspaceHistoryModal
             history={workspaceHistory}
+            historyError={historyError}
             onClose={() => setShowHistoryModal(false)}
-            onLoad={(id) => {
-              // Success → Admin table layers ON + editable; capture Recall Origin S0.
-              if (handleLoadWorkspaceSnapshot(id)) {
-                setAdminTableLayersVisible(true);
-                setAdminRecallOriginNonce((n) => n + 1);
-              }
+            onLoad={async (id) => {
+              const loaded = await handleLoadWorkspaceSnapshot(id);
               setShowHistoryModal(false);
+              if (!loaded.ok) return;
+              // Success → Admin table layers ON + editable; capture Recall Origin S0.
+              setAdminTableLayersVisible(true);
+              setAdminRecallOriginNonce((n) => n + 1);
+              applyHistoryRecallSession(loaded.recall);
             }}
             onDelete={handleDeleteWorkspaceSnapshot}
-            onDeleteOldest30={handleDeleteOldest30}
             onPublish={handlePublishSnapshots}
             publishInFlight={publishInFlight}
           />
         </Suspense>
       )}
+
+      <LegacyWorkMigrationPrompt
+        open={appMode === "ADMIN" && legacyMigration.status === "PROMPT"}
+        busy={legacyMigration.busy}
+        summary={legacyMigration.summary}
+        onConfirm={handleConfirmLegacyWorkMigration}
+        onLater={handleLaterLegacyWorkMigration}
+      />
+
+      <PendingSaveRecoveryPrompt
+        open={appMode === "ADMIN" && pendingSaveRecovery?.kind === "RECOVERABLE"}
+        familyId={pendingSaveRecovery?.token?.familyId ?? null}
+        busy={pendingSaveRecoveryBusy}
+        onResume={handleResumePendingSaveRecovery}
+        onCancelSave={handleCancelPendingSaveRecovery}
+        onClose={
+          pendingSaveRecovery?.source === "RECALL" ? () => setPendingSaveRecovery(null) : undefined
+        }
+      />
 
       {/* 관리자 모드 오버레이 */}
       <ModalShell
@@ -7207,13 +7338,6 @@ function handlePointerCancel(e) {
 
       {canEdit && (
         <div className="right-panel">
-          <input
-            type="file"
-            accept="application/json"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            onChange={handleFileImport}
-          />
           <div className="right-panel-top-buttons">
             <button
               type="button"
@@ -7371,65 +7495,11 @@ function handlePointerCancel(e) {
               title={
                 canOverwriteTrustedSource && !isOverwriteSlotAligned
                   ? OVERWRITE_SLOT_MISMATCH_USER_MESSAGE
-                  : "불러온 기존 작업을 덮어씁니다 (로컬DB 또는 Search)"
+                  : "불러온 기존 작업을 덮어씁니다 (History 또는 Search)"
               }
             >
               덮어쓰기
             </button>
-          </div>
-          <div className="right-panel-divider" aria-hidden="true" />
-          <div
-            className="workspace-cleanup-section"
-            style={{ width: "100%", marginTop: 16 }}
-          >
-            <button
-              type="button"
-              className="control-button"
-              onClick={() => { hideBallPositionController(); setWorkspaceCleanupOpen((open) => !open); }}
-              style={{
-                backgroundColor: workspaceCleanupOpen ? "#334155" : "#475569",
-                color: "#e2e8f0",
-                height: 52,
-                fontSize: 15,
-              }}
-              aria-expanded={workspaceCleanupOpen}
-              aria-label="로컬 삭제"
-            >
-              로컬 삭제
-            </button>
-            {workspaceCleanupOpen && (
-              <div
-                className="workspace-cleanup-expand"
-                style={{
-                  marginTop: 10,
-                  padding: "12px 10px",
-                  borderRadius: 8,
-                  background: "rgba(0, 0, 0, 0.35)",
-                  border: "1px solid #334155",
-                  fontSize: 12,
-                  color: "#cbd5e1",
-                }}
-              >
-                <p style={{ margin: "0 0 12px", lineHeight: 1.45 }}>
-                  History·작업 세션만 정리합니다. Local DB와 AI 등록 문장은
-                  유지됩니다. Published/Production 데이터는 삭제하지 않습니다.
-                </p>
-                <button
-                  type="button"
-                  className="control-button"
-                  onClick={handleWorkspaceLocalStorageCleanup}
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    fontSize: 14,
-                    backgroundColor: "#dc2626",
-                    color: "white",
-                  }}
-                >
-                  로컬 삭제 실행
-                </button>
-              </div>
-            )}
           </div>
         </div>
       )}

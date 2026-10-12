@@ -26,12 +26,6 @@ import {
   loadProductionCompatibleDataset,
   loadRematerializedWorkingCorpus,
 } from "./loadProductionCompatibleDataset";
-import {
-  ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
-  runWorkspaceLocalStorageCleanup,
-  WORKSPACE_CLEANUP_LOCAL_DELETE,
-} from "../../hooks/useSettings.js";
-
 function createMemoryLocalStorage() {
   const map = new Map<string, string>();
   return {
@@ -316,17 +310,6 @@ describe("Phase C-2 loadProductionCompatibleDataset — canonical-only", () => {
       expect(persist.flatProjection.ok).toBe(false);
       expect(persist.shadowSync.ok).toBe(false);
     }
-  });
-
-  it("CASE 10: local cleanup preserves normalized_dataset; may remove obsolete flat", () => {
-    seedCanonicalFromFlat(ballsNew, "fm_keep");
-    seedStaleFlatOnly(ballsOld, "fm_flat");
-    localStorage.setItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY, "{}");
-    const removed = runWorkspaceLocalStorageCleanup(WORKSPACE_CLEANUP_LOCAL_DELETE);
-    expect(localStorage.getItem(CANONICAL_NORMALIZED_CORPUS_KEY)).toBeTruthy();
-    expect(localStorage.getItem(ONE_POINT_LESSON_LIBRARY_STORAGE_KEY)).toBe("{}");
-    expect(removed).toContain(WORKING_DATASET_KEY);
-    expect(loadRematerializedWorkingCorpus().length).toBeGreaterThan(0);
   });
 
   it("CASE 11: production loader never references loadWorkingDataset", () => {

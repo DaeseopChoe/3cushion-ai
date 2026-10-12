@@ -76,7 +76,7 @@ describe("hptTrajectoryDiag (DEV helper)", () => {
         { x: 60, y: 40 },
       ],
       capCorrected: { endIndex: 1, reason: "missing_node" },
-      capBaseline: { endIndex: 6, reason: "full" },
+      capBaseline: { endIndex: 6, reason: "full_valid_path" },
       coPrep: { x: 20, y: 0 },
       c1Rail: { x: 0, y: 15 },
       anchorsC2Present: false,

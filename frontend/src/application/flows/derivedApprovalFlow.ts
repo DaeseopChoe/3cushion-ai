@@ -1,12 +1,12 @@
 // application/flows/derivedApprovalFlow.ts
-// Derived Approval → canonical normalized corpus mutate (no canonical SAVE).
+// Derived Approval → the same D History snapshot becomes APPROVED with the
+// approved Family graph (no canonical SAVE, no browser storage).
 
 import type { PositionRecord } from "../../domain/positionSearchEngine";
 import {
-  persistWorkingCorpusNormalizedAuthority,
-} from "../../domain/dataset/infra/persistWorkingCorpusNormalizedAuthority";
-import type { PersistPositionsWithGenerationResult } from "../../domain/dataset/infra/persistPositionsDatasetWithGeneration";
-import type { NormalizedDualWriteResult } from "../../domain/family/syncPositionDatasetToNormalizedFamilyStore";
+  buildPublishFamilyGraphFromRecords,
+  type PublishFamilyGraph,
+} from "../../domain/publishFamilyGraph";
 import { normalizePublishedShotTypeHint } from "./recallHydrateFlow";
 
 /** Review-start baseline captured by App.jsx captureDerivedReviewSnapshot. */
@@ -20,7 +20,7 @@ export type DerivedReviewBaselineSnapshot = {
   activeSlot: string;
 };
 
-/** Explicit runtime fields for workspace_history — avoids React closure staleness. */
+/** Explicit runtime fields for a History snapshot — avoids React closure staleness. */
 export type DerivedApprovalHistoryRuntimeOverride = {
   adminState: unknown;
   ballsState: unknown;
@@ -31,20 +31,21 @@ export type DerivedApprovalHistoryRuntimeOverride = {
 export type DerivedApprovalCommitContext = {
   resultDataset: PositionRecord[];
   baselineSnapshot: DerivedReviewBaselineSnapshot | null;
-  /**
-   * @deprecated Phase C-2 — ignored. Flat positions_dataset is not production-written.
-   */
-  saveWorkingDataset?: (updated: PositionRecord[]) => void;
   setDataset: (updated: PositionRecord[]) => void;
   restoreDerivedReviewSnapshot: (snapshot: DerivedReviewBaselineSnapshot | null) => void;
-  /** @deprecated Approval no longer double-appends history; kept optional for backwards compatibility. */
-  commitWorkspaceHistoryWithStrategyDataset?: (
-    updated: PositionRecord[],
-    runtimeOverride?: DerivedApprovalHistoryRuntimeOverride
-  ) => void;
-  /** Leaf metadata for normalized envelope (defaults applied if omitted). */
+  /** Leaf metadata for the graph (defaults applied if omitted). */
   shotType?: string;
   systemId?: string;
+  /** Approved Family. */
+  familyId?: string;
+  /**
+   * Stores the approved graph on the PENDING History snapshot. Required: the
+   * graph has no other durable home. Failure leaves the snapshot PENDING.
+   */
+  finalizeHistory?: (args: {
+    familyId: string;
+    graph: PublishFamilyGraph;
+  }) => Promise<{ ok: boolean; reason?: string; code?: string; message?: string }>;
 };
 
 export function baselineSnapshotToHistoryRuntime(
@@ -61,23 +62,22 @@ export function baselineSnapshotToHistoryRuntime(
 }
 
 export type DerivedApprovalCommitResult = {
-  /** Phase C-2: family_* shadow skipped (shape retained for callers). */
-  normalizedDualWrite: NormalizedDualWriteResult;
-  /** Phase C-2: flat projection skipped (shape retained for callers). */
-  corpusPersist: PersistPositionsWithGenerationResult;
-  /** True when authoritative normalized corpus commit succeeded. */
-  canonicalOk: boolean;
-  canonicalReason?: string;
+  ok: boolean;
+  reason?: string;
+  historyOk: boolean;
+  historyReason?: string;
+  historyMessage?: string;
+  approvedGraph?: PublishFamilyGraph;
 };
 
 /**
- * Persist approved Derived members via canonical normalized commit first.
- * Single successor workspace_history snapshot is committed by runCanonicalSave.
- * Must not call runSaveStrategy / runCanonicalSave or double-append history.
+ * Build the approved graph from the review result, store it on the PENDING
+ * History snapshot, and only then update the session dataset.
+ * Must not call runSaveStrategy / runCanonicalSave.
  */
-export function commitDerivedApprovalDataset(
+export async function commitDerivedApprovalDataset(
   ctx: DerivedApprovalCommitContext
-): DerivedApprovalCommitResult {
+): Promise<DerivedApprovalCommitResult> {
   const adminSys = ctx.baselineSnapshot?.adminState as
     | { sys?: Record<string, unknown> }
     | undefined;
@@ -97,56 +97,47 @@ export function commitDerivedApprovalDataset(
       : "") ||
     "5_half_system";
 
-  const corpusPersist = persistWorkingCorpusNormalizedAuthority({
-    dataset: ctx.resultDataset,
+  if (typeof ctx.finalizeHistory !== "function") {
+    return { ok: false, reason: "approval-history-missing", historyOk: false };
+  }
+  const familyId = typeof ctx.familyId === "string" ? ctx.familyId.trim() : "";
+  if (!familyId) {
+    return { ok: false, reason: "approval-family-id-missing", historyOk: false };
+  }
+  const built = buildPublishFamilyGraphFromRecords(ctx.resultDataset, familyId, {
     shotType,
     systemId,
   });
-
-  if (!corpusPersist.ok) {
-    console.warn(
-      "[APPROVAL] canonical normalized corpus persist failed",
-      corpusPersist.stage,
-      corpusPersist.reason
-    );
+  if (!built.ok) {
     return {
-      canonicalOk: false,
-      canonicalReason: corpusPersist.reason,
-      corpusPersist: {
-        ok: false,
-        stage: "generation",
-        reason: corpusPersist.reason,
-        previousGeneration: null,
-      },
-      normalizedDualWrite: {
-        ok: false,
-        stage: "generation",
-        reason: corpusPersist.reason,
-      },
+      ok: false,
+      reason: `approval-graph-invalid: ${built.reason}`,
+      historyOk: false,
+      historyReason: built.reason,
+    };
+  }
+
+  let history: { ok: boolean; reason?: string; code?: string; message?: string };
+  try {
+    history = await ctx.finalizeHistory({ familyId, graph: built.graph });
+  } catch {
+    history = { ok: false, reason: "history-commit-threw" };
+  }
+  if (!history || !history.ok) {
+    const historyReason = history?.code ?? history?.reason ?? "unknown";
+    console.warn("[APPROVAL] History graph commit failed", historyReason);
+    return {
+      ok: false,
+      reason: `history-commit-failed: ${historyReason}`,
+      historyOk: false,
+      historyReason,
+      ...(history?.message ? { historyMessage: history.message } : {}),
     };
   }
 
   ctx.setDataset(ctx.resultDataset);
-
-  const normalizedDualWrite: NormalizedDualWriteResult =
-    corpusPersist.shadowSync.ok === true
-      ? corpusPersist.shadowSync
-      : {
-          ok: false,
-          stage: "exception",
-          reason:
-            "reason" in corpusPersist.shadowSync
-              ? String(corpusPersist.shadowSync.reason)
-              : "family_* shadow not written (Phase C-2)",
-        };
-
   if (ctx.baselineSnapshot) {
     ctx.restoreDerivedReviewSnapshot(ctx.baselineSnapshot);
   }
-
-  return {
-    canonicalOk: true,
-    normalizedDualWrite,
-    corpusPersist: corpusPersist.flatProjection,
-  };
+  return { ok: true, historyOk: true, approvedGraph: built.graph };
 }

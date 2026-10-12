@@ -1,18 +1,9 @@
-import { useState, useMemo, useCallback, useRef } from "react";
-import {
-  loadWorkspaceHistory,
-  saveWorkspaceHistory,
-  generateUUID,
-  getNextVersion,
-  buildSnapshotName,
-  findSnapshotById,
-  deleteSnapshotById,
-  deleteSnapshotsByIds,
-  deleteOldest30,
-  updateSnapshotsExported,
-} from "../domain/workspaceHistory";
-import { loadRematerializedWorkingCorpus } from "../domain/family/loadProductionCompatibleDataset";
-import { normalizeDatasetFromStorage } from "../domain/positionMergeEngine";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { getWorkHistoryApi } from "../domain/workHistory/workHistoryClient";
+import { toWorkHistoryListRow } from "../domain/workHistory/workHistoryModel";
+import { commitSaveToWorkHistory } from "../domain/workHistory/workHistorySaveCommit";
+import { loadPublishItemsFromWorkHistory } from "../domain/workHistory/workHistoryPublishInput";
+import { loadWorkHistorySnapshotForRecall } from "../domain/workHistory/workHistoryRecall";
 import { buildEditSourceContext } from "../domain/cueEditSnap";
 import {
   hydrateBallsStateForUi,
@@ -20,89 +11,32 @@ import {
   canonicalizeBallsStateForHistorySnapshot,
 } from "../admin/slotAutoRecommend";
 import { normalizeAdminTargetBall } from "../domain/system/adminEditSessionContract";
-import { readPublishOperationFromSnapshot } from "../domain/publishOperation";
-import {
-  buildPublishFamilyPayload,
-  crossValidateOperationAndPayload,
-  readPublishFamilyPayloadFromSnapshot,
-} from "../domain/publishFamilyPayload";
-import { publishDatasetToLocalRepo } from "../domain/repoPublish/publishDatasetToLocalRepo";
 import { publishDatasetToLocalRepoWithGit } from "../domain/repoPublish/publishDatasetToLocalRepoGit";
 import { canonicalDebugLog } from "../domain/canonicalPersistAudit";
-import { POSITIONS_DATASET_META_KEY } from "../domain/dataset/infra/positionsDatasetMeta";
-import { CANONICAL_NORMALIZED_CORPUS_KEY } from "../domain/dataset/infra/canonicalNormalizedCorpusStore";
 import { refreshPublishedDataset } from "../domain/publishedDatasetStore";
+import {
+  buildPublishSuccessStatusText,
+  timePublishCall,
+} from "../application/flows/publishStatusReport";
 
-/**
- * @deprecated Phase C-2 — obsolete Local flat key (not durable SSOT).
- * Retained as named constant for tests that assert stale flat is ignored/cleaned.
- */
-export const POSITIONS_DATASET_STORAGE_KEY = "positions_dataset";
-/** @deprecated Phase C-2 — obsolete flat generation meta key. */
-export { POSITIONS_DATASET_META_KEY as POSITIONS_DATASET_META_STORAGE_KEY };
 export const ONE_POINT_LESSON_LIBRARY_STORAGE_KEY =
   "ONE_POINT_LESSON_LIBRARY_V1";
-/** PRO ONE POINT category library — preserved (not Local workspace cleanup). */
+/** PRO ONE POINT category library (browser preference, not work data). */
 export const ONE_POINT_CATEGORY_LIBRARY_STORAGE_KEY =
   "ONE_POINT_CATEGORY_LIBRARY_V1";
-/** ADMIN anchors override preference — preserved across local cleanup. */
+/** ADMIN anchors override preference (browser preference, not work data). */
 export const ANCHORS_OVERRIDE_STORAGE_KEY = "ANCHORS_OVERRIDE_V1";
 
-/** Phase 1 [로컬 삭제] — History/workspace cleanup; corpus + AI library kept. */
-export const WORKSPACE_CLEANUP_LOCAL_DELETE = "local_delete";
-/** @deprecated Alias of local_delete (Phase 3A-339 name retained for callers/tests). */
-export const WORKSPACE_CLEANUP_PRESERVE_DATASET = "preserve_dataset";
-/**
- * @deprecated Phase 1: no longer wipes corpus/AI library via blanket clear.
- * Maps to the same safe local_delete preserve list.
- */
-export const WORKSPACE_CLEANUP_CLEAR_ALL = "clear_all";
+const PUBLISH_BLOCKED_REASON_LABELS = {
+  "derived-approval-pending": "파생 승인을 완료하지 않은 작업입니다",
+  "legacy-snapshot-repo-publish-blocked": "Publish 정보가 없는 옛 History입니다",
+  "c2-payload-required": "배포용 Family 데이터가 없는 History입니다",
+  "history-not-found": "History에서 찾을 수 없는 작업입니다",
+  "history-unreadable": "History 기록을 읽을 수 없는 작업입니다",
+};
 
-/**
- * Keys that Local Delete must never remove.
- * Phase C-2: preserve normalized_dataset only (not obsolete positions_dataset /
- * positions_dataset_meta — those may be safely removed as stale leftovers).
- */
-export function listWorkspaceCleanupPreservedKeys() {
-  return [
-    CANONICAL_NORMALIZED_CORPUS_KEY,
-    ONE_POINT_LESSON_LIBRARY_STORAGE_KEY,
-    ONE_POINT_CATEGORY_LIBRARY_STORAGE_KEY,
-    ANCHORS_OVERRIDE_STORAGE_KEY,
-  ];
-}
-
-/** All localStorage keys except `exceptKeys` (for local-delete cleanup). */
-export function listLocalStorageKeysExcept(exceptKeys) {
-  const preserved = new Set(
-    Array.isArray(exceptKeys) ? exceptKeys.filter(Boolean) : [exceptKeys]
-  );
-  const keys = [];
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
-    if (key && !preserved.has(key)) keys.push(key);
-  }
-  return keys;
-}
-
-/**
- * Local workspace cleanup ([로컬 삭제]).
- * KEEP: normalized_dataset + AI one-point libraries + anchors override.
- * DELETE: workspace_history, obsolete positions_dataset(+meta), family_* shadow,
- * and other non-preserved keys.
- * Never bulk-clears storage; never touches repo published dataset files.
- * @returns {string[]} keys removed
- */
-export function runWorkspaceLocalStorageCleanup(mode) {
-  // Phase 1: clear_all / preserve_dataset / local_delete share the same safe path.
-  void mode;
-  const removedKeys = listLocalStorageKeysExcept(
-    listWorkspaceCleanupPreservedKeys()
-  );
-  for (const key of removedKeys) {
-    localStorage.removeItem(key);
-  }
-  return removedKeys;
+function formatPublishBlockedLine(b) {
+  return `${b.name ?? b.id}: ${PUBLISH_BLOCKED_REASON_LABELS[b.reason] ?? b.reason}`;
 }
 
 /** Phase D-3 — user-facing failure stage label from orchestrator result. */
@@ -168,18 +102,21 @@ function formatPublishRetryHint(result) {
     return "잠시 후 다시 Publish하여 배포 상태를 확인할 수 있습니다.";
   }
   if (result?.localCommit) {
-    return "로컬 commit 상태를 확인한 뒤, 필요하면 관리자 절차로 Push/검증을 이어가세요. 자동 재시도를 강제하지 않습니다.";
+    return "Git commit 상태를 확인한 뒤, 필요하면 관리자 절차로 Push/검증을 이어가세요. 자동 재시도를 강제하지 않습니다.";
   }
   if (result?.hostAvailable === false) {
-    return "localhost Vite 환경에서 다시 시도하세요.";
+    return "관리자 컴퓨터의 개발 서버(localhost)에서 다시 시도하세요.";
   }
   return "문제를 확인한 뒤 다시 Publish할 수 있습니다.";
 }
 
+const PUBLISHED_MARK_FAILED_LINE =
+  "Publish는 완료됐지만 History에 Published 표시를 하지 못했습니다. 같은 작업을 다시 Publish하면 표시됩니다.";
+
 /**
- * Workspace history / snapshot persistence (localStorage + optional folder export).
- * Canonical SAVE orchestration: strategy persistence runs in App; history append uses
- * `commitWorkspaceHistoryWithStrategyDataset(updated)` so snapshots embed `result.updated`, not stale React state.
+ * Admin work History (D History via the localhost API) + Publish.
+ * SAVE orchestration runs in App; `commitWorkspaceHistoryWithStrategyDataset(updated)`
+ * writes one History snapshot from `result.updated`, not stale React state.
  */
 export function useSettings({
   adminState,
@@ -195,14 +132,15 @@ export function useSettings({
   setIsAdminInputSessionActive,
   setTargetColor,
   setIsTargetSelected,
+  workHistoryApi,
 }) {
-  const [workspaceHistoryVersion, setWorkspaceHistoryVersion] = useState(0);
+  const api = useMemo(() => workHistoryApi ?? getWorkHistoryApi(), [workHistoryApi]);
+  const [historyEntries, setHistoryEntries] = useState([]);
+  const [historyError, setHistoryError] = useState(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   /**
    * Phase D-3 — Publish in-flight lock (handler-owned).
    * Prevents double file-write / double commit / double push.
-   * Legacy note: `exported` on older History rows may mean prior Manual Export
-   * OR Publish; new D-3 marks only apply after PRODUCTION_VERIFIED.
    */
   const publishInFlightRef = useRef(false);
   const [publishInFlight, setPublishInFlight] = useState(false);
@@ -210,16 +148,32 @@ export function useSettings({
   const [editSourceContext, setEditSourceContext] = useState(null);
 
   const workspaceHistory = useMemo(
-    () => loadWorkspaceHistory(),
-    [workspaceHistoryVersion]
+    () => historyEntries.map(toWorkHistoryListRow),
+    [historyEntries]
   );
 
+  /** Re-read the History list (index only). */
+  const refreshWorkspaceHistory = useCallback(async () => {
+    const listed = await api.list();
+    if (listed.ok) {
+      setHistoryEntries(listed.entries);
+      setHistoryError(null);
+    } else {
+      setHistoryError(listed.message);
+    }
+    return listed;
+  }, [api]);
+
+  useEffect(() => {
+    if (showHistoryModal) void refreshWorkspaceHistory();
+  }, [showHistoryModal, refreshWorkspaceHistory]);
+
   /**
-   * Append workspace_history after successful handleSaveStrategy; `strategyUpdatedDataset` must be result.updated.
+   * One History snapshot per SAVE; `strategyUpdatedDataset` must be result.updated.
    * Caller is responsible for guards (Position LOCK / systemId) and strategy ok.
    */
   const commitWorkspaceHistoryWithStrategyDataset = useCallback(
-    (strategyUpdatedDataset, runtimeOverride, publishOperation) => {
+    async (strategyUpdatedDataset, runtimeOverride, publishOperation, historyOptions) => {
       canonicalDebugLog("[H_SAVE_ENTRY]", { ts: Date.now() });
       const snapshotAdminState = runtimeOverride?.adminState ?? adminState;
       const rawBallsState = runtimeOverride?.ballsState ?? ballsState;
@@ -238,113 +192,86 @@ export function useSettings({
         "5_half_system";
       const pattern = snapshotAdminState?.sys?.shotType ?? "뒤돌리기";
 
-      // Phase 3-C2: SAVE-time destination-family payload (required when operation present).
-      let publishFamilyPayload = null;
-      if (publishOperation) {
-        const built = buildPublishFamilyPayload(
-          strategyUpdatedDataset,
-          publishOperation.destinationFamilyId
-        );
-        if (!built.ok) {
-          console.error("Publish family payload build failed", built);
-          alert(
-            `스냅샷 저장 실패: ${built.reason}\n${(built.issues || [])
-              .slice(0, 5)
-              .join("\n")}`
-          );
-          return { ok: false, reason: built.reason, issues: built.issues };
-        }
-        const cross = crossValidateOperationAndPayload(
-          publishOperation,
-          built.payload
-        );
-        if (!cross.ok) {
-          console.error("Publish operation/payload cross-validation failed", cross);
-          alert(`스냅샷 저장 실패: ${cross.reason}`);
-          return { ok: false, reason: cross.reason, issues: cross.issues };
-        }
-        publishFamilyPayload = built.payload;
-      }
-
-      const history = loadWorkspaceHistory();
-      const version = getNextVersion(history, systemId, pattern);
-      const timestamp = new Date().toISOString();
-      const name = buildSnapshotName(pattern, systemId, version, timestamp);
-      const snapshot = {
-        id: generateUUID(),
-        name,
+      // New Families stay PENDING until Derived Approve; OVERWRITE is APPROVED at once.
+      const written = await commitSaveToWorkHistory({
+        api,
+        updated: strategyUpdatedDataset,
+        publishOperation: publishOperation ?? null,
+        mode: historyOptions?.mode ?? "IMMEDIATE",
         systemId,
         pattern,
-        version,
-        timestamp,
-        exported: false,
-        // Phase 3-C1/C2: immutable publish artifacts (not UI state; not positions.json).
-        ...(publishOperation
-          ? { publishOperation: JSON.parse(JSON.stringify(publishOperation)) }
-          : {}),
-        ...(publishFamilyPayload
-          ? {
-              publishFamilyPayload: JSON.parse(
-                JSON.stringify(publishFamilyPayload)
-              ),
-            }
-          : {}),
+        authoredPathNodes: historyOptions?.authoredPathNodes ?? null,
         state: {
-          adminState: JSON.parse(JSON.stringify(snapshotAdminState)),
-          ballsState: JSON.parse(JSON.stringify(snapshotBallsState)),
-          shotEditor: JSON.parse(JSON.stringify(snapshotShotEditor)),
+          adminState: snapshotAdminState,
+          ballsState: snapshotBallsState,
+          shotEditor: snapshotShotEditor,
           targetBall: snapshotTargetBall,
         },
-      };
-      const nextHistory = [...history, snapshot];
-      const saveRes = saveWorkspaceHistory(nextHistory);
-      if (!saveRes?.ok) {
-        console.warn("❌ Failed to persist workspace snapshot:", saveRes?.reason);
-        alert(`스냅샷 저장 실패: ${saveRes?.reason ?? "알 수 없는 오류"}`);
-        return { ok: false, reason: saveRes?.reason ?? "history-save-failed" };
-      }
-      setWorkspaceHistoryVersion((v) => v + 1);
-      setIsSaved(true);
-      console.log("💾 Workspace snapshot saved:", name, {
-        publishOperation: publishOperation ?? null,
-        publishFamilyPayloadRecords: publishFamilyPayload?.records?.length ?? 0,
-        datasetEmbedded: false,
       });
-      // Phase 1: no success alert — Derived Review follows immediately.
-      return { ok: true, name };
+      if (!written.ok) {
+        console.warn("❌ History snapshot not saved:", written.code);
+        alert(
+          `History에 저장하지 못했습니다.\n${written.message}\n이번 저장은 완료되지 않았습니다.`
+        );
+        return { ok: false, reason: written.code };
+      }
+      setIsSaved(true);
+      void refreshWorkspaceHistory();
+      console.log("💾 History snapshot saved:", written.entry.name, {
+        status: written.entry.status,
+        derivedCount: written.entry.derivedCount,
+      });
+      return { ok: true, name: written.entry.name, snapshotId: written.entry.snapshotId };
     },
-    [adminState, ballsState, shotEditor, targetColor, setIsSaved]
+    [api, adminState, ballsState, shotEditor, targetColor, setIsSaved, refreshWorkspaceHistory]
   );
 
-  /** @returns {boolean} true when snapshot hydrated (caller enables Admin table layers for display). */
-  const handleLoadWorkspaceSnapshot = useCallback(
-    (id) => {
-      const history = loadWorkspaceHistory();
-      const snapshot = findSnapshotById(history, id);
-      if (!snapshot) {
-        alert("스냅샷을 찾을 수 없습니다.");
-        return false;
+  /** Derived Approve → the PENDING snapshot becomes APPROVED with the graph. */
+  const finalizeDerivedApprovalHistory = useCallback(
+    async (snapshotId, graph) => {
+      if (!snapshotId) {
+        return { ok: false, code: "NOT_FOUND", message: "승인할 History 기록이 없습니다." };
       }
-      const s = snapshot.state;
-      const snapshotDataset =
-        Array.isArray(s.dataset) && s.dataset.length > 0
-          ? normalizeDatasetFromStorage(s.dataset)
-          : loadRematerializedWorkingCorpus();
+      const r = await api.approve({ snapshotId, graph });
+      if (r.ok) void refreshWorkspaceHistory();
+      return r;
+    },
+    [api, refreshWorkspaceHistory]
+  );
 
-      // Phase 1: History Load restores Workspace editing state only (UI/balls/shotEditor/target).
-      // Search Corpus (normalized_dataset) remains independent and is NOT replaced by history snapshot.
-      setAdminState(s.adminState);
-      // Phase 3: Role Ball3 restore — snapshot.target → UI balls.target (no color→field).
-      const hydratedBalls = hydrateBallsStateForUi(s.ballsState);
-      setBallsState(hydratedBalls);
-      actions.restoreShotEditor(s.shotEditor);
-      setWorkspaceHistoryVersion((v) => v + 1);
+  /**
+   * History recall: one snapshot → screen state + in-memory session dataset.
+   * @returns {Promise<{ ok: false } | { ok: true, recall: object }>}
+   */
+  const handleLoadWorkspaceSnapshot = useCallback(
+    async (id) => {
+      const recall = await loadWorkHistorySnapshotForRecall({ api, snapshotId: id });
+      if (!recall.ok) {
+        alert(`History 작업을 불러오지 못했습니다.\n${recall.message}`);
+        return { ok: false };
+      }
+      const { snapshot } = recall;
+      const s = snapshot.state ?? null;
+      setDataset?.(recall.records);
+
+      let hydratedBalls = null;
+      let restoredTarget = null;
+      if (s) {
+        setAdminState(s.adminState);
+        // Phase 3: Role Ball3 restore — snapshot.target → UI balls.target (no color→field).
+        hydratedBalls = hydrateBallsStateForUi(s.ballsState);
+        actions.restoreShotEditor(s.shotEditor);
+        restoredTarget = normalizeAdminTargetBall(s.targetBall);
+      } else if (recall.authoredRecord) {
+        hydratedBalls = hydrateBallsStateForUi(recall.authoredRecord.balls);
+        restoredTarget = normalizeAdminTargetBall(recall.authoredRecord.targetBall);
+      }
+      if (hydratedBalls) setBallsState(hydratedBalls);
       setIsSaved(false);
       setIsAdminPublishedSearchMatched(false);
       // Load → immediately editable (Undo/Recall model; no Reset gate).
       setIsAdminInputSessionActive(true);
       // Explicit Target Lock hydrate — no stale previous lock.
-      const restoredTarget = normalizeAdminTargetBall(s.targetBall);
       setTargetColor(restoredTarget);
       setIsTargetSelected(restoredTarget != null);
 
@@ -352,9 +279,7 @@ export function useSettings({
       try {
         if (hydratedBalls?.cue) {
           const ball3 = normalizeBallsToBall3(hydratedBalls);
-          setEditSourceContext(
-            buildEditSourceContext(snapshot.id, ball3, snapshotDataset)
-          );
+          setEditSourceContext(buildEditSourceContext(snapshot.id, ball3, recall.records));
         } else {
           setEditSourceContext(null);
         }
@@ -363,14 +288,16 @@ export function useSettings({
         setEditSourceContext(null);
       }
 
-      console.log("📂 Workspace restored:", snapshot.name);
-      alert(`복원 완료: ${snapshot.name}`);
-      return true;
+      console.log("📂 History restored:", snapshot.name, recall.entry.status);
+      if (recall.entry.status !== "PENDING") alert(`복원 완료: ${snapshot.name}`);
+      return { ok: true, recall };
     },
     [
+      api,
       actions,
       setAdminState,
       setBallsState,
+      setDataset,
       setIsSaved,
       setIsAdminPublishedSearchMatched,
       setIsAdminInputSessionActive,
@@ -383,27 +310,29 @@ export function useSettings({
     setEditSourceContext(null);
   }, []);
 
-  const handleDeleteWorkspaceSnapshot = useCallback((idOrIds) => {
-    if (!idOrIds) return;
-    if (Array.isArray(idOrIds)) {
-      deleteSnapshotsByIds(idOrIds);
-    } else {
-      deleteSnapshotById(idOrIds);
-    }
-    setWorkspaceHistoryVersion((v) => v + 1);
-  }, []);
-
-  const handleDeleteOldest30 = useCallback(() => {
-    deleteOldest30();
-    setWorkspaceHistoryVersion((v) => v + 1);
-  }, []);
+  /** Deletes History records only (file + index). Published data is never touched. */
+  const handleDeleteWorkspaceSnapshot = useCallback(
+    async (idOrIds) => {
+      if (!idOrIds) return { ok: false };
+      const snapshotIds = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+      const removed = await api.remove({ snapshotIds });
+      if (!removed.ok) {
+        alert(`History 삭제 실패\n${removed.message}\n아무 기록도 삭제하지 않았습니다.`);
+      }
+      await refreshWorkspaceHistory();
+      return removed;
+    },
+    [api, refreshWorkspaceHistory]
+  );
 
   /**
    * Phase D-3: History Publish — sole official deployment action.
-   * Snapshot-bound PublishOperation + PublishFamilyPayload → normalized repo write
-   * → Git commit/push → Production semantic verify.
-   * SUCCESS (exported=true) only when status === PRODUCTION_VERIFIED.
-   * Push success / PRODUCTION_VERIFY_TIMEOUT are NOT completed.
+   * Input = the APPROVED graph stored in each selected D History snapshot
+   * (legacy rows: flat PublishFamilyPayload) → normalized repo write → Git
+   * commit/push → Production semantic verify.
+   * SUCCESS only when status === PRODUCTION_VERIFIED; then the snapshots are
+   * marked PUBLISHED in the History and the alert adds the Published 현황.
+   * Failure keeps every History snapshot unchanged for retry.
    * Does not open folder picker.
    */
   const handlePublishSnapshots = useCallback(async (ids) => {
@@ -418,65 +347,33 @@ export function useSettings({
     setPublishInFlight(true);
 
     try {
-      const history = loadWorkspaceHistory();
-      const toPublish = ids
-        .map((id) => findSnapshotById(history, id))
-        .filter(Boolean);
-      if (toPublish.length === 0) return emptyFail;
-
-      /** @type {import("../domain/repoPublish/publishDatasetToLocalRepo").LocalPublishClientItem[]} */
-      const items = [];
-      /** @type {{ id: string, reason: string }[]} */
-      const blocked = [];
-
-      for (const snap of toPublish) {
-        const op = readPublishOperationFromSnapshot(snap);
-        const payloadRead = readPublishFamilyPayloadFromSnapshot(snap);
-        if (!op) {
-          blocked.push({
-            id: snap.id,
-            reason: "legacy-snapshot-repo-publish-blocked",
-          });
-          continue;
-        }
-        if (!payloadRead.ok) {
-          blocked.push({
-            id: snap.id,
-            reason: payloadRead.reason ?? "payload-invalid",
-          });
-          continue;
-        }
-        if (
-          !payloadRead.payload ||
-          ("absent" in payloadRead && payloadRead.absent)
-        ) {
-          blocked.push({
-            id: snap.id,
-            reason: "c2-payload-required",
-          });
-          continue;
-        }
-        items.push({
-          snapshotId: snap.id,
-          shotType: snap.pattern ?? "뒤돌리기",
-          systemId: snap.systemId ?? "5_half_system",
-          publishOperation: op,
-          publishFamilyPayload: payloadRead.payload,
-        });
+      // Publish input = what the History recorded; never rebuilt from the screen.
+      const input = await loadPublishItemsFromWorkHistory({ api, ids });
+      if (!input.ok) {
+        alert(
+          `Publish가 완료되지 않았습니다.\n` +
+            `History를 읽지 못했습니다.\n${input.message}\n` +
+            `Published 완료로 표시하지 않았습니다.`
+        );
+        return { ok: false, successfulIds: [], reason: input.code };
       }
+      const { items, blocked } = input;
 
       if (items.length === 0) {
         alert(
           `Publish가 완료되지 않았습니다.\n` +
             `검증 단계에서 실패했습니다.\n` +
-            `C2 snapshot(PublishOperation + PublishFamilyPayload)이 필요합니다.\n` +
-            blocked.map((b) => b.reason).join("\n") +
+            blocked.map(formatPublishBlockedLine).join("\n") +
             `\nPublished 완료로 표시하지 않았습니다.`
         );
         return { ok: false, successfulIds: [], reason: "validation-blocked" };
       }
+      const blockedLines = blocked.length
+        ? ["Publish하지 않은 항목:", ...blocked.map(formatPublishBlockedLine)]
+        : [];
 
-      const result = await publishDatasetToLocalRepoWithGit(items);
+      const firstTimed = await timePublishCall(() => publishDatasetToLocalRepoWithGit(items));
+      const result = firstTimed.result;
 
       // Phase F-2E: resolvable same-slot occupancy → user confirmation → Family replacement.
       if (
@@ -494,7 +391,7 @@ export function useSettings({
             `기존 ${slot} 전략을 현재 데이터로 덮어쓰시겠습니까?`
         );
         if (!confirmed) {
-          // Cancel: zero write / History remains Unexported / Local intact.
+          // Cancel: zero write / History snapshot unchanged.
           return {
             ok: false,
             successfulIds: [],
@@ -521,7 +418,10 @@ export function useSettings({
             expectedLeafRevision: leafRevision,
           },
         }));
-        const retry = await publishDatasetToLocalRepoWithGit(retryItems);
+        const retryTimed = await timePublishCall(() =>
+          publishDatasetToLocalRepoWithGit(retryItems)
+        );
+        const retry = retryTimed.result;
         if (retry.ok && retry.status === "PRODUCTION_VERIFIED") {
           /** @type {string[]} */
           const successfulIds = retryItems.map((it) => it.snapshotId);
@@ -529,23 +429,34 @@ export function useSettings({
             refreshPublishedDataset(it.shotType, it.systemId);
           }
           refreshPublishedDataset();
-          updateSnapshotsExported(successfulIds);
-          setWorkspaceHistoryVersion((v) => v + 1);
+          const marked = await api.markPublished({ snapshotIds: successfulIds, commit: retry.commit ?? null });
+          await refreshWorkspaceHistory();
+          const markedOk = marked.ok;
           const sha = retry.commit ? `HEAD: ${retry.commit.slice(0, 7)}\n` : "";
+          const statusText = buildPublishSuccessStatusText({
+            leafSummaries: retry.leafSummaries,
+            elapsedMs: retryTimed.elapsedMs,
+            blockedLines,
+          });
+          const markLine = markedOk ? "" : `${PUBLISHED_MARK_FAILED_LINE}\n`;
           if (retry.gitStatus === "VERIFIED_NO_CHANGE") {
             alert(
               `Publish 완료\n` +
                 `기존 전략을 덮어썼습니다.\n` +
                 `저장소에 추가 변경은 없었습니다.\n` +
                 `Published 데이터 검증까지 완료되었습니다.\n` +
-                sha
+                markLine +
+                sha +
+                statusText
             );
           } else {
             alert(
               `Publish 완료\n` +
                 `기존 전략을 덮어썼습니다.\n` +
                 `Published 데이터 검증까지 완료되었습니다.\n` +
-                sha
+                markLine +
+                sha +
+                statusText
             );
           }
           return { ok: true, successfulIds };
@@ -568,6 +479,7 @@ export function useSettings({
               ? `상태: ${retryStatus}`
               : "",
             "Published 완료로 표시하지 않았습니다.",
+            "History의 작업 기록은 그대로 보존했습니다.",
             retryHint,
           ]
             .filter(Boolean)
@@ -583,9 +495,9 @@ export function useSettings({
       if (!result.hostAvailable) {
         alert(
           `Publish가 완료되지 않았습니다.\n` +
-            `로컬 Publish 환경을 사용할 수 없습니다.\n` +
+            `Publish 환경을 사용할 수 없습니다.\n` +
             `${result.message ?? result.reason ?? ""}\n` +
-            `로컬 Vite 개발 서버(localhost)에서만 Publish할 수 있습니다.\n` +
+            `관리자 컴퓨터의 개발 서버(localhost)에서만 Publish할 수 있습니다.\n` +
             `Published 완료로 표시하지 않았습니다.`
         );
         return {
@@ -603,21 +515,32 @@ export function useSettings({
           refreshPublishedDataset(it.shotType, it.systemId);
         }
         refreshPublishedDataset();
-        updateSnapshotsExported(successfulIds);
-        setWorkspaceHistoryVersion((v) => v + 1);
+        const marked = await api.markPublished({ snapshotIds: successfulIds, commit: result.commit ?? null });
+        await refreshWorkspaceHistory();
+        const markedOk = marked.ok;
         const sha = result.commit ? `HEAD: ${result.commit.slice(0, 7)}\n` : "";
+        const statusText = buildPublishSuccessStatusText({
+          leafSummaries: result.leafSummaries,
+          elapsedMs: firstTimed.elapsedMs,
+          blockedLines,
+        });
+        const markLine = markedOk ? "" : `${PUBLISHED_MARK_FAILED_LINE}\n`;
         if (result.gitStatus === "VERIFIED_NO_CHANGE") {
           alert(
             `Publish 완료\n` +
               `저장소에 추가 변경은 없었습니다.\n` +
               `Published 데이터 검증까지 완료되었습니다.\n` +
-              sha
+              markLine +
+              sha +
+              statusText
           );
         } else {
           alert(
             `Publish 완료\n` +
               `Published 데이터 검증까지 완료되었습니다.\n` +
-              sha
+              markLine +
+              sha +
+              statusText
           );
         }
         return { ok: true, successfulIds };
@@ -636,7 +559,7 @@ export function useSettings({
           ? result.issues.slice(0, 12).join("\n")
           : "",
         result.localCommit
-          ? "로컬 Git commit은 있을 수 있지만 Publish는 완료되지 않았습니다. 자동 되돌리기는 하지 않습니다."
+          ? "Git commit은 있을 수 있지만 Publish는 완료되지 않았습니다. 자동 되돌리기는 하지 않습니다."
           : "",
         result.repoWritten && !result.localCommit
           ? "저장소 파일은 쓰여졌을 수 있지만 Git/배포 확인은 완료되지 않았습니다."
@@ -645,8 +568,9 @@ export function useSettings({
           ? `상태: ${prodStatus}`
           : "",
         "Published 완료로 표시하지 않았습니다.",
+        "History의 작업 기록은 그대로 보존했습니다.",
         retryHint,
-        ...blocked.map((b) => b.reason),
+        ...blockedLines,
       ]
         .filter(Boolean)
         .join("\n");
@@ -661,68 +585,21 @@ export function useSettings({
       publishInFlightRef.current = false;
       setPublishInFlight(false);
     }
-  }, []);
-
-  /**
-   * Phase 4-A repo-only Publish (no Git). Kept for recovery / advanced use.
-   * Not wired to primary Publish button. Does NOT mark History as official
-   * Publish SUCCESS (D-3: PRODUCTION_VERIFIED only via Git Publish path).
-   */
-  const handleRepoOnlyPublishSnapshots = useCallback(async (ids) => {
-    if (!ids?.length) return;
-    const history = loadWorkspaceHistory();
-    const toPublish = ids
-      .map((id) => findSnapshotById(history, id))
-      .filter(Boolean);
-    if (toPublish.length === 0) return;
-    const items = [];
-    for (const snap of toPublish) {
-      const op = readPublishOperationFromSnapshot(snap);
-      const payloadRead = readPublishFamilyPayloadFromSnapshot(snap);
-      if (!op || !payloadRead.ok || !payloadRead.payload) continue;
-      if ("absent" in payloadRead && payloadRead.absent) continue;
-      items.push({
-        snapshotId: snap.id,
-        shotType: snap.pattern ?? "뒤돌리기",
-        systemId: snap.systemId ?? "5_half_system",
-        publishOperation: op,
-        publishFamilyPayload: payloadRead.payload,
-      });
-    }
-    if (items.length === 0) {
-      alert("Repo-only Publish: C2 snapshot 필요");
-      return;
-    }
-    const result = await publishDatasetToLocalRepo(items);
-    if (!result.hostAvailable) {
-      alert(`LOCAL_PUBLISH_HOST_UNAVAILABLE\n${result.message ?? ""}`);
-      return;
-    }
-    const successfulIds = (result.results || [])
-      .filter((r) => r.ok)
-      .map((r) => r.snapshotId);
-    // D-3: do not mark History exported — repo-only is not PRODUCTION_VERIFIED.
-    if (successfulIds.length > 0) {
-      refreshPublishedDataset();
-    }
-    alert(
-      result.ok
-        ? `Repo-only write 완료 (${successfulIds.length}) — History Published 표시 안 함`
-        : `Repo-only Publish 실패: ${result.reason}`
-    );
-  }, []);
+  }, [api, refreshWorkspaceHistory]);
 
   return {
+    workHistoryApi: api,
     workspaceHistory,
+    historyError,
     showHistoryModal,
     setShowHistoryModal,
     commitWorkspaceHistoryWithStrategyDataset,
+    finalizeDerivedApprovalHistory,
+    refreshWorkspaceHistory,
     handleLoadWorkspaceSnapshot,
     handleDeleteWorkspaceSnapshot,
-    handleDeleteOldest30,
     handlePublishSnapshots,
     publishInFlight,
-    handleRepoOnlyPublishSnapshots,
     editSourceContext,
     clearEditSourceContext,
   };

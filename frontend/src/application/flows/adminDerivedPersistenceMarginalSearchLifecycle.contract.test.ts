@@ -19,11 +19,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runAdminLocalDbRecall } from "./adminLocalDbFlow";
-import {
-  commitDerivedApprovalDataset,
-  type CommitDerivedApprovalContext,
-} from "./derivedApprovalFlow";
+import { runSpatialRecall } from "../../domain/recall/recallEngine";
+import { commitDerivedApprovalDataset } from "./derivedApprovalFlow";
 import {
   createUnifiedDerivedReview,
   approveUnifiedDerivedReview,
@@ -177,39 +174,12 @@ async function executeAdminRecall(
   ballsState: Ball3,
   targetColor: "red" | "yellow" = "yellow"
 ): Promise<{ ok: boolean; record: PositionRecord | null }> {
-  const { seedCanonicalLocalCorpusFromFlat } = await import(
-    "../../domain/recall/seedCanonicalCorpusForTests"
-  );
-  seedCanonicalLocalCorpusFromFlat(dataset);
-
-  let record: PositionRecord | null = null;
-  const ok = await runAdminLocalDbRecall({
+  const r = runSpatialRecall({
     dataset,
-    ballsState,
-    adminState: {
-      sys: { systemId: "5_half_system", shotType: "뒤돌리기", inputs: { CO_f: 30, C3_r: 20 } },
-      balls: ballsState,
-    },
-    activeSlot: "S1" as const,
-    slots: { S1: { draft: null, applied: null } },
-    isTargetSelected: true,
-    targetColor,
-    setAdminState: vi.fn(),
-    setIsAdminPublishedSearchMatched: vi.fn(),
-    setAdminTableLayersVisible: vi.fn(),
-    setShowCoaching: vi.fn(),
-    setIsAdminInputSessionActive: vi.fn(),
-    hydrateAdminRecallTarget: vi.fn(),
-    patchSlotRuntimeMeta: vi.fn(),
-    beginAdminInputSession: () => true,
-    clearAdminSearchDisplayRuntime: vi.fn(),
-    resolveFormulaHash: () => "v1",
-    getAdminRecallQueryTargetBall: () => targetColor,
-    applyPositionRecall: (rec: PositionRecord) => {
-      record = rec;
-    },
+    query: { balls: ballsState, targetBall: targetColor },
+    profile: "adminSearch",
   });
-  return { ok, record };
+  return r.kind === "match" ? { ok: true, record: r.record } : { ok: false, record: null };
 }
 
 describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () => {
@@ -1032,7 +1002,7 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
     expect(leftAgainHpt?.hit_point?.x).toBe(2);
   });
 
-  it("TEST 6 — History Single Successor: [v004] -> Recall -> Edit -> SAVE -> Derived Approval results in exactly [v004, v005]", () => {
+  it("TEST 6 — History Single Successor: [v004] -> Recall -> Edit -> SAVE -> Derived Approval results in exactly [v004, v005]", async () => {
     // Initial History with v004
     const v004Snapshot: WorkspaceSnapshot = {
       id: "snap_v004",
@@ -1059,7 +1029,7 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
     const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_succ_001");
 
     let historyCommitCalls = 0;
-    const commitHistoryMock = (_ds: any, _override?: any) => {
+    const commitHistoryMock = async (_ds: any, _override?: any) => {
       historyCommitCalls += 1;
       const history = loadWorkspaceHistory();
       const version = getNextVersion(history, "5_half_system", "뒤돌리기");
@@ -1083,6 +1053,7 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
         },
       };
       saveWorkspaceHistory([...history, nextSnapshot]);
+      return { ok: true, snapshotId: nextSnapshot.id };
     };
 
     const sampleHpt = {
@@ -1177,7 +1148,7 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
       resolveAnchorsData: () => undefined,
     };
 
-    const saveResult = runCanonicalSave(saveCtx as any);
+    const saveResult = await runCanonicalSave(saveCtx as any);
     expect(saveResult.ok).toBe(true);
     expect(saveResult.fourTrackWritten).toBe(true);
 
@@ -1202,15 +1173,18 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
     expect(approved.ok).toBe(true);
     if (!approved.ok) return;
 
-    // 3. Commit Derived Approval (must NOT double-append history)
-    commitDerivedApprovalDataset({
+    // 3. Commit Derived Approval: the same snapshot is finalized (no new History entry)
+    const finalizeHistory = vi.fn(async () => ({ ok: true }));
+    const approval = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: null,
-      saveWorkingDataset: vi.fn(),
       setDataset: vi.fn(),
       restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: commitHistoryMock,
+      familyId: saveResult.familyId!,
+      finalizeHistory,
     });
+    expect(approval.ok, approval.reason).toBe(true);
+    expect(finalizeHistory).toHaveBeenCalledTimes(1);
 
     // Exactly ONE History commit executed during the entire workflow
     expect(historyCommitCalls).toBe(1);
@@ -1222,7 +1196,7 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
     expect(finalHistory.some((s) => s.version === 6)).toBe(false);
   });
 
-  it("TEST 7 — positions_dataset Independence: searchable corpus is persisted into positions_dataset", () => {
+  it("TEST 7 — Approval hands the full approved corpus to the session and the History graph only", async () => {
     const baseBalls = collinearCueBalls(20);
     const { dataset: initialDataset } = setupBaseFourTrackFamily(baseBalls, "yellow", "fm_corpus_indep_001");
 
@@ -1243,20 +1217,27 @@ describe("ADMIN Derived SAVE Persistence & Marginal Coverage Full Contract", () 
     if (!approved.ok) return;
 
     let persistedDataset: PositionRecord[] | null = null;
-    commitDerivedApprovalDataset({
+    let storedMemberCount = 0;
+    const approval = await commitDerivedApprovalDataset({
       resultDataset: approved.dataset,
       baselineSnapshot: null,
       setDataset: (ds) => {
         persistedDataset = ds;
       },
       restoreDerivedReviewSnapshot: vi.fn(),
-      commitWorkspaceHistoryWithStrategyDataset: vi.fn(),
+      familyId: "fm_corpus_indep_001",
+      finalizeHistory: async ({ graph }) => {
+        storedMemberCount = graph.members.length;
+        return { ok: true };
+      },
     });
 
+    expect(approval.ok, approval.reason).toBe(true);
     expect(persistedDataset).not.toBeNull();
     expect(persistedDataset!.length).toBeGreaterThanOrEqual(80);
-    // Phase C-2: searchable corpus durable SSOT is normalized_dataset.
-    expect(localStorage.getItem("normalized_dataset")).toBeTruthy();
+    expect(storedMemberCount).toBeGreaterThanOrEqual(80);
+    // History is the only work store: nothing is written to browser storage.
+    expect(localStorage.getItem("normalized_dataset")).toBeNull();
   });
 
   it("TEST 8 — Lightweight Snapshot: workspace history snapshot does NOT embed dataset and maintains < 10 KB size", () => {

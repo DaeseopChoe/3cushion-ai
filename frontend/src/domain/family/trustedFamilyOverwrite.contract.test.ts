@@ -9,10 +9,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runAdminLocalDbRecall } from "../../application/flows/adminLocalDbFlow";
 import { runAdminSearch } from "../../application/flows/adminSearchFlow";
 import { runSaveStrategy, type SaveFlowContext } from "../../application/flows/saveFlow";
-import { persistWorkingCorpusNormalizedAuthority } from "../dataset/infra/persistWorkingCorpusNormalizedAuthority";
+import { runSpatialRecall } from "../recall/recallEngine";
+import { ADMIN_SEARCH_SOFT_DISTANCE_WARN } from "../recall/recallProfiles";
+import { buildOverwriteRecallContext } from "./overwriteFamilyRoot";
 import { createPositionId } from "../positionId";
 import type { Ball3, PositionRecord, StrategyEntry } from "../positionSearchEngine";
 import { __clearPublishedDatasetStoreForTests } from "../publishedDatasetStore";
@@ -36,9 +37,11 @@ import {
   computeRecallPositionDifference,
   formatRecallPositionDifferenceNotice,
   isRecallPositionExact,
+  resolveRecallNoticeMessage,
 } from "../recall/recallPositionDifference";
 import {
   canOverwriteTrustedSourceFamily,
+  readFamilyIdFromRecordSlot,
   shouldClearOverwriteEligibilityOnBallEdit,
 } from "./publishedEditSession";
 
@@ -65,8 +68,16 @@ function createMemoryLocalStorage() {
 
 let storage: ReturnType<typeof createMemoryLocalStorage>;
 let alerts: string[];
+/** Latest saved work of the ADMIN session (what a History snapshot holds). */
+let workCorpus: PositionRecord[] = [];
+
+function clearWorkCorpus() {
+  storage.clear();
+  workCorpus = [];
+}
 
 beforeEach(() => {
+  workCorpus = [];
   storage = createMemoryLocalStorage();
   vi.stubGlobal("localStorage", storage);
   alerts = [];
@@ -127,6 +138,7 @@ function harness(initial: PositionRecord[] = []): Harness {
     dataset: initial,
     setDataset: (u) => {
       h.dataset = u;
+      workCorpus = u;
     },
   };
   return h;
@@ -261,13 +273,8 @@ function expectFourTrackFamily(
   return locs;
 }
 
-function persistLocal(h: Harness, shotType = "뒤돌리기") {
-  const r = persistWorkingCorpusNormalizedAuthority({
-    dataset: h.dataset,
-    shotType,
-    systemId: "5_half_system",
-  });
-  expect(r.ok, r.ok ? "" : `${r.stage}: ${r.reason}`).toBe(true);
+function persistLocal(h: Harness, _shotType = "뒤돌리기") {
+  workCorpus = h.dataset;
 }
 
 type DerivedOrigin = "DERIVED_CUE_IMPACT" | "DERIVED_C3_PLUS" | "DERIVED_CUE_C3_PRODUCT";
@@ -394,18 +401,41 @@ function emptyCapture(): RecallCapture {
   };
 }
 
+/**
+ * Recall of saved (unpublished) work into the ADMIN session: the Member nearest to `query`
+ * in the session's saved work, with a LOCAL OVERWRITE session (as App's History recall).
+ */
 async function localRecall(query: Ball3, activeSlot: Slot = "S1"): Promise<RecallCapture> {
   const cap = emptyCapture();
   const before = alerts.length;
-  cap.matched = await runAdminLocalDbRecall({
-    ballsState: query as unknown as Record<string, unknown>,
-    adminState: adminStateFor("B2T_L"),
-    activeSlot,
-    slots: {},
-    isTargetSelected: false,
-    targetColor: null,
-    ...recallCallbacks(cap),
-  } as never);
+  const swapped: Ball3 = { cue: query.cue, target: query.second, second: query.target };
+  let best: { record: PositionRecord; distance: number; balls: Ball3 } | null = null;
+  for (const balls of [query, swapped]) {
+    const r = runSpatialRecall({ dataset: workCorpus, query: { balls }, profile: "adminSearch" });
+    if (r.kind === "match" && (!best || r.distance < best.distance)) {
+      best = { record: r.record, distance: r.distance, balls };
+    }
+  }
+  if (!best) {
+    alert("해당 데이터 없음");
+    cap.alerts = alerts.slice(before);
+    return cap;
+  }
+  const cb = recallCallbacks(cap);
+  cb.applyPositionRecall(best.record);
+  cb.setBallsState(best.balls);
+  cb.setEditingPublishedFamilyId(null);
+  cb.setEditingLocalFamilyId(readFamilyIdFromRecordSlot(best.record, activeSlot));
+  cb.setOverwriteRecallContext(
+    buildOverwriteRecallContext({ source: "LOCAL", record: best.record, slot: activeSlot })
+  );
+  const notice = resolveRecallNoticeMessage({
+    screenBalls: best.balls,
+    storedMemberBalls: best.record.balls,
+    lowSimilarity: best.distance > ADMIN_SEARCH_SOFT_DISTANCE_WARN,
+  });
+  if (notice) alert(notice);
+  cap.matched = true;
   cap.alerts = alerts.slice(before);
   return cap;
 }
@@ -831,7 +861,7 @@ describe("F-3C — Published trusted Family root", () => {
       derivedBalls = shift(positionA, { cue: [4, 2] });
       addDerived(dry, familyId, authored, derivedBalls);
     }
-    storage.clear();
+    clearWorkCorpus();
     return { records: dry.dataset, familyId, derivedBalls };
   }
 
@@ -1157,7 +1187,7 @@ describe("F-3C.2 — C2 reflection is Family-common (AUTHORED canonical + projec
     const dry = harness();
     const familyId = seedFamily(dry, { shotType: "옆돌리기", c2: canonicalC2 });
     const records = dry.dataset;
-    storage.clear();
+    clearWorkCorpus();
     const rpi = locByOp(records, familyId, "RPI");
     const rc = await publishedRecall(records, rpi.balls);
     expect(rc.matched).toBe(true);
@@ -1270,7 +1300,7 @@ describe("F-3D — OVERWRITE preserves the complete Family identity graph", () =
     const dry = harness();
     const familyId = buildFamilyA(dry, { slot: opts.slot, shotType: "옆돌리기" });
     const records = structuredClone(dry.dataset);
-    storage.clear();
+    clearWorkCorpus();
     return { records, familyId, graph: identityGraph(records, familyId) };
   }
 
@@ -1505,14 +1535,14 @@ describe("F-3D — OVERWRITE preserves the complete Family identity graph", () =
     expect(entriesOfFamily(h.dataset, P.familyId)).toHaveLength(0);
   });
 
-  it("ID-16 atomicity: persist failure after the in-memory seed → no durable or UI mutation", async () => {
+  it("ID-16 OVERWRITE after a Published Recall writes nothing to browser storage", async () => {
     const P = publishedFamilyA();
     const rc = await publishedRecall(P.records, positionA);
     const h = harness([]);
     const storageBefore = storageSnapshot();
     const realSetItem = storage.setItem;
     storage.setItem = () => {
-      throw new Error("quota exceeded (test seam)");
+      throw new Error("browser storage must not be written (test seam)");
     };
     let result: ReturnType<typeof runSaveStrategy>;
     try {
@@ -1520,8 +1550,8 @@ describe("F-3D — OVERWRITE preserves the complete Family identity graph", () =
     } finally {
       storage.setItem = realSetItem;
     }
-    expect(result.ok).toBe(false);
-    expect(h.dataset).toEqual([]);
+    expect(result.ok, result.reason).toBe(true);
+    expect(identityGraph(h.dataset, P.familyId)).toEqual(P.graph);
     expect(storageSnapshot()).toEqual(storageBefore);
   });
 
@@ -1567,7 +1597,7 @@ describe("F-3D — OVERWRITE preserves the complete Family identity graph", () =
     const familyA = buildFamilyA(dry, { shotType: "옆돌리기" });
     const familyB = seedFamily(dry, { balls: shift(positionA, { cue: [0, 12], target: [0, 10] }), shotType: "옆돌리기" });
     const records = structuredClone(dry.dataset);
-    storage.clear();
+    clearWorkCorpus();
     const rc = await publishedRecall(records, positionA);
     const snapshot = (rc.overwriteRecallContext as {
       publishedFamily?: { familyId: string; master: { familyId: string }; members: Array<{ familyId: string; memberId: string }> };
@@ -1662,7 +1692,7 @@ describe("F-3C — Recall position difference notice", () => {
     const dry = harness();
     const familyId = seedFamily(dry, { shotType: "옆돌리기" });
     const records = dry.dataset;
-    storage.clear();
+    clearWorkCorpus();
     const vLoc = locByOp(records, familyId, "V");
     const rc = await publishedRecall(records, shift(vLoc.balls, { second: [0.3, 0.4] }));
     expect(rc.matched).toBe(true);

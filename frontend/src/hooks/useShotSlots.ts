@@ -3,7 +3,6 @@ import { flushSync } from 'react-dom';
 import { TrajectoryPhase } from './useTrajectoryState';
 import { getSystemContract } from '../runtime';
 import { calculateByProfileExpr } from '../utils/systemCalculator';
-import { buildTrajectorySamples } from '../utils/trajectorySampleBuilder';
 import type { PositionRecord, StrategyEntry } from '../domain/positionSearchEngine';
 import {
   draftFamilyIdentityFromStrategyEntry,
@@ -186,7 +185,7 @@ function clearSearchDraftFromSlot(slot: SlotState): SlotState {
 }
 
 /**
- * ADMIN 로컬DB/Search 직전 — recall display draft 제거 (USER clearSearchSlotDrafts와 분리).
+ * ADMIN History/Search 직전 — recall display draft 제거 (USER clearSearchSlotDrafts와 분리).
  * - recommendedFrom 태그 draft
  * - renderable draft.sys (조회 hydrate) — SAVE applied.sys 없을 때만
  * targetBall stub만 유지 (명시 targetColor patch 보존).
@@ -690,84 +689,6 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     return { ok: true };
   };
 
-  // ==========================================
-  // [Save 로직 v1.4] applied 데이터만 저장 + 궤적 파생 + 시뮬레이션 저장
-  // ==========================================
-  /**
-   * shot_record와 trajectory_samples 생성 후 저장 (localStorage or 서버 전송)
-   * - applied 상태가 하나도 없으면 실행하지 않음
-   * - draft는 절대 저장/계산에 사용하지 않음
-   * - 저장/전송 뒤 알림 반환(성공/실패)
-   */
-  const saveShot = () => {
-    // Step 1. applied 데이터만 취합 (Draft 배제)
-    const appliedSlots = Object.entries(shotEditor.slots).filter(
-      ([, slot]) => slot.applied != null
-    );
-
-    if (appliedSlots.length === 0) {
-      alert("적용된(APPLIED) 전략이 없는 슬롯입니다.");
-      return { ok: false, reason: "No applied slot" };
-    }
-
-    // shotRecord 구조 v1.4: meta, slots(S1/S2/S3: applied or null)
-    const shotRecord = {
-      meta: {
-        createdAt: Date.now(),
-        version: "v1.4",
-      },
-      slots: {
-        S1: shotEditor.slots.S1.applied ? structuredClone(shotEditor.slots.S1.applied) : null,
-        S2: shotEditor.slots.S2.applied ? structuredClone(shotEditor.slots.S2.applied) : null,
-        S3: shotEditor.slots.S3.applied ? structuredClone(shotEditor.slots.S3.applied) : null,
-      }
-    };
-
-    // Step 2. trajectory_samples 생성 유틸 호출
-    let trajectorySamples;
-    try {
-      const slotList = (
-        ["S1", "S2", "S3"] as const
-      ).flatMap((id) => (shotEditor.slots[id].applied ? [shotEditor.slots[id]] : []));
-      trajectorySamples = buildTrajectorySamples(
-        slotList,
-        `pos_${shotRecord.meta.createdAt}`,
-        slotList[0]?.applied?.sys?.systemId ?? "5_half_system"
-      );
-    } catch (e) {
-      alert("trajectory_samples 생성 오류: " + String(e));
-      return { ok: false, reason: "trajectory_samples error" };
-    }
-
-    // Step 3. payload 및 고유 키명, 저장 & 최근 키 기록
-    const payload = {
-      shotRecord,
-      trajectorySamples,
-      savedAt: new Date().toISOString()
-    };
-    const shotKey = `shot_${shotRecord.meta.createdAt}`;
-    try {
-      localStorage.setItem(shotKey, JSON.stringify(payload));
-      localStorage.setItem("lastSavedShotId", shotKey);
-      alert("샷이 성공적으로 저장되었습니다. (로컬)");
-      if (console.table) {
-        console.group("[SaveShot] 저장된 Payload");
-        console.table([
-          { key: "shotKey", value: shotKey },
-          { key: "savedAt", value: payload.savedAt },
-          { key: "version", value: shotRecord.meta.version }
-        ]);
-        console.log("shotRecord:", shotRecord);
-        console.log("trajectorySamples:", trajectorySamples);
-        console.groupEnd();
-      }
-      return { ok: true, shotKey };
-    } catch (err) {
-      alert("저장 실패: " + String(err));
-      return { ok: false, reason: "localStorage error" };
-    }
-  };
-
   /**
    * PositionRecord의 strategies를 모든 slot draft에 일괄 적용 (단일 setShotEditor)
    * applied 절대 수정 안 함. entry가 없는 slot은 skip.
@@ -991,7 +912,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     }));
   };
 
-  /** ADMIN Search/로컬DB pre-clear — recall display draft.sys.outputs 등 제거 (동기 flush) */
+  /** ADMIN Search/History pre-clear — recall display draft.sys.outputs 등 제거 (동기 flush) */
   const clearAdminSearchDisplaySlotDrafts = () => {
     flushSync(() => {
       setShotEditor((prev) => ({
@@ -1077,7 +998,6 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       applyUserSearchRecall,
       clearSearchSlotDrafts,
       clearAdminSearchDisplaySlotDrafts,
-      saveShot,
       deleteSlot,
       getActiveSlot,
       getAllSlots,

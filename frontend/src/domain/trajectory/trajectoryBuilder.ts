@@ -9,6 +9,7 @@
 import { calcImpactBall } from "../../data/system/calculator";
 import { unifiedSlideFromCorrections } from "../calculator/sysOverlayCalcHelpers";
 import {
+  computeBaselinePhysicalLimitEndIndex,
   resolveBaselineTrajectoryDisplayCap,
   resolveTrajectoryDisplayCap,
   slicePathNodesToCap,
@@ -88,12 +89,18 @@ export type TrajectoryBuildInput = {
    */
   displayImpactContactThicknessT?: string;
   shotPattern?: string;
-  hitTolerance: number;
+  /** Not a display input: balls.second never ends the SYS path (Display Boundary SSOT v1.7). */
+  hitTolerance?: number;
   ballDiameterRg: number;
   ballRadiusRg: number;
   curveEps?: number;
   /** Baseline SYS values (DisplayModel C4와 동일 소스). 5&Half Display Cap용. */
   baseSysValues?: Record<string, unknown> | null;
+  /**
+   * Corrected effective SYS values (baseSysValues의 보정 쌍). 5&Half corrected PhysicalLimit용.
+   * C4 값을 구할 수 없으면 corrected에는 PhysicalLimit을 적용하지 않는다.
+   */
+  correctedSysValues?: Record<string, unknown> | null;
   /**
    * Display Cap options (App-injected).
    * e.g. skipSameRail for ADMIN C2 reflectionOverride — no Reflection/Builder math change.
@@ -243,14 +250,6 @@ export function resolveTrajectorySecondBall(
   return null;
 }
 
-/** @deprecated Use resolveTrajectorySecondBall (Role-native). */
-function resolveSecondBall(
-  balls: TrajectoryBuildInput["balls"],
-  targetColor?: string | null
-): PathPoint | null {
-  return resolveTrajectorySecondBall(balls, targetColor);
-}
-
 /** @deprecated Use resolveTrajectoryTargetBall (Role-native). */
 function resolveTargetBall(
   balls: TrajectoryBuildInput["balls"],
@@ -289,7 +288,7 @@ function pickSysNum(
 }
 
 /** DisplayModel과 동일: C4 = C4_f|C4_r 또는 C3 + (CO−50)×0.5 */
-function resolveBaselineC4Value(
+function resolveFiveHalfC4Value(
   baseSysValues: Record<string, unknown> | null | undefined
 ): number | null {
   const direct = pickSysNum(baseSysValues, ["C4_f", "C4_r"]);
@@ -308,12 +307,8 @@ function buildBaselineBranch(
   c2ManualHint: TrajectoryBuildInput["c2ManualHint"],
   systemIdForGrid: string | undefined,
   trackForAnchors: string | undefined,
-  secondPoint: PathPoint | null,
-  hitTolerance: number,
   baseSysValues: Record<string, unknown> | null | undefined,
-  displayCapOpts?: TrajectoryBuildInput["displayCapOpts"],
-  /** 5&Half: corrected DISPLAY endIndex ceiling (cushion order only). */
-  correctedDisplayEndIndex?: number | null
+  displayCapOpts?: TrajectoryBuildInput["displayCapOpts"]
 ): BaselinePathBundle | null {
   if (!anchorsBase) {
     return null;
@@ -432,25 +427,15 @@ function buildBaselineBranch(
     C6_path_b,
   ];
 
-  // 5&Half: Baseline Cap = min(PhysicalLimit+chain/same-rail, corrected DISPLAY endIndex)
+  // 5&Half: Baseline Cap = min(PhysicalLimit, chain, same-rail) on baseline's own geometry.
   // Internal pathNodes (C5/C6) preserved; cushionPath/labels only truncated.
-  // Non-5&Half: legacy second-ball Cap (unchanged; no corrected ceiling).
   const capBaseline = isFiveHalfSystemId(systemIdForGrid)
     ? resolveBaselineTrajectoryDisplayCap({
         pathNodes,
-        baselineC4Value: resolveBaselineC4Value(baseSysValues),
-        correctedDisplayEndIndex:
-          correctedDisplayEndIndex == null
-            ? undefined
-            : correctedDisplayEndIndex,
+        baselineC4Value: resolveFiveHalfC4Value(baseSysValues),
         opts: displayCapOpts,
       })
-    : resolveTrajectoryDisplayCap(
-        pathNodes,
-        secondPoint,
-        hitTolerance,
-        displayCapOpts
-      );
+    : resolveTrajectoryDisplayCap(pathNodes, displayCapOpts);
   const cushionPath = slicePathNodesToCap(pathNodes, capBaseline);
 
   return {
@@ -494,11 +479,11 @@ export function buildTrajectory(
     thicknessForCalc,
     displayImpactContactThicknessT,
     shotPattern,
-    hitTolerance,
     ballDiameterRg,
     ballRadiusRg,
     curveEps = DEFAULT_CURVE_EPS,
     baseSysValues,
+    correctedSysValues,
     displayCapOpts,
   } = input;
 
@@ -662,13 +647,18 @@ export function buildTrajectory(
     C6_path,
   ];
 
-  const secondPoint = resolveSecondBall(balls, targetColor);
-
+  const correctedC4Value = isFiveHalfSystemId(systemIdForGrid)
+    ? resolveFiveHalfC4Value(correctedSysValues)
+    : null;
+  const correctedPhysicalLimit =
+    correctedC4Value == null
+      ? null
+      : computeBaselinePhysicalLimitEndIndex(correctedC4Value);
   const capCorrected = resolveTrajectoryDisplayCap(
     pathNodes,
-    secondPoint,
-    hitTolerance,
-    displayCapOpts
+    correctedPhysicalLimit == null
+      ? displayCapOpts
+      : { ...displayCapOpts, physicalLimitEndIndex: correctedPhysicalLimit }
   );
   const cushionPath = slicePathNodesToCap(pathNodes, capCorrected);
 
@@ -732,11 +722,8 @@ export function buildTrajectory(
     c2ManualHint,
     systemIdForGrid,
     trackForAnchors,
-    secondPoint,
-    hitTolerance,
     baseSysValues,
-    displayCapOpts,
-    capCorrected.endIndex
+    displayCapOpts
   );
 
   const coRg = readBaselineHandleCoord(anchorsBase?.CO);
