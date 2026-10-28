@@ -8,6 +8,81 @@ Status : Active Project Log
 
 ---
 
+# 2026-10-19 — 거미줄(spider_web) C1 → C2 회전 보정 반사 (C3 고정)
+
+## Mode
+
+**Agent** · code + tests + docs · uncommitted · no commit / push / Publish · browser check in an isolated temp copy on D: (port 5391, own Vite cache, removed afterwards) · real `.workspace-data` / History / Published / browser storage not touched
+
+## Why
+
+Phase 1 computed C2 as the pure specular point between C1 and C3 (rotation 0). The confirmed rule is: C3 = CO − C1 + HPn is the absolute answer and must not move, while the C1 → C2 reflection must carry the tip rotation. So C2 has to be re-solved on the long rail.
+
+## Change
+
+- `spiderWebGeometry.ts`: `spiderC2SpinDeltaDeg` (track spin × `tipDeltaDeg`, no decay, no C3 > 60 branch) · `solveSpiderC2` (condition `θ(vIn) + θ(vOut) = δ` on TOP / BOTTOM, strictly monotonic → bisection on 0..80, x tol 1e-10, angle tol 1e-8 rad, no clamp) · error codes `C2_NO_SOLUTION` / `C2_DEGENERATE` / `C2_NOT_CONVERGED` with Korean messages · `buildSpiderWebPath` uses the solver and exposes `c2DeltaDeg`; the old mirror helper is removed.
+- `trajectoryBuilder.ts`: a failed spider path returns an empty trajectory with no labels (no generic fallback).
+- `App.jsx`: spider path is built whenever spider is selected; spider labels come only from the spider path; SAVE / 덮어쓰기 blocked with the Korean message while the path is not buildable.
+- `SpiderWebSysPanel.jsx`: shows C2 rail position + rotation, or "C2 연결 불가 (code)"; Apply blocked on C2 errors.
+- SSOT: `SPIDER_WEB_SYSTEM_SSOT.md` v1.1 (§4.1 C2 formula / priority / C3 fixed · §5 branch applies from C3 → C4 only).
+
+## Tests
+
+- Failing-first: the new C2 block was run with the C2 rotation forced to 0 (= old specular behaviour) → 13 failures (tips 1–4, C3 fixed vs C2 moved, C3 60 / 60.1 / 70 / 80, path-level failure); tip 0 and solver unit cases passed as expected. Then restored.
+- Spider 43 domain + 22 integration → 65 pass after the change (old specular test replaced). Full suite 710 suites / 2326 tests pass · `npm run build` pass.
+- Sandbox browser:
+  - LRTL_L CO 20 / C1 40 / L3 → C2 TOP 34.838 (old specular 20.075), C3_10 kept at LEFT (0, 33.3), CO / C1 labels on left / right frame.
+  - Tip 0 with C3_10 kept (CO 20 / C1 10) → C2 TOP 44.2997 = pure specular. Literal CO 20 / C1 40 / tip 0 → C3 = −20 blocked by the formula.
+  - LRTL_L CO 40 / C1 10 / L4 → C3_70 BOTTOM, measured C1 → C2 −18° (track spin), C3 → C4 +18° (reversed). CO 40 / C1 5 / L4 (C3_75) → same rotations, E1 from C6 and E2 chained.
+  - RLTR_R CO 30 / C1 30 / tip 0 (C3 = 0 on the C2-rail corner) → "C2 연결 불가 (C2_DEGENERATE)", Apply disabled.
+
+## Notes
+
+- C3 = 0, or C1 / CO = 0 at the C2-rail corner, now yields `C2_DEGENERATE` (previously a zero-length C2 = C3 / C1 segment).
+- C3 = 60 / 60.1 sit on the table corner; C4–C6 are not generated there, with or without the C2 correction (unchanged).
+- With the new C2, LRTL_L C3_70 ends C6 ≈ 1.45 from the top-right corner, where the common Extension proposal finds no next cushion hit (Extension code unchanged).
+
+## Not changed
+
+- C3 / CO / C1 / HP formula values, C3 rail branch, C4–C6 continuation rule, common Trajectory Extension, persistence structure.
+- 5&Half and every other system's C2 / reflection code. `incidenceAngle.ts`, `.tmp.driveupload/`.
+
+---
+
+# 2026-10-19 — 거미줄(spider_web) 시스템 Phase 1
+
+## Mode
+
+**Agent** · code + tests + docs · uncommitted · no commit / push / Publish · browser check in an isolated temp copy on D: (separate port 5391 / origin, own Vite cache, no History write) · real `.workspace-data` / History / Published not read or changed
+
+## Why
+
+spider_web had a formula only (`C3_f = CO_f - C1_f + HP_n`) and no track / rail / tip / geometry model. The generic B2T/T2B path could not draw it (wrong rails, signed HP, no C4–C6 rule).
+
+## Change
+
+- Domain `domain/spiderWeb/`: four route tracks with an explicit rail table (C3 ≤ 60 short rail · C3 > 60 long rail, no 60→70 diagonal) · signed tip select → `HP_n = 10 × |HP_sel|` with direction check · explicit-target solver (exact HP inverse, range errors) · geometry (frame-rail knots, specular C2) · C4–C6 continuation (tip delta × decay 1.0 / 0.8 / 0.7, reversed when C3 > 60) with `{ rail, t }` vertex edits under a signature + ruleVersion.
+- `trajectoryBuilder`: spider-only branch consuming a pre-built `spiderWebPath` (cap = chain / same-rail). 5&Half and other branches unchanged.
+- Persistence: system-specific sysInputs strip (`CO_f / C1_f / C3_f / HP_n / HP_sel`) · `StrategyEntry.spiderContinuation` through SAVE → FamilyMember split / hydrate → Recall · slot carry · Undo snapshot.
+- UI: `SpiderWebSysPanel` (track · solve target · nine-point tip) inside `SysOverlay` · slot commit spider branch · ADMIN C4/C5/C6 rail handles (C2 handle off for spider) · SYS / track / tip change or vertex move clears E1/E2.
+- Data: `data/systems/spider_web/{anchors,system_meta,profile,logic}.json` rewritten · `system_meta.schema.json` widened (family `spider`, route tracks, `track_model`).
+- SSOT: new `SPIDER_WEB_SYSTEM_SSOT.md` · `TRAJECTORY_EXTENSION_SSOT.md` v1.4.3 · `DISPLAY_BOUNDARY_POLICY_SSOT.md` v1.7.1.
+
+## Tests
+
+- New `spiderWeb.domain.test.ts` (26) + `spiderWeb.integration.test.ts` (21). Integration persistence / builder / render-value cases failed before the slot / strip / builder changes.
+- Full suite 709 suites / 2308 tests pass · `npm run build` pass.
+- Sandbox browser:
+  - LRTL_L CO 20 / C1 40 / L3 → C3_10 on LEFT; CO / C1 labels on left / right frame; right tips disabled; C3→C4 δ = −13°.
+  - C4 drag → C5 / C6 recomputed and E1 cleared; C6 drag → only C6; C5 drag → C6 recomputed; SYS re-apply → edits reset.
+  - LRTL_L CO 40 / C1 10 / L4 → C3_70 on BOTTOM, δ = +18° (reversed); E1 / E2 start at C6.
+
+## Not changed
+
+5&Half formulas / cushion coordinates / C4 < 20 → C4 else C6 · global strip list · Extension domain code · Search · History / Published storage · ball-role SSOT (`balls.cue` 내공 · `balls.target` 앞공 · `balls.second` 뒷공; `targetBall` = colour only) · `incidenceAngle.ts` · `.tmp.driveupload/`.
+
+---
+
 # 2026-10-12 — 누적 작업 정리: 문서 최신화 · 검증 · commit / push
 
 ## Mode

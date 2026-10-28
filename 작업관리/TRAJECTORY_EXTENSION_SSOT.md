@@ -23,6 +23,7 @@
 | **v1.4** | **Product Complete** · USER Search Runtime Activation · **`activateStrategySlot`** · Search ↔ Strategy Pick **단일 Runtime 경로** · Search 전용 Hydrate **없음** |
 | v1.4.2 | **ADMIN Undo/Recall** · Load → immediately editable · Undo = authored transaction rollback · Recall = restore Load Origin S0 · SAVE ≠ Origin replace · Reset removed |
 | v1.4.1 | **POLICY A** · (superseded by v1.4.2) Recall view-only · Reset = only Recall→Edit · Target dblclick ≠ session resume while view-only · Search ≠ trajectory proximity · Role Ball3 unchanged |
+| v1.4.3 | **spider_web boundary (2026-10-19)** · spider C4–C6 = calculated continuation (not Extension) · Origin resolves to C6 with the unchanged rule · vertex / SYS / track / tip change clears E1/E2 · Extension code unchanged · see §3 "spider_web" + `SPIDER_WEB_SYSTEM_SSOT.md` |
 
 ---
 
@@ -149,6 +150,13 @@ Extension 존재:    CO — C1 — C2 — C3 ⋯ C4 ⋯ C5 ⋯ C6 ●— E1 —�
 이는 Display Cap **우회가 아니다.** Extension Layer는 same-rail Cap과 chain-break Cap을 그대로 지키며, second-ball Cap만 적용하지 않는다. second-ball Cap의 목적은 "세컨드볼에서 궤적을 종료시키는 것"인데 Extension이 그 종료 책임을 인수하므로 의미상 정합한다.
 
 `trajectoryPathDisplayPolicy.ts`는 **한 줄도 수정하지 않는다.**
+
+### spider_web (v1.4.3 · 2026-10-19)
+
+- 거미줄 시스템의 C3 → C4 → C5 → C6는 **시스템 계산 경로**(spider continuation)이며 Extension이 아니다. Owner = `domain/spiderWeb/` (`SPIDER_WEB_SYSTEM_SSOT.md` §5).
+- spider pathNodes = `[CO, C1, C2, C3, C4, C5, C6]` (모두 유효). 위 Origin 규칙(chain-break · same-rail)을 그대로 적용하면 Origin = **C6** (index 6). Extension Domain 코드는 수정하지 않았다.
+- spider C4/C5/C6 vertex 이동, SYS 값 / track / 타점 변경 → E1/E2 **무효화**(App Extension draft + slot `trajectoryExtensions` 제거). spider vertex 편집은 `StrategyEntry.spiderContinuation`에 별도 저장되며 `trajectoryExtensions`에 섞지 않는다.
+- spider 경로 생성은 시스템 계산 계층의 변경이다(`trajectoryBuilder`가 `spiderWebPath`를 소비하는 spider 전용 분기). Extension이 계산 계층에 쓰는 것이 아니다.
 
 ---
 

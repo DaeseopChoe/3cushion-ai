@@ -2,8 +2,8 @@
   "system": "Spider Web System",
   "category": "continuous_solve_one_of_four",
   "description": {
-    "ko": "거미줄 시스템: start(CO), 1C, C3, tip(0~4) 중 3개를 입력하면 나머지 1개를 sys 도메인에서 선형식으로 계산한다.",
-    "en": "Spider web system: given 3 of start(CO), 1C, C3, tip(0..4), solve the remaining one in sys domain."
+    "ko": "거미줄 시스템: CO, C1, C3, 타점(HP_n) 중 사용자가 계산 대상으로 선택한 1개를 나머지 3개로 계산한다. HP_n = 10 × |타점 선택값|.",
+    "en": "Spider web system: the user picks one of CO, C1, C3, HP_n to solve from the other three. HP_n = 10 x |tip selection|."
   },
   "system_characteristics": {
     "type": "continuous",
@@ -15,39 +15,36 @@
   },
   "ui": {
     "category": "spider",
-    "input_marks": [
-      "CO",
-      "C1",
-      "C3",
-      "TIP"
-    ],
-    "output_marks": [
-      "CO",
-      "C1",
-      "C3",
-      "TIP"
-    ],
-    "mode": [
-      "solve_start",
-      "solve_c1",
-      "solve_c3",
-      "solve_tip"
-    ]
+    "input_marks": ["CO", "C1", "C3", "HP"],
+    "output_marks": ["CO", "C1", "C3", "HP"],
+    "solve_targets": ["CO_f", "C1_f", "C3_f", "HP"]
+  },
+  "value_domains": {
+    "CO_f": [0, 40],
+    "C1_f": [0, 80],
+    "C3_f": [0, 80],
+    "HP_n": [0, 40]
+  },
+  "hp_levels": {
+    "selection_range": [-4, 4],
+    "hp_n_values": [0, 10, 20, 30, 40],
+    "rule": "HP_n = 10 * |HP_sel|; _R tracks allow 0..+4, _L tracks allow 0..-4"
   },
   "notes": [
     "모든 계산은 sys 도메인에서만 수행",
-    "좌표(Fg/Rg)는 앵커 조회/표시/트랙 판정에만 사용",
-    "tip은 0~4 정수 토큰이며, 계산에는 HP_sys = tip*10 을 사용",
-    "앵커는 route(4글자) + spin(L/R) 트랙으로 구성됨"
+    "좌표(Fg/Rg)는 앵커 조회/표시에만 사용",
+    "HP_n은 부호 없는 크기(0/10/20/30/40). 회전 방향은 HP_sel 부호와 트랙 접미사(_R/_L)로 보존",
+    "C3 ≤ 60 짧은 레일, C3 > 60 인접 긴 레일",
+    "Sn · 출발값 보정 · 5&Half C4 규칙 미사용"
   ],
   "safety": {
     "no_extrapolation": true
   },
   "meta": {
-    "spec_version": "v1.3",
+    "spec_version": "v2.0",
     "generator": "PM-direct",
-    "calculation_in_profile": false,
-    "last_updated": "2026-01-13"
+    "calculation_in_profile": true,
+    "last_updated": "2026-10-19"
   },
   "formula": {
     "expr": "C3_f = CO_f - C1_f + HP_n"

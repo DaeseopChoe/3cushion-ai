@@ -144,6 +144,9 @@ export function hydrateFamilyMemberToPositionRecord(
   if (member.trajectoryExtensions) {
     entry.trajectoryExtensions = cloneJson(member.trajectoryExtensions);
   }
+  if (member.spiderContinuation) {
+    entry.spiderContinuation = cloneJson(member.spiderContinuation);
+  }
 
   const record: PositionRecord = {
     positionId,
@@ -243,6 +246,9 @@ export function splitPositionRecordToFamilyParts(
   if (entry.trajectoryExtensions) {
     member.trajectoryExtensions = cloneJson(entry.trajectoryExtensions);
   }
+  if (entry.spiderContinuation) {
+    member.spiderContinuation = cloneJson(entry.spiderContinuation);
+  }
 
   return { ok: true, master, member, slot };
 }
@@ -275,5 +281,6 @@ export function familyCompatibilityFingerprint(record: PositionRecord, slot: Str
     hpT: entry.hpT,
     reflectionOverride: entry.reflectionOverride,
     trajectoryExtensions: entry.trajectoryExtensions,
+    spiderContinuation: entry.spiderContinuation,
   };
 }

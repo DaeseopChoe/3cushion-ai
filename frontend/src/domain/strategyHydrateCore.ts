@@ -68,7 +68,8 @@ export function hydrateSysFromStrategyEntryWithResolver(
   const systemId = normalizeHydrateSystemId(entry.signature?.systemId);
   const track = entry.track ?? "B2T_L";
   const inputs = stripRuntimeSysInputs(
-    (entry.sysInputs ?? {}) as Record<string, unknown>
+    (entry.sysInputs ?? {}) as Record<string, unknown>,
+    { systemId }
   );
   const system_values = { ...inputs };
 

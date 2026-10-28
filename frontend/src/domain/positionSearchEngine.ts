@@ -2,6 +2,7 @@
 import { ballsToPoint6D, dist2_6d } from "./search/kdTree6d";
 import type { TrajectoryExtensionPayload } from "./trajectoryExtension/model";
 import type { ReflectionOverride } from "./trajectory/c2ReflectionOverride";
+import type { SpiderContinuationPayload } from "./spiderWeb/spiderWebContinuation";
 
 export type Point = { x: number; y: number };
 export type Ball3 = { cue: Point; target: Point; second: Point };
@@ -119,6 +120,12 @@ export type StrategyEntry = {
    * Hydrate → anchors.C2; Reflection compute skipped when present.
    */
   reflectionOverride?: ReflectionOverride;
+
+  /**
+   * spider_web C4–C6 vertex edits { ruleVersion, signature, vertices }.
+   * Separate from sysInputs and trajectoryExtensions; ignored when signature differs.
+   */
+  spiderContinuation?: SpiderContinuationPayload;
 };
 
 /** 슬롯당 최대 1전략 (S1/S2/S3 키) */

@@ -60,6 +60,8 @@ export function createStrategyEntry(args: {
   trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
   /** Optional ADMIN C2 Reflection Override { rail, t }. */
   reflectionOverride?: StrategyEntry["reflectionOverride"];
+  /** Optional spider_web C4–C6 vertex edits. */
+  spiderContinuation?: StrategyEntry["spiderContinuation"] | null;
 }): StrategyEntry {
   const meta = buildStrategyMeta({
     balls: args.balls,
@@ -97,6 +99,9 @@ export function createStrategyEntry(args: {
   }
   if (args.reflectionOverride) {
     entry.reflectionOverride = args.reflectionOverride;
+  }
+  if (args.spiderContinuation) {
+    entry.spiderContinuation = args.spiderContinuation;
   }
   return entry;
 }

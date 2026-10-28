@@ -14,6 +14,7 @@
 
 import { normalizeBallsToBall3 } from "../../admin/slotAutoRecommend";
 import { createStrategyEntry } from "../../domain/adminSaveEngine";
+import { isSpiderWebSystemId } from "../../domain/spiderWeb/spiderWebTracks";
 import {
   applyCueEditSnap,
   ballsExactEqual,
@@ -160,6 +161,8 @@ export type SaveFlowContext = {
   trajectoryExtensionPayload?: StrategyEntry["trajectoryExtensions"] | null;
   /** ADMIN C2 Reflection Override { rail, t }. */
   reflectionOverridePayload?: StrategyEntry["reflectionOverride"] | null;
+  /** spider_web C4–C6 vertex edits (single-track; never in sysInputs / extensions). */
+  spiderContinuationPayload?: StrategyEntry["spiderContinuation"] | null;
 
   /**
    * History Load Edit Source (session). Null → no Cue Snap / no proximity replace.
@@ -590,6 +593,9 @@ export function runSaveStrategy(ctx: SaveFlowContext): SaveFlowResult {
       evaluateStrategy: evalForSave,
       trajectoryExtensions: trajectoryExtensionsForWrite,
       reflectionOverride: reflectionOverrideForWrite,
+      spiderContinuation: isSpiderWebSystemId(systemId)
+        ? (ctx.spiderContinuationPayload ?? null)
+        : null,
     });
     strategy = attachCanonicalFieldsToStrategyEntry(baseEntry, canonicalDraft);
     console.log("[SAVE] strategy JSON check:", JSON.stringify(strategy));

@@ -99,6 +99,7 @@ export type FamilyMember = {
   derivedStep?: DerivedStep;
   reflectionOverride?: StrategyEntry["reflectionOverride"];
   trajectoryExtensions?: StrategyEntry["trajectoryExtensions"];
+  spiderContinuation?: StrategyEntry["spiderContinuation"];
   authoringStrategyId?: string;
 };
 

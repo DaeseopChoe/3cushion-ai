@@ -1,13 +1,17 @@
 {
   "system_id": "spider_web",
-  "family": "two_thirds",
+  "family": "spider",
   "required_cushions": 3,
-  "canonical_track": "B2T_L",
-  "entry_rail": "BOTTOM",
-  "exit_rail": "TOP",
+  "track_model": "route_track",
+  "canonical_track": "RLTR_R",
+  "entry_rail": "RIGHT",
+  "exit_rail": "RIGHT",
   "allowed_tracks": [
-    "B2T_L"
+    "RLTR_R",
+    "LRTL_L",
+    "RLBR_L",
+    "LRBL_R"
   ],
   "difficulty": 3,
-  "notes": "reviewed"
+  "notes": "Route tracks (CO-C1-C2-C3 rails + spin suffix). Not FamilyTrack values; single-track save only. SSOT: 작업관리/SPIDER_WEB_SYSTEM_SSOT.md"
 }

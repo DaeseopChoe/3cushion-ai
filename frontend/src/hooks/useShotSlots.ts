@@ -22,6 +22,11 @@ import {
   shouldClearReflectionOverrideOnTrackChange,
   stripReflectionOverrideFromLayer,
 } from '../domain/trajectory/c2ReflectionOverride';
+import { isSpiderWebSystemId } from '../domain/spiderWeb/spiderWebTracks';
+import {
+  resolveSpiderSlotSys,
+  shouldInvalidateSpiderEditsOnSysChange,
+} from '../domain/spiderWeb/spiderWebSlotSys';
 import {
   carryEditDraftToDestinationSlot,
   type DestinationSlotsShape,
@@ -58,6 +63,8 @@ export interface DraftState {
   trajectoryExtensions?: import('../domain/positionSearchEngine').StrategyEntry['trajectoryExtensions'];
   /** ADMIN C2 Reflection Override { rail, t }. */
   reflectionOverride?: import('../domain/positionSearchEngine').StrategyEntry['reflectionOverride'];
+  /** spider_web C4–C6 vertex edits. */
+  spiderContinuation?: import('../domain/positionSearchEngine').StrategyEntry['spiderContinuation'];
 }
 
 export interface SlotState {
@@ -127,6 +134,9 @@ function buildDraftsFromRecord(record: PositionRecord): Record<string, DraftStat
         : {}),
       ...(runtime.reflectionOverride
         ? { reflectionOverride: runtime.reflectionOverride }
+        : {}),
+      ...(runtime.spiderContinuation
+        ? { spiderContinuation: runtime.spiderContinuation }
         : {}),
     };
   }
@@ -249,6 +259,26 @@ function buildSlotDraftWithUpdatedSys(
     prevTrackForOverride,
     nextTrack
   );
+
+  if (isSpiderWebSystemId(nextSystemId)) {
+    const spider = resolveSpiderSlotSys(nextTrack, inputDelta);
+    const nextSys = {
+      systemId: nextSystemId,
+      track: nextTrack,
+      inputs: spider?.inputs ?? {},
+      outputs: { result: spider?.result ?? {}, debug: { expr: "spider_web" } },
+    };
+    let spiderDraft: DraftState = clearOverrideOnTrackFlip
+      ? stripReflectionOverrideFromLayer(slot.draft || {})
+      : { ...(slot.draft || {}) };
+    delete spiderDraft.reflectionOverride;
+    if (shouldInvalidateSpiderEditsOnSysChange(slot.draft?.sys ?? slot.applied?.sys, nextSys)) {
+      spiderDraft = { ...spiderDraft };
+      delete spiderDraft.spiderContinuation;
+      delete spiderDraft.trajectoryExtensions;
+    }
+    return { ...spiderDraft, sys: nextSys };
+  }
 
   const candidateInputs = {
     ...prevInputs,
@@ -519,12 +549,24 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
               prevTrackForOverride,
               nextTrackForOverride
             );
-          const nextApplied = clearOverrideOnTrackFlip
+          const nextApplied: DraftState = clearOverrideOnTrackFlip
             ? {
                 ...stripReflectionOverrideFromLayer(prevApplied),
                 sys: clonedSys,
               }
             : { ...prevApplied, sys: clonedSys };
+          if (isSpiderWebSystemId(nextSystemId)) {
+            delete nextApplied.reflectionOverride;
+            if (
+              shouldInvalidateSpiderEditsOnSysChange(
+                fresh.applied?.sys ?? fresh.draft?.sys,
+                clonedSys
+              )
+            ) {
+              delete nextApplied.spiderContinuation;
+              delete nextApplied.trajectoryExtensions;
+            }
+          }
           return {
             ...s,
             slots: {
@@ -797,6 +839,29 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
     });
   };
 
+  /** spider vertex edit → E1/E2 invalid: drop slot Extension payload (draft + applied). */
+  const clearSlotTrajectoryExtensions = (slotId: SlotId) => {
+    setShotEditor((s) => {
+      const slot = s.slots[slotId];
+      if (!slot?.draft?.trajectoryExtensions && !slot?.applied?.trajectoryExtensions) {
+        return s;
+      }
+      const strip = (layer: DraftState | null) => {
+        if (!layer?.trajectoryExtensions) return layer;
+        const next = { ...layer };
+        delete next.trajectoryExtensions;
+        return next;
+      };
+      return {
+        ...s,
+        slots: {
+          ...s.slots,
+          [slotId]: { ...slot, draft: strip(slot.draft), applied: strip(slot.applied) },
+        },
+      };
+    });
+  };
+
   const patchSlotFamilyIdentity = (
     slotId: SlotId,
     identity: {
@@ -993,6 +1058,7 @@ export function useShotSlots(options?: UseShotSlotsOptions) {
       loadDraftFromStrategyEntry,
       patchSlotRuntimeMeta,
       patchSlotFamilyIdentity,
+      clearSlotTrajectoryExtensions,
       loadDraftsFromPositionRecord,
       applyPositionRecall,
       applyUserSearchRecall,

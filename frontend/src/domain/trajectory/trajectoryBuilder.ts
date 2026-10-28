@@ -37,6 +37,7 @@ import {
 import { resolveReflectionC2 } from "./reflectionPolicy";
 import type { ReflectionMarkReference, MarkReferenceProvenance } from "./reflectionPolicy";
 import { readBaselineHandleCoord } from "./baselineMarkAxisSnap";
+import type { SpiderWebPath, SpiderWebPathResult } from "../spiderWeb/spiderWebGeometry";
 
 const DEFAULT_CURVE_EPS = 1e-6;
 
@@ -106,6 +107,12 @@ export type TrajectoryBuildInput = {
    * e.g. skipSameRail for ADMIN C2 reflectionOverride — no Reflection/Builder math change.
    */
   displayCapOpts?: TrajectoryDisplayCapOptions;
+  /**
+   * spider_web only: pre-built path (explicit track rails, C2 connection, C4–C6 continuation).
+   * When present the generic CO/C1/C2/C3 and 5&Half branches are skipped;
+   * a failed result (ok: false) yields an empty trajectory with no labels.
+   */
+  spiderWebPath?: SpiderWebPathResult | null;
 };
 
 export type LabelAnchorPayload = {
@@ -462,10 +469,140 @@ function buildCurrentTipFromAdmin(
   return { hp: { x: hp.x, y: hp.y }, side };
 }
 
+function buildImpactPair(
+  input: TrajectoryBuildInput,
+  impactCO: PathPoint,
+  impactC1: PathPoint
+): { impactRaw: PathPoint | null; impactContactRg: PathPoint | null } {
+  const { balls, targetColor, adminState, thicknessForCalc, displayImpactContactThicknessT } =
+    input;
+  const cueBall = balls.cue;
+  const targetBall = resolveTargetBall(balls, targetColor);
+  const impactRaw = calculateImpact(
+    cueBall ?? balls.cue,
+    targetBall,
+    impactCO,
+    impactC1,
+    thicknessForCalc || "1/2",
+    input.shotPattern || "뒤돌리기",
+    input.ballDiameterRg,
+    input.ballRadiusRg
+  );
+  const impactContactThicknessT =
+    (displayImpactContactThicknessT?.trim()
+      ? displayImpactContactThicknessT
+      : undefined) ??
+    adminState?.hpt?.T ??
+    (thicknessForCalc && String(thicknessForCalc).trim()
+      ? String(thicknessForCalc)
+      : undefined) ??
+    "8/8";
+  const impactContactRg = calcImpactBall(cueBall ?? balls.cue, targetBall, impactContactThicknessT);
+  return { impactRaw, impactContactRg: impactContactRg ?? null };
+}
+
+/**
+ * spider_web: corrected = baseline = spider path (no physical corrections, no Sn / 5&Half cap).
+ * Display cap = chain / same-rail only → last valid cushion.
+ */
+function buildSpiderWebTrajectory(
+  input: TrajectoryBuildInput,
+  spider: SpiderWebPath
+): TrajectoryBuildResult {
+  const pathNodes: (PathPoint | null)[] = spider.pathNodes.map((p) =>
+    p ? { x: p.x, y: p.y } : null
+  );
+  const cap = resolveTrajectoryDisplayCap(pathNodes, input.displayCapOpts);
+  const cushionPath = slicePathNodesToCap(pathNodes, cap);
+  const coPrep = { ...spider.frame.CO };
+  const c1Prep = { ...spider.frame.C1 };
+  const { impactRaw, impactContactRg } = buildImpactPair(input, coPrep, c1Prep);
+  const node = (i: number) => pathNodes[i] ?? null;
+
+  return {
+    corrected: {
+      pathNodes,
+      cushionPath,
+      cushionPathForRender: cushionPath,
+      cap,
+      coLine: node(0),
+      c1Line: node(1),
+      useCurveDeform: false,
+    },
+    baseline: {
+      pathNodes: pathNodes.slice(),
+      cushionPath: cushionPath.slice(),
+      cap,
+    },
+    impact: { raw: impactRaw, contactRg: impactContactRg },
+    handles: { coRg: null, c1Rg: null },
+    labels: {
+      anchorSources: {
+        CO: labelPayload(coPrep),
+        C1: labelPayload(c1Prep),
+        C2: labelPayload(node(2)),
+        C3: labelPayload({ ...spider.frame.C3 }),
+        C4: labelPayload(node(4)),
+        C5: labelPayload(node(5)),
+        C6: labelPayload(node(6)),
+      },
+    },
+    meta: {
+      trackForAnchors: input.resolveAnchorCtx.track,
+      systemIdForGrid: input.resolveAnchorCtx.systemId,
+      coPrep,
+      c1Prep,
+      coRail: node(0),
+      c1Rail: node(1),
+      markReference: null,
+      reflectedDiagnostics: null,
+    },
+  };
+}
+
+/**
+ * spider_web with an unsolvable path (e.g. C2 연결 불가): no trajectory, no labels.
+ * Never falls back to the generic CO/C1/C2/C3 builder.
+ */
+function buildSpiderWebBlockedTrajectory(input: TrajectoryBuildInput): TrajectoryBuildResult {
+  const pathNodes: (PathPoint | null)[] = [null, null, null, null, null, null, null];
+  const cap = resolveTrajectoryDisplayCap(pathNodes, input.displayCapOpts);
+  return {
+    corrected: {
+      pathNodes,
+      cushionPath: [],
+      cushionPathForRender: [],
+      cap,
+      coLine: null,
+      c1Line: null,
+      useCurveDeform: false,
+    },
+    baseline: null,
+    impact: { raw: null, contactRg: null },
+    handles: { coRg: null, c1Rg: null },
+    labels: { anchorSources: {} },
+    meta: {
+      trackForAnchors: input.resolveAnchorCtx.track,
+      systemIdForGrid: input.resolveAnchorCtx.systemId,
+      coPrep: null,
+      c1Prep: null,
+      coRail: null,
+      c1Rail: null,
+      markReference: null,
+      reflectedDiagnostics: null,
+    },
+  };
+}
+
 /** Corrected + baseline trajectory — Domain SSOT (AD-B5-06). */
 export function buildTrajectory(
   input: TrajectoryBuildInput
 ): TrajectoryBuildResult {
+  if (input.spiderWebPath) {
+    return input.spiderWebPath.ok
+      ? buildSpiderWebTrajectory(input, input.spiderWebPath)
+      : buildSpiderWebBlockedTrajectory(input);
+  }
   const {
     anchors,
     anchorsBase,

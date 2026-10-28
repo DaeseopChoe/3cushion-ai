@@ -24,6 +24,7 @@
 | **v1.5** | **5&Half Baseline Display Ceiling** — baseline **계산**은 독립(full pathNodes 보존) · baseline **DISPLAY**는 corrected DISPLAY endIndex(Cn)를 초과하지 않음 · corrected second-ball XY spatial clip 금지 · segments/labels 동일 Cap · D-DBP-05 **개정** |
 | **v1.5.1** | **C2 Handle Active Trajectory Ownership** — Handle = Active C2 (`resolveActiveC2HandleRg` + `showBaseLine`) · display≡drag seed · click-only no mutate · Display Ceiling과 독립 · user manual PASS 2026-09-09 |
 | **v1.6** | **Second Ball Miss = Full Valid Path** (2026-10-10) — 세컨드볼(`balls.second`, 뒷공) 미적중 시 기본 C3 절단 **폐지** → 마지막 유효 쿠션(maxChain)까지 표시 (reason `second_ball_miss`) · 적중 시 진행 순서상 첫 적중 segment의 시작 쿠션 + 공 위치 투영점(`endPoint`)에서 종료 (reason `second_ball_hit`) · `"full"` → `full_valid_path` · 5&Half corrected에도 PhysicalLimit 적용(corrected C4 해석 가능 시) · 5&Half baseline ceiling은 **corrected 적중 시에만** 전달 + baseline **자체 geometry** 적중 시 자체 `endPoint` · §6.2 불일치 해소 · D-DBP-05 재개정 · D-DBP-19 |
+| v1.7.1 | **spider_web display cap** (2026-10-19) — spider path는 min(chain, same-rail)만 적용 (§5.4) · 5&Half 규칙·코드 미변경 |
 | **v1.7** | **Always Last Valid Cushion** (2026-10-11) — 세컨드볼(`balls.second`)은 SYS 궤적·기준선·라벨의 표시 종료 조건이 **아니다**. v1.6의 "미적중=전체"와 "적중=공 위치 종료"를 **모두 폐지** · Cap = min(chain, same-rail, PhysicalLimit) · `second_ball_hit`/`second_ball_miss`/`endPoint`/`computeSecondBallCapEndIndex` 제거 · `resolveTrajectoryDisplayCap(pathNodes, opts?)` · Builder는 baseline에 corrected ceiling을 전달하지 않음(보정·기준선 각자 PhysicalLimit/유효 범위) · D-DBP-05 · D-DBP-19 개정 |
 
 ---
@@ -180,6 +181,7 @@ same-rail은 Invalid/Chain 계열 안전망으로 유지한다. Continuation과 
 | **baseline (5&Half)** | **(v1.7)** min(chain, same-rail, PhysicalLimit) — baseline 자체 geometry·자체 C4 값 기준. Builder는 corrected ceiling을 전달하지 않는다 (§6.1.1). 계산 pathNodes는 독립·보존. |
 | **baseline (기타)** | `resolveTrajectoryDisplayCap(pathNodes, opts)` — min(chain, same-rail). |
 | **corrected** | **(v1.7)** min(chain, same-rail, PhysicalLimit*) — 세컨드볼 무관, 마지막 유효 쿠션까지. *5&Half: corrected 유효 SYS에서 C4 값을 해석할 수 있을 때만. Continuation (§7)은 잔여. |
+| **spider_web (v1.7.1)** | corrected = baseline = spider path `[CO, C1, C2, C3, C4, C5, C6]`. Cap = `resolveTrajectoryDisplayCap(pathNodes, opts)` = min(chain, same-rail). PhysicalLimit / 5&Half C4 ceiling **미적용** · 세컨드볼 무관 · C2 override `skipSameRail` 없음 (spider는 C2 handle 비활성). `SPIDER_WEB_SYSTEM_SSOT.md` |
 
 ### 5.5 Baseline ↔ Corrected (최소 표시)
 

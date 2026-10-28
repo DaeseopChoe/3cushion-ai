@@ -7,10 +7,12 @@
 
 import type { ReflectionOverride } from "../trajectory/c2ReflectionOverride";
 import type { ShotEditorState } from "../../hooks/useShotSlots";
+import type { SpiderContinuationPayload } from "../spiderWeb/spiderWebContinuation";
 
 export type AdminEditTransactionLabel =
   | "hpt"
   | "c2"
+  | "spider"
   | "ball"
   | "target"
   | "sys"
@@ -29,6 +31,8 @@ export type AdminAuthoredEditSnapshot = {
   adminAi: unknown;
   /** Authored override only — never calculated C2 point. */
   c2ReflectionOverride: ReflectionOverride | null;
+  /** spider_web authored C4–C6 vertex edits (optional; other systems omit). */
+  spiderContinuation?: SpiderContinuationPayload | null;
   shotEditor: ShotEditorState;
 };
 

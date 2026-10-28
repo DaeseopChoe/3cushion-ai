@@ -255,6 +255,18 @@ import {
 } from "./interaction/ballPositionPointerPriorityPolicy";
 import { useTrajectoryExtensionHandleDrag } from "./overlay/state/trajectoryExtensionHandleDrag";
 import { useC2RailHandleDrag } from "./overlay/state/c2RailHandleDrag";
+import { isSpiderWebSystemId } from "./domain/spiderWeb/spiderWebTracks";
+import { buildSpiderWebPath } from "./domain/spiderWeb/spiderWebGeometry";
+import {
+  applySpiderVertexEdit,
+  buildSpiderContinuationPayload,
+  normalizeSpiderContinuation,
+  resolveSpiderContinuationVertices,
+} from "./domain/spiderWeb/spiderWebContinuation";
+import {
+  shouldInvalidateSpiderEditsOnSysChange,
+  spiderSignatureFromSlotSys,
+} from "./domain/spiderWeb/spiderWebSlotSys";
 import {
   getBaselineFineNudgeArrowDescriptors,
   getBaselineFineNudgeArrowDelta,
@@ -271,6 +283,7 @@ import {
 } from "./components/table/joystickCoordinateEditorLayout";
 import {
   normalizeReflectionOverride,
+  reflectionOverrideFromPoint,
   reflectionOverrideToPoint,
   shouldClearReflectionOverrideOnHptDependencyChange,
   shouldClearReflectionOverrideOnTrackChange,
@@ -1166,6 +1179,12 @@ export default function App({
   const [c2ReflectionOverride, setC2ReflectionOverride] = useState(null);
   const c2ReflectionOverrideRef = useRef(null);
   c2ReflectionOverrideRef.current = c2ReflectionOverride;
+  /** spider_web C4–C6 vertex edits { ruleVersion, signature, vertices } — runtime + SAVE. */
+  const [spiderContinuation, setSpiderContinuation] = useState(null);
+  const spiderContinuationRef = useRef(null);
+  spiderContinuationRef.current = spiderContinuation;
+  /** Current spider signature + continuation nodes (set during render; read by drag hooks). */
+  const spiderRenderRef = useRef({ signature: null, continuation: [], blockedMessage: null });
   /** DEV: SYS Apply → C1-cut diagnosis session (console only). */
   const sysApplyCutDiagSessionRef = useRef(null);
   const sysApplyCutDiagApplyIdRef = useRef(0);
@@ -1197,6 +1216,29 @@ export default function App({
     shotEditor.activeSlot,
     shotEditor.slots[shotEditor.activeSlot]?.draft?.reflectionOverride,
     shotEditor.slots[shotEditor.activeSlot]?.applied?.reflectionOverride,
+  ]);
+
+  /** Hydrate spider C4–C6 edits from slot (ADMIN active slot / USER display slot). */
+  const spiderHydrateSlotId =
+    appMode === "USER" ? userTableDisplaySlotId : shotEditor.activeSlot;
+  useEffect(() => {
+    const slot = spiderHydrateSlotId ? shotEditor.slots[spiderHydrateSlotId] : null;
+    const raw =
+      slot?.draft?.spiderContinuation ??
+      slot?.applied?.spiderContinuation ??
+      null;
+    const next = normalizeSpiderContinuation(raw);
+    spiderContinuationRef.current = next;
+    setSpiderContinuation(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid wiping live drag
+  }, [
+    spiderHydrateSlotId,
+    spiderHydrateSlotId
+      ? shotEditor.slots[spiderHydrateSlotId]?.draft?.spiderContinuation
+      : null,
+    spiderHydrateSlotId
+      ? shotEditor.slots[spiderHydrateSlotId]?.applied?.spiderContinuation
+      : null,
   ]);
 
   /** Hydrate Extension draft from slot StrategyEntry payload (Reveal regenerated at render). */
@@ -2132,6 +2174,63 @@ export default function App({
     },
   });
 
+  /** spider_web C4/C5/C6 rail handles — editing a vertex recomputes later marks and drops E1/E2. */
+  const spiderVertexDragOptions = (mark, index) => ({
+    svgRef,
+    canDrag: () =>
+      canEditRef.current &&
+      !!spiderRenderRef.current.signature &&
+      !!spiderRenderRef.current.continuation[index],
+    getOverride: () => {
+      const { signature, continuation } = spiderRenderRef.current;
+      const vertices = resolveSpiderContinuationVertices(
+        spiderContinuationRef.current,
+        signature
+      );
+      if (vertices[mark]) return vertices[mark];
+      const node = continuation[index];
+      return node ? reflectionOverrideFromPoint(node.point, node.rail) : null;
+    },
+    setOverride: (next) => {
+      const { signature } = spiderRenderRef.current;
+      const vertices = resolveSpiderContinuationVertices(
+        spiderContinuationRef.current,
+        signature
+      );
+      const payload = buildSpiderContinuationPayload(
+        signature,
+        applySpiderVertexEdit(vertices, mark, next)
+      );
+      spiderContinuationRef.current = payload;
+      setSpiderContinuation(payload);
+    },
+    onHandleHit: () => {
+      clearBallPointerInteractionState();
+    },
+    onHandleDragStart: () => {
+      if (appMode === "ADMIN") {
+        adminEditHistory.beginTransaction(captureAdminEditSnapshot());
+      }
+      extensionDraftRef.current = null;
+      setTrajectoryExtensionDraft(null);
+      setExtensionActiveHandle(null);
+      actions.clearSlotTrajectoryExtensions(shotEditor.activeSlot);
+    },
+  });
+  /** SAVE payload — only edits made under the current SYS signature. */
+  const currentSpiderContinuationPayload = () => {
+    const { signature } = spiderRenderRef.current;
+    return buildSpiderContinuationPayload(
+      signature,
+      resolveSpiderContinuationVertices(spiderContinuationRef.current, signature)
+    );
+  };
+  const spiderC4Drag = useC2RailHandleDrag(spiderVertexDragOptions("C4", 0));
+  const spiderC5Drag = useC2RailHandleDrag(spiderVertexDragOptions("C5", 1));
+  const spiderC6Drag = useC2RailHandleDrag(spiderVertexDragOptions("C6", 2));
+  const spiderVertexDrags = [spiderC4Drag, spiderC5Drag, spiderC6Drag];
+  const spiderVertexHandleRgRef = useRef([null, null, null]);
+
   function handleBallDoubleClickForTarget(ballId, e) {
     if (appMode !== "ADMIN") return;
     if (overlayState.open || overlayContent) return;
@@ -2729,6 +2828,10 @@ export default function App({
   /** 우측 SAVE: always CREATE NEW Family */
   async function handleCanonicalRightPanelSave() {
     if (isDerivedReviewSessionPending || saveInFlightRef.current) return;
+    if (spiderRenderRef.current.blockedMessage) {
+      alert(`거미줄 궤적을 만들 수 없어 저장하지 않습니다.\n${spiderRenderRef.current.blockedMessage}`);
+      return;
+    }
     saveInFlightRef.current = true;
     const screenBeforeSave = captureDerivedReviewSnapshot();
     const datasetBeforeSave = dataset;
@@ -2749,6 +2852,7 @@ export default function App({
         ? draftToPayload(trajectoryExtensionDraft)
         : null,
       reflectionOverridePayload: c2ReflectionOverride ?? null,
+      spiderContinuationPayload: currentSpiderContinuationPayload(),
       editSource: editSourceContext,
       editingPublishedFamilyId,
       editingLocalFamilyId,
@@ -2790,6 +2894,10 @@ export default function App({
       alert(OVERWRITE_SLOT_MISMATCH_USER_MESSAGE);
       return;
     }
+    if (spiderRenderRef.current.blockedMessage) {
+      alert(`거미줄 궤적을 만들 수 없어 저장하지 않습니다.\n${spiderRenderRef.current.blockedMessage}`);
+      return;
+    }
     saveInFlightRef.current = true;
     const result = await runCanonicalSave({
       dataset,
@@ -2806,6 +2914,7 @@ export default function App({
         ? draftToPayload(trajectoryExtensionDraft)
         : null,
       reflectionOverridePayload: c2ReflectionOverride ?? null,
+      spiderContinuationPayload: currentSpiderContinuationPayload(),
       editSource: editSourceContext,
       editingPublishedFamilyId,
       editingLocalFamilyId,
@@ -2926,9 +3035,13 @@ export default function App({
       adminStr: structuredClone(adminState?.str ?? null),
       adminAi: structuredClone(adminState?.ai ?? null),
       c2ReflectionOverride: liveOverride ?? fromSlot,
+      spiderContinuation: spiderContinuation
+        ? structuredClone(spiderContinuation)
+        : null,
       shotEditor: structuredClone(shotEditor),
     };
   }, [
+    spiderContinuation,
     ballsState,
     targetColor,
     isTargetSelected,
@@ -2964,6 +3077,9 @@ export default function App({
         : null;
       c2ReflectionOverrideRef.current = ov;
       setC2ReflectionOverride(ov);
+      const spiderSnap = normalizeSpiderContinuation(snap.spiderContinuation);
+      spiderContinuationRef.current = spiderSnap;
+      setSpiderContinuation(spiderSnap);
       setIsAdminInputSessionActive(true);
       setIsSaved(false);
       setUnifiedDerivedReview(null);
@@ -3666,6 +3782,7 @@ function handleJoyPadPointerCancel(e) {
           ? draftToPayload(trajectoryExtensionDraft)
           : null,
         reflectionOverride: c2ReflectionOverrideRef.current ?? null,
+        spiderContinuation: currentSpiderContinuationPayload(),
       });
     } else {
       actions.switchSlot(currentButtonId);
@@ -4559,6 +4676,30 @@ function handleJoyPadPointerCancel(e) {
   const rawSystemIdForGrid = resolvedSlotSys?.systemId ?? "5_half_system";
   const systemIdForGrid = canonicalSystemIdForConfig(rawSystemIdForGrid);
 
+  const isSpiderSystem = !!resolvedSlotSys && isSpiderWebSystemId(systemIdForGrid);
+  const spiderSignature = isSpiderSystem
+    ? spiderSignatureFromSlotSys({
+        systemId: systemIdForGrid,
+        track: trackForAnchors,
+        inputs: resolvedSlotSysValues,
+      })
+    : null;
+  const spiderWebPath = isSpiderSystem
+    ? buildSpiderWebPath({
+        track: trackForAnchors,
+        inputs: resolvedSlotSysValues,
+        anchorsData: resolveAnchorsData(systemIdForGrid),
+        vertices: spiderSignature
+          ? resolveSpiderContinuationVertices(spiderContinuation, spiderSignature)
+          : {},
+      })
+    : null;
+  spiderRenderRef.current = {
+    signature: spiderWebPath?.ok ? spiderSignature : null,
+    continuation: spiderWebPath?.ok ? spiderWebPath.continuation : [],
+    blockedMessage: spiderWebPath && !spiderWebPath.ok ? spiderWebPath.message : null,
+  };
+
   const systemRuntimeContract = getSystemContract(systemIdForGrid);
   const trajectoryContractView = systemRuntimeContract
     ? extractTrajectoryContractView(systemRuntimeContract)
@@ -4940,6 +5081,15 @@ function handlePointerDown(e) {
     return;
   }
 
+  if (
+    pointerRgEarly &&
+    spiderVertexDrags.some((d, i) =>
+      d.tryStartC2HandleDrag(e, pointerRgEarly, spiderVertexHandleRgRef.current[i])
+    )
+  ) {
+    return;
+  }
+
   const baselineFineNudgeArrowHit = resolveBaselineFineNudgeArrowHit(
     pointerRgEarly,
     baselineHandleModel.co || baselineHandleModel.c1
@@ -5234,6 +5384,9 @@ function handlePointerMove(e) {
     if (handleC2PointerMove(pointerRg)) {
       return;
     }
+    if (spiderVertexDrags.some((d) => d.handleC2PointerMove(pointerRg))) {
+      return;
+    }
     if (handleBaselineDraftPointerMove(pointerRg)) {
       return;
     }
@@ -5400,6 +5553,19 @@ function handlePointerUp(e) {
     if (appMode === "ADMIN") {
       if (c2End.didMutate) {
         adminEditHistory.commitTransaction(captureAdminEditSnapshot(), "c2");
+        setIsSaved(false);
+      } else {
+        adminEditHistory.cancelTransaction();
+      }
+    }
+    return;
+  }
+  for (const spiderDrag of spiderVertexDrags) {
+    const spiderEnd = spiderDrag.endC2HandleDrag(e);
+    if (!spiderEnd.handled) continue;
+    if (appMode === "ADMIN") {
+      if (spiderEnd.didMutate) {
+        adminEditHistory.commitTransaction(captureAdminEditSnapshot(), "spider");
         setIsSaved(false);
       } else {
         adminEditHistory.cancelTransaction();
@@ -5581,6 +5747,13 @@ function handlePointerCancel(e) {
     }
     return;
   }
+  for (const spiderDrag of spiderVertexDrags) {
+    if (!spiderDrag.endC2HandleDrag(e).handled) continue;
+    if (appMode === "ADMIN") {
+      adminEditHistory.cancelTransaction();
+    }
+    return;
+  }
   if (endCoBaselineDraftDrag(e)) {
     clearAppliedBaselineDraftMark("CO");
     return;
@@ -5632,7 +5805,7 @@ function handlePointerCancel(e) {
 
   // ADMIN C2 Reflection Override → anchors.C2 (skip Reflection when present)
   const c2OverridePoint =
-    appMode === "ADMIN"
+    appMode === "ADMIN" && !isSpiderSystem
       ? reflectionOverrideToPoint(c2ReflectionOverride)
       : null;
   const anchors = c2OverridePoint
@@ -5714,6 +5887,7 @@ function handlePointerCancel(e) {
     baseSysValues: resolvedSlotBaseSysValues,
     correctedSysValues: resolvedSlotSysValues,
     displayCapOpts: c2OverridePoint ? { skipSameRail: true } : undefined,
+    spiderWebPath,
   });
 
   const {
@@ -6086,7 +6260,12 @@ function handlePointerCancel(e) {
     appMode === "ADMIN" && useBaselineLabelAnchors && rawAnchorsBase
       ? labelPayload(rawAnchorsBase[key])
       : null;
-  const allAnchors = {
+  // spider_web: labels come only from the spider path (none when the path is blocked).
+  const allAnchors = isSpiderSystem
+    ? Object.fromEntries(
+        ["CO", "C1", "C2", "C3", "C4", "C5", "C6"].map((k) => [k, anchorSources[k] ?? null])
+      )
+    : {
     CO:
       (baselineDraftState.coRg
         ? {
@@ -6437,12 +6616,14 @@ function handlePointerCancel(e) {
   ) : null;
 
   // ADMIN C2 rail handle — active trajectory C2 (showBaseLine → baseline | corrected)
-  const c2PathRg = resolveActiveC2HandleRg({
-    active: showBaseLine ? "baseline" : "corrected",
-    baselinePathNodes: baseline?.pathNodes ?? null,
-    correctedPathNodes: correctedPathNodes ?? null,
-    overridePoint: c2OverridePoint,
-  });
+  const c2PathRg = isSpiderSystem
+    ? null
+    : resolveActiveC2HandleRg({
+        active: showBaseLine ? "baseline" : "corrected",
+        baselinePathNodes: baseline?.pathNodes ?? null,
+        correctedPathNodes: correctedPathNodes ?? null,
+        overridePoint: c2OverridePoint,
+      });
   c2HandleRgRef.current = c2PathRg ?? null;
   const c2HandleModel = buildC2HandleModel(
     {
@@ -6470,6 +6651,40 @@ function handlePointerCancel(e) {
       />
     </g>
   ) : null;
+
+  // ADMIN spider_web C4/C5/C6 rail handles
+  const spiderVertexHandleRgs = [4, 5, 6].map((idx) => {
+    if (!spiderWebPath?.ok) return null;
+    const p = correctedPathNodes?.[idx];
+    return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { x: p.x, y: p.y } : null;
+  });
+  spiderVertexHandleRgRef.current = spiderVertexHandleRgs;
+  const spiderVertexHandleNodes = spiderVertexHandleRgs.map((rg, i) => {
+    const model = buildC2HandleModel(
+      { appMode, c2Rg: rg, dragging: spiderVertexDrags[i].c2HandleDragging },
+      tablePxConfig
+    );
+    if (!model) return null;
+    const mark = `C${4 + i}`;
+    return (
+      <g
+        key={mark}
+        className={model.className}
+        data-spider-vertex-handle={mark}
+        pointerEvents="none"
+      >
+        <circle
+          cx={model.cx}
+          cy={model.cy}
+          r={model.r}
+          fill="#22d3ee"
+          stroke="#0e7490"
+          strokeWidth={model.strokeWidth}
+          opacity={model.opacity}
+        />
+      </g>
+    );
+  });
 
   // ✅ 정보 버튼 클릭 핸들러 (토글 + 즉시 전환)
 
@@ -6519,6 +6734,7 @@ function handlePointerCancel(e) {
         />
       )}
       {c2RailHandleNode}
+      {spiderVertexHandleNodes}
       {adminTableLayersActive && userShowTrajectoryOnTable && (
       <ImpactLines
         CO_line={CO_line}
@@ -6993,6 +7209,23 @@ function handlePointerCancel(e) {
                         slot?.draft?.corrections ?? slot?.applied?.corrections ?? null,
                       c2ReflectionOverride: c2ReflectionOverrideRef.current,
                     });
+                  }
+                  if (
+                    applyResult.ok &&
+                    shouldInvalidateSpiderEditsOnSysChange(
+                      slot?.applied?.sys ?? slot?.draft?.sys,
+                      applyResult.appliedSys
+                    )
+                  ) {
+                    spiderContinuationRef.current = null;
+                    setSpiderContinuation(null);
+                    extensionDraftRef.current = null;
+                    setTrajectoryExtensionDraft(null);
+                    setExtensionActiveHandle(null);
+                  }
+                  if (applyResult.ok && isSpiderWebSystemId(systemId)) {
+                    setC2ReflectionOverride(null);
+                    c2ReflectionOverrideRef.current = null;
                   }
                   if (applyResult.ok) {
                     console.log("[SYS APPLY] committed applied.sys outputs:", applyResult.appliedSys?.outputs);

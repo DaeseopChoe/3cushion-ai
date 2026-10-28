@@ -39,6 +39,7 @@ export type DestinationSlotsShape = Record<
 export type LiveEditRuntime = {
   trajectoryExtensions?: unknown | null;
   reflectionOverride?: unknown | null;
+  spiderContinuation?: unknown | null;
 };
 
 export type AdminStrategySlotSelection = "CARRY_EDIT_DRAFT" | "NAVIGATE";
@@ -111,6 +112,13 @@ function carryLayer(
       next.reflectionOverride = structuredClone(live.reflectionOverride);
     } else {
       delete next.reflectionOverride;
+    }
+  }
+  if (live && "spiderContinuation" in live) {
+    if (live.spiderContinuation != null) {
+      next.spiderContinuation = structuredClone(live.spiderContinuation);
+    } else {
+      delete next.spiderContinuation;
     }
   }
   return next;

@@ -28,10 +28,12 @@ import {
   unifiedSlideFromCorrections,
 } from "./sysOverlayCalcHelpers";
 import { resolveDomainFormulaExpr } from "../runtimeContractSupply";
+import { isSpiderWebSystemId } from "../spiderWeb/spiderWebTracks";
+import { resolveSpiderSlotSys } from "../spiderWeb/spiderWebSlotSys";
 import { calculateByProfileExpr } from "../../utils/systemCalculator";
 
 type MergedInputs = Record<string, unknown>;
-type ResolvedSlotSys = { systemId?: string } | null | undefined;
+type ResolvedSlotSys = { systemId?: string; track?: string } | null | undefined;
 type RenderSys = {
   spaceSel?: Record<string, string>;
   corrections?: Record<string, number>;
@@ -401,6 +403,9 @@ export function buildEffectiveRenderSysValues(
 
   const rawSid = resolvedSlotSys?.systemId ?? "5_half_system";
   const systemId = canonicalSystemIdForConfig(rawSid);
+  if (isSpiderWebSystemId(systemId)) {
+    return resolveSpiderSlotSys(resolvedSlotSys?.track, mergedNums)?.inputs ?? {};
+  }
   const systemMode = getSysSystemMode(systemId);
   const useSn = getSysUseSn(systemId);
   const expr = resolveDomainFormulaExpr(systemId) ?? "";

@@ -27,6 +27,7 @@ const SYS_SYSTEM_CONFIG: Record<string, SysSystemConfigEntry> = {
   "5_HALF": { mode: "derived", useSn: true },
   sunrise_sunset: { mode: "full_input", useSn: false },
   sunset: { mode: "full_input", useSn: false },
+  spider_web: { mode: "full_input", useSn: false },
 };
 
 // ── Canonical API (Migration Map 명칭, SSOT) ──────────────────────────

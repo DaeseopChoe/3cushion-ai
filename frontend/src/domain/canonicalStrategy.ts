@@ -7,6 +7,8 @@ import {
   type FamilyIdentityFields,
 } from "./family/familyIdentity";
 import { createPositionId } from "./positionId";
+import { SPIDER_PERSIST_SYS_INPUT_KEYS } from "./spiderWeb/spiderWebSolver";
+import { isSpiderWebSystemId } from "./spiderWeb/spiderWebTracks";
 import type {
   Ball3,
   PositionRecord,
@@ -142,6 +144,8 @@ export type ExtractBaseSysInputsArgs = {
   appliedSysInputs?: Record<string, unknown> | null;
   /** normalized numeric payload / form base layer */
   normalizedPayload?: Record<string, unknown> | null;
+  /** Selects the system-specific persist policy (default: global strip list). */
+  systemId?: string | null;
 };
 
 export type ToCanonicalStrategyEntryArgs = {
@@ -212,15 +216,33 @@ export function mergeCorrections(raw: unknown): StrategySysCorrections {
   return out;
 }
 
+/**
+ * System-specific persist policy: spider_web keeps only its base keys
+ * (C1_f / C3_f are real inputs there, not derived values).
+ */
+function systemPersistAllowKeys(systemId: string | null | undefined): ReadonlySet<string> | null {
+  return isSpiderWebSystemId(systemId) ? SPIDER_PERSIST_SYS_INPUT_KEYS : null;
+}
+
+export type StripRuntimeSysInputsOptions = {
+  systemId?: string | null;
+};
+
 /** Strip runtime / derived keys from a numeric input map */
 export function stripRuntimeSysInputs(
-  raw: Record<string, unknown> | null | undefined
+  raw: Record<string, unknown> | null | undefined,
+  opts?: StripRuntimeSysInputsOptions
 ): Record<string, number> {
   if (!raw || typeof raw !== "object") return {};
+  const allow = systemPersistAllowKeys(opts?.systemId);
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (CANONICAL_STRIP_SYS_INPUT_KEYS.has(k)) continue;
-    if (CANONICAL_STRIP_EFFECTIVE_SYS_INPUT_KEYS.has(k)) continue;
+    if (allow) {
+      if (!allow.has(k)) continue;
+    } else {
+      if (CANONICAL_STRIP_SYS_INPUT_KEYS.has(k)) continue;
+      if (CANONICAL_STRIP_EFFECTIVE_SYS_INPUT_KEYS.has(k)) continue;
+    }
     if (k.startsWith("_")) continue;
     if (v === "" || v === null || v === undefined) continue;
     const n = typeof v === "number" ? v : Number(v);
@@ -260,7 +282,25 @@ export function extractBaseSysInputs(args: ExtractBaseSysInputsArgs): Record<str
     args.normalizedPayload,
     args.systemValues,
   ]);
-  return stripRuntimeSysInputs(raw);
+  return stripRuntimeSysInputs(raw, { systemId: args.systemId });
+}
+
+function stringOrNull(v: unknown): string | null {
+  return typeof v === "string" && v ? v : null;
+}
+
+/** Slot sys systemId wins; admin form system is the fallback. */
+function resolvePersistSystemId(
+  admin: ToCanonicalStrategyEntryArgs["adminSys"],
+  appliedSys: { systemId?: unknown; system_id?: unknown } | null | undefined
+): string | null {
+  return (
+    stringOrNull(appliedSys?.systemId) ??
+    stringOrNull(appliedSys?.system_id) ??
+    stringOrNull(admin?.systemId) ??
+    stringOrNull(admin?.system_id) ??
+    stringOrNull(admin?.system)
+  );
 }
 
 /** Canonical SAVE base sysInputs: cascade sources (no admin.inputs / outputs.result). */
@@ -271,25 +311,29 @@ function persistBaseSysInputsFromCanonicalSources(
         inputs?: Record<string, unknown>;
         track?: string;
         outputs?: unknown;
+        systemId?: unknown;
+        system_id?: unknown;
       }
     | null
-    | undefined
+    | undefined,
+  systemIdHint?: string | null
 ): Record<string, number> {
+  const systemId = systemIdHint ?? resolvePersistSystemId(admin, appliedSys);
   if (admin && isNonemptyPlainRecord(admin.system_values)) {
-    return extractBaseSysInputs({ systemValues: admin.system_values });
+    return extractBaseSysInputs({ systemValues: admin.system_values, systemId });
   }
   if (admin && isNonemptyPlainRecord(admin.normalizedPayload)) {
-    return extractBaseSysInputs({ normalizedPayload: admin.normalizedPayload });
+    return extractBaseSysInputs({ normalizedPayload: admin.normalizedPayload, systemId });
   }
   const ai =
     typeof appliedSys?.inputs === "object" && appliedSys.inputs ? appliedSys.inputs : undefined;
-  return extractBaseSysInputs({ appliedSysInputs: ai });
+  return extractBaseSysInputs({ appliedSysInputs: ai, systemId });
 }
 
 /** SAVE guard + persist: same cascade as toCanonicalStrategyEntry (export-only wrapper). */
 export function getPersistableBaseSysInputs(
   adminSys: ToCanonicalStrategyEntryArgs["adminSys"],
-  appliedSys?: { inputs?: Record<string, unknown> } | null
+  appliedSys?: { inputs?: Record<string, unknown>; systemId?: unknown } | null
 ): Record<string, number> {
   return persistBaseSysInputsFromCanonicalSources(adminSys, appliedSys ?? undefined);
 }
@@ -303,7 +347,11 @@ export function toCanonicalStrategyEntry(
   const sys = args.applied?.sys;
   const admin = args.adminSys;
 
-  const sysInputs = persistBaseSysInputsFromCanonicalSources(admin, sys ?? undefined);
+  const sysInputs = persistBaseSysInputsFromCanonicalSources(
+    admin,
+    sys ?? undefined,
+    args.signature?.systemId ?? null
+  );
 
   return {
     slot: args.slotId,
@@ -335,7 +383,7 @@ export function normalizeCanonicalSaveDraft(
     authoringStrategyId: draft.authoringStrategyId,
     ...familyIdentityPersistPatch(draft),
     track: draft.track ?? "B2T_L",
-    sysInputs: stripRuntimeSysInputs(draft.sysInputs),
+    sysInputs: stripRuntimeSysInputs(draft.sysInputs, { systemId: draft.signature?.systemId }),
     corrections: mergeCorrections(draft.corrections),
     hpT: draft.hpT,
     str: draft.str,
@@ -362,7 +410,7 @@ export function attachCanonicalFieldsToStrategyEntry(
       ? { authoringStrategyId: draft.authoringStrategyId }
       : {}),
     ...familyIdentityPersistPatch(draft),
-    sysInputs: stripRuntimeSysInputs(draft.sysInputs),
+    sysInputs: stripRuntimeSysInputs(draft.sysInputs, { systemId: draft.signature?.systemId }),
     corrections: mergeCorrections(draft.corrections),
     correctionsStored: true,
   };
@@ -391,7 +439,9 @@ export function normalizeCanonicalStrategyEntry(entry: StrategyEntry): StrategyE
       ? { authoringStrategyId: entry.authoringStrategyId.trim() }
       : {}),
     ...familyIdentityPersistPatch(entry),
-    sysInputs: stripRuntimeSysInputs(entry.sysInputs as Record<string, unknown>),
+    sysInputs: stripRuntimeSysInputs(entry.sysInputs as Record<string, unknown>, {
+      systemId: entry.signature?.systemId,
+    }),
     corrections: mergeCorrections(entry.corrections),
     correctionsStored,
   };

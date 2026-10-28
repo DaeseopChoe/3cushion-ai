@@ -299,6 +299,9 @@ export function normalizeFamilyMember(
   if (input.trajectoryExtensions) {
     member.trajectoryExtensions = cloneJson(input.trajectoryExtensions);
   }
+  if (input.spiderContinuation) {
+    member.spiderContinuation = cloneJson(input.spiderContinuation);
+  }
   if (input.authoringStrategyId && input.authoringStrategyId.trim()) {
     member.authoringStrategyId = input.authoringStrategyId.trim();
   }

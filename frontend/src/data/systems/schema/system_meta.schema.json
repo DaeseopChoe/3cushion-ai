@@ -32,8 +32,16 @@
         "wedge",
         "umbrella",
         "zigzag",
+        "spider",
         "other"
       ]
+    },
+
+    "track_model": {
+      "type": "string",
+      "enum": ["family_four_track", "route_track"],
+      "default": "family_four_track",
+      "description": "family_four_track = B2T/T2B Family tracks. route_track = system route ids (e.g. spider_web RLTR_R); never cast into FamilyTrack."
     },
 
     "required_cushions": {
@@ -45,8 +53,8 @@
 
     "canonical_track": {
       "type": "string",
-      "enum": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"],
-      "description": "Primary trajectory orientation"
+      "enum": ["B2T_L", "B2T_R", "T2B_L", "T2B_R", "RLTR_R", "LRTL_L", "RLBR_L", "LRBL_R"],
+      "description": "Primary trajectory orientation (route ids only when track_model = route_track)"
     },
 
     "entry_rail": {
@@ -65,9 +73,9 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["B2T_L", "B2T_R", "T2B_L", "T2B_R"]
+        "enum": ["B2T_L", "B2T_R", "T2B_L", "T2B_R", "RLTR_R", "LRTL_L", "RLBR_L", "LRBL_R"]
       },
-      "description": "Optional alternative tracks"
+      "description": "Optional alternative tracks (route ids only when track_model = route_track)"
     },
 
     "entry_zone": {

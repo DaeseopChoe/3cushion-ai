@@ -53,6 +53,7 @@ const ALLOWED_STRATEGY_EXTRA_KEYS = new Set([
   "derivedStep",
   "trajectoryExtensions",
   "reflectionOverride",
+  "spiderContinuation",
 ]);
 
 /** DEV: `window.__CANONICAL_DEBUG__ = true` for verbose SAVE/audit logs */

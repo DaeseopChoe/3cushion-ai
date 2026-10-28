@@ -34,6 +34,8 @@ import {
 import {
   buildSysCalcDisplayModel,
 } from "../../overlay/utils/sysCalcDisplayModel";
+import { isSpiderWebSystemId } from "../../domain/spiderWeb/spiderWebTracks";
+import { SpiderWebSysPanel } from "./SpiderWebSysPanel";
 
 /**
  * AD-B2-01 / Batch 4 STEP 4-2: Presentation Layer Pure.
@@ -401,6 +403,7 @@ export function SysOverlay({
 
   useEffect(() => {
     if (isFiveHalfSystemId(formData.system)) return;
+    if (isSpiderWebSystemId(formData.system)) return;
     if (!baseResultKey || baseResultValue == null) return;
 
     setFormData(prev => {
@@ -629,21 +632,20 @@ export function SysOverlay({
     if (hasAllInputs) handleSave();
   };
 
-  return (
-    <form
-      onSubmit={handleFormSubmit}
-      style={{
-        color: '#334155',
-        fontSize: '14px',
-        lineHeight: 1.55,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-        flexWrap: 'wrap',
-        overflowX: 'hidden'
-      }}
-    >
-      {/* [B] 상단 설정: 공략 유형(고정폭) | 적용 시스템(남은 공간) */}
+  const handleSpiderApply = ({ track, values }) => {
+    onSave({
+      shotType: formData.shotType,
+      system: formData.system,
+      track,
+      inputs: { ...values },
+      system_values: { ...values },
+      corrections: { slide: 0, draw: 0, curve_ratio: 0, departure: 0, spin: 0 },
+      sys_system_mode: systemMode,
+      sys_use_sn: false,
+    });
+  };
+
+  const headerSelects = (
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: '0 0 auto' }}>
         <div style={{ flex: '0 0 160px' }}>
           <select
@@ -692,6 +694,48 @@ export function SysOverlay({
           </select>
         </div>
       </div>
+  );
+
+  if (isSpiderWebSystemId(formData.system)) {
+    return (
+      <div
+        style={{
+          color: '#334155',
+          fontSize: '14px',
+          lineHeight: 1.55,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          overflowX: 'hidden'
+        }}
+      >
+        {headerSelects}
+        <SpiderWebSysPanel
+          data={data}
+          onApply={handleSpiderApply}
+          onCancel={onCancel}
+          applyDisabled={applyDisabled}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleFormSubmit}
+      style={{
+        color: '#334155',
+        fontSize: '14px',
+        lineHeight: 1.55,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+        flexWrap: 'wrap',
+        overflowX: 'hidden'
+      }}
+    >
+      {/* [B] 상단 설정: 공략 유형(고정폭) | 적용 시스템(남은 공간) */}
+      {headerSelects}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>트랙 (Track)</span>
