@@ -8,6 +8,32 @@ Status : Active Project Log
 
 ---
 
+# 2026-11-04 — Cloud Git contract tests stabilized
+
+## Mode
+
+**Agent** · Cursor Cloud Agent · test files + this log · no product-code change · no Publish · protected paths untouched
+
+## Why
+
+On this Cloud image, a bare repo created without `-b` keeps HEAD on `master`, and test commits inherit `commit.gpgsign=true` (SSH). G7 then cloned a remote whose HEAD was not `main`. `resolveHeadCommitSha` used a 20s group budget, and S1–S4 used Vitest's default 5s, while `makeTempGitEnv` runs several Git processes plus signing.
+
+## Change
+
+- `gitPublish.contract.test.ts`: bare init and the G7 clone pass `-b main`. The test `git()` helper adds `-c commit.gpgsign=false` only when the subcommand is `commit`. S1–S4 timeout is 60s.
+- `productionVerify.contract.test.ts`: the same commit-only signing opt-out. The `productionVerify contracts` group timeout is 60s.
+- Product publish code, global Git config, MASTER Current State, and the HANDOFF entry are unchanged. This entry is appended to the active log named by `PROJECT_MASTER_INDEX.md`. A new month file was not opened.
+
+## Tests
+
+Cloud `npm run test:regression` at baseline `5086fc063a5af98b77635fb628ff3543d476ff84` plus these diffs: test:fast 264 pass · test:contract 1054 pass · full vitest 198 files / 2326 tests pass · `vite build` pass (3.30s). The commit gate re-runs the same command after this entry.
+
+## Not changed
+
+Product runtime · Architecture · feature rules · `incidenceAngle.ts` · `.workspace-data/` · `.tmp.driveupload/`.
+
+---
+
 # 2026-10-19 — 거미줄(spider_web) C1 → C2 회전 보정 반사 (C3 고정)
 
 ## Mode

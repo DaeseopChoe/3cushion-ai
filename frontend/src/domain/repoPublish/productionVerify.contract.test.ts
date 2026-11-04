@@ -188,7 +188,11 @@ function startMockServer(state: MockState): Promise<MockEnv> {
 }
 
 function git(cwd: string, args: string[]) {
-  return execFileSync("git", ["-c", "core.quotepath=false", ...args], {
+  const gitArgs =
+    args[0] === "commit"
+      ? ["-c", "commit.gpgsign=false", "-c", "core.quotepath=false", ...args]
+      : ["-c", "core.quotepath=false", ...args];
+  return execFileSync("git", gitArgs, {
     cwd,
     encoding: "utf8",
     windowsHide: true,
@@ -253,8 +257,8 @@ const fastPoll = {
 };
 
 // Phase F-1: suite-local timeout only — temp git + mock HTTP under load exceeds Vitest 5s.
-// Production poll timeouts / verify semantics unchanged. 20s ≈ 4× default headroom.
-describe("productionVerify contracts", { timeout: 20_000 }, () => {
+// Production poll timeouts / verify semantics unchanged. 60s matches the gitPublish contracts.
+describe("productionVerify contracts", { timeout: 60_000 }, () => {
 describe("productionOrigin SSOT", () => {
   it("canonical origin is https www.3cushionai.com", () => {
     expect(CANONICAL_PRODUCTION_ORIGIN).toBe("https://www.3cushionai.com");

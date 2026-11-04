@@ -137,7 +137,11 @@ type TempGitEnv = {
 let tempEnvs: TempGitEnv[] = [];
 
 function git(cwd: string, args: string[]) {
-  return execFileSync("git", ["-c", "core.quotepath=false", ...args], {
+  const gitArgs =
+    args[0] === "commit"
+      ? ["-c", "commit.gpgsign=false", "-c", "core.quotepath=false", ...args]
+      : ["-c", "core.quotepath=false", ...args];
+  return execFileSync("git", gitArgs, {
     cwd,
     encoding: "utf8",
     windowsHide: true,
@@ -149,7 +153,7 @@ function makeTempGitEnv(): TempGitEnv {
   const remote = path.join(root, "remote.git");
   const work = path.join(root, "work");
   fs.mkdirSync(remote);
-  git(root, ["init", "--bare", remote]);
+  git(root, ["init", "--bare", "-b", "main", remote]);
 
   fs.mkdirSync(work);
   git(work, ["init", "-b", "main"]);
@@ -401,7 +405,7 @@ describe("gitPublish temp-repo integration", () => {
     const env = makeTempGitEnv();
     // Advance remote via second clone
     const other = path.join(env.root, "other");
-    git(env.root, ["clone", env.remote, other]);
+    git(env.root, ["clone", "-b", "main", env.remote, other]);
     git(other, ["config", "user.name", "Other"]);
     git(other, ["config", "user.email", "other@example.com"]);
     fs.writeFileSync(path.join(other, "remote-only.txt"), "r", "utf8");
@@ -730,7 +734,7 @@ describe("security + wiring", () => {
     });
     expect(handled.statusCode).toBe(400);
     expect(handled.body.reason).toBe("forbidden-client-fields");
-  });
+  }, 60_000);
 
   it("S5/S6/S7 — vite registers git + verify endpoints as configureServer only; no api/ serverless", () => {
     const here = dirname(fileURLToPath(import.meta.url));
