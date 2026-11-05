@@ -156,6 +156,7 @@ Use official terminology and cite the relevant Glossary section.
 - [ ] Architecture Freeze 확인 (Consume only)
 - [ ] Handoff Current / Next / Carry 확인
 - [ ] Mission 문서 확인 (core 5종 이후)
+- [ ] Final reports follow `DEVELOPMENT_WORKFLOW.md` §4.4 (Cite only · do not redefine; BEGINNER / detail → MASTER Cursor Final Report Output)
 
 ---
 

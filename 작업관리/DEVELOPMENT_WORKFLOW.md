@@ -2,14 +2,14 @@
 
 ```text
 Document  : DEVELOPMENT_WORKFLOW.md
-Version   : v1.0
+Version   : v1.1
 Status    : Active Operational SSOT
-Date      : 2026-07-23
+Date      : 2026-11-05
 Type      : Project Operational Workflow SSOT (General + Fleet Apply Workflow)
 Owner     : Project Operations
 Location  : 작업관리/DEVELOPMENT_WORKFLOW.md
 Rule      : Document verified operating practice only · Do not invent new process theater
-Revision  : v1.0 — Promote to Operational Workflow SSOT · Add Fleet Apply Workflow (§8–§11)
+Revision  : v1.1 — §4.4 Cursor Final Report Output (Copyable Plain Text)
 Authority : Sole Operational Workflow SSOT · No parallel FLEET_STANDARD_WORKFLOW.md
 ```
 
@@ -20,7 +20,7 @@ Authority : Sole Operational Workflow SSOT · No parallel FLEET_STANDARD_WORKFLO
 1. Purpose  
 2. Project Operating Principles  
 3. AI Role Definition  
-4. Session Workflow  
+4. Session Workflow (incl. §4.4 Cursor Final Report Output)
 5. STEP Workflow  
 6. Git Workflow  
 7. SSOT Update Rule  
@@ -229,6 +229,33 @@ Start work
 | 매 턴 MASTER/LOG/Framework 전량 재독 | 컨텍스트·비용 낭비 · 운영 규칙 위반 |
 | Handoff 무시하고 “처음부터 재분석” | STEP 목적 파괴 |
 | Locked 문서를 “최신화” 명목으로 수정 | Freeze Respect 위반 |
+
+### 4.4 Cursor Final Report Output (Copyable Plain Text)
+
+**Purpose:** 사용자가 마우스 드래그 없이 Copy 버튼으로 최종 보고서를 그대로 전달·보관할 수 있게 한다.
+
+**Applies to:** 조사 · 설계 · 구현 · 테스트 · 검증 · Git 작업의 모든 Cursor Agent 최종 보고서.
+
+**Normative rules:**
+
+| ID | Rule |
+|----|------|
+| **FR1** | 최종 보고서는 기본적으로 **단일** plain text 코드 블록(` ```text `) 하나로 작성한다. |
+| **FR2** | 보고서가 **매우 길어** 단일 블록으로 다루기 어려운 경우에만 **2~3개**로 분할한다. |
+| **FR3** | 길지 않으면 **반드시 하나의** 코드 블록만 사용한다. |
+| **FR4** | 단순히 보고서 **항목이 많다**는 이유만으로 여러 블록으로 분할하지 않는다. |
+| **FR5** | 사용자가 마우스로 **드래그해야만** 전체를 복사할 수 있는 형식(예: UI table만, screenshot-only, 블록 밖 장문 Markdown 본문만)을 최종 보고로 쓰지 않는다. |
+| **FR6** | 분할 시 각 블록은 독립된 ` ```text ` 이며, 헤더에 `REPORT k/n` 을 표시한다. |
+
+**Content detail (Cite, do not duplicate):** `PROJECT_MASTER_INDEX.md` — “Cursor Final Report Output (Copyable Plain Text)” 및 BEGINNER SUMMARY 배치 규칙.
+
+**Relation:**
+
+| Related | Interaction |
+|---------|-------------|
+| **§13 ID3** | 단위 완료 보고의 **형식**은 본 절을 따른다. |
+| **§1.2 Handoff** | Handoff는 본 절을 재정의하지 못한다. |
+| **MASTER Reporting** | 초심자 요약·Verification 디테일은 MASTER 해당 절을 Cite한다. |
 
 ---
 
@@ -823,6 +850,7 @@ Fleet 운영 확장은 **본 문서 §8–§11 개정**으로 흡수한다.
 [ ] HANDOFF → next Entry
 [ ] Proposal list (if any) — §12
 [ ] Implementation unit complete + next scope confirmed — §13 (if in Implementation)
+[ ] Final report = single plain-text code block (or 2–3 if very long) — §4.4
 ```
 
 ### 16.3 Fleet gate card
@@ -856,7 +884,7 @@ Empty Apply: Freeze(Apply=0) → Validation → SSOT sync → PASS
 
 | Item | Value |
 |------|-------|
-| Version | **v1.0** |
+| Version | **v1.1** |
 | Status | **Active Operational SSOT** |
 | Scope | General Operational Workflow + Fleet Apply Workflow |
 | Authority | **Sole** Operational Workflow SSOT |
@@ -872,7 +900,8 @@ Empty Apply: Freeze(Apply=0) → Validation → SSOT sync → PASS
 | **v0.3** | 2026-07-17 | Add Implementation Decomposition Rule · STEP6-7A–G practice |
 | **v1.0** | 2026-07-23 | **Promote to Operational Workflow SSOT v1.0** · Refactor TOC · Add **§8 Fleet Apply Workflow** · **§9 Fleet Governance** · **§10 Fleet Validation** · **§11 Fleet SSOT Sync** · Merge Session Context / Model Selection / Improvement into numbered structure · Declare Sole Ops SSOT (no parallel Fleet workflow doc) · Verified by STEP8 B4–B7 |
 | **v1.0** | 2026-07-23 | Ops close sync — Fleet Front Matter consume 순서 명문화 (§4.1) · **B3 Hold** 원칙 명문화 (§9) · B7 PASS / B8 Entry 정합 점검 (내용 변경 없음 · 보완만) |
+| **v1.1** | 2026-11-05 | Add **§4.4 Cursor Final Report Output** (FR1–FR6 · single plain-text code block default · 2–3 blocks only when very long) · §16.2 checklist cite · MASTER Reporting Cite |
 
 ---
 
-*End of DEVELOPMENT_WORKFLOW.md — Operational Workflow SSOT v1.0*
+*End of DEVELOPMENT_WORKFLOW.md — Operational Workflow SSOT v1.1*

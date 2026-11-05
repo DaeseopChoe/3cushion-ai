@@ -544,6 +544,7 @@ Example:
 
 **Authority:** 본 절 · Project Operations / Cursor Agent Reporting
 **Not:** 코드·계산·Architecture SSOT
+**Operational obligation:** `DEVELOPMENT_WORKFLOW.md` **§4.4** (FR1–FR6). 본 절은 내용·초심자 요약·Verification 디테일을 유지하고, 운영 의무는 Workflow를 따른다.
 
 Cursor Agent **최종 보고서**는 사용자가 ChatGPT에 **그대로 전달**할 수 있도록
 **복사 가능한 plain-text code block**으로 출력한다.
@@ -555,7 +556,9 @@ Cursor Agent **최종 보고서**는 사용자가 ChatGPT에 **그대로 전달*
 | No UI-only | UI table만으로 최종 보고하지 않음 |
 | No screenshot-only | screenshot을 찍어야 전달 가능한 형식 금지 |
 | Copy-first | Copy 버튼으로 복사 가능한 형식 우선 |
-| Split | 너무 길면 `REPORT 1/2`, `REPORT 2/2` 등으로 분할 |
+| Split | 기본은 **단일** ` ```text `. **매우 긴** 경우에만 **2~3개**(`REPORT k/n`). 항목 수 많음만으로 분할하지 않음 |
+| Drag-forbidden | 사용자가 마우스로 **드래그해야만** 전체를 복사할 수 있는 최종 보고 형식 금지 |
+| Scope | 조사 · 설계 · 구현 · 테스트 · 검증 · Git 작업의 모든 최종 보고 |
 | Split independence | 분할된 각 보고도 독립된 plain-text code block |
 | Verification | Git / test / files / PASS·FAIL / hash 등 검증 정보 생략 금지 |
 
